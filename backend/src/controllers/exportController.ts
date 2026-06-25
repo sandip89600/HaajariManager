@@ -44,19 +44,20 @@ const calculateWorkerSummary = (
   let totalAmount = 0;
 
   workerAttendance.forEach((record) => {
+    const rate = record.dailyRate !== undefined && record.dailyRate !== null ? record.dailyRate : dailyRate;
+    const extra = (record.customWage !== undefined && record.customWage !== null) ? record.customWage : 0;
     let recordPay = 0;
-    if (record.finalPay !== undefined && record.finalPay !== null) {
-      recordPay = record.finalPay;
+
+    if (record.value === "P" || record.value === "OT") {
+      recordPay = rate + extra;
+    } else if (record.value === "H") {
+      recordPay = (rate / 2) + extra;
+    } else if (record.value === "A") {
+      recordPay = extra;
+    } else if (typeof record.value === "number") {
+      recordPay = record.value;
     } else {
-      if (record.value === "P" || record.value === "OT") {
-        recordPay = dailyRate;
-      } else if (record.value === "H") {
-        recordPay = dailyRate / 2;
-      } else if (typeof record.value === "number") {
-        recordPay = record.value;
-      } else {
-        recordPay = 0;
-      }
+      recordPay = extra;
     }
     totalAmount += recordPay;
 

@@ -8,11 +8,11 @@ const getApiUrl = () => {
   const debuggerHost = Constants.expoConfig?.hostUri || "";
   const ip = debuggerHost.split(":")[0];
   if (ip) {
-    return `http://${ip}:5000/api`;
+    return `https://haajarimanager-production.up.railway.app/api`;
   }
   return Platform.OS === "android"
     ? "http://10.0.2.2:5000/api"
-    : "http://localhost:5000/api";
+    : "https://haajarimanager-production.up.railway.app/api";
 };
 
 export const API_URL = getApiUrl();
@@ -1179,20 +1179,20 @@ export function calculateWorkerSummary(
 
   workerAttendance.forEach((record) => {
     // 1. Calculate pay for this day
+    const rate = record.dailyRate !== undefined && record.dailyRate !== null ? record.dailyRate : dailyRate;
+    const extra = (record.customWage !== undefined && record.customWage !== null) ? record.customWage : 0;
     let recordPay = 0;
-    if (record.finalPay !== undefined && record.finalPay !== null) {
-      recordPay = record.finalPay;
+
+    if (record.value === "P" || record.value === "OT") {
+      recordPay = rate + extra;
+    } else if (record.value === "H") {
+      recordPay = (rate / 2) + extra;
+    } else if (record.value === "A") {
+      recordPay = extra;
+    } else if (typeof record.value === "number") {
+      recordPay = record.value;
     } else {
-      // Fallback for older records
-      if (record.value === "P" || record.value === "OT") {
-        recordPay = dailyRate;
-      } else if (record.value === "H") {
-        recordPay = dailyRate / 2;
-      } else if (typeof record.value === "number") {
-        recordPay = record.value;
-      } else {
-        recordPay = 0;
-      }
+      recordPay = extra;
     }
     totalAmount += recordPay;
 

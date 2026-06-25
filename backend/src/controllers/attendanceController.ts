@@ -60,21 +60,21 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
 
     const dailyRateResolved = req.body.dailyRate !== undefined ? req.body.dailyRate : workerDailyRate;
     let customWageResolved = req.body.customWage;
-    let finalPayResolved = req.body.finalPay;
+    let finalPayResolved = 0;
 
-    if (customWageResolved !== undefined && customWageResolved !== null) {
-      finalPayResolved = customWageResolved;
+    const extraWage = (customWageResolved !== undefined && customWageResolved !== null) ? customWageResolved : 0;
+
+    if (value === "P" || value === "OT") {
+      finalPayResolved = dailyRateResolved + extraWage;
+    } else if (value === "H") {
+      finalPayResolved = (dailyRateResolved / 2) + extraWage;
+    } else if (value === "A") {
+      finalPayResolved = extraWage;
+    } else if (typeof value === "number") {
+      customWageResolved = value;
+      finalPayResolved = value;
     } else {
-      if (value === "P" || value === "OT") {
-        finalPayResolved = dailyRateResolved;
-      } else if (value === "H") {
-        finalPayResolved = dailyRateResolved / 2;
-      } else if (typeof value === "number") {
-        customWageResolved = value;
-        finalPayResolved = value;
-      } else {
-        finalPayResolved = 0;
-      }
+      finalPayResolved = extraWage;
     }
 
     const filter = { tenantId, workerId, year, month, day };
@@ -152,21 +152,21 @@ export const syncAttendance = async (req: AuthenticatedRequest, res: Response) =
 
       const dailyRateResolved = dailyRate !== undefined ? dailyRate : workerDailyRate;
       let customWageResolved = customWage;
-      let finalPayResolved = finalPay;
+      let finalPayResolved = 0;
 
-      if (customWageResolved !== undefined && customWageResolved !== null) {
-        finalPayResolved = customWageResolved;
+      const extraWage = (customWageResolved !== undefined && customWageResolved !== null) ? customWageResolved : 0;
+
+      if (value === "P" || value === "OT") {
+        finalPayResolved = dailyRateResolved + extraWage;
+      } else if (value === "H") {
+        finalPayResolved = (dailyRateResolved / 2) + extraWage;
+      } else if (value === "A") {
+        finalPayResolved = extraWage;
+      } else if (typeof value === "number") {
+        customWageResolved = value;
+        finalPayResolved = value;
       } else {
-        if (value === "P" || value === "OT") {
-          finalPayResolved = dailyRateResolved;
-        } else if (value === "H") {
-          finalPayResolved = dailyRateResolved / 2;
-        } else if (typeof value === "number") {
-          customWageResolved = value;
-          finalPayResolved = value;
-        } else {
-          finalPayResolved = 0;
-        }
+        finalPayResolved = extraWage;
       }
 
       const filter = { tenantId, workerId, year, month, day };
