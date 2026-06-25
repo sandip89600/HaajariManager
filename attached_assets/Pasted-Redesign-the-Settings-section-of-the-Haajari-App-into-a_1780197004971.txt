@@ -1,0 +1,106 @@
+Redesign the “Settings” section of the Haajari App into a premium modern Google Material Design 3 + CRED inspired mobile UI while keeping the same functionality and dark theme structure.
+
+Current settings include:
+
+* User profile card
+* Theme option
+* Language option
+* GPS attendance toggle
+* Logout button
+
+Create a fully modernized production-level SaaS settings screen with cleaner spacing, premium cards, modern icons, smooth animations, and professional contractor/business app aesthetics.
+
+Theme:
+
+* Dark premium background (#121212)
+* Orange accent (#FF6B35)
+* Dark Navy Blue (#1E3A5F)
+* Soft glassmorphism effects
+* Smooth shadows
+* Rounded corners
+* Minimal clean typography
+
+New Settings UI Layout:
+
+Top Section:
+
+* Large profile card with gradient background
+* Circular avatar with edit icon
+* User name
+* Email address
+* Role badge (Admin/User)
+* Small “Edit Profile” action button
+
+Grouped Settings Cards:
+
+1. Appearance Section
+
+* Theme mode selector
+* Light / Dark / System options
+* Modern bottom sheet modal
+* Animated selection checkmark
+
+2. Language Section
+
+* English / Hindi selector
+* Flag or icon support
+* Smooth selection animation
+
+3. Attendance Settings
+
+* GPS Attendance toggle
+* Live location indicator
+* Sync status
+* Cloud backup status
+
+4. Account & Security
+
+* Change password
+* OTP verification
+* Biometric login toggle
+* Privacy & permissions
+
+5. Subscription Section
+
+* Current plan badge
+* Premium features list
+* Upgrade button
+* Subscription expiry info
+
+6. Support & About
+
+* Help & Support
+* Terms & Conditions
+* Privacy Policy
+* App version
+* Rate app button
+
+Bottom Section:
+
+* Logout button with red outline
+* Confirmation modal before logout
+
+UI Style Requirements:
+
+* Floating premium cards
+* Modern toggles
+* Smooth micro-interactions
+* Better spacing consistency
+* Material Design 3 aesthetics
+* Glassmorphism highlights
+* Soft blur backgrounds
+* Premium business SaaS appearance
+* Responsive mobile layout
+
+Animations:
+
+* Smooth card transitions
+* Toggle animations
+* Bottom sheet interactions
+* Press feedback
+* Fade and slide effects
+
+Design inspiration:
+Google Wallet + CRED + Notion Mobile + modern SaaS productivity app.
+
+Generate ultra realistic mobile UI mockups for the Settings screen using the exact Haajari App dark orange theme but redesigned into a clean premium production-ready interface.

@@ -1,0 +1,146 @@
+
+> my-app@1.0.0 dev
+> EXPO_PACKAGER_PROXY_URL=https://$REPLIT_DEV_DOMAIN REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN npx expo start
+
+[1G[0K[1G[0K⠙[1G[0K[90mStarting project at /home/runner/workspace[39m
+[90mReact Compiler enabled[39m
+[2mStarting Metro Bundler[22m
+[33mThe following packages should be updated for best compatibility with the installed [1mexpo[22m version:[39m
+[33m  [1mexpo[22m[36m@[39m[33m[31m54.0.23[39m[33m - expected version: [32m~54.0.35[39m[33m[39m
+[33m  [1mexpo-blur[22m[36m@[39m[33m[31m15.0.7[39m[33m - expected version: [32m~15.0.8[39m[33m[39m
+[33m  [1mexpo-font[22m[36m@[39m[33m[31m14.0.9[39m[33m - expected version: [32m~14.0.12[39m[33m[39m
+[33m  [1mexpo-glass-effect[22m[36m@[39m[33m[31m0.1.6[39m[33m - expected version: [32m~0.1.10[39m[33m[39m
+[33m  [1mexpo-haptics[22m[36m@[39m[33m[31m15.0.7[39m[33m - expected version: [32m~15.0.8[39m[33m[39m
+[33m  [1mexpo-image[22m[36m@[39m[33m[31m3.0.10[39m[33m - expected version: [32m~3.0.11[39m[33m[39m
+[33m  [1mexpo-image-picker[22m[36m@[39m[33m[31m17.0.8[39m[33m - expected version: [32m~17.0.11[39m[33m[39m
+[33m  [1mexpo-linking[22m[36m@[39m[33m[31m8.0.8[39m[33m - expected version: [32m~8.0.12[39m[33m[39m
+[33m  [1mexpo-print[22m[36m@[39m[33m[31m15.0.7[39m[33m - expected version: [32m~15.0.8[39m[33m[39m
+[33m  [1mexpo-sharing[22m[36m@[39m[33m[31m14.0.7[39m[33m - expected version: [32m~14.0.8[39m[33m[39m
+[33m  [1mexpo-splash-screen[22m[36m@[39m[33m[31m31.0.10[39m[33m - expected version: [32m~31.0.13[39m[33m[39m
+[33m  [1mexpo-status-bar[22m[36m@[39m[33m[31m3.0.8[39m[33m - expected version: [32m~3.0.9[39m[33m[39m
+[33m  [1mexpo-symbols[22m[36m@[39m[33m[31m1.0.7[39m[33m - expected version: [32m~1.0.8[39m[33m[39m
+[33m  [1mexpo-system-ui[22m[36m@[39m[33m[31m6.0.8[39m[33m - expected version: [32m~6.0.9[39m[33m[39m
+[33m  [1mexpo-web-browser[22m[36m@[39m[33m[31m15.0.9[39m[33m - expected version: [32m~15.0.11[39m[33m[39m
+[33mYour project may not work correctly until you install the expected versions of the packages.[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▄▀ ▄ ▄▀██▄▀▀▄ ██▄█ ▄▄▄▄▄ █
+█ █   █ ███▄▄█ ▄▀▀▀     ▀▄█ █   █ █
+█ █▄▄▄█ ██▄▀▀████▀ ▀▄ ▄ ▀ █ █▄▄▄█ █
+█▄▄▄▄▄▄▄█ █ █▄▀ █ █ ▀ █▄█ █▄▄▄▄▄▄▄█
+█▄ █  █▄██ ▄▀▄▀  ▄    ▀  ▀▀▄█▀▀██▄█
+█▄█ ▀█ ▄█▄▀  ▄▄▀   ██▄▄▄ █▄ ▀█▀▀█ █
+█▄▀█ █▀▄▄▀▄█ ▄▀▀▀ ▀▀█▀█ ▀ ▀▄▄█ █▄██
+█   ▄  ▄▄▄▄█▀▄██▄▄▄█ ▄▄█▀██▀█▄▄▀▄▀█
+█▄▀█ █▀▄█ ▀ █  █ ███▀██ ▄▀▄ █ █▀▀ █
+█▀▀ █ ▄▄ ▀ ▀▄▄▀▄▄█▄ ▄█▄█▄ ▄▄██▄ ▀ █
+█▀▀ ▀▀▄▄▄  ▀▀█▀▀▀▀▄▄  █▀ ▀ █ ▀ ▀ ▄█
+█ █▄▀▀ ▄▄█▀▄ ▀▄█▄▀ ▀█ ██ ████ ▄▀ ▄█
+█▄▄▄███▄▄▀█▀▀▄▀█▀▀▀▄▄▄█ ▄ ▄▄▄  ▀▀▄█
+█ ▄▄▄▄▄ ██ ▄█▄█▀  █▄  ▄█  █▄█ █ ▀██
+█ █   █ █ ▄ █▄▄█  ▀▄▀███  ▄▄ ▄▀████
+█ █▄▄▄█ █▀█ ▄  █ ▀█▀ █▄█▀▄▄█    ▀ █
+█▄▄▄▄▄▄▄█▄▄████▄▄█▄█▄████▄██▄▄█████
+
+› Metro waiting on
+[4mexp://46d8c3c9-6dc8-4e87-8920-5dc54e3d7781-00-ox496w2x9dkd.spock.replit.dev[24m
+› Scan the QR code above with Expo Go (Android) or the Camera app (iOS)
+
+› Web is waiting on [4mhttp://localhost:8081[24m
+
+› Using [36mExpo Go[39m
+› Press [1ms[22m [2m│[22m switch to development build
+
+› Press [1ma[22m [2m│[22m open Android
+› Press [1mw[22m [2m│[22m open web
+
+› Press [1mj[22m [2m│[22m open debugger
+› Press [1mr[22m [2m│[22m reload app
+› Press [1mm[22m [2m│[22m toggle menu
+› [1mshift+m[22m [2m│[22m more tools
+› Press [1mo[22m [2m│[22m open project code in your editor
+
+› Press [1m?[22m [2m│[22m show all commands
+
+Logs for your project will appear below.[2m Press Ctrl+C to exit.[22m
+[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[98D[2A[0J[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  4.9% [22m[2m( 34/154)[22m
+[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[98D[2A[0J[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [32m[42m▓▓[49m[39m[47m[37m░░░░░░░░░░░░░░[39m[49m[1m 15.7% [22m[2m(121/305)[22m
+[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[98D[2A[0J[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [32m[42m▓▓▓▓[49m[39m[47m[37m░░░░░░░░░░░░[39m[49m[1m 30.7% [22m[2m(205/370)[22m
+[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[98D[2A[0J[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [32m[42m▓▓▓▓[49m[39m[47m[37m░░░░░░░░░░░░[39m[49m[1m 31.1% [22m[2m(304/545)[22m
+[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[98D[2A[0J[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [32m[42m▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░░░░░[39m[49m[1m 42.0% [22m[2m(427/659)[22m
+[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[98D[2A[0J[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [32m[42m▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░░[39m[49m[1m 57.7% [22m[2m(613/807)[22m
+[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[98D[2A[0J[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░[39m[49m[1m 72.9% [22m[2m(783/917)[22m
+[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[98D[2A[0J[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░[39m[49m[1m 86.4% [22m[2m( 965/1038)[22m
+[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[98D[2A[0J[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░[39m[49m[1m 93.3% [22m[2m(1073/1111)[22m
+[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[98D[2A[0J[31m[1mWeb[22m Bundling failed [39m[2m983ms[22m[0m[2m index.js (1 module)[22m[0m
+[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░[39m[49m[1m 93.3% [22m[2m(1073/1111)[22m
+[1mWeb[22m [0m[2m./[22m[0m[1mindex.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[98D[2A[0JUnable to resolve "expo-document-picker" from "screens/SettingsScreen.tsx"
+[0m [90m 30 |[39m [36mimport[39m [33m*[39m [36mas[39m [33mFileSystem[39m [36mfrom[39m [32m"expo-file-system"[39m[33m;[39m
+ [90m 31 |[39m [36mimport[39m [33m*[39m [36mas[39m [33mSharing[39m [36mfrom[39m [32m"expo-sharing"[39m[33m;[39m
+[31m[1m>[22m[39m[90m 32 |[39m [36mimport[39m [33m*[39m [36mas[39m [33mDocumentPicker[39m [36mfrom[39m [32m"expo-document-picker"[39m[33m;[39m
+ [90m    |[39m                                  [31m[1m^[22m[39m
+ [90m 33 |[39m
+ [90m 34 |[39m [36mimport[39m { [33mThemedText[39m } [36mfrom[39m [32m"@/components/ThemedText"[39m[33m;[39m
+ [90m 35 |[39m [36mimport[39m { [33mThemedView[39m } [36mfrom[39m [32m"@/components/ThemedView"[39m[33m;[39m[0m
+
+[1mImport stack:[22m
+
+[90m [39mscreens/SettingsScreen.tsx
+[90m |[39m [36mimport[39m [32m"expo-document-picker"[39m
+
+[90m [39mnavigation/MainTabNavigator.tsx
+[90m |[39m [36mimport[39m [32m"../screens/SettingsScreen"[39m
+
+[90m [39mnavigation/RootNavigator.tsx
+[90m |[39m [36mimport[39m [32m"./MainTabNavigator"[39m
+
+[90m [39mApp.tsx
+[90m |[39m [36mimport[39m [32m"./navigation/RootNavigator"[39m
+
+[90m [39mindex.js
+[90m |[39m [36mimport[39m [32m"./App"[39m
+
+[90m [39m
+[90m |[39m [36mimport[39m [32m"./index"[39m
+
+[31m[1mWeb[22m Bundling failed [39m[2m988ms[22m[0m[2m index.js (1111 modules)[22m[0m
+Unable to resolve "expo-document-picker" from "screens/SettingsScreen.tsx"
+[0m [90m 30 |[39m [36mimport[39m [33m*[39m [36mas[39m [33mFileSystem[39m [36mfrom[39m [32m"expo-file-system"[39m[33m;[39m
+ [90m 31 |[39m [36mimport[39m [33m*[39m [36mas[39m [33mSharing[39m [36mfrom[39m [32m"expo-sharing"[39m[33m;[39m
+[31m[1m>[22m[39m[90m 32 |[39m [36mimport[39m [33m*[39m [36mas[39m [33mDocumentPicker[39m [36mfrom[39m [32m"expo-document-picker"[39m[33m;[39m
+ [90m    |[39m                                  [31m[1m^[22m[39m
+ [90m 33 |[39m
+ [90m 34 |[39m [36mimport[39m { [33mThemedText[39m } [36mfrom[39m [32m"@/components/ThemedText"[39m[33m;[39m
+ [90m 35 |[39m [36mimport[39m { [33mThemedView[39m } [36mfrom[39m [32m"@/components/ThemedView"[39m[33m;[39m[0m
+
+[1mImport stack:[22m
+
+[90m [39mscreens/SettingsScreen.tsx
+[90m |[39m [36mimport[39m [32m"expo-document-picker"[39m
+
+[90m [39mnavigation/MainTabNavigator.tsx
+[90m |[39m [36mimport[39m [32m"../screens/SettingsScreen"[39m
+
+[90m [39mnavigation/RootNavigator.tsx
+[90m |[39m [36mimport[39m [32m"./MainTabNavigator"[39m
+
+[90m [39mApp.tsx
+[90m |[39m [36mimport[39m [32m"./navigation/RootNavigator"[39m
+
+[90m [39mindex.js
+[90m |[39m [36mimport[39m [32m"./App"[39m
+
+[90m [39m
+[90m |[39m [36mimport[39m [32m"./index"[39m
+

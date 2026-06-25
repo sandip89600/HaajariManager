@@ -1,0 +1,165 @@
+Upgrade the existing Labour Attendance & Payroll Management App into a real production-level SaaS application using React Native + Expo with Firebase backend integration.
+
+Current app already includes:
+
+* Authentication
+* Guest mode
+* Worker management
+* Attendance tracking
+* Payment tracking
+* Admin dashboard
+* Multi-language support
+* Dark mode
+* PDF/CSV export
+* Offline storage using AsyncStorage
+
+Now upgrade the app with real backend systems and production features.
+
+# Backend & Database
+
+Integrate Firebase backend.
+
+Use:
+
+* Firebase Authentication
+* Cloud Firestore
+* Firebase Storage
+* Firebase Cloud Messaging
+
+Replace local-only AsyncStorage architecture with:
+
+* Firestore realtime database
+* Cloud sync
+* Multi-device sync
+* Automatic backup restore
+
+Keep offline-first support:
+
+* App should work offline
+* Auto sync data when internet returns
+
+# Real OTP Authentication
+
+Implement real phone number OTP login using Firebase Authentication.
+
+Flow:
+
+1. User enters phone number
+2. OTP sent automatically
+3. User verifies OTP
+4. User account created/login successful
+5. Session remains logged in
+
+Support:
+
+* Phone OTP Login
+* Email Login
+* Guest Mode
+* Logout
+* Persistent login session
+
+# Real GPS Attendance
+
+Implement real location-based attendance system.
+
+Use Expo Location.
+
+Features:
+
+* Capture live GPS location
+* Store latitude & longitude
+* Store timestamp
+* Geo-fencing support
+* Attendance allowed only inside work-site radius
+
+Example:
+
+* Attendance works only within 100 meters of site location
+
+# Cloud Sync
+
+Implement realtime cloud sync.
+
+Requirements:
+
+* Multiple devices see same data
+* Owner & supervisor sync
+* Automatic realtime updates
+* Offline caching
+* Background synchronization
+
+# Subscription System
+
+Implement monthly subscription plans using Google Play Billing / React Native IAP.
+
+Plans:
+Free:
+
+* Limited workers
+* Basic attendance
+
+Paid:
+
+* Unlimited workers
+* Payment tracking
+* Export reports
+* Advanced reports
+* Cloud backup
+* GPS attendance
+
+Features:
+
+* Subscription purchase
+* Auto renewal
+* Restore purchases
+* Premium feature locking
+
+# Push Notifications
+
+Use Expo Notifications.
+
+Notification examples:
+
+* Attendance reminder
+* Salary due reminder
+* Subscription expiry warning
+
+# Worker Improvements
+
+Add:
+
+* Worker photo upload
+* Phone number
+* Address
+* Notes
+* Aadhaar/PAN upload
+
+# Security
+
+Implement:
+
+* Firebase security rules
+* Secure authentication
+* Protected routes
+* Encrypted local storage
+
+# Performance
+
+Optimize:
+
+* FlatList rendering
+* Lazy loading
+* Fast attendance grid
+* Smooth animations
+
+# Final Goal
+
+Convert the existing offline labour attendance app into a real scalable production SaaS application with:
+
+* Realtime backend
+* OTP authentication
+* GPS attendance
+* Cloud sync
+* Subscription model
+* Multi-device support
+* Production-ready architecture

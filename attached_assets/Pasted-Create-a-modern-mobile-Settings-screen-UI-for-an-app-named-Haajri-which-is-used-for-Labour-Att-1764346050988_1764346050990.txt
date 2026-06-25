@@ -1,0 +1,106 @@
+Create a modern mobile "Settings" screen UI for an app named **Haajri** which is used for Labour Attendance and Construction Management.
+
+Design Requirements:
+- Mobile-first UI
+- Minimal, clean layout
+- Rounded containers and smooth shadows
+- Color theme similar to CRED / modern fintech app
+- Easy readability with spacing and icons
+- Dark and Light Mode compatible
+
+Sections and Features to Include:
+
+---
+
+👤 **Profile Section**
+- Profile photo with circular avatar
+- Username and Email
+- "Edit Profile" button
+
+---
+
+⚙️ **App Preferences**
+- Theme Selector (Light / Dark / System Default)
+- Font Size: Small / Medium / Large
+- Language Selector:
+  - English
+  - Hindi
+  - Marathi
+  - Gujarati
+
+Use radio buttons or tiles with selected highlight color.
+
+---
+
+📍 **Attendance Settings**
+- Toggle Switches:
+  - Enable GPS-based Attendance
+  - Require Photo verification
+  - Enable Auto Attendance Reminder
+- Reminder timing dropdown (Morning 9AM, Evening 6PM)
+- Default wage method selector:
+  - Daily wage
+  - Half day
+  - Piece rate
+
+---
+
+🔐 **Security**
+- Change Password
+- Enable 2-Factor Authentication (OTP)
+- App Lock (PIN / Pattern toggle)
+- Session Timeout setting dropdown
+
+---
+
+📁 **Backup & Data**
+- Export attendance data as:
+  - PDF
+  - Excel
+  - CSV
+- Cloud sync toggle
+- Option: "Backup to Google Drive"
+
+---
+
+🔔 **Notifications**
+- Toggle Push Notification
+- Wage reminder alert
+- Labour birthday alerts (optional fun feature)
+
+---
+
+ℹ️ **App Information**
+- Version number at bottom (Haajri v1.0.0)
+- Privacy Policy
+- Terms and Conditions
+- About App
+
+---
+
+🆘 **Support**
+- "Contact Support" button
+- WhatsApp support link
+- "Report a Bug" CTA
+
+---
+
+⚠️ **Danger Zone (Red Highlight Section)**
+- Logout Button
+- Delete Account
+
+---
+
+Style and UI Notes:
+- Use icons beside each setting
+- Use card layout with border-radius 18-22px
+- Spacing and typography must feel premium
+- Bottom Navigation Bar (5 tabs):
+  - Attendance
+  - Workers
+  - Summary
+  - Profile
+  - Settings (active)
+
+Design must feel intuitive, professional, and easy for non-technical labour supervisors.
+

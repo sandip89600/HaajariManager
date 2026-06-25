@@ -1,0 +1,14 @@
+{
+  "name": "haajari-manager-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "test:backend": "npm --prefix backend test",
+    "build:backend": "npm --prefix backend run build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0"
+  }
+}

@@ -1,0 +1,87 @@
+**"Build a mobile-first web application called Haajari App for managing labour attendance and payments.
+1. Purpose
+The app is for a construction site to track:
+•	Labour
+•	Labour wife / Bai
+•	Mistri / Bandkam
+•	Plaster workers
+•	Tiles workers
+•	Sutar (carpenter)
+Each worker’s daily attendance and payment should be recorded.
+2. Layout (like register book)
+•	Top horizontal header = dates 1 to 30/31 of the selected month.
+•	Left vertical column = list of worker names (editable).
+•	The grid in the middle is an attendance table:
+o	Each cell must accept:
+	P = Present
+	A = Absent
+	1/2 = Half day
+	Or a number like 100,200,500 1000 = amount for that day, month make a separate for calculation.
+3. Features
+1.	Worker Management
+o	Add, edit, delete worker.
+o	Store worker type/category (Bandkam, Plaster, Tiles, Sutar, Labour, Bai, Mistri).
+2.	Attendance & Payment Calculation
+o	Auto calculate for each worker:
+	Total present days
+	Total half days
+	Total absent days
+	Total amount payable (monthly).
+o	Option to set different daily rate per worker.
+o	Option for manual adjustment of final amount.
+3.	Color Coding in table
+o	Green cell = Present
+o	Red cell = Absent
+o	Yellow cell = Half day
+o	Blue cell = Amount entered
+4.	Month & Summary
+o	Drop-down to select month and year.
+o	Summary screen showing all workers with total payment for selected month.
+5.	Export / Print
+o	Button to:
+	Print the sheet
+	Export as PDF
+	Export as CSV/Excel (if possible).
+4. Login System
+•	Simple login page before opening the attendance page.
+•	At least:
+o	Owner/Admin login with email + password or mobile + PIN.
+•	Store credentials securely (hashed) if backend is used.
+•	After login, user stays logged in until they log out.
+5. Multiple Language Support
+•	On first screen or in settings, user can select language.
+•	At least support:
+o	English
+o	Hindi
+o	(Optional: allow adding more languages easily)
+•	Use a simple i18n system:
+o	Store all text labels in JSON files, e.g. en.json, hi.json.
+o	When user changes language, UI text updates without reloading data.
+•	App labels like buttons, headings, menus should change with language.
+6. Offline-First (Mobile friendly)
+•	The app must work offline on mobile as a Progressive Web App (PWA):
+o	Use a service worker to cache HTML, CSS, JS and icons.
+o	Use IndexedDB or LocalStorage to store attendance, workers, settings and language.
+o	On next open, even without internet, all previous data should load.
+•	Add “Add to Home Screen” support with a manifest.json so it feels like a mobile app.
+•	Design should be:
+o	Mobile-first responsive layout
+o	Large touch-friendly buttons
+o	Sticky header row (dates) and left column (names) if possible when scrolling.
+7. Tech Stack
+•	Frontend: HTML, CSS, JavaScript (Vanilla or a simple framework).
+•	Optional backend: Node.js + Express (only if needed for user auth; otherwise can keep everything local).
+•	Use clean, modern UI similar to Google Sheets but simpler and optimized for mobile.
+8. Code Quality
+•	Write clean, well-structured, and well-commented code.
+•	Explain in comments how to:
+o	Change/add languages
+o	Change worker types
+o	Change attendance symbols if needed.
+Build the complete Haajari App with these features."**
+________________________________________
+
+•	Logo design for Haajari App
+•	Color theme (e.g. orange + dark blue)
+•	Simple icon ideas (attendance tick, calendar, hard hat, etc.)
+
