@@ -56,15 +56,18 @@ const limiter = rateLimit({
 app.use("/api/", limiter);
 
 // Health check endpoint
-app.get("/health", (req, res) => {
-  res.json({
+app.get("/api/health", (req, res) => {
+  res.status(200).json({
+    success: true,
     status: "OK",
-    timestamp: new Date(),
+    database:
+      mongoose.connection.readyState === 1
+        ? "CONNECTED"
+        : "DISCONNECTED",
     uptime: process.uptime(),
-    dbState: mongoose.connection.readyState === 1 ? "CONNECTED" : "DISCONNECTED",
+    timestamp: new Date(),
   });
 });
-
 // Register API routes
 app.use("/api", apiRoutes);
 
@@ -88,14 +91,14 @@ if (process.env.NODE_ENV !== "test") {
       console.log("Connected to MongoDB successfully.");
       const server = createServer(app);
       initSocket(server);
-      server.listen(PORT, () => {
+ server.listen(Number(PORT), "0.0.0.0", () => {
         console.log(`Haajari Server (with Socket.io) running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode.`);
       });
     })
     .catch((err) => {
       console.error("Database connection error:", err);
       process.exit(1);
-    });
+     });
 }
 
 export { app };
