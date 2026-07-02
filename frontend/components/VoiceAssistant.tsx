@@ -86,6 +86,9 @@ export default function VoiceAssistant() {
   const pulse5 = useSharedValue(1);
 
   const buttonScale = useSharedValue(1);
+  const pulseRingScale = useSharedValue(1);
+  const pulseRingOpacity = useSharedValue(0.6);
+  const menuAnimation = useSharedValue(0);
 
   // Synchronize waveforms
   useEffect(() => {
@@ -159,6 +162,55 @@ export default function VoiceAssistant() {
     transform: [{ scale: buttonScale.value }],
   }));
 
+  // Idle pulse ring animations for premium AI look
+  useEffect(() => {
+    pulseRingScale.value = withRepeat(
+      withTiming(1.35, { duration: 2500 }),
+      -1,
+      false,
+    );
+    pulseRingOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0, { duration: 2500 }),
+        withTiming(0.6, { duration: 0 }),
+      ),
+      -1,
+      false,
+    );
+  }, [pulseRingOpacity, pulseRingScale]);
+
+  // Sync menu animation shared value
+  useEffect(() => {
+    menuAnimation.value = withSpring(isExpanded ? 1 : 0, { damping: 15 });
+  }, [isExpanded, menuAnimation]);
+
+  const animatedRing = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseRingScale.value }],
+    opacity: pulseRingOpacity.value,
+  }));
+
+  const containerStyle = useAnimatedStyle(() => ({
+    width: withSpring(isExpanded ? 260 : 60, { damping: 15 }),
+  }));
+
+  const voiceStyle = useAnimatedStyle(() => ({
+    opacity: menuAnimation.value,
+    pointerEvents: isExpanded ? "auto" : "none",
+    transform: [{ translateX: menuAnimation.value * -65 }],
+  }));
+
+  const chatStyle = useAnimatedStyle(() => ({
+    opacity: menuAnimation.value,
+    pointerEvents: isExpanded ? "auto" : "none",
+    transform: [{ translateX: menuAnimation.value * -125 }],
+  }));
+
+  const liveStyle = useAnimatedStyle(() => ({
+    opacity: menuAnimation.value,
+    pointerEvents: isExpanded ? "auto" : "none",
+    transform: [{ translateX: menuAnimation.value * -185 }],
+  }));
+
   // Toast Timer Hook
   useEffect(() => {
     if (toast) {
@@ -213,7 +265,7 @@ export default function VoiceAssistant() {
 
     if (chatHistory.length === 0) {
       setAiResponse(
-        "Hello! How can I help you today? Aap voice commands de sakte hain.",
+        "Hi, I'm HAI — Haajari Artificial Intelligence. How can I help you today?",
       );
     }
   };
@@ -839,110 +891,85 @@ export default function VoiceAssistant() {
         </Animated.View>
       )}
 
-      {/* Floating AI Button & Simple Popover Menu */}
+      {/* Floating AI Button & Expandable Fan Menu */}
       {mode === "none" && (
-        <>
-          {/* Popover Menu Card */}
-          {isExpanded && (
+        <Animated.View style={[styles.floatingButtonContainer, containerStyle]}>
+          {/* Main Button */}
+          <Pressable
+            onPress={toggleMenu}
+            onPressIn={() => {
+              buttonScale.value = withSpring(0.9, { damping: 10 });
+            }}
+            onPressOut={() => {
+              buttonScale.value = withSpring(1, { damping: 10 });
+            }}
+            style={styles.mainFloatingButtonWrapper}
+          >
+            {/* Pulsing ring when idle */}
+            {!isExpanded && (
+              <Animated.View style={[styles.pulseRing, animatedRing]} />
+            )}
             <Animated.View
-              entering={FadeIn.duration(200)}
-              exiting={FadeOut.duration(150)}
-              style={[
-                styles.menuCard,
-                {
-                  backgroundColor: isDark
-                    ? "rgba(15, 23, 42, 0.95)"
-                    : "rgba(255, 255, 255, 0.98)",
-                  borderColor: isDark
-                    ? "rgba(255, 255, 255, 0.1)"
-                    : "rgba(0, 0, 0, 0.08)",
-                },
-              ]}
+              style={[styles.floatingButtonContent, animatedButton]}
             >
-              <Pressable onPress={startVoiceMode} style={styles.menuItem}>
-                <Feather
-                  name="mic"
-                  size={16}
-                  color="#FF6B35"
-                  style={styles.menuItemIcon}
-                />
-                <ThemedText style={styles.menuItemText}>Voice Mode</ThemedText>
-              </Pressable>
-
-              <View
-                style={[
-                  styles.menuDivider,
-                  {
-                    backgroundColor: isDark
-                      ? "rgba(255, 255, 255, 0.08)"
-                      : "rgba(0, 0, 0, 0.05)",
-                  },
-                ]}
-              />
-
-              <Pressable onPress={startChatMode} style={styles.menuItem}>
-                <Feather
-                  name="message-square"
-                  size={16}
-                  color="#3B82F6"
-                  style={styles.menuItemIcon}
-                />
-                <ThemedText style={styles.menuItemText}>Chat Mode</ThemedText>
-              </Pressable>
-
-              <View
-                style={[
-                  styles.menuDivider,
-                  {
-                    backgroundColor: isDark
-                      ? "rgba(255, 255, 255, 0.08)"
-                      : "rgba(0, 0, 0, 0.05)",
-                  },
-                ]}
-              />
-
-              <Pressable onPress={startLiveMode} style={styles.menuItem}>
-                <Feather
-                  name="zap"
-                  size={16}
-                  color="#F59E0B"
-                  style={styles.menuItemIcon}
-                />
-                <ThemedText style={styles.menuItemText}>
-                  Live Copilot
-                </ThemedText>
-              </Pressable>
-            </Animated.View>
-          )}
-
-          {/* Main Floating Button */}
-          <Animated.View style={styles.floatingButtonContainer}>
-            <Pressable
-              onPress={toggleMenu}
-              onPressIn={() => {
-                buttonScale.value = withSpring(0.9, { damping: 10 });
-              }}
-              onPressOut={() => {
-                buttonScale.value = withSpring(1, { damping: 10 });
-              }}
-            >
-              <Animated.View
-                style={[styles.mainFloatingButtonWrapper, animatedButton]}
+              <LinearGradient
+                colors={["#FF6B35", "#FF8C35"]}
+                style={styles.floatingButton}
               >
-                <LinearGradient
-                  colors={["#FF6B35", "#FF8C35"]}
-                  style={styles.floatingButton}
-                >
-                  <Feather
-                    name={isExpanded ? "x" : "cpu"}
-                    size={26}
-                    color="#FFFFFF"
-                  />
-                </LinearGradient>
-              </Animated.View>
+                <Feather
+                  name={isExpanded ? "x" : "cpu"}
+                  size={26}
+                  color="#FFFFFF"
+                />
+              </LinearGradient>
+            </Animated.View>
+          </Pressable>
+
+          {/* Fan Button 1: 🎙 Voice */}
+          <Animated.View style={[styles.fanButtonWrapper, voiceStyle]}>
+            <Pressable onPress={startVoiceMode}>
+              <LinearGradient
+                colors={["#FF6B35", "#FF8C35"]}
+                style={styles.fanButton}
+              >
+                <Feather name="mic" size={20} color="#FFFFFF" />
+              </LinearGradient>
             </Pressable>
+            <ThemedText type="small" style={styles.fanLabel}>
+              Voice
+            </ThemedText>
           </Animated.View>
-        </>
+
+          {/* Fan Button 2: 💬 Chat */}
+          <Animated.View style={[styles.fanButtonWrapper, chatStyle]}>
+            <Pressable onPress={startChatMode}>
+              <LinearGradient
+                colors={["#3B82F6", "#4F46E5"]}
+                style={styles.fanButton}
+              >
+                <Feather name="message-square" size={20} color="#FFFFFF" />
+              </LinearGradient>
+            </Pressable>
+            <ThemedText type="small" style={styles.fanLabel}>
+              Chat
+            </ThemedText>
+          </Animated.View>
+
+          {/* Fan Button 3: ⚡ Live */}
+          <Animated.View style={[styles.fanButtonWrapper, liveStyle]}>
+            <Pressable onPress={startLiveMode}>
+              <LinearGradient
+                colors={["#F59E0B", "#D97706"]}
+                style={styles.fanButton}
+              >
+                <Feather name="zap" size={20} color="#FFFFFF" />
+              </LinearGradient>
+            </Pressable>
+            <ThemedText type="small" style={styles.fanLabel}>
+              Live
+            </ThemedText>
+          </Animated.View>
+        </Animated.View>
       )}
 
       {/* Voice Mode Floating Pill Overlay */}
@@ -1078,7 +1105,7 @@ export default function VoiceAssistant() {
                   style={styles.headerIndicator}
                 />
                 <ThemedText type="h3" style={{ fontWeight: "800" }}>
-                  Haajari AI Copilot Chat
+                  Ask HAI
                 </ThemedText>
               </View>
               <Pressable onPress={closeAssistant} style={styles.closeButton}>
@@ -1280,12 +1307,31 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 90,
     right: 20,
-    width: 60,
     height: 60,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "flex-start",
     zIndex: 9999,
   },
   mainFloatingButtonWrapper: {
     zIndex: 10002,
+    width: 60,
+    height: 60,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pulseRing: {
+    position: "absolute",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#FF6B35",
+    zIndex: -1,
+  },
+  floatingButtonContent: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
   },
   floatingButton: {
     width: 60,
@@ -1295,34 +1341,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     ...Shadows.md,
   },
-  menuCard: {
+  fanButtonWrapper: {
     position: "absolute",
-    bottom: 160,
-    right: 20,
-    width: 160,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    paddingVertical: Spacing.xs,
-    zIndex: 10000,
-    overflow: "hidden",
+    alignItems: "center",
+    zIndex: 10001,
+  },
+  fanButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
     ...Shadows.md,
   },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  menuItemIcon: {
-    marginRight: Spacing.sm,
-  },
-  menuItemText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  menuDivider: {
-    height: 1,
-    marginHorizontal: 12,
+  fanLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#888",
+    marginTop: 2,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
