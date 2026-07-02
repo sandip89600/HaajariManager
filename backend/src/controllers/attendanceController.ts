@@ -65,16 +65,16 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
     const extraWage = (customWageResolved !== undefined && customWageResolved !== null) ? customWageResolved : 0;
 
     if (value === "P" || value === "OT") {
-      finalPayResolved = dailyRateResolved + extraWage;
+      finalPayResolved = dailyRateResolved;
     } else if (value === "H") {
-      finalPayResolved = (dailyRateResolved / 2) + extraWage;
+      finalPayResolved = (dailyRateResolved / 2);
     } else if (value === "A") {
-      finalPayResolved = extraWage;
+      finalPayResolved = 0;
     } else if (typeof value === "number") {
       customWageResolved = value;
       finalPayResolved = value;
     } else {
-      finalPayResolved = extraWage;
+      finalPayResolved = 0;
     }
 
     const filter = { tenantId, workerId, year, month, day };
@@ -157,16 +157,16 @@ export const syncAttendance = async (req: AuthenticatedRequest, res: Response) =
       const extraWage = (customWageResolved !== undefined && customWageResolved !== null) ? customWageResolved : 0;
 
       if (value === "P" || value === "OT") {
-        finalPayResolved = dailyRateResolved + extraWage;
+        finalPayResolved = dailyRateResolved;
       } else if (value === "H") {
-        finalPayResolved = (dailyRateResolved / 2) + extraWage;
+        finalPayResolved = (dailyRateResolved / 2);
       } else if (value === "A") {
-        finalPayResolved = extraWage;
+        finalPayResolved = 0;
       } else if (typeof value === "number") {
         customWageResolved = value;
         finalPayResolved = value;
       } else {
-        finalPayResolved = extraWage;
+        finalPayResolved = 0;
       }
 
       const filter = { tenantId, workerId, year, month, day };

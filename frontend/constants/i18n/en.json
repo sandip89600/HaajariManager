@@ -180,6 +180,8 @@
     "totalPaid": "Total Paid",
     "amountPaid": "Amount Paid",
     "addPayment": "Add Payment",
+    "advance": "Advance",
+    "advanceHistory": "Advance History",
     "paymentAdded": "Payment recorded",
     "paymentHistory": "Payment History",
     "noPayments": "No payments recorded",

@@ -9,6 +9,7 @@ import supervisorRoutes from "./supervisorRoutes";
 import adminRoutes from "./adminRoutes";
 import supportRoutes from "./supportRoutes";
 import exportRoutes from "./exportRoutes";
+import voiceRoutes from "./voiceRoutes";
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.use("/supervisors", supervisorRoutes);
 router.use("/admin", adminRoutes);
 router.use("/support", supportRoutes);
 router.use("/export", exportRoutes);
+router.use("/voice", voiceRoutes);
 
 export default router;
 

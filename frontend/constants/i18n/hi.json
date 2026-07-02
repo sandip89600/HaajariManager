@@ -180,6 +180,8 @@
     "totalPaid": "कुल भुगतान",
     "amountPaid": "भुगतान राशि",
     "addPayment": "भुगतान जोड़ें",
+    "advance": "अग्रिम (Advance)",
+    "advanceHistory": "अग्रिम इतिहास",
     "paymentAdded": "भुगतान दर्ज हुआ",
     "paymentHistory": "भुगतान इतिहास",
     "noPayments": "कोई भुगतान दर्ज नहीं",

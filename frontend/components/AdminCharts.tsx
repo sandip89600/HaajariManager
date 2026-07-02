@@ -5,14 +5,14 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 
 const CHART_COLORS = {
   primary: "#FF6B35", // Orange
-  success: "#4ECDC4", // Teal Green
-  warning: "#FFD166", // Yellow
-  purple: "#9B5DE5", // Purple
-  blue: "#00b4d8", // Sky Blue
-  danger: "#FF4D4D", // Red
-  border: "#24242A",
+  success: "#10B981", // Teal Green
+  warning: "#FFC107", // Yellow
+  purple: "#8B5CF6", // Purple
+  blue: "#3B82F6", // Sky Blue
+  danger: "#EF4444", // Red
+  border: "#212030",
   textSecondary: "#8E8E9F",
-  bgDefault: "#16161A",
+  bgDefault: "#12121A",
 };
 
 interface ChartDataPoint {
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
     backgroundColor: CHART_COLORS.bgDefault,
     borderWidth: 1,
     borderColor: CHART_COLORS.border,
-    borderRadius: BorderRadius.xs,
+    borderRadius: 16,
     padding: Spacing.xl,
     marginBottom: Spacing.lg,
   },
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
   },
   gridLine: {
     height: 1,
-    borderColor: CHART_COLORS.border + "77",
+    borderColor: CHART_COLORS.border + "55",
     borderStyle: "dashed",
     borderTopWidth: 1,
     width: "100%",
@@ -494,9 +494,11 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   columnBar: {
-    width: 20,
-    borderTopLeftRadius: BorderRadius.xs,
-    borderTopRightRadius: BorderRadius.xs,
+    width: 16,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
   },
   xAxisLabel: {
     marginTop: Spacing.sm,
@@ -506,13 +508,13 @@ const styles = StyleSheet.create({
   },
   tooltip: {
     position: "absolute",
-    top: 0,
-    backgroundColor: "#2C2C35",
+    top: -24,
+    backgroundColor: "#1E1E2A",
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
-    borderRadius: BorderRadius.sm,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: CHART_COLORS.border,
+    borderColor: "#3A3A4A",
     zIndex: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },

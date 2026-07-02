@@ -18,6 +18,8 @@ import { AuthContext, useAuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { Colors } from "@/constants/theme";
 import { SocketProvider } from "@/context/SocketContext";
+import VoiceAssistant from "@/components/VoiceAssistant";
+import { navigationRef } from "@/navigation/navigationRef";
 
 const prefix = Linking.createURL("/");
 
@@ -64,9 +66,10 @@ function AppInner() {
   return (
     <LanguageContext.Provider value={languageContext}>
       <AuthContext.Provider value={authContext}>
-        <NavigationContainer linking={linking}>
+        <NavigationContainer ref={navigationRef} linking={linking}>
           <RootNavigator />
         </NavigationContainer>
+        {authContext.isLoggedIn && <VoiceAssistant />}
         <StatusBar style={isDark ? "light" : "dark"} />
       </AuthContext.Provider>
     </LanguageContext.Provider>

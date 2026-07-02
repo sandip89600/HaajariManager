@@ -371,26 +371,28 @@ export const getAdminAnalytics = async (req: AuthenticatedRequest, res: Response
       const wId = w._id.toString();
       const records = attendanceMap[wId] || [];
       let earnings = 0;
+      let advances = 0;
       records.forEach(r => {
         const rate = r.dailyRate !== undefined && r.dailyRate !== null ? r.dailyRate : w.dailyRate;
         const extra = (r.customWage !== undefined && r.customWage !== null) ? r.customWage : 0;
         let recordPay = 0;
 
         if (r.value === "P" || r.value === "OT") {
-          recordPay = rate + extra;
+          recordPay = rate;
         } else if (r.value === "H") {
-          recordPay = (rate / 2) + extra;
+          recordPay = (rate / 2);
         } else if (r.value === "A") {
-          recordPay = extra;
+          recordPay = 0;
         } else if (typeof r.value === "number") {
           recordPay = r.value;
         } else {
-          recordPay = extra;
+          recordPay = 0;
         }
         earnings += recordPay;
+        advances += extra;
       });
       const paid = paymentsMap[wId] || 0;
-      const balance = earnings - paid;
+      const balance = earnings - paid - advances;
       if (balance > 0) {
         outstandingAmount += balance;
       }
