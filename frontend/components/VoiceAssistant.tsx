@@ -76,6 +76,7 @@ export default function VoiceAssistant() {
   const scrollViewRef = useRef<ScrollView>(null);
   const liveActiveRef = useRef(false);
   const liveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const voiceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Waveform shared values
   const pulse1 = useSharedValue(1);
@@ -171,6 +172,7 @@ export default function VoiceAssistant() {
     return () => {
       liveActiveRef.current = false;
       if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
+      if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
     };
   }, []);
 
@@ -402,6 +404,13 @@ export default function VoiceAssistant() {
       setIsRecording(true);
       setTranscript("Listening...");
       Speech.stop();
+
+      // Auto-stop recording after 5.5 seconds in Voice Mode to allow execution without manual interaction
+      if (mode === "voice") {
+        voiceTimeoutRef.current = setTimeout(() => {
+          stopRecording();
+        }, 5500);
+      }
     } catch (err) {
       console.error("Failed to start recording", err);
       setTranscript("Microphone permission required.");
@@ -409,6 +418,10 @@ export default function VoiceAssistant() {
   };
 
   const stopRecording = async () => {
+    if (voiceTimeoutRef.current) {
+      clearTimeout(voiceTimeoutRef.current);
+      voiceTimeoutRef.current = null;
+    }
     if (!recordingRef.current) return;
     setIsRecording(false);
     setIsProcessing(true);
@@ -769,6 +782,10 @@ export default function VoiceAssistant() {
   const closeAssistant = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setMode("none");
+    if (voiceTimeoutRef.current) {
+      clearTimeout(voiceTimeoutRef.current);
+      voiceTimeoutRef.current = null;
+    }
     if (recordingRef.current) {
       try {
         recordingRef.current.stopAndUnloadAsync();
@@ -959,6 +976,17 @@ export default function VoiceAssistant() {
                       style={[styles.miniWaveBar, animatedWave3]}
                     />
                   </View>
+                  <Pressable
+                    onPress={stopRecording}
+                    style={{
+                      marginRight: Spacing.sm,
+                      padding: 6,
+                      backgroundColor: "rgba(239, 68, 68, 0.1)",
+                      borderRadius: BorderRadius.sm,
+                    }}
+                  >
+                    <Feather name="square" size={14} color="#EF4444" />
+                  </Pressable>
                 </>
               ) : isProcessing ? (
                 <>
