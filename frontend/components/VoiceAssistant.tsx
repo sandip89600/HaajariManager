@@ -454,7 +454,7 @@ export default function VoiceAssistant() {
       const { recording } = await Audio.Recording.createAsync(recordingOptions);
       recordingRef.current = recording;
       setIsRecording(true);
-      setTranscript("Listening...");
+      setTranscript("HAI is listening...");
       Speech.stop();
 
       // Auto-stop recording after 5.5 seconds in Voice Mode to allow execution without manual interaction
@@ -477,7 +477,7 @@ export default function VoiceAssistant() {
     if (!recordingRef.current) return;
     setIsRecording(false);
     setIsProcessing(true);
-    setTranscript("Processing voice command...");
+    setTranscript("HAI is thinking...");
 
     try {
       await recordingRef.current.stopAndUnloadAsync();
@@ -936,7 +936,7 @@ export default function VoiceAssistant() {
               </LinearGradient>
             </Pressable>
             <ThemedText type="small" style={styles.fanLabel}>
-              Voice
+              HAI Voice
             </ThemedText>
           </Animated.View>
 
@@ -951,7 +951,7 @@ export default function VoiceAssistant() {
               </LinearGradient>
             </Pressable>
             <ThemedText type="small" style={styles.fanLabel}>
-              Chat
+              HAI Chat
             </ThemedText>
           </Animated.View>
 
@@ -966,7 +966,7 @@ export default function VoiceAssistant() {
               </LinearGradient>
             </Pressable>
             <ThemedText type="small" style={styles.fanLabel}>
-              Live
+              HAI Live
             </ThemedText>
           </Animated.View>
         </Animated.View>
@@ -990,7 +990,7 @@ export default function VoiceAssistant() {
               {isRecording ? (
                 <>
                   <ThemedText style={styles.voiceModeStatus}>
-                    Listening...
+                    HAI is listening...
                   </ThemedText>
                   <View style={styles.miniWaveform}>
                     <Animated.View
@@ -1023,7 +1023,7 @@ export default function VoiceAssistant() {
                     style={{ marginRight: Spacing.sm }}
                   />
                   <ThemedText style={styles.voiceModeStatus}>
-                    Processing...
+                    HAI is thinking...
                   </ThemedText>
                 </>
               ) : (
@@ -1055,10 +1055,10 @@ export default function VoiceAssistant() {
               <View style={styles.liveDot} />
               <ThemedText style={styles.liveModeText}>
                 {isRecording
-                  ? "Live Listening... ⚡"
+                  ? "HAI is listening... ⚡"
                   : isProcessing
-                    ? "Analyzing... ⚡"
-                    : "Live Active ⚡"}
+                    ? "HAI is thinking... ⚡"
+                    : "HAI Live ⚡"}
               </ThemedText>
               <Pressable onPress={stopLiveMode} style={styles.liveStopBtn}>
                 <Feather name="square" size={14} color="#FFFFFF" />
@@ -1146,20 +1146,45 @@ export default function VoiceAssistant() {
               ))}
 
               {chatHistory.length === 0 && (
-                <View
-                  style={[
-                    styles.chatBubble,
-                    styles.aiBubble,
-                    {
-                      backgroundColor: isDark
-                        ? "rgba(255, 255, 255, 0.05)"
-                        : "rgba(0, 0, 0, 0.03)",
-                    },
-                  ]}
-                >
-                  <ThemedText type="body" style={{ color: theme.text }}>
-                    {aiResponse}
+                <View style={styles.aiHomeScreen}>
+                  <View style={styles.aiLogoContainer}>
+                    <LinearGradient
+                      colors={["#FF6B35", "#FF8C35"]}
+                      style={styles.aiLogoBadge}
+                    >
+                      <Feather name="cpu" size={32} color="#FFFFFF" />
+                    </LinearGradient>
+                  </View>
+                  <ThemedText type="h1" style={styles.aiHomeHeader}>
+                    HAI
                   </ThemedText>
+                  <ThemedText
+                    type="small"
+                    style={[styles.aiHomeSubtitle, { color: theme.primary }]}
+                  >
+                    Haajari Artificial Intelligence
+                  </ThemedText>
+                  <ThemedText
+                    type="body"
+                    style={[
+                      styles.aiHomeDescription,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    {
+                      "Your intelligent workforce assistant for managing workers, attendance, payments, advances, reports, and app navigation."
+                    }
+                  </ThemedText>
+                  <View style={styles.aiGreetingBox}>
+                    <ThemedText
+                      type="body"
+                      style={{ fontWeight: "700", textAlign: "center" }}
+                    >
+                      {
+                        "Hi! I'm HAI (Haajari Artificial Intelligence). How can I help you today?"
+                      }
+                    </ThemedText>
+                  </View>
                 </View>
               )}
             </ScrollView>
@@ -1551,5 +1576,49 @@ const styles = StyleSheet.create({
     backgroundColor: "#EF4444",
     padding: 6,
     borderRadius: 12,
+  },
+  aiHomeScreen: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.xl,
+    marginTop: Spacing.xl,
+  },
+  aiLogoContainer: {
+    marginBottom: Spacing.md,
+  },
+  aiLogoBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    ...Shadows.md,
+  },
+  aiHomeHeader: {
+    fontSize: 28,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
+  aiHomeSubtitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1.5,
+    marginBottom: Spacing.md,
+  },
+  aiHomeDescription: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.md,
+  },
+  aiGreetingBox: {
+    width: "100%",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "rgba(255, 107, 53, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 107, 53, 0.15)",
   },
 });
