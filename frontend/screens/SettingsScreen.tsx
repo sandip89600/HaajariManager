@@ -174,6 +174,7 @@ export default function SettingsScreen() {
   const route = useRoute<any>();
 
   // State Declarations
+  const SCREEN_HEIGHT = Dimensions.get("window").height;
   const [currentUser, setCurrentUser] = useState<User | null>(authUser || null);
   const [currentPlan, setCurrentPlan] = useState<
     "free" | "professional" | "business"
@@ -183,6 +184,7 @@ export default function SettingsScreen() {
   );
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showLangModal, setShowLangModal] = useState(false);
+  const [langSearch, setLangSearch] = useState("");
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -1519,46 +1521,102 @@ export default function SettingsScreen() {
         visible={showLangModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowLangModal(false)}
+        onRequestClose={() => {
+          setShowLangModal(false);
+          setLangSearch("");
+        }}
       >
         <Pressable
           style={styles.modalOverlay}
-          onPress={() => setShowLangModal(false)}
+          onPress={() => {
+            setShowLangModal(false);
+            setLangSearch("");
+          }}
         >
-          <View
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
             style={[
               styles.bottomSheet,
-              { backgroundColor: theme.backgroundDefault },
+              {
+                backgroundColor: theme.backgroundDefault,
+                height: SCREEN_HEIGHT * 0.7,
+              },
             ]}
           >
             <ThemedText type="h3" style={styles.sheetTitle}>
               Select App Language
             </ThemedText>
-            <Pressable
-              onPress={() => handleLangSelect("en")}
-              style={styles.sheetOption}
+
+            {/* Search input */}
+            <View
+              style={[styles.searchInputWrapper, { borderColor: theme.border }]}
             >
-              <Feather name="globe" size={20} color={theme.text} />
-              <ThemedText style={styles.sheetOptionText}>
-                English (United Kingdom)
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={() => handleLangSelect("hi")}
-              style={styles.sheetOption}
+              <Feather name="search" size={18} color={theme.textSecondary} />
+              <TextInput
+                placeholder="Search language..."
+                value={langSearch}
+                onChangeText={setLangSearch}
+                placeholderTextColor={theme.textSecondary}
+                style={[styles.searchInput, { color: theme.text }]}
+              />
+              {langSearch.length > 0 && (
+                <Pressable onPress={() => setLangSearch("")}>
+                  <Feather name="x" size={18} color={theme.textSecondary} />
+                </Pressable>
+              )}
+            </View>
+
+            <ScrollView
+              style={{ flex: 1, marginVertical: Spacing.xs }}
+              showsVerticalScrollIndicator={true}
             >
-              <Feather name="globe" size={20} color={theme.text} />
-              <ThemedText style={styles.sheetOptionText}>
-                हिंदी (India)
-              </ThemedText>
-            </Pressable>
+              {Object.entries(languageNames)
+                .filter(
+                  ([key, name]) =>
+                    name.toLowerCase().includes(langSearch.toLowerCase()) ||
+                    key.toLowerCase().includes(langSearch.toLowerCase()),
+                )
+                .map(([key, name]) => (
+                  <Pressable
+                    key={key}
+                    onPress={() => handleLangSelect(key as Language)}
+                    style={[
+                      styles.sheetOption,
+                      language === key && {
+                        backgroundColor: "rgba(255, 107, 53, 0.08)",
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name={language === key ? "check-circle" : "globe"}
+                      size={20}
+                      color={language === key ? theme.primary : theme.text}
+                    />
+                    <ThemedText
+                      style={[
+                        styles.sheetOptionText,
+                        language === key && {
+                          color: theme.primary,
+                          fontWeight: "700",
+                        },
+                      ]}
+                    >
+                      {name}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+            </ScrollView>
+
             <Pressable
-              onPress={() => setShowLangModal(false)}
+              onPress={() => {
+                setShowLangModal(false);
+                setLangSearch("");
+              }}
               style={[styles.sheetCloseBtn, { backgroundColor: theme.border }]}
             >
               <ThemedText style={{ fontWeight: "700" }}>Close</ThemedText>
             </Pressable>
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -2594,6 +2652,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: Spacing.sm,
+  },
+  searchInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.sm,
+    height: 44,
+    marginBottom: Spacing.xs,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    marginLeft: Spacing.xs,
+    paddingVertical: 0,
   },
 
   // Form modals

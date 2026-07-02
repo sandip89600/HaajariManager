@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "HAI",
-    "tagline": "हाजरी आर्टिफिशियल इंटेलिजेंस द्वारा संचालित"
+    "tagline": "हाजिरी कृत्रिम बुद्धिमत्ता द्वारा संचालित"
   },
   "auth": {
     "welcome": "Welcome Back",
@@ -19,13 +19,13 @@
     "confirmPassword": "Confirm Password"
   },
   "tabs": {
-    "attendance": "हाजरी",
-    "workers": "कामगार",
+    "attendance": "हाजिरी",
+    "workers": "कामदार",
     "summary": "सारांश",
-    "settings": "सेटिंग्स"
+    "settings": "सेटिङहरू"
   },
   "attendance": {
-    "title": "हाजरी",
+    "title": "हाजिरी",
     "present": "उ",
     "absent": "ग",
     "halfDay": "1/2",
@@ -42,7 +42,7 @@
     "gpsOptional": "GPS location is optional"
   },
   "workers": {
-    "title": "कामगार",
+    "title": "कामदार",
     "addWorker": "Add Worker",
     "editWorker": "Edit Worker",
     "name": "Worker Name",
@@ -93,7 +93,7 @@
     "noData": "No attendance data for this month"
   },
   "settings": {
-    "title": "सेटिंग्स",
+    "title": "सेटिङहरू",
     "language": "Language",
     "english": "English",
     "hindi": "Hindi",
@@ -199,10 +199,10 @@
     "noHistory": "No payment history available"
   },
   "common": {
-    "save": "सुरक्षित करें",
-    "cancel": "रद्द करें",
-    "delete": "हटाएं",
-    "edit": "संपादित करें",
+    "save": "بچت गर्नुहोस्",
+    "cancel": "रद्द गर्नुहोस्",
+    "delete": "हटाउनुहोस्",
+    "edit": "सम्पादन गर्नुहोस्",
     "add": "Add",
     "yes": "Yes",
     "no": "No",

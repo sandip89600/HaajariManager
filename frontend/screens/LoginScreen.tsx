@@ -672,7 +672,7 @@ export default function LoginScreen() {
             {t.settings.language}:
           </ThemedText>
           <View style={styles.languageButtons}>
-            {(Object.keys(languageNames) as Language[]).map((lang) => (
+            {(["en", "hi"] as Language[]).map((lang) => (
               <Pressable
                 key={lang}
                 onPress={() => handleLanguageChange(lang)}

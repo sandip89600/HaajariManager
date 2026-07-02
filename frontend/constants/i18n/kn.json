@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "HAI",
-    "tagline": "हाजरी आर्टिफिशियल इंटेलिजेंस द्वारा संचालित"
+    "tagline": "ಹಾಜರಾತಿ ಕೃತಕ ಬುದ್ಧಿಮತ್ತೆಯಿಂದ ಚಾಲಿತವಾಗಿದೆ"
   },
   "auth": {
     "welcome": "Welcome Back",
@@ -19,15 +19,15 @@
     "confirmPassword": "Confirm Password"
   },
   "tabs": {
-    "attendance": "हाजरी",
-    "workers": "कामगार",
-    "summary": "सारांश",
-    "settings": "सेटिंग्स"
+    "attendance": "ಹಾಜರಾತಿ",
+    "workers": "ಕಾರ್ಮಿಕರು",
+    "summary": "ಸಾರಾಂಶ",
+    "settings": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು"
   },
   "attendance": {
-    "title": "हाजरी",
-    "present": "उ",
-    "absent": "ग",
+    "title": "ಹಾಜರಾತಿ",
+    "present": "ಹಾ",
+    "absent": "ಗೈ",
     "halfDay": "1/2",
     "overtime": "OT",
     "noWorkers": "No workers added yet",
@@ -42,7 +42,7 @@
     "gpsOptional": "GPS location is optional"
   },
   "workers": {
-    "title": "कामगार",
+    "title": "ಕಾರ್ಮಿಕರು",
     "addWorker": "Add Worker",
     "editWorker": "Edit Worker",
     "name": "Worker Name",
@@ -83,7 +83,7 @@
     "sutar": "Sutar (Carpenter)"
   },
   "summary": {
-    "title": "सारांश",
+    "title": "ಸಾರಾಂಶ",
     "totalPresent": "Present",
     "totalHalfDays": "Half Days",
     "totalAbsent": "Absent",
@@ -93,7 +93,7 @@
     "noData": "No attendance data for this month"
   },
   "settings": {
-    "title": "सेटिंग्स",
+    "title": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
     "language": "Language",
     "english": "English",
     "hindi": "Hindi",
@@ -199,10 +199,10 @@
     "noHistory": "No payment history available"
   },
   "common": {
-    "save": "सुरक्षित करें",
-    "cancel": "रद्द करें",
-    "delete": "हटाएं",
-    "edit": "संपादित करें",
+    "save": "ಉಳಿಸು",
+    "cancel": "ರದ್ದು",
+    "delete": "ಅಳಿಸು",
+    "edit": "ಮಾರ್ಪಡಿಸು",
     "add": "Add",
     "yes": "Yes",
     "no": "No",

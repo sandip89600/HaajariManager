@@ -6,6 +6,7 @@ import { AuthenticatedRequest } from "../middleware/auth";
 export const processVoice = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
+    const userLanguage = req.body.language || "en";
     const history = req.body.history
       ? typeof req.body.history === "string"
         ? JSON.parse(req.body.history)
@@ -65,8 +66,9 @@ export const processVoice = async (req: AuthenticatedRequest, res: Response) => 
 
     // 2. Call reasoning model to analyze intent
     const systemInstruction = `
-You are the AI Voice Assistant for "Haajari" (a worker attendance and payment management app).
-The user is a contractor, builder, or supervisor. They will speak commands in Hindi, English, or Hinglish.
+You are the AI Voice Assistant for "HAI" (a worker attendance and payment management app).
+The user is a contractor, builder, or supervisor. They will speak commands in one of the 22 official Indian languages (e.g. Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Urdu, Sanskrit, Nepali, Konkani, Maithili, Dogri, Santali, Kashmiri, Sindhi, Manipuri) or English/Hinglish.
+The user's currently selected app language is "${userLanguage}".
 Your task is to analyze the user's transcription text and identify their intent.
 
 Here is the list of existing workers in the system:
@@ -132,7 +134,7 @@ You must respond with a JSON object in this exact format:
   "data": {
      // corresponding fields for the action
   },
-  "response": "A short, polite text response confirming the action or asking a follow-up question. Use the same language the user spoke (Hinglish/Hindi/English)."
+  "response": "A short, polite text response confirming the action or asking a follow-up question. Use the user's selected language (${userLanguage}) or match the language of their query. Do not translate the response to English unless the user spoke in English."
 }
 `;
 

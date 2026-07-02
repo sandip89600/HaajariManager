@@ -30,6 +30,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { ThemedText } from "./ThemedText";
 import { useTheme } from "@/hooks/useTheme";
+import { useLanguage } from "@/hooks/useLanguage";
 import {
   storage,
   API_URL,
@@ -51,6 +52,7 @@ type CopilotMode = "none" | "voice" | "chat" | "live";
 
 export default function VoiceAssistant() {
   const { theme, isDark } = useTheme();
+  const { language } = useLanguage();
 
   // Mode Selection State
   const [mode, setMode] = useState<CopilotMode>("none");
@@ -391,6 +393,7 @@ export default function VoiceAssistant() {
           audio: base64Audio,
           mimeType: Platform.OS === "ios" ? "audio/x-m4a" : "audio/mp4",
           history: [],
+          language: language,
         }),
       });
 
@@ -518,6 +521,7 @@ export default function VoiceAssistant() {
                   parts: [{ text: ch.text }],
                 }))
               : [],
+          language: language,
         }),
       });
 

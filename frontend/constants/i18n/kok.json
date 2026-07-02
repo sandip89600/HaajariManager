@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "HAI",
-    "tagline": "हाजरी आर्टिफिशियल इंटेलिजेंस द्वारा संचालित"
+    "tagline": "हाजरी कृत्रिम बुद्धिमत्ता वर चालपी"
   },
   "auth": {
     "welcome": "Welcome Back",
@@ -22,12 +22,12 @@
     "attendance": "हाजरी",
     "workers": "कामगार",
     "summary": "सारांश",
-    "settings": "सेटिंग्स"
+    "settings": "मांडणी"
   },
   "attendance": {
     "title": "हाजरी",
-    "present": "उ",
-    "absent": "ग",
+    "present": "ह",
+    "absent": "ना",
     "halfDay": "1/2",
     "overtime": "OT",
     "noWorkers": "No workers added yet",
@@ -93,7 +93,7 @@
     "noData": "No attendance data for this month"
   },
   "settings": {
-    "title": "सेटिंग्स",
+    "title": "मांडणी",
     "language": "Language",
     "english": "English",
     "hindi": "Hindi",
@@ -199,10 +199,10 @@
     "noHistory": "No payment history available"
   },
   "common": {
-    "save": "सुरक्षित करें",
-    "cancel": "रद्द करें",
-    "delete": "हटाएं",
-    "edit": "संपादित करें",
+    "save": "सांबाळचें",
+    "cancel": "रद्द करचें",
+    "delete": "काडून उडोवचें",
+    "edit": "बदलचें",
     "add": "Add",
     "yes": "Yes",
     "no": "No",

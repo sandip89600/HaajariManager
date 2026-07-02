@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "HAI",
-    "tagline": "हाजरी आर्टिफिशियल इंटेलिजेंस द्वारा संचालित"
+    "tagline": "ହାଜିରା ଆର୍ଟିଫିସିଆଲ୍ ଇଣ୍ଟେଲିଜେନ୍ସ ଦ୍ୱାରା ଚାଲିତ"
   },
   "auth": {
     "welcome": "Welcome Back",
@@ -19,15 +19,15 @@
     "confirmPassword": "Confirm Password"
   },
   "tabs": {
-    "attendance": "हाजरी",
-    "workers": "कामगार",
-    "summary": "सारांश",
-    "settings": "सेटिंग्स"
+    "attendance": "ହାଜିରା",
+    "workers": "କର୍ମଚାରୀ",
+    "summary": "ସାରାଂଶ",
+    "settings": "ସେଟିଂସଙ୍ଗ୍"
   },
   "attendance": {
-    "title": "हाजरी",
-    "present": "उ",
-    "absent": "ग",
+    "title": "ହାଜିରା",
+    "present": "ଉ",
+    "absent": "ଅ",
     "halfDay": "1/2",
     "overtime": "OT",
     "noWorkers": "No workers added yet",
@@ -42,7 +42,7 @@
     "gpsOptional": "GPS location is optional"
   },
   "workers": {
-    "title": "कामगार",
+    "title": "କର୍ମଚାରୀ",
     "addWorker": "Add Worker",
     "editWorker": "Edit Worker",
     "name": "Worker Name",
@@ -83,7 +83,7 @@
     "sutar": "Sutar (Carpenter)"
   },
   "summary": {
-    "title": "सारांश",
+    "title": "ସାରାଂଶ",
     "totalPresent": "Present",
     "totalHalfDays": "Half Days",
     "totalAbsent": "Absent",
@@ -93,7 +93,7 @@
     "noData": "No attendance data for this month"
   },
   "settings": {
-    "title": "सेटिंग्स",
+    "title": "ସେଟିଂସଙ୍ଗ୍",
     "language": "Language",
     "english": "English",
     "hindi": "Hindi",
@@ -199,10 +199,10 @@
     "noHistory": "No payment history available"
   },
   "common": {
-    "save": "सुरक्षित करें",
-    "cancel": "रद्द करें",
-    "delete": "हटाएं",
-    "edit": "संपादित करें",
+    "save": "ସଂରକ୍ଷଣ",
+    "cancel": "ବାତିଲ୍",
+    "delete": "ଲିଭାନ୍ତୁ",
+    "edit": "ସଂଶୋଧନ",
     "add": "Add",
     "yes": "Yes",
     "no": "No",
