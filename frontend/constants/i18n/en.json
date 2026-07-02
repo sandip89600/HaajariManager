@@ -1,7 +1,7 @@
 {
   "app": {
-    "name": "Haajari",
-    "tagline": "Labour Attendance Manager"
+    "name": "HAI",
+    "tagline": "Powered by Haajari Artificial Intelligence"
   },
   "auth": {
     "welcome": "Welcome Back",
@@ -168,7 +168,7 @@
     "generating": "Generating...",
     "success": "Export successful",
     "error": "Export failed",
-    "shareTitle": "Haajari Report",
+    "shareTitle": "HAI Report",
     "noDataToExport": "No data to export",
     "spreadsheet": "Excel/Spreadsheet"
   },

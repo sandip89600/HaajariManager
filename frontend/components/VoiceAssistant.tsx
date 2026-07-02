@@ -265,7 +265,7 @@ export default function VoiceAssistant() {
 
     if (chatHistory.length === 0) {
       setAiResponse(
-        "Hi, I'm HAI — Haajari Artificial Intelligence. How can I help you today?",
+        "Hi! I'm HAI, your AI-powered workforce assistant. I can help you manage workers, attendance, payments, advances, reports, and navigate the app using voice, chat, or live assistance.",
       );
     }
   };
@@ -1181,7 +1181,7 @@ export default function VoiceAssistant() {
                       style={{ fontWeight: "700", textAlign: "center" }}
                     >
                       {
-                        "Hi! I'm HAI (Haajari Artificial Intelligence). How can I help you today?"
+                        "Hi! I'm HAI, your AI-powered workforce assistant. I can help you manage workers, attendance, payments, advances, reports, and navigate the app using voice, chat, or live assistance."
                       }
                     </ThemedText>
                   </View>

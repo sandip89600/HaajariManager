@@ -1406,14 +1406,14 @@ export default function SettingsScreen() {
           />
         </SettingCard>
 
-        {/* ─── 10. ABOUT HAAJARI APP ─── */}
+        {/* ─── 10. ABOUT HAI ─── */}
         <ThemedText type="small" style={styles.sectionLabel}>
-          About Haajari App
+          About HAI
         </ThemedText>
         <SettingCard theme={theme} isDark={isDark}>
           <View style={{ padding: Spacing.md, gap: Spacing.xs }}>
             <ThemedText style={{ fontWeight: "800", color: theme.primary }}>
-              Haajari App
+              HAI (Haajari Artificial Intelligence)
             </ThemedText>
             <ThemedText type="small" style={{ color: theme.textSecondary }}>
               Version 1.0.2 (Production Build)
@@ -1423,12 +1423,12 @@ export default function SettingsScreen() {
               style={{
                 color: theme.textSecondary,
                 marginTop: Spacing.xs,
-                lineHeight: 16,
+                lineHeight: 18,
               }}
             >
-              Haajari App is a smart Labour Attendance, Payroll and Workforce
-              Management platform designed for Contractors, Builders and
-              Supervisors.
+              {
+                "HAI (Haajari Artificial Intelligence) is the intelligent assistant powering the Haajari App. It helps contractors, builders, and supervisors manage workers, attendance, payments, advances, reports, and navigation using AI."
+              }
             </ThemedText>
           </View>
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
