@@ -84,8 +84,6 @@ export default function VoiceAssistant() {
   const pulse4 = useSharedValue(1);
   const pulse5 = useSharedValue(1);
 
-  // Fan menu animated shared value
-  const menuExpanded = useSharedValue(0);
   const buttonScale = useSharedValue(1);
 
   // Synchronize waveforms
@@ -156,29 +154,6 @@ export default function VoiceAssistant() {
     transform: [{ scaleY: pulse5.value }],
   }));
 
-  // Fan Menu Styles
-  const containerStyle = useAnimatedStyle(() => ({
-    width: withSpring(menuExpanded.value === 1 ? 260 : 60, { damping: 15 }),
-  }));
-
-  const voiceStyle = useAnimatedStyle(() => ({
-    opacity: menuExpanded.value,
-    pointerEvents: menuExpanded.value > 0.5 ? "auto" : "none",
-    transform: [{ translateX: menuExpanded.value * -65 }],
-  }));
-
-  const chatStyle = useAnimatedStyle(() => ({
-    opacity: menuExpanded.value,
-    pointerEvents: menuExpanded.value > 0.5 ? "auto" : "none",
-    transform: [{ translateX: menuExpanded.value * -125 }],
-  }));
-
-  const liveStyle = useAnimatedStyle(() => ({
-    opacity: menuExpanded.value,
-    pointerEvents: menuExpanded.value > 0.5 ? "auto" : "none",
-    transform: [{ translateX: menuExpanded.value * -185 }],
-  }));
-
   const animatedButton = useAnimatedStyle(() => ({
     transform: [{ scale: buttonScale.value }],
   }));
@@ -206,12 +181,10 @@ export default function VoiceAssistant() {
     setToast({ message, type });
   };
 
-  // Toggle Fan Menu
+  // Toggle Menu
   const toggleMenu = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const nextState = !isExpanded;
-    setIsExpanded(nextState);
-    menuExpanded.value = withSpring(nextState ? 1 : 0, { damping: 12 });
+    setIsExpanded(!isExpanded);
   };
 
   // 1. VOICE MODE SETUP
@@ -222,7 +195,6 @@ export default function VoiceAssistant() {
     setActionDetail(null);
     setMode("voice");
     setIsExpanded(false);
-    menuExpanded.value = 0;
 
     // Auto start recording for quick command
     setTimeout(startRecording, 100);
@@ -236,7 +208,6 @@ export default function VoiceAssistant() {
     setActionDetail(null);
     setMode("chat");
     setIsExpanded(false);
-    menuExpanded.value = 0;
 
     if (chatHistory.length === 0) {
       setAiResponse(
@@ -249,7 +220,6 @@ export default function VoiceAssistant() {
   const startLiveMode = async () => {
     Speech.stop();
     setIsExpanded(false);
-    menuExpanded.value = 0;
     liveActiveRef.current = true;
     setMode("live");
     showToast("Live Copilot Mode Activated ⚡", "info");
@@ -852,80 +822,110 @@ export default function VoiceAssistant() {
         </Animated.View>
       )}
 
-      {/* Floating AI Button & Expandable Fan Menu */}
+      {/* Floating AI Button & Simple Popover Menu */}
       {mode === "none" && (
-        <Animated.View style={[styles.floatingButtonContainer, containerStyle]}>
-          {/* Main Button */}
-          <Pressable
-            onPress={toggleMenu}
-            onPressIn={() => {
-              buttonScale.value = withSpring(0.9, { damping: 10 });
-            }}
-            onPressOut={() => {
-              buttonScale.value = withSpring(1, { damping: 10 });
-            }}
-          >
+        <>
+          {/* Popover Menu Card */}
+          {isExpanded && (
             <Animated.View
-              style={[styles.mainFloatingButtonWrapper, animatedButton]}
+              entering={FadeIn.duration(200)}
+              exiting={FadeOut.duration(150)}
+              style={[
+                styles.menuCard,
+                {
+                  backgroundColor: isDark
+                    ? "rgba(15, 23, 42, 0.95)"
+                    : "rgba(255, 255, 255, 0.98)",
+                  borderColor: isDark
+                    ? "rgba(255, 255, 255, 0.1)"
+                    : "rgba(0, 0, 0, 0.08)",
+                },
+              ]}
             >
-              <LinearGradient
-                colors={["#FF6B35", "#FF8C35"]}
-                style={styles.floatingButton}
-              >
+              <Pressable onPress={startVoiceMode} style={styles.menuItem}>
                 <Feather
-                  name={isExpanded ? "x" : "cpu"}
-                  size={26}
-                  color="#FFFFFF"
+                  name="mic"
+                  size={16}
+                  color="#FF6B35"
+                  style={styles.menuItemIcon}
                 />
-              </LinearGradient>
+                <ThemedText style={styles.menuItemText}>Voice Mode</ThemedText>
+              </Pressable>
+
+              <View
+                style={[
+                  styles.menuDivider,
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(255, 255, 255, 0.08)"
+                      : "rgba(0, 0, 0, 0.05)",
+                  },
+                ]}
+              />
+
+              <Pressable onPress={startChatMode} style={styles.menuItem}>
+                <Feather
+                  name="message-square"
+                  size={16}
+                  color="#3B82F6"
+                  style={styles.menuItemIcon}
+                />
+                <ThemedText style={styles.menuItemText}>Chat Mode</ThemedText>
+              </Pressable>
+
+              <View
+                style={[
+                  styles.menuDivider,
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(255, 255, 255, 0.08)"
+                      : "rgba(0, 0, 0, 0.05)",
+                  },
+                ]}
+              />
+
+              <Pressable onPress={startLiveMode} style={styles.menuItem}>
+                <Feather
+                  name="zap"
+                  size={16}
+                  color="#F59E0B"
+                  style={styles.menuItemIcon}
+                />
+                <ThemedText style={styles.menuItemText}>
+                  Live Copilot
+                </ThemedText>
+              </Pressable>
             </Animated.View>
-          </Pressable>
+          )}
 
-          {/* Fan Button 1: 🎙 Voice */}
-          <Animated.View style={[styles.fanButtonWrapper, voiceStyle]}>
-            <Pressable onPress={startVoiceMode}>
-              <LinearGradient
-                colors={["#FF6B35", "#FF8C35"]}
-                style={styles.fanButton}
+          {/* Main Floating Button */}
+          <Animated.View style={styles.floatingButtonContainer}>
+            <Pressable
+              onPress={toggleMenu}
+              onPressIn={() => {
+                buttonScale.value = withSpring(0.9, { damping: 10 });
+              }}
+              onPressOut={() => {
+                buttonScale.value = withSpring(1, { damping: 10 });
+              }}
+            >
+              <Animated.View
+                style={[styles.mainFloatingButtonWrapper, animatedButton]}
               >
-                <Feather name="mic" size={20} color="#FFFFFF" />
-              </LinearGradient>
+                <LinearGradient
+                  colors={["#FF6B35", "#FF8C35"]}
+                  style={styles.floatingButton}
+                >
+                  <Feather
+                    name={isExpanded ? "x" : "cpu"}
+                    size={26}
+                    color="#FFFFFF"
+                  />
+                </LinearGradient>
+              </Animated.View>
             </Pressable>
-            <ThemedText type="small" style={styles.fanLabel}>
-              Voice
-            </ThemedText>
           </Animated.View>
-
-          {/* Fan Button 2: 💬 Chat */}
-          <Animated.View style={[styles.fanButtonWrapper, chatStyle]}>
-            <Pressable onPress={startChatMode}>
-              <LinearGradient
-                colors={["#3B82F6", "#4F46E5"]}
-                style={styles.fanButton}
-              >
-                <Feather name="message-square" size={20} color="#FFFFFF" />
-              </LinearGradient>
-            </Pressable>
-            <ThemedText type="small" style={styles.fanLabel}>
-              Chat
-            </ThemedText>
-          </Animated.View>
-
-          {/* Fan Button 3: ⚡ Live */}
-          <Animated.View style={[styles.fanButtonWrapper, liveStyle]}>
-            <Pressable onPress={startLiveMode}>
-              <LinearGradient
-                colors={["#F59E0B", "#D97706"]}
-                style={styles.fanButton}
-              >
-                <Feather name="zap" size={20} color="#FFFFFF" />
-              </LinearGradient>
-            </Pressable>
-            <ThemedText type="small" style={styles.fanLabel}>
-              Live
-            </ThemedText>
-          </Animated.View>
-        </Animated.View>
+        </>
       )}
 
       {/* Voice Mode Floating Pill Overlay */}
@@ -1252,10 +1252,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 90,
     right: 20,
+    width: 60,
     height: 60,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "flex-start",
     zIndex: 9999,
   },
   mainFloatingButtonWrapper: {
@@ -1269,24 +1267,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
     ...Shadows.md,
   },
-  fanButtonWrapper: {
+  menuCard: {
     position: "absolute",
-    alignItems: "center",
-    zIndex: 10001,
-  },
-  fanButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
+    bottom: 160,
+    right: 20,
+    width: 160,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingVertical: Spacing.xs,
+    zIndex: 10000,
+    overflow: "hidden",
     ...Shadows.md,
   },
-  fanLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#888",
-    marginTop: 2,
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  menuItemIcon: {
+    marginRight: Spacing.sm,
+  },
+  menuItemText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  menuDivider: {
+    height: 1,
+    marginHorizontal: 12,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
