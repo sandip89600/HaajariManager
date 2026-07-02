@@ -259,11 +259,41 @@ export default function WorkersScreen() {
         )
       : workers;
 
+  const handleAddWorker = () => {
+    if (role !== "supervisor") {
+      const limit =
+        currentPlan === "free"
+          ? 15
+          : currentPlan === "professional"
+            ? 100
+            : Infinity;
+      if (workers.length >= limit) {
+        setShowUpgradeLimitModal(true);
+        return;
+      }
+    }
+    navigation.navigate("AddWorker");
+  };
+
   useFocusEffect(
     useCallback(() => {
       loadWorkers();
     }, [role, user]),
   );
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () =>
+        role !== "supervisor" ? (
+          <Pressable
+            onPress={handleAddWorker}
+            style={{ marginRight: Spacing.md, padding: 4 }}
+          >
+            <Feather name="plus" size={24} color={theme.primary} />
+          </Pressable>
+        ) : null,
+    });
+  }, [navigation, role, workers, currentPlan, theme, handleAddWorker]);
 
   const loadWorkers = async () => {
     setIsLoading(true);
@@ -285,22 +315,6 @@ export default function WorkersScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleAddWorker = () => {
-    if (role !== "supervisor") {
-      const limit =
-        currentPlan === "free"
-          ? 15
-          : currentPlan === "professional"
-            ? 100
-            : Infinity;
-      if (workers.length >= limit) {
-        setShowUpgradeLimitModal(true);
-        return;
-      }
-    }
-    navigation.navigate("AddWorker");
   };
 
   const handleEditWorker = (worker: Worker) => {
@@ -485,10 +499,7 @@ export default function WorkersScreen() {
           styles.listContent,
           {
             paddingTop: headerHeight + Spacing.xl,
-            paddingBottom:
-              tabBarHeight +
-              Spacing.xl +
-              (role !== "supervisor" ? Spacing.fabSize + Spacing.xl : 0),
+            paddingBottom: tabBarHeight + Spacing.xl,
           },
         ]}
         ListHeaderComponent={renderHeader}
@@ -498,25 +509,6 @@ export default function WorkersScreen() {
         onRefresh={loadWorkers}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
-
-      {role !== "supervisor" && (
-        <AnimatedPressable
-          onPress={handleAddWorker}
-          style={[
-            styles.fabContainer,
-            {
-              bottom: tabBarHeight + Spacing.xl,
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={[theme.primary, "#FF8C35"]}
-            style={[styles.fab, Shadows.fab]}
-          >
-            <Feather name="plus" size={24} color="#FFFFFF" />
-          </LinearGradient>
-        </AnimatedPressable>
-      )}
 
       {/* Professional Upgrade Modal */}
       <Modal
