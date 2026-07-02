@@ -47,10 +47,16 @@ interface ChatMessage {
   text: string;
 }
 
+type CopilotMode = "none" | "voice" | "chat" | "live";
+
 export default function VoiceAssistant() {
   const { theme, isDark } = useTheme();
 
-  const [isOpen, setIsOpen] = useState(false);
+  // Mode Selection State
+  const [mode, setMode] = useState<CopilotMode>("none");
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Core Processing States
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -59,8 +65,17 @@ export default function VoiceAssistant() {
   const [executedAction, setExecutedAction] = useState<string | null>(null);
   const [actionDetail, setActionDetail] = useState<string | null>(null);
 
+  // Toast System State
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error" | "info";
+  } | null>(null);
+
+  // Refs for audio and timing loops
   const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const liveActiveRef = useRef(false);
+  const liveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Waveform shared values
   const pulse1 = useSharedValue(1);
@@ -69,9 +84,11 @@ export default function VoiceAssistant() {
   const pulse4 = useSharedValue(1);
   const pulse5 = useSharedValue(1);
 
-  // Floating button entry animation
+  // Fan menu animated shared value
+  const menuExpanded = useSharedValue(0);
   const buttonScale = useSharedValue(1);
 
+  // Synchronize waveforms
   useEffect(() => {
     if (isRecording) {
       pulse1.value = withRepeat(
@@ -139,28 +156,242 @@ export default function VoiceAssistant() {
     transform: [{ scaleY: pulse5.value }],
   }));
 
+  // Fan Menu Styles
+  const containerStyle = useAnimatedStyle(() => ({
+    width: withSpring(menuExpanded.value === 1 ? 260 : 60, { damping: 15 }),
+  }));
+
+  const voiceStyle = useAnimatedStyle(() => ({
+    opacity: menuExpanded.value,
+    pointerEvents: menuExpanded.value > 0.5 ? "auto" : "none",
+    transform: [{ translateX: menuExpanded.value * -65 }],
+  }));
+
+  const chatStyle = useAnimatedStyle(() => ({
+    opacity: menuExpanded.value,
+    pointerEvents: menuExpanded.value > 0.5 ? "auto" : "none",
+    transform: [{ translateX: menuExpanded.value * -125 }],
+  }));
+
+  const liveStyle = useAnimatedStyle(() => ({
+    opacity: menuExpanded.value,
+    pointerEvents: menuExpanded.value > 0.5 ? "auto" : "none",
+    transform: [{ translateX: menuExpanded.value * -185 }],
+  }));
+
   const animatedButton = useAnimatedStyle(() => ({
     transform: [{ scale: buttonScale.value }],
   }));
 
-  const startAssistant = () => {
+  // Toast Timer Hook
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  // Clean up Live loop on unmount
+  useEffect(() => {
+    return () => {
+      liveActiveRef.current = false;
+      if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
+    };
+  }, []);
+
+  const showToast = (
+    message: string,
+    type: "success" | "error" | "info" = "success",
+  ) => {
+    setToast({ message, type });
+  };
+
+  // Toggle Fan Menu
+  const toggleMenu = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsOpen(true);
+    const nextState = !isExpanded;
+    setIsExpanded(nextState);
+    menuExpanded.value = withSpring(nextState ? 1 : 0, { damping: 12 });
+  };
+
+  // 1. VOICE MODE SETUP
+  const startVoiceMode = async () => {
+    Speech.stop();
     setTranscript("");
-    setAiResponse(
-      "Hello! How can I help you today? Aap voice commands de sakte hain.",
-    );
     setExecutedAction(null);
     setActionDetail(null);
+    setMode("voice");
+    setIsExpanded(false);
+    menuExpanded.value = 0;
+
+    // Auto start recording for quick command
+    setTimeout(startRecording, 100);
   };
 
-  const closeAssistant = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsOpen(false);
-    stopRecording();
+  // 2. CHAT MODE SETUP
+  const startChatMode = () => {
     Speech.stop();
+    setTranscript("");
+    setExecutedAction(null);
+    setActionDetail(null);
+    setMode("chat");
+    setIsExpanded(false);
+    menuExpanded.value = 0;
+
+    if (chatHistory.length === 0) {
+      setAiResponse(
+        "Hello! How can I help you today? Aap voice commands de sakte hain.",
+      );
+    }
   };
 
+  // 3. LIVE COPILOT MODE SETUP
+  const startLiveMode = async () => {
+    Speech.stop();
+    setIsExpanded(false);
+    menuExpanded.value = 0;
+    liveActiveRef.current = true;
+    setMode("live");
+    showToast("Live Copilot Mode Activated ⚡", "info");
+
+    runLiveLoop();
+  };
+
+  const stopLiveMode = async () => {
+    liveActiveRef.current = false;
+    if (liveTimeoutRef.current) {
+      clearTimeout(liveTimeoutRef.current);
+      liveTimeoutRef.current = null;
+    }
+
+    if (recordingRef.current) {
+      try {
+        await recordingRef.current.stopAndUnloadAsync();
+      } catch {}
+      recordingRef.current = null;
+    }
+
+    setIsRecording(false);
+    setIsProcessing(false);
+    setMode("none");
+    showToast("Live Copilot Deactivated", "info");
+  };
+
+  // Live Copilot continuous listening loop
+  const runLiveLoop = async () => {
+    if (!liveActiveRef.current) return;
+
+    try {
+      setIsRecording(true);
+      await Audio.requestPermissionsAsync();
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const recordingOptions = {
+        android: {
+          extension: ".m4a",
+          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+          audioEncoder: Audio.AndroidAudioEncoder.AAC,
+          sampleRate: 44100,
+          numberOfChannels: 1,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: ".m4a",
+          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+          audioQuality: Audio.IOSAudioQuality.HIGH,
+          sampleRate: 44100,
+          numberOfChannels: 1,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {
+          mimeType: "audio/webm",
+          bitsPerSecond: 128000,
+        },
+      };
+
+      const { recording } = await Audio.Recording.createAsync(recordingOptions);
+      recordingRef.current = recording;
+
+      // Record in 4.5 second listening slots
+      liveTimeoutRef.current = setTimeout(async () => {
+        if (!liveActiveRef.current) return;
+
+        try {
+          setIsRecording(false);
+          setIsProcessing(true);
+
+          await recording.stopAndUnloadAsync();
+          const uri = recording.getURI();
+          recordingRef.current = null;
+
+          if (uri && liveActiveRef.current) {
+            const base64Audio = await FileSystem.readAsStringAsync(uri, {
+              encoding: "base64",
+            });
+            await processLiveAudio(base64Audio);
+          }
+        } catch (e) {
+          console.error("Live loop stop recording failed:", e);
+        } finally {
+          setIsProcessing(false);
+          if (liveActiveRef.current) {
+            runLiveLoop();
+          }
+        }
+      }, 4500);
+    } catch (err) {
+      console.error("Failed to run live loop:", err);
+      showToast("Microphone error in Live Mode", "error");
+      stopLiveMode();
+    }
+  };
+
+  const processLiveAudio = async (base64Audio: string) => {
+    try {
+      const auth = await storage.getAuth();
+      const token = auth?.token;
+
+      const response = await fetch(`${API_URL}/voice/process`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          audio: base64Audio,
+          mimeType: Platform.OS === "ios" ? "audio/x-m4a" : "audio/mp4",
+          history: [],
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+
+        if (
+          result.transcript &&
+          result.action &&
+          result.action !== "UNKNOWN" &&
+          result.action !== "INCOMPLETE"
+        ) {
+          if (result.response) {
+            speakResponse(result.response);
+          }
+          await executeAction(result.action, result.data);
+          showToast(`Executed: ${result.action}`, "success");
+        }
+      }
+    } catch (err) {
+      console.error("Live audio processing failed:", err);
+    }
+  };
+
+  // Audio Recording Flow
   const startRecording = async () => {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -219,7 +450,6 @@ export default function VoiceAssistant() {
       recordingRef.current = null;
 
       if (uri) {
-        // Read file as base64 (Google / JSON workflow style)
         const base64Audio = await FileSystem.readAsStringAsync(uri, {
           encoding: "base64",
         });
@@ -246,10 +476,13 @@ export default function VoiceAssistant() {
         body: JSON.stringify({
           audio: base64Audio,
           mimeType: Platform.OS === "ios" ? "audio/x-m4a" : "audio/mp4",
-          history: chatHistory.map((ch) => ({
-            role: ch.role,
-            parts: [{ text: ch.text }],
-          })),
+          history:
+            mode === "chat"
+              ? chatHistory.map((ch) => ({
+                  role: ch.role,
+                  parts: [{ text: ch.text }],
+                }))
+              : [],
         }),
       });
 
@@ -264,31 +497,52 @@ export default function VoiceAssistant() {
       if (result.transcript) {
         setTranscript(result.transcript);
 
-        // Append user transcript to chat history
-        const newHistory = [
-          ...chatHistory,
-          { role: "user" as const, text: result.transcript },
-        ];
+        if (mode === "chat") {
+          const newHistory = [
+            ...chatHistory,
+            { role: "user" as const, text: result.transcript },
+          ];
 
-        if (result.response) {
-          setAiResponse(result.response);
-          newHistory.push({ role: "model" as const, text: result.response });
-          setChatHistory(newHistory);
+          if (result.response) {
+            setAiResponse(result.response);
+            newHistory.push({ role: "model" as const, text: result.response });
+            setChatHistory(newHistory);
+            speakResponse(result.response);
+          }
 
-          // Speak back
-          speakResponse(result.response);
-        }
+          if (
+            result.action &&
+            result.action !== "INCOMPLETE" &&
+            result.action !== "UNKNOWN"
+          ) {
+            await executeAction(result.action, result.data);
+          } else {
+            setExecutedAction(null);
+            setActionDetail(null);
+          }
+        } else if (mode === "voice") {
+          // Voice Mode executes immediately with no chat logs
+          if (result.response) {
+            speakResponse(result.response);
+          }
 
-        // Execute action if understood
-        if (
-          result.action &&
-          result.action !== "INCOMPLETE" &&
-          result.action !== "UNKNOWN"
-        ) {
-          await executeAction(result.action, result.data);
-        } else {
-          setExecutedAction(null);
-          setActionDetail(null);
+          if (
+            result.action &&
+            result.action !== "INCOMPLETE" &&
+            result.action !== "UNKNOWN"
+          ) {
+            await executeAction(result.action, result.data);
+            showToast(`Command Executed: ${result.action}`, "success");
+          } else if (result.action === "INCOMPLETE") {
+            showToast(result.response || "Details incomplete.", "info");
+          } else {
+            showToast("Command not understood.", "error");
+          }
+
+          // Auto close voice mode pill after 2.5s
+          setTimeout(() => {
+            setMode("none");
+          }, 2500);
         }
       }
     } catch (err) {
@@ -298,6 +552,11 @@ export default function VoiceAssistant() {
       setTranscript(errMsg);
       setAiResponse(errMsg);
       speakResponse(errMsg);
+      showToast("Voice parsing failed.", "error");
+
+      if (mode === "voice") {
+        setTimeout(() => setMode("none"), 2500);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -322,11 +581,9 @@ export default function VoiceAssistant() {
     const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
     const target = clean(name);
 
-    // Exact Match
     let match = workers.find((w) => clean(w.name) === target);
     if (match) return match;
 
-    // Fuzzy Match (inclusion)
     match = workers.find(
       (w) => clean(w.name).includes(target) || target.includes(clean(w.name)),
     );
@@ -353,7 +610,7 @@ export default function VoiceAssistant() {
       switch (action) {
         case "ADD_WORKER": {
           const newWorker: Worker = {
-            id: "", // generated on backend
+            id: "",
             name: data.name,
             dailyRate: data.dailyRate || 500,
             category: data.category || "labour",
@@ -399,7 +656,6 @@ export default function VoiceAssistant() {
           if (worker) {
             const dateObj = data.date ? new Date(data.date) : new Date();
 
-            // Map status text to valid AttendanceValue
             let val: AttendanceRecord["value"] = "P";
             if (data.status === "Absent") val = "A";
             else if (data.status === "Half Day") val = "H";
@@ -413,7 +669,7 @@ export default function VoiceAssistant() {
               value: val,
               dailyRate: worker.dailyRate,
               customWage: data.advance || undefined,
-              finalPay: 0, // Backend calculates this
+              finalPay: 0,
               timestamp: Date.now(),
             };
             await storage.setAttendanceRecord(record);
@@ -451,10 +707,7 @@ export default function VoiceAssistant() {
         }
         case "ADD_ADVANCE": {
           if (worker) {
-            // Save advance as customWage in AttendanceRecord
             const dateObj = data.date ? new Date(data.date) : new Date();
-
-            // Try to find if there is an existing record today
             const attendanceList = await storage.getAttendance();
             const existing = attendanceList.find(
               (r) =>
@@ -469,7 +722,7 @@ export default function VoiceAssistant() {
               year: dateObj.getFullYear(),
               month: dateObj.getMonth(),
               day: dateObj.getDate(),
-              value: existing ? existing.value : "P", // default to Present if no record exists
+              value: existing ? existing.value : "P",
               dailyRate: worker.dailyRate,
               customWage: data.amount,
               finalPay: 0,
@@ -543,6 +796,20 @@ export default function VoiceAssistant() {
     }
   };
 
+  const closeAssistant = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMode("none");
+    if (recordingRef.current) {
+      try {
+        recordingRef.current.stopAndUnloadAsync();
+      } catch {}
+      recordingRef.current = null;
+    }
+    setIsRecording(false);
+    setIsProcessing(false);
+    Speech.stop();
+  };
+
   useEffect(() => {
     if (scrollViewRef.current) {
       setTimeout(() => {
@@ -553,11 +820,44 @@ export default function VoiceAssistant() {
 
   return (
     <>
-      {/* Floating Microphone Button */}
-      {!isOpen && (
-        <Animated.View style={[styles.floatingButtonContainer, animatedButton]}>
+      {/* Dynamic Top-level Toast Notification system */}
+      {toast && (
+        <Animated.View
+          entering={SlideInDown.duration(300)}
+          exiting={FadeOut.duration(200)}
+          style={[
+            styles.toastContainer,
+            {
+              backgroundColor:
+                toast.type === "success"
+                  ? "rgba(16, 185, 129, 0.95)"
+                  : toast.type === "error"
+                    ? "rgba(239, 68, 68, 0.95)"
+                    : "rgba(59, 130, 246, 0.95)",
+            },
+          ]}
+        >
+          <Feather
+            name={
+              toast.type === "success"
+                ? "check-circle"
+                : toast.type === "error"
+                  ? "alert-circle"
+                  : "info"
+            }
+            size={18}
+            color="#FFFFFF"
+          />
+          <ThemedText style={styles.toastText}>{toast.message}</ThemedText>
+        </Animated.View>
+      )}
+
+      {/* Floating AI Button & Expandable Fan Menu */}
+      {mode === "none" && (
+        <Animated.View style={[styles.floatingButtonContainer, containerStyle]}>
+          {/* Main Button */}
           <Pressable
-            onPress={startAssistant}
+            onPress={toggleMenu}
             onPressIn={() => {
               buttonScale.value = withSpring(0.9, { damping: 10 });
             }}
@@ -565,23 +865,159 @@ export default function VoiceAssistant() {
               buttonScale.value = withSpring(1, { damping: 10 });
             }}
           >
-            <LinearGradient
-              colors={["#FF6B35", "#FF8C35"]}
-              style={styles.floatingButton}
+            <Animated.View
+              style={[styles.mainFloatingButtonWrapper, animatedButton]}
             >
-              <Feather name="mic" size={26} color="#FFFFFF" />
-            </LinearGradient>
+              <LinearGradient
+                colors={["#FF6B35", "#FF8C35"]}
+                style={styles.floatingButton}
+              >
+                <Feather
+                  name={isExpanded ? "x" : "cpu"}
+                  size={26}
+                  color="#FFFFFF"
+                />
+              </LinearGradient>
+            </Animated.View>
           </Pressable>
+
+          {/* Fan Button 1: 🎙 Voice */}
+          <Animated.View style={[styles.fanButtonWrapper, voiceStyle]}>
+            <Pressable onPress={startVoiceMode}>
+              <LinearGradient
+                colors={["#FF6B35", "#FF8C35"]}
+                style={styles.fanButton}
+              >
+                <Feather name="mic" size={20} color="#FFFFFF" />
+              </LinearGradient>
+            </Pressable>
+            <ThemedText type="small" style={styles.fanLabel}>
+              Voice
+            </ThemedText>
+          </Animated.View>
+
+          {/* Fan Button 2: 💬 Chat */}
+          <Animated.View style={[styles.fanButtonWrapper, chatStyle]}>
+            <Pressable onPress={startChatMode}>
+              <LinearGradient
+                colors={["#3B82F6", "#4F46E5"]}
+                style={styles.fanButton}
+              >
+                <Feather name="message-square" size={20} color="#FFFFFF" />
+              </LinearGradient>
+            </Pressable>
+            <ThemedText type="small" style={styles.fanLabel}>
+              Chat
+            </ThemedText>
+          </Animated.View>
+
+          {/* Fan Button 3: ⚡ Live */}
+          <Animated.View style={[styles.fanButtonWrapper, liveStyle]}>
+            <Pressable onPress={startLiveMode}>
+              <LinearGradient
+                colors={["#F59E0B", "#D97706"]}
+                style={styles.fanButton}
+              >
+                <Feather name="zap" size={20} color="#FFFFFF" />
+              </LinearGradient>
+            </Pressable>
+            <ThemedText type="small" style={styles.fanLabel}>
+              Live
+            </ThemedText>
+          </Animated.View>
         </Animated.View>
       )}
 
-      {/* Voice Assistant Sheet */}
-      {isOpen && (
+      {/* Voice Mode Floating Pill Overlay */}
+      {mode === "voice" && (
+        <View style={styles.voiceModeOverlay} pointerEvents="box-none">
+          <BlurView
+            intensity={95}
+            tint={isDark ? "dark" : "light"}
+            style={styles.voiceModePill}
+          >
+            <View style={styles.voiceModeContent}>
+              <Feather
+                name="mic"
+                size={20}
+                color="#FF6B35"
+                style={{ marginRight: Spacing.sm }}
+              />
+              {isRecording ? (
+                <>
+                  <ThemedText style={styles.voiceModeStatus}>
+                    Listening...
+                  </ThemedText>
+                  <View style={styles.miniWaveform}>
+                    <Animated.View
+                      style={[styles.miniWaveBar, animatedWave1]}
+                    />
+                    <Animated.View
+                      style={[styles.miniWaveBar, animatedWave2]}
+                    />
+                    <Animated.View
+                      style={[styles.miniWaveBar, animatedWave3]}
+                    />
+                  </View>
+                </>
+              ) : isProcessing ? (
+                <>
+                  <ActivityIndicator
+                    size="small"
+                    color="#FF6B35"
+                    style={{ marginRight: Spacing.sm }}
+                  />
+                  <ThemedText style={styles.voiceModeStatus}>
+                    Processing...
+                  </ThemedText>
+                </>
+              ) : (
+                <ThemedText style={styles.voiceModeStatus}>
+                  {transcript || "Speak command"}
+                </ThemedText>
+              )}
+
+              <Pressable
+                onPress={closeAssistant}
+                style={styles.voiceCloseButton}
+              >
+                <Feather name="x" size={18} color={theme.text} />
+              </Pressable>
+            </View>
+          </BlurView>
+        </View>
+      )}
+
+      {/* Live Copilot Floating Pill Status (Continuous listening) */}
+      {mode === "live" && (
+        <View style={styles.liveModeOverlay} pointerEvents="box-none">
+          <BlurView
+            intensity={95}
+            tint={isDark ? "dark" : "light"}
+            style={styles.liveModePill}
+          >
+            <View style={styles.liveModeContent}>
+              <View style={styles.liveDot} />
+              <ThemedText style={styles.liveModeText}>
+                {isRecording
+                  ? "Live Listening... ⚡"
+                  : isProcessing
+                    ? "Analyzing... ⚡"
+                    : "Live Active ⚡"}
+              </ThemedText>
+              <Pressable onPress={stopLiveMode} style={styles.liveStopBtn}>
+                <Feather name="square" size={14} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          </BlurView>
+        </View>
+      )}
+
+      {/* Chat Mode bottom sheet */}
+      {mode === "chat" && (
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          {/* Backdrop */}
           <Pressable style={styles.backdrop} onPress={closeAssistant} />
 
-          {/* Sliding Bottom Panel */}
           <Animated.View
             entering={SlideInDown.springify().damping(18)}
             exiting={SlideOutDown.duration(200)}
@@ -605,7 +1041,6 @@ export default function VoiceAssistant() {
               />
             )}
 
-            {/* Header */}
             <View style={styles.panelHeader}>
               <View style={styles.panelHeaderTitle}>
                 <LinearGradient
@@ -615,7 +1050,7 @@ export default function VoiceAssistant() {
                   style={styles.headerIndicator}
                 />
                 <ThemedText type="h3" style={{ fontWeight: "800" }}>
-                  Haajari AI Voice
+                  Haajari AI Copilot Chat
                 </ThemedText>
               </View>
               <Pressable onPress={closeAssistant} style={styles.closeButton}>
@@ -623,7 +1058,6 @@ export default function VoiceAssistant() {
               </Pressable>
             </View>
 
-            {/* Scrolling Chat History Area */}
             <ScrollView
               ref={scrollViewRef}
               style={styles.chatArea}
@@ -656,7 +1090,6 @@ export default function VoiceAssistant() {
                 </View>
               ))}
 
-              {/* Latest AI response if history is empty */}
               {chatHistory.length === 0 && (
                 <View
                   style={[
@@ -676,7 +1109,6 @@ export default function VoiceAssistant() {
               )}
             </ScrollView>
 
-            {/* Action Execution Visual Indicator */}
             {executedAction && (
               <Animated.View
                 entering={FadeIn.duration(300)}
@@ -724,7 +1156,6 @@ export default function VoiceAssistant() {
               </Animated.View>
             )}
 
-            {/* Bottom Interaction Area */}
             <View
               style={[
                 styles.interactionArea,
@@ -735,7 +1166,6 @@ export default function VoiceAssistant() {
                 },
               ]}
             >
-              {/* Voice equalizer/waveform animation */}
               {isRecording ? (
                 <View style={styles.waveformContainer}>
                   <Animated.View
@@ -789,7 +1219,6 @@ export default function VoiceAssistant() {
                 </View>
               )}
 
-              {/* Record Button */}
               <Pressable
                 onPress={isRecording ? stopRecording : startRecording}
                 disabled={isProcessing}
@@ -823,7 +1252,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 90,
     right: 20,
+    height: 60,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "flex-start",
     zIndex: 9999,
+  },
+  mainFloatingButtonWrapper: {
+    zIndex: 10002,
   },
   floatingButton: {
     width: 60,
@@ -832,6 +1268,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     ...Shadows.md,
+  },
+  fanButtonWrapper: {
+    position: "absolute",
+    alignItems: "center",
+    zIndex: 10001,
+  },
+  fanButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    ...Shadows.md,
+  },
+  fanLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#888",
+    marginTop: 2,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -931,5 +1386,98 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginHorizontal: Spacing.md,
     marginBottom: Spacing.xs,
+  },
+  toastContainer: {
+    position: "absolute",
+    top: 50,
+    left: 20,
+    right: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: BorderRadius.md,
+    flexDirection: "row",
+    alignItems: "center",
+    zIndex: 10005,
+    ...Shadows.lg,
+  },
+  toastText: {
+    color: "#FFFFFF",
+    marginLeft: Spacing.sm,
+    fontSize: 14,
+    fontWeight: "600",
+    flex: 1,
+  },
+  voiceModeOverlay: {
+    position: "absolute",
+    bottom: 160,
+    left: 20,
+    right: 20,
+    zIndex: 9999,
+  },
+  voiceModePill: {
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    overflow: "hidden",
+    ...Shadows.lg,
+  },
+  voiceModeContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    justifyContent: "space-between",
+  },
+  voiceModeStatus: {
+    fontSize: 15,
+    fontWeight: "700",
+    flex: 1,
+  },
+  miniWaveform: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: Spacing.md,
+  },
+  miniWaveBar: {
+    width: 3,
+    height: 12,
+    borderRadius: 1.5,
+    marginHorizontal: 1.5,
+  },
+  voiceCloseButton: {
+    padding: 4,
+  },
+  liveModeOverlay: {
+    position: "absolute",
+    top: 60,
+    alignSelf: "center",
+    zIndex: 9999,
+  },
+  liveModePill: {
+    borderRadius: 25,
+    borderWidth: 1,
+    overflow: "hidden",
+    ...Shadows.lg,
+  },
+  liveModeContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#F59E0B",
+    marginRight: 8,
+  },
+  liveModeText: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginRight: 12,
+  },
+  liveStopBtn: {
+    backgroundColor: "#EF4444",
+    padding: 6,
+    borderRadius: 12,
   },
 });
