@@ -200,16 +200,18 @@ export default function LoginScreen() {
     setError(null);
 
     if (!phone.trim()) {
-      setError("Please enter your mobile number");
+      setError("Please enter your email, username or mobile number");
       return;
     }
 
     const trimmedPhone = phone.trim();
     const isAdminUsername = trimmedPhone === "haajari896";
-    const isValidPhone = /^\d{10}$/.test(trimmedPhone);
+    const isEmail = trimmedPhone.includes("@");
+    const isPhone = /^\d{10}$/.test(trimmedPhone);
+    const isUsername = trimmedPhone.length >= 3;
 
-    if (!isAdminUsername && !isValidPhone) {
-      setError("Please enter a valid 10-digit mobile number");
+    if (!isAdminUsername && !isEmail && !isPhone && !isUsername) {
+      setError("Please enter a valid email, username or mobile number");
       return;
     }
 
@@ -449,21 +451,21 @@ export default function LoginScreen() {
                   ]}
                 >
                   <Feather
-                    name="phone"
+                    name="user"
                     size={20}
                     color={theme.textSecondary}
                     style={styles.inputIcon}
                   />
                   <TextInput
                     style={[styles.input, { color: theme.text }]}
-                    placeholder="Mobile Number"
+                    placeholder={t.auth.email}
                     placeholderTextColor={theme.textSecondary}
                     value={phone}
                     onChangeText={(text) => {
                       setPhone(text);
                       setError(null);
                     }}
-                    keyboardType="phone-pad"
+                    keyboardType="default"
                     autoCapitalize="none"
                     autoCorrect={false}
                   />

@@ -49,6 +49,8 @@ export default function SignupScreen() {
 
   // Form Fields
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [password, setPassword] = useState("");
@@ -157,6 +159,11 @@ export default function SignupScreen() {
       return;
     }
 
+    if (email.trim() && !email.trim().includes("@")) {
+      Alert.alert("Error", "Please enter a valid email address");
+      return;
+    }
+
     setIsLoading(true);
     try {
       const success = await signup(
@@ -165,9 +172,14 @@ export default function SignupScreen() {
         password,
         selectedRole as "contractor" | "builder",
         companyName.trim(),
+        email.trim() || undefined,
+        username.trim() || undefined,
       );
       if (!success) {
-        Alert.alert("Error", "This mobile number is already registered.");
+        Alert.alert(
+          "Error",
+          "This mobile number, email, or username is already registered.",
+        );
       }
     } finally {
       setIsLoading(false);
@@ -405,6 +417,65 @@ export default function SignupScreen() {
                   placeholderTextColor={theme.textSecondary}
                   value={name}
                   onChangeText={setName}
+                  autoCorrect={false}
+                />
+              </View>
+            </View>
+
+            {/* Username */}
+            <View style={styles.inputContainer}>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <Feather
+                  name="at-sign"
+                  size={20}
+                  color={theme.textSecondary}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={[styles.input, { color: theme.text }]}
+                  placeholder="Username (optional)"
+                  placeholderTextColor={theme.textSecondary}
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+            </View>
+
+            {/* Email Address */}
+            <View style={styles.inputContainer}>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <Feather
+                  name="mail"
+                  size={20}
+                  color={theme.textSecondary}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={[styles.input, { color: theme.text }]}
+                  placeholder="Email Address (optional)"
+                  placeholderTextColor={theme.textSecondary}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
                   autoCorrect={false}
                 />
               </View>

@@ -27,6 +27,8 @@ interface AuthContextType {
     password?: string,
     role?: "contractor" | "builder",
     companyName?: string,
+    email?: string,
+    username?: string,
   ) => Promise<boolean>;
   loginAsGuest: () => void;
   logout: () => Promise<void>;
@@ -200,6 +202,8 @@ export function useAuthProvider() {
       password?: string,
       role?: "contractor" | "builder",
       companyName?: string,
+      email?: string,
+      username?: string,
     ): Promise<boolean> => {
       const phoneTrimmed = phone.trim();
 
@@ -214,6 +218,8 @@ export function useAuthProvider() {
             password,
             role,
             companyName,
+            email: email ? email.toLowerCase().trim() : undefined,
+            username: username ? username.toLowerCase().trim() : undefined,
           }),
         });
         if (res.ok) {

@@ -72,7 +72,7 @@ const generateRefreshToken = (user: any) => {
 
 export const signup = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { password, name, phone, role, companyName } = req.body;
+    const { password, name, phone, role, companyName, email, username } = req.body;
     console.log("[Registration Flow] User registration request received for phone:", phone);
 
     if (!phone || !password || !name) {
@@ -83,6 +83,22 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
     const existingUser = await User.findOne({ phone: phoneTrimmed });
     if (existingUser) {
       return res.status(400).json({ error: "Mobile number already registered" });
+    }
+
+    if (email) {
+      const emailLower = email.toLowerCase().trim();
+      const existingEmail = await User.findOne({ email: emailLower });
+      if (existingEmail) {
+        return res.status(400).json({ error: "Email is already registered" });
+      }
+    }
+
+    if (username) {
+      const usernameLower = username.toLowerCase().trim();
+      const existingUsername = await User.findOne({ username: usernameLower });
+      if (existingUsername) {
+        return res.status(400).json({ error: "Username is already taken" });
+      }
     }
 
     if (role && !["contractor", "builder"].includes(role)) {
@@ -103,6 +119,8 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
       tenantId: tenant._id,
       name,
       phone: phoneTrimmed,
+      email: email ? email.toLowerCase().trim() : undefined,
+      username: username ? username.toLowerCase().trim() : undefined,
       passwordHash,
       role: role || "contractor",
       isActive: true,
@@ -139,6 +157,7 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
         name: user.name,
         phone: user.phone,
         email: user.email || "",
+        username: user.username || "",
         role: user.role,
         tenantId: tenant._id,
         isVerified: user.isVerified,
@@ -237,8 +256,16 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    const phoneTrimmed = phone.trim();
-    const user = await User.findOne({ phone: phoneTrimmed });
+    const input = phone.trim();
+    const user = input.includes("@")
+      ? await User.findOne({ email: input.toLowerCase() })
+      : await User.findOne({
+          $or: [
+            { phone: input },
+            { username: input.toLowerCase() }
+          ]
+        });
+    const phoneTrimmed = user ? user.phone : input;
 
     if (!user) {
       return res.status(400).json({ error: "Invalid credentials" });
@@ -418,6 +445,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
         name: user.name,
         phone: user.phone,
         email: user.email || "",
+        username: user.username || "",
         role: user.role,
         tenantId: user.tenantId,
         isVerified: user.isVerified,
@@ -634,6 +662,7 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response) =>
         name: user.name,
         phone: user.phone,
         email: user.email || "",
+        username: user.username || "",
         role: user.role,
         tenantId: user.tenantId,
         isVerified: user.isVerified,

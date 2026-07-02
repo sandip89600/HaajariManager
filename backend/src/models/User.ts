@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IUser extends Document {
   tenantId: mongoose.Types.ObjectId;
   name: string;
+  username?: string;
   email?: string;
   passwordHash: string;
   phone: string;
@@ -64,6 +65,7 @@ export interface IUser extends Document {
 const UserSchema = new Schema<IUser>({
   tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true },
   name: { type: String, required: true },
+  username: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
   email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
   passwordHash: { type: String, required: true },
   phone: { type: String, required: true, unique: true, trim: true },
