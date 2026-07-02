@@ -7,7 +7,9 @@ import {
   Platform,
   Dimensions,
   ScrollView,
+  DeviceEventEmitter,
 } from "react-native";
+import { appContextTracker } from "@/utils/appContextTracker";
 import { BlurView } from "expo-blur";
 import { Feather } from "@expo/vector-icons";
 import { Audio } from "expo-av";
@@ -43,6 +45,78 @@ import { navigationRef } from "@/navigation/navigationRef";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
+const parseLocalCommand = (text: string): { action: string; data: any; response: string } | null => {
+  const t = text.toLowerCase().trim();
+  if (!t) return null;
+
+  // Navigation commands
+  if (t.includes("worker") || t.includes("kaamgar") || t.includes("kamgar") || t.includes("kormi")) {
+    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("chalo") || t.includes("go to") || t.includes("view")) {
+      return {
+        action: "OPEN_SCREEN",
+        data: { screen: "Workers" },
+        response: "Opening Workers screen."
+      };
+    }
+  }
+  if (t.includes("summary") || t.includes("payment") || t.includes("bhugtan") || t.includes("hisab") || t.includes("pay")) {
+    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("chalo") || t.includes("go to") || t.includes("view")) {
+      return {
+        action: "OPEN_SCREEN",
+        data: { screen: "Summary" },
+        response: "Opening Summary screen."
+      };
+    }
+  }
+  if (t.includes("attendance") || t.includes("haajari") || t.includes("hajiri") || t.includes("presence")) {
+    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("chalo") || t.includes("go to") || t.includes("view")) {
+      return {
+        action: "OPEN_SCREEN",
+        data: { screen: "Attendance" },
+        response: "Opening Attendance screen."
+      };
+    }
+  }
+  if (t.includes("setting") || t.includes("vinyas") || t.includes("bhavana")) {
+    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("chalo") || t.includes("go to") || t.includes("view")) {
+      return {
+        action: "OPEN_SCREEN",
+        data: { screen: "Settings" },
+        response: "Opening Settings screen."
+      };
+    }
+  }
+  if (t.includes("profile") || t.includes("account") || t.includes("khata") || t.includes("user")) {
+    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("go to")) {
+      return {
+        action: "OPEN_SCREEN",
+        data: { screen: "Profile" },
+        response: "Opening Profile screen."
+      };
+    }
+  }
+  if (t.includes("back") || t.includes("piche") || t.includes("wapas") || t.includes("pichhe")) {
+    return {
+      action: "GO_BACK",
+      data: {},
+      response: "Going back."
+    };
+  }
+
+  // Settings modification
+  if (t.includes("theme") || t.includes("dark") || t.includes("light") || t.includes("color")) {
+    if (t.includes("switch") || t.includes("change") || t.includes("badlo") || t.includes("toggle") || t.includes("toggled")) {
+      return {
+        action: "SWITCH_THEME",
+        data: {},
+        response: "Switching app theme."
+      };
+    }
+  }
+
+  return null;
+};
+
 interface ChatMessage {
   role: "user" | "model";
   text: string;
@@ -51,7 +125,7 @@ interface ChatMessage {
 type CopilotMode = "none" | "voice" | "chat" | "live";
 
 export default function VoiceAssistant() {
-  const { theme, isDark } = useTheme();
+  const { theme, isDark, setThemeMode } = useTheme();
   const { language } = useLanguage();
 
   // Mode Selection State
@@ -61,11 +135,17 @@ export default function VoiceAssistant() {
   // Core Processing States
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [executedAction, setExecutedAction] = useState<string | null>(null);
   const [actionDetail, setActionDetail] = useState<string | null>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<{
+    action: string;
+    data: any;
+    message: string;
+  } | null>(null);
 
   // Toast System State
   const [toast, setToast] = useState<{
@@ -79,6 +159,7 @@ export default function VoiceAssistant() {
   const liveActiveRef = useRef(false);
   const liveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const voiceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isPreparingRecordingRef = useRef(false);
 
   // Waveform shared values
   const pulse1 = useSharedValue(1);
@@ -307,7 +388,18 @@ export default function VoiceAssistant() {
   const runLiveLoop = async () => {
     if (!liveActiveRef.current) return;
 
+    // If AI is currently speaking or confirmation is pending, do not start recording
+    if (isSpeaking || pendingConfirmation) {
+      return;
+    }
+
+    if (recordingRef.current || isPreparingRecordingRef.current) {
+      console.log("[Live Loop] Recording is already active or preparing. Skipping createAsync.");
+      return;
+    }
+
     try {
+      isPreparingRecordingRef.current = true;
       setIsRecording(true);
       await Audio.requestPermissionsAsync();
       await Audio.setAudioModeAsync({
@@ -343,6 +435,7 @@ export default function VoiceAssistant() {
 
       const { recording } = await Audio.Recording.createAsync(recordingOptions);
       recordingRef.current = recording;
+      isPreparingRecordingRef.current = false;
 
       // Record in 4.5 second listening slots
       liveTimeoutRef.current = setTimeout(async () => {
@@ -356,6 +449,15 @@ export default function VoiceAssistant() {
           const uri = recording.getURI();
           recordingRef.current = null;
 
+          // Schedule the next recording slot with a small delay to allow native resources to fully release
+          if (liveActiveRef.current && !isSpeaking && !pendingConfirmation) {
+            setTimeout(() => {
+              if (liveActiveRef.current && !isSpeaking && !pendingConfirmation) {
+                runLiveLoop();
+              }
+            }, 300);
+          }
+
           if (uri && liveActiveRef.current) {
             const base64Audio = await FileSystem.readAsStringAsync(uri, {
               encoding: "base64",
@@ -366,12 +468,10 @@ export default function VoiceAssistant() {
           console.error("Live loop stop recording failed:", e);
         } finally {
           setIsProcessing(false);
-          if (liveActiveRef.current) {
-            runLiveLoop();
-          }
         }
       }, 4500);
     } catch (err) {
+      isPreparingRecordingRef.current = false;
       console.error("Failed to run live loop:", err);
       showToast("Microphone error in Live Mode", "error");
       stopLiveMode();
@@ -382,6 +482,7 @@ export default function VoiceAssistant() {
     try {
       const auth = await storage.getAuth();
       const token = auth?.token;
+      const ctx = appContextTracker.getContext();
 
       const response = await fetch(`${API_URL}/voice/process`, {
         method: "POST",
@@ -394,6 +495,8 @@ export default function VoiceAssistant() {
           mimeType: Platform.OS === "ios" ? "audio/x-m4a" : "audio/mp4",
           history: [],
           language: language,
+          currentScreen: ctx.currentScreen,
+          screenContext: ctx,
         }),
       });
 
@@ -415,6 +518,7 @@ export default function VoiceAssistant() {
       }
     } catch (err) {
       console.error("Live audio processing failed:", err);
+      showToast("Offline: Internet connection lost.", "error");
     }
   };
 
@@ -504,6 +608,7 @@ export default function VoiceAssistant() {
     try {
       const auth = await storage.getAuth();
       const token = auth?.token;
+      const ctx = appContextTracker.getContext();
 
       const response = await fetch(`${API_URL}/voice/process`, {
         method: "POST",
@@ -522,6 +627,8 @@ export default function VoiceAssistant() {
                 }))
               : [],
           language: language,
+          currentScreen: ctx.currentScreen,
+          screenContext: ctx,
         }),
       });
 
@@ -586,13 +693,11 @@ export default function VoiceAssistant() {
       }
     } catch (err) {
       console.error("Error processing audio on backend", err);
-      const errMsg =
-        "Sorry, I couldn't understand your request. Please try again.";
+      showToast("Offline: Internet connection lost.", "error");
+      const errMsg = "Sorry, I couldn't connect to the server. Please check your internet connection.";
       setTranscript(errMsg);
       setAiResponse(errMsg);
       speakResponse(errMsg);
-      showToast("Voice parsing failed.", "error");
-
       if (mode === "voice") {
         setTimeout(() => setMode("none"), 2500);
       }
@@ -601,16 +706,50 @@ export default function VoiceAssistant() {
     }
   };
 
-  const speakResponse = (text: string) => {
+  const speakResponse = async (text: string, onDoneCallback?: () => void) => {
+    setIsSpeaking(true);
+
+    // Stop active recording immediately before speaking to avoid double recording / self feedback loop
+    if (liveActiveRef.current && recordingRef.current) {
+      try {
+        if (liveTimeoutRef.current) {
+          clearTimeout(liveTimeoutRef.current);
+          liveTimeoutRef.current = null;
+        }
+        setIsRecording(false);
+        const rec = recordingRef.current;
+        recordingRef.current = null;
+        await rec.stopAndUnloadAsync();
+      } catch (err) {
+        console.warn("[Voice] Error stopping recording for TTS:", err);
+      }
+    }
+
     const isHindi =
       /[\u0900-\u097F]/.test(text) ||
       text.toLowerCase().includes("kijiye") ||
       text.toLowerCase().includes("karo") ||
-      text.toLowerCase().includes("hai");
+      text.toLowerCase().includes("hai") ||
+      text.toLowerCase().includes("laga") ||
+      text.toLowerCase().includes("dena");
+
+    const cleanResume = () => {
+      setIsSpeaking(false);
+      if (onDoneCallback) {
+        onDoneCallback();
+      } else if (liveActiveRef.current) {
+        // Automatically resume live loop
+        runLiveLoop();
+      }
+    };
+
     Speech.speak(text, {
       language: isHindi ? "hi-IN" : "en-IN",
       pitch: 1.0,
       rate: 1.0,
+      onDone: cleanResume,
+      onStopped: cleanResume,
+      onError: cleanResume,
     });
   };
 
@@ -630,6 +769,35 @@ export default function VoiceAssistant() {
   };
 
   const executeAction = async (action: string, data: any) => {
+    // Intercept destructive actions for confirmation
+    if (
+      action === "DELETE_WORKER" ||
+      action === "DELETE_PAYMENT" ||
+      action === "DELETE_ATTENDANCE" ||
+      action === "DELETE_ACCOUNT"
+    ) {
+      let message = "Are you sure you want to delete this?";
+      if (action === "DELETE_WORKER" && data.name) {
+        message = `Are you sure you want to delete worker "${data.name}"?`;
+      } else if (action === "DELETE_PAYMENT") {
+        message = `Are you sure you want to delete this payment?`;
+      } else if (action === "DELETE_ATTENDANCE") {
+        message = `Are you sure you want to delete this attendance record?`;
+      } else if (action === "DELETE_ACCOUNT") {
+        message = `Are you sure you want to delete your account? This is permanent.`;
+      }
+
+      setPendingConfirmation({ action, data, message });
+      setTranscript(message);
+      setAiResponse(message);
+      speakResponse(message);
+      return;
+    }
+
+    await executeActionDirect(action, data);
+  };
+
+  const executeActionDirect = async (action: string, data: any) => {
     try {
       const workers = await storage.getWorkers();
       let worker: Worker | null = null;
@@ -800,6 +968,15 @@ export default function VoiceAssistant() {
 
             if (target === "Dashboard") {
               navigationRef.navigate("AdminDashboard");
+            } else if (target === "Profile") {
+              navigationRef.navigate("UserProfile");
+            } else if (target === "Subscription") {
+              navigationRef.navigate("MainTabs", {
+                screen: "SettingsTab",
+                params: { openUpgrade: true },
+              });
+            } else if (target === "Reports") {
+              navigationRef.navigate("MainTabs", { screen: "SummaryTab" });
             } else {
               navigationRef.navigate(navTarget, { screen: subScreen });
             }
@@ -825,9 +1002,36 @@ export default function VoiceAssistant() {
           }
           break;
         }
+        case "EXPORT_PDF": {
+          const success = await appContextTracker.triggerCallback("exportPDF", data.type);
+          if (success !== null) {
+            setExecutedAction("EXPORT_PDF");
+            setActionDetail("Exported PDF summary report successfully");
+          } else {
+            showToast("PDF Export is only available on Summary screen", "error");
+          }
+          break;
+        }
+        case "GO_BACK": {
+          if (navigationRef.isReady() && navigationRef.canGoBack()) {
+            navigationRef.goBack();
+            setExecutedAction("GO_BACK");
+            setActionDetail("Navigated back");
+          }
+          break;
+        }
+        case "SWITCH_THEME": {
+          await setThemeMode(isDark ? "light" : "dark");
+          setExecutedAction("SWITCH_THEME");
+          setActionDetail("Switched app theme mode");
+          break;
+        }
         default:
           break;
       }
+
+      // Notify the active screen that data has changed and needs to be reloaded!
+      DeviceEventEmitter.emit("refreshData");
     } catch (err) {
       console.error("Action execution error:", err);
       setExecutedAction("ERROR");
@@ -1047,27 +1251,162 @@ export default function VoiceAssistant() {
         </View>
       )}
 
-      {/* Live Copilot Floating Pill Status (Continuous listening) */}
+      {/* Live Copilot Floating Panel Overlay (inspired by Gemini Live) */}
       {mode === "live" && (
-        <View style={styles.liveModeOverlay} pointerEvents="box-none">
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           <BlurView
-            intensity={95}
+            intensity={isDark ? 50 : 75}
             tint={isDark ? "dark" : "light"}
-            style={styles.liveModePill}
+            style={[
+              styles.livePanelOverlay,
+              {
+                backgroundColor: isDark ? "rgba(10, 10, 15, 0.9)" : "rgba(255, 255, 255, 0.9)",
+                borderTopColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)",
+                height: 330,
+              }
+            ]}
           >
-            <View style={styles.liveModeContent}>
-              <View style={styles.liveDot} />
-              <ThemedText style={styles.liveModeText}>
-                {isRecording
-                  ? "HAI is listening... ⚡"
-                  : isProcessing
-                    ? "HAI is thinking... ⚡"
-                    : "HAI Live ⚡"}
-              </ThemedText>
-              <Pressable onPress={stopLiveMode} style={styles.liveStopBtn}>
-                <Feather name="square" size={14} color="#FFFFFF" />
-              </Pressable>
+            {/* Confirmation Banner */}
+            {pendingConfirmation ? (
+              <Animated.View
+                entering={FadeIn.duration(250)}
+                exiting={FadeOut.duration(200)}
+                style={[
+                  styles.confirmationBox,
+                  {
+                    backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
+                    borderColor: theme.border,
+                  }
+                ]}
+              >
+                <Feather name="alert-triangle" size={20} color={theme.primary} style={{ marginRight: Spacing.sm }} />
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={{ fontWeight: "700", fontSize: 13 }}>
+                    {pendingConfirmation.message}
+                  </ThemedText>
+                </View>
+                <View style={styles.confirmButtonsRow}>
+                  <Pressable
+                    onPress={() => {
+                      setPendingConfirmation(null);
+                      if (liveActiveRef.current) runLiveLoop();
+                    }}
+                    style={[styles.confirmBtnCancel, { borderColor: theme.border }]}
+                  >
+                    <ThemedText style={{ fontSize: 12, fontWeight: "600" }}>Cancel</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    onPress={async () => {
+                      const { action, data } = pendingConfirmation;
+                      setPendingConfirmation(null);
+                      await executeActionDirect(action, data);
+                      showToast("Action confirmed and executed", "success");
+                      if (liveActiveRef.current) runLiveLoop();
+                    }}
+                    style={[styles.confirmBtnExecute, { backgroundColor: theme.primary }]}
+                  >
+                    <ThemedText style={{ fontSize: 12, fontWeight: "700", color: "#FFF" }}>Confirm</ThemedText>
+                  </Pressable>
+                </View>
+              </Animated.View>
+            ) : null}
+
+            {/* Top Dialogue & Transcript display */}
+            <View style={styles.dialogueContainer}>
+              {transcript ? (
+                <ThemedText style={styles.userTranscriptText} numberOfLines={1}>
+                  🎙️ You: "{transcript}"
+                </ThemedText>
+              ) : (
+                <ThemedText style={styles.liveInstructionsHeading}>
+                  Ask anything to manage workers, attendance, payments, or settings!
+                </ThemedText>
+              )}
+              {aiResponse ? (
+                <ThemedText style={styles.aiResponseText} numberOfLines={2}>
+                  HAI: {aiResponse}
+                </ThemedText>
+              ) : null}
             </View>
+
+            {/* Main Orb Centerpiece */}
+            <View style={styles.orbCenterpiece}>
+              {/* Outer pulsing glowing ring */}
+              <Animated.View
+                style={[
+                  styles.orbGlowingAura,
+                  {
+                    backgroundColor: isProcessing
+                      ? "#3B82F6"
+                      : isSpeaking
+                      ? "#8B5CF6"
+                      : isRecording
+                      ? "#FF6B35"
+                      : "#FF8C35",
+                  },
+                  animatedRing
+                ]}
+              />
+
+              {/* Central Pulsing Orb */}
+              <Animated.View style={[styles.orbMain, animatedButton]}>
+                <LinearGradient
+                  colors={
+                    isProcessing
+                      ? ["#2563EB", "#3B82F6"] // Thinking
+                      : isSpeaking
+                      ? ["#7C3AED", "#8B5CF6"] // Responding
+                      : isRecording
+                      ? ["#EF4444", "#FF6B35"] // Listening
+                      : ["#FF6B35", "#FF8C35"] // Default Idle
+                  }
+                  style={styles.orbGradient}
+                >
+                  <Feather
+                    name={isSpeaking ? "volume-2" : isProcessing ? "loader" : isRecording ? "mic" : "zap"}
+                    size={22}
+                    color="#FFFFFF"
+                  />
+                </LinearGradient>
+              </Animated.View>
+            </View>
+
+            {/* Copilot Status & Waveform */}
+            <View style={{ alignItems: "center", marginVertical: Spacing.xs }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", fontSize: 11 }}>
+                {isSpeaking
+                  ? "HAI is responding..."
+                  : isProcessing
+                  ? "HAI is thinking..."
+                  : isRecording
+                  ? "HAI is listening..."
+                  : "HAI Copilot Active"}
+              </ThemedText>
+
+              {/* Waveform Equalizer when listening */}
+              {isRecording && (
+                <View style={[styles.waveformContainer, { marginTop: 4 }]}>
+                  <Animated.View style={[styles.waveBar, { backgroundColor: "#FF6B35" }, animatedWave1]} />
+                  <Animated.View style={[styles.waveBar, { backgroundColor: "#FF7C35" }, animatedWave2]} />
+                  <Animated.View style={[styles.waveBar, { backgroundColor: "#FF8C35" }, animatedWave3]} />
+                  <Animated.View style={[styles.waveBar, { backgroundColor: "#FF9C35" }, animatedWave4]} />
+                  <Animated.View style={[styles.waveBar, { backgroundColor: "#FFAC35" }, animatedWave5]} />
+                </View>
+              )}
+            </View>
+
+            {/* Simple Guides / Instructions list */}
+            <View style={[styles.guideRow, { borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }]}>
+              <Feather name="info" size={12} color={theme.textSecondary} style={{ marginRight: 4 }} />
+              <ThemedText style={styles.guideText}>
+                Try: "Amit present", "Open Settings", "Bhugtan 500", "Export PDF Summary"
+              </ThemedText>
+            </View>
+
+            {/* Close Copilot Button */}
+            <Pressable onPress={stopLiveMode} style={styles.liveCloseFloatBtn}>
+              <Feather name="mic-off" size={15} color="#FFFFFF" />
+            </Pressable>
           </BlurView>
         </View>
       )}
@@ -1624,5 +1963,129 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 107, 53, 0.08)",
     borderWidth: 1,
     borderColor: "rgba(255, 107, 53, 0.15)",
+  },
+  livePanelOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 330,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    borderTopWidth: 1,
+    padding: Spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "visible",
+  },
+  dialogueContainer: {
+    width: "100%",
+    minHeight: 65,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  userTranscriptText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FF6B35",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  liveInstructionsHeading: {
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+    opacity: 0.65,
+  },
+  aiResponseText: {
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  guideRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderTopWidth: 1,
+    paddingTop: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  guideText: {
+    fontSize: 10,
+    fontWeight: "600",
+    opacity: 0.7,
+  },
+  confirmationBox: {
+    position: "absolute",
+    top: -85,
+    left: Spacing.md,
+    right: Spacing.md,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    ...Shadows.md,
+  },
+  confirmButtonsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  confirmBtnCancel: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: Spacing.xs,
+  },
+  confirmBtnExecute: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.sm,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  orbCenterpiece: {
+    width: 90,
+    height: 90,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  orbGlowingAura: {
+    position: "absolute",
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+  },
+  orbMain: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    overflow: "hidden",
+    ...Shadows.md,
+  },
+  orbGradient: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  liveCloseFloatBtn: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(239, 68, 68, 0.75)",
+    justifyContent: "center",
+    alignItems: "center",
+    ...Shadows.sm,
   },
 });

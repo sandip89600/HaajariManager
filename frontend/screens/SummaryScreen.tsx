@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, memo } from "react";
+import React, { useState, useCallback, useRef, memo, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -34,6 +34,8 @@ import {
   generateId,
   API_URL,
 } from "@/utils/storage";
+import { appContextTracker } from "@/utils/appContextTracker";
+import { DeviceEventEmitter } from "react-native";
 import {
   generateAttendanceHTML,
   generateSummaryHTML,
@@ -830,8 +832,26 @@ export default function SummaryScreen() {
   useFocusEffect(
     useCallback(() => {
       loadSummaries();
+      appContextTracker.setContext({
+        currentScreen: "Summary",
+        selectedMonth: selectedMonth,
+        selectedYear: selectedYear,
+      });
     }, [selectedMonth, selectedYear]),
   );
+
+  useEffect(() => {
+    appContextTracker.registerCallback("exportPDF", (type: "attendance" | "summary") => {
+      handleExportPDF(type || "summary");
+    });
+    const sub = DeviceEventEmitter.addListener("refreshData", () => {
+      loadSummaries();
+    });
+    return () => {
+      appContextTracker.unregisterCallback("exportPDF");
+      sub.remove();
+    };
+  }, [selectedMonth, selectedYear, summaries]);
 
   const loadSummaries = async () => {
     setIsLoading(true);

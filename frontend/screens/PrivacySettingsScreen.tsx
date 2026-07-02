@@ -16,9 +16,12 @@ import { useTheme } from "@/hooks/useTheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { authenticatedFetch, API_URL } from "@/utils/storage";
+import { useLanguage } from "@/hooks/useLanguage";
+import { appContextTracker } from "@/utils/appContextTracker";
 
 export default function PrivacySettingsScreen() {
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const tabBarHeight = insets.bottom + 60;
@@ -26,13 +29,9 @@ export default function PrivacySettingsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // States
-  const [profileVisibility, setProfileVisibility] = useState<
-    "public" | "private"
-  >("public");
-  const [attendanceVisibility, setAttendanceVisibility] = useState<
-    "only_me" | "supervisors" | "admin"
-  >("only_me");
+  // Profile fields visibility
+  const [profileVisibility, setProfileVisibility] = useState("public");
+  const [attendanceVisibility, setAttendanceVisibility] = useState("only_me");
   const [analyticsConsent, setAnalyticsConsent] = useState(true);
 
   // Notifications preferences
@@ -47,6 +46,15 @@ export default function PrivacySettingsScreen() {
   useEffect(() => {
     loadSettings();
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      appContextTracker.setContext({
+        currentScreen: "PrivacySettings",
+      });
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const loadSettings = async () => {
     setIsLoading(true);
@@ -100,13 +108,13 @@ export default function PrivacySettingsScreen() {
       });
 
       if (res.ok) {
-        Alert.alert("Success", "Privacy settings updated successfully.");
+        Alert.alert(t.common.success || "Success", t.privacy.saveSuccess);
         navigation.goBack();
       } else {
-        Alert.alert("Error", "Failed to update settings. Please try again.");
+        Alert.alert(t.common.error || "Error", t.privacy.saveError);
       }
     } catch (e) {
-      Alert.alert("Error", "Could not connect to server.");
+      Alert.alert(t.common.error || "Error", t.privacy.saveError);
     } finally {
       setIsSaving(false);
     }
@@ -145,7 +153,7 @@ export default function PrivacySettingsScreen() {
         >
           <Feather name="chevron-left" size={28} color={theme.text} />
         </Pressable>
-        <ThemedText type="h3">Privacy Settings</ThemedText>
+        <ThemedText type="h3">{t.privacy.title}</ThemedText>
         <Pressable
           onPress={handleSave}
           disabled={isSaving}
@@ -155,7 +163,7 @@ export default function PrivacySettingsScreen() {
             <ActivityIndicator size="small" color={theme.primary} />
           ) : (
             <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>
-              Save
+              {t.common.save || "Save"}
             </ThemedText>
           )}
         </Pressable>
@@ -171,7 +179,7 @@ export default function PrivacySettingsScreen() {
         {/* Profile Visibility */}
         <View style={styles.section}>
           <ThemedText type="h4" style={styles.sectionTitle}>
-            Profile Visibility
+            {t.privacy.profileVisibility}
           </ThemedText>
           <View
             style={[
@@ -183,16 +191,16 @@ export default function PrivacySettingsScreen() {
             ]}
           >
             <RadioItem
-              label="Public"
-              description="Everyone can see your profile details and company info"
+              label={t.privacy.public}
+              description={t.privacy.publicDesc}
               selected={profileVisibility === "public"}
               onPress={() => setProfileVisibility("public")}
               theme={theme}
             />
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
             <RadioItem
-              label="Private"
-              description="Only approved team members can see your profile"
+              label={t.privacy.private}
+              description={t.privacy.privateDesc}
               selected={profileVisibility === "private"}
               onPress={() => setProfileVisibility("private")}
               theme={theme}
@@ -203,7 +211,7 @@ export default function PrivacySettingsScreen() {
         {/* Attendance Visibility */}
         <View style={styles.section}>
           <ThemedText type="h4" style={styles.sectionTitle}>
-            Attendance Visibility
+            {t.privacy.attendanceVisibility}
           </ThemedText>
           <View
             style={[
@@ -215,24 +223,24 @@ export default function PrivacySettingsScreen() {
             ]}
           >
             <RadioItem
-              label="Only Me"
-              description="Keep attendance metrics fully private to your account"
+              label={t.privacy.onlyMe}
+              description={t.privacy.onlyMeDesc}
               selected={attendanceVisibility === "only_me"}
               onPress={() => setAttendanceVisibility("only_me")}
               theme={theme}
             />
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
             <RadioItem
-              label="Supervisors"
-              description="Allow assigned supervisors to view project attendance"
+              label={t.privacy.supervisors}
+              description={t.privacy.supervisorsDesc}
               selected={attendanceVisibility === "supervisors"}
               onPress={() => setAttendanceVisibility("supervisors")}
               theme={theme}
             />
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
             <RadioItem
-              label="Company Admin"
-              description="Make logs visible to root company administrators"
+              label={t.privacy.companyAdmin}
+              description={t.privacy.companyAdminDesc}
               selected={attendanceVisibility === "admin"}
               onPress={() => setAttendanceVisibility("admin")}
               theme={theme}
@@ -243,7 +251,7 @@ export default function PrivacySettingsScreen() {
         {/* Analytics Sharing */}
         <View style={styles.section}>
           <ThemedText type="h4" style={styles.sectionTitle}>
-            Analytics Sharing
+            {t.privacy.analyticsSharing}
           </ThemedText>
           <View
             style={[
@@ -255,8 +263,8 @@ export default function PrivacySettingsScreen() {
             ]}
           >
             <ToggleRow
-              label="Allow anonymous analytics"
-              description="Help us improve Haajari by sharing diagnostic data anonymously"
+              label={t.privacy.allowAnalytics}
+              description={t.privacy.analyticsDesc}
               value={analyticsConsent}
               onValueChange={setAnalyticsConsent}
               theme={theme}
@@ -267,7 +275,7 @@ export default function PrivacySettingsScreen() {
         {/* Notifications */}
         <View style={styles.section}>
           <ThemedText type="h4" style={styles.sectionTitle}>
-            Notification Alerts
+            {t.privacy.notifications}
           </ThemedText>
           <View
             style={[
@@ -279,24 +287,24 @@ export default function PrivacySettingsScreen() {
             ]}
           >
             <ToggleRow
-              label="Attendance Alerts"
-              description="Notify when supervisors mark daily attendance"
+              label={t.privacy.attendanceAlerts}
+              description={t.privacy.attendanceAlertsDesc}
               value={attendanceAlerts}
               onValueChange={setAttendanceAlerts}
               theme={theme}
             />
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
             <ToggleRow
-              label="Salary Alerts"
-              description="Notify when monthly payroll logs are calculated"
+              label={t.privacy.salaryAlerts}
+              description={t.privacy.salaryAlertsDesc}
               value={salaryAlerts}
               onValueChange={setSalaryAlerts}
               theme={theme}
             />
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
             <ToggleRow
-              label="App Updates"
-              description="Notify about new security modules and feature updates"
+              label={t.privacy.appUpdates}
+              description={t.privacy.appUpdatesDesc}
               value={appUpdates}
               onValueChange={setAppUpdates}
               theme={theme}
@@ -307,7 +315,7 @@ export default function PrivacySettingsScreen() {
         {/* Account Security */}
         <View style={styles.section}>
           <ThemedText type="h4" style={styles.sectionTitle}>
-            Account Security Logging
+            {t.privacy.accountSecurity}
           </ThemedText>
           <View
             style={[
@@ -319,16 +327,16 @@ export default function PrivacySettingsScreen() {
             ]}
           >
             <ToggleRow
-              label="Login Activity Tracking"
-              description="Log date, time, and operating system of login events"
+              label={t.privacy.loginActivity}
+              description={t.privacy.loginActivityDesc}
               value={loginTracking}
               onValueChange={setLoginTracking}
               theme={theme}
             />
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
             <ToggleRow
-              label="Device Tracking"
-              description="Keep a record of active trusted devices and browsers"
+              label={t.privacy.deviceTracking}
+              description={t.privacy.deviceTrackingDesc}
               value={deviceTracking}
               onValueChange={setDeviceTracking}
               theme={theme}
@@ -345,7 +353,7 @@ export default function PrivacySettingsScreen() {
           {isSaving ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <ThemedText style={styles.saveBtnText}>Save Changes</ThemedText>
+            <ThemedText style={styles.saveBtnText}>{t.privacy.saveChanges}</ThemedText>
           )}
         </Pressable>
       </ScreenScrollView>

@@ -41,6 +41,8 @@ import {
   AttendanceValue,
   getDaysInMonth,
 } from "@/utils/storage";
+import { appContextTracker } from "@/utils/appContextTracker";
+import { DeviceEventEmitter } from "react-native";
 import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
 import { useAuth } from "@/hooks/useAuth";
 import { useFocusEffect } from "@react-navigation/native";
@@ -265,6 +267,14 @@ export default function AttendanceScreen() {
   const selectedWorker = selectedCell
     ? workers.find((w) => w.id === selectedCell.workerId)
     : null;
+
+  useEffect(() => {
+    appContextTracker.setContext({
+      selectedWorkerId: selectedWorker?.id || null,
+      selectedWorkerName: selectedWorker?.name || null,
+    });
+  }, [selectedWorker]);
+
   const monthNames = [
     t.months.january,
     t.months.february,
@@ -310,8 +320,22 @@ export default function AttendanceScreen() {
     useCallback(() => {
       loadPlan();
       loadData();
+      appContextTracker.setContext({
+        currentScreen: "Attendance",
+        selectedWorkerId: null,
+        selectedWorkerName: null,
+        selectedMonth: selectedMonth,
+        selectedYear: selectedYear,
+      });
     }, [selectedMonth, selectedYear, user]),
   );
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("refreshData", () => {
+      loadData();
+    });
+    return () => sub.remove();
+  }, []);
 
   const getAttendanceValue = (
     workerId: string,

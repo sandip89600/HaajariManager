@@ -8,9 +8,11 @@ import { useTheme } from "@/hooks/useTheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Spacing } from "@/constants/theme";
 import { termsAndConditionsContent } from "@/data/termsAndConditions";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function TermsAndConditionsScreen() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const tabBarHeight = insets.bottom + 60;
@@ -32,7 +34,7 @@ export default function TermsAndConditionsScreen() {
         >
           <Feather name="chevron-left" size={28} color={theme.text} />
         </Pressable>
-        <ThemedText type="h3">Terms & Conditions</ThemedText>
+        <ThemedText type="h3">{t.support.terms}</ThemedText>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -44,7 +46,7 @@ export default function TermsAndConditionsScreen() {
         }}
       >
         <ThemedText type="h2" style={{ marginBottom: Spacing.lg }}>
-          Terms & Conditions
+          {t.support.terms}
         </ThemedText>
 
         {termsAndConditionsContent.map((section, idx) => (

@@ -16,6 +16,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { authenticatedFetch, API_URL } from "@/utils/storage";
+import { useLanguage } from "@/hooks/useLanguage";
+import { appContextTracker } from "@/utils/appContextTracker";
 
 interface Device {
   deviceId: string;
@@ -41,6 +43,7 @@ interface LoginHistoryItem {
 
 export default function DeviceManagementScreen() {
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const tabBarHeight = insets.bottom + 60;
@@ -53,6 +56,15 @@ export default function DeviceManagementScreen() {
   useEffect(() => {
     loadSessions();
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      appContextTracker.setContext({
+        currentScreen: "DeviceManagement",
+      });
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const loadSessions = async () => {
     setIsLoading(true);
@@ -72,12 +84,12 @@ export default function DeviceManagementScreen() {
 
   const handleLogoutDevice = async (deviceId: string, deviceName: string) => {
     Alert.alert(
-      "Revoke Session",
-      `Are you sure you want to log out and remove the device "${deviceName}"?`,
+      t.device.revokeSession,
+      t.device.revokeConfirm.replace("{deviceName}", deviceName),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t.common.cancel || "Cancel", style: "cancel" },
         {
-          text: "Log Out",
+          text: t.device.logoutDevice,
           style: "destructive",
           onPress: async () => {
             setIsActionLoading(true);
@@ -90,13 +102,13 @@ export default function DeviceManagementScreen() {
                 },
               );
               if (res.ok) {
-                Alert.alert("Success", "Device revoked successfully.");
+                Alert.alert(t.common.success || "Success", t.device.successRevoke);
                 loadSessions();
               } else {
-                Alert.alert("Error", "Failed to revoke device session.");
+                Alert.alert(t.common.error || "Error", t.device.errorRevoke);
               }
             } catch (e) {
-              Alert.alert("Error", "Could not connect to server.");
+              Alert.alert(t.common.error || "Error", t.device.errorLogoutAll);
             } finally {
               setIsActionLoading(false);
             }
@@ -108,12 +120,12 @@ export default function DeviceManagementScreen() {
 
   const handleLogoutAllDevices = async () => {
     Alert.alert(
-      "Log Out All Devices",
-      "Are you sure you want to force log out and invalidate sessions on all other devices?",
+      t.device.logoutAllTitle,
+      t.device.logoutAllConfirm,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t.common.cancel || "Cancel", style: "cancel" },
         {
-          text: "Log Out All",
+          text: t.device.logoutAllButton,
           style: "destructive",
           onPress: async () => {
             setIsActionLoading(true);
@@ -126,15 +138,15 @@ export default function DeviceManagementScreen() {
               );
               if (res.ok) {
                 Alert.alert(
-                  "Success",
-                  "Successfully logged out from all other devices.",
+                  t.common.success || "Success",
+                  t.device.successLogoutAll,
                 );
                 loadSessions();
               } else {
-                Alert.alert("Error", "Failed to perform action.");
+                Alert.alert(t.common.error || "Error", t.device.errorLogoutAll);
               }
             } catch (e) {
-              Alert.alert("Error", "Could not connect to server.");
+              Alert.alert(t.common.error || "Error", t.device.errorLogoutAll);
             } finally {
               setIsActionLoading(false);
             }
@@ -177,7 +189,7 @@ export default function DeviceManagementScreen() {
         >
           <Feather name="chevron-left" size={28} color={theme.text} />
         </Pressable>
-        <ThemedText type="h3">Device Management</ThemedText>
+        <ThemedText type="h3">{t.device.title}</ThemedText>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -192,7 +204,7 @@ export default function DeviceManagementScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <ThemedText type="h4" style={styles.sectionTitle}>
-              Trusted Devices & Active Sessions
+              {t.device.trustedDevices}
             </ThemedText>
             {trustedDevices.length > 1 && (
               <Pressable
@@ -206,7 +218,7 @@ export default function DeviceManagementScreen() {
                     fontSize: 13,
                   }}
                 >
-                  Logout All
+                  {t.device.logoutAll}
                 </ThemedText>
               </Pressable>
             )}
@@ -223,7 +235,7 @@ export default function DeviceManagementScreen() {
               ]}
             >
               <ThemedText style={{ color: theme.textSecondary }}>
-                No active device sessions found.
+                {t.device.noActiveSessions}
               </ThemedText>
             </View>
           ) : (
@@ -275,7 +287,7 @@ export default function DeviceManagementScreen() {
                       marginTop: 4,
                     }}
                   >
-                    Active: {new Date(device.lastActiveAt).toLocaleString()}
+                    {t.device.lastActive}: {new Date(device.lastActiveAt).toLocaleString()}
                   </ThemedText>
                 </View>
                 <Pressable
@@ -300,7 +312,7 @@ export default function DeviceManagementScreen() {
             type="h4"
             style={[styles.sectionTitle, { marginBottom: Spacing.md }]}
           >
-            Recent Login History
+            {t.device.recentLoginHistory}
           </ThemedText>
 
           <View
@@ -315,7 +327,7 @@ export default function DeviceManagementScreen() {
             {loginHistory.length === 0 ? (
               <View style={{ padding: Spacing.lg, alignItems: "center" }}>
                 <ThemedText style={{ color: theme.textSecondary }}>
-                  No login history logged yet.
+                  {t.device.noHistory}
                 </ThemedText>
               </View>
             ) : (
@@ -352,7 +364,7 @@ export default function DeviceManagementScreen() {
                         type="small"
                         style={{ color: theme.textSecondary, marginTop: 2 }}
                       >
-                        🔑 Logged In:{" "}
+                        🔑 {t.device.loggedIn}:{" "}
                         {new Date(history.loginTime).toLocaleString()}
                       </ThemedText>
                       {history.logoutTime && (
@@ -360,7 +372,7 @@ export default function DeviceManagementScreen() {
                           type="small"
                           style={{ color: theme.textSecondary, marginTop: 1 }}
                         >
-                          🚪 Logged Out:{" "}
+                          🚪 {t.device.loggedOut}:{" "}
                           {new Date(history.logoutTime).toLocaleString()}
                         </ThemedText>
                       )}

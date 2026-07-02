@@ -20,6 +20,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { api } from "@/services/api";
+import { useLanguage } from "@/hooks/useLanguage";
 
 const ACCENT_ORANGE = "#FF6B35";
 const DARK_BG = "#121212";
@@ -27,6 +28,7 @@ const CARD_BG = "#1E1E1E";
 const INPUT_BG = "#292929";
 
 export default function AdminLoginScreen() {
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
 
@@ -57,7 +59,7 @@ export default function AdminLoginScreen() {
 
   const handleLogin = async () => {
     if (!username.trim() || !password) {
-      setError("Please fill all fields");
+      setError(t.admin.errorFields);
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -65,7 +67,7 @@ export default function AdminLoginScreen() {
     }
 
     if (username.trim() !== "haajari896" || password !== "12345678") {
-      setError("Invalid Username or Password");
+      setError(t.admin.errorCredentials);
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -101,7 +103,7 @@ export default function AdminLoginScreen() {
       navigation.navigate("AdminDashboard" as any);
     } catch (e: any) {
       setError(
-        e.response?.data?.error || "Network error: Backend server unreachable",
+        e.response?.data?.error || t.admin.errorServer,
       );
       console.error("[Admin Login] Failed to connect to server:", e);
       if (Platform.OS !== "web") {
@@ -139,10 +141,10 @@ export default function AdminLoginScreen() {
                 <Feather name="shield" size={48} color={ACCENT_ORANGE} />
               </View>
               <ThemedText type="h1" style={styles.title}>
-                Haajari Admin
+                {t.admin.loginTitle}
               </ThemedText>
               <ThemedText type="body" style={styles.subtitle}>
-                System Administration Control Panel
+                {t.admin.subtitle}
               </ThemedText>
             </View>
 
@@ -160,7 +162,7 @@ export default function AdminLoginScreen() {
             <View style={styles.form}>
               <View style={styles.inputContainer}>
                 <ThemedText type="small" style={styles.label}>
-                  Username
+                  {t.admin.usernameLabel}
                 </ThemedText>
                 <View style={styles.inputWrapper}>
                   <Feather
@@ -171,7 +173,7 @@ export default function AdminLoginScreen() {
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="Enter admin username"
+                    placeholder={t.admin.usernamePlaceholder}
                     placeholderTextColor="#555555"
                     value={username}
                     onChangeText={(text) => {
@@ -186,7 +188,7 @@ export default function AdminLoginScreen() {
 
               <View style={styles.inputContainer}>
                 <ThemedText type="small" style={styles.label}>
-                  Password
+                  {t.admin.passwordLabel}
                 </ThemedText>
                 <View style={styles.inputWrapper}>
                   <Feather
@@ -197,7 +199,7 @@ export default function AdminLoginScreen() {
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="Enter admin password"
+                    placeholder={t.admin.passwordPlaceholder}
                     placeholderTextColor="#555555"
                     value={password}
                     onChangeText={(text) => {
@@ -237,7 +239,7 @@ export default function AdminLoginScreen() {
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
                   <ThemedText type="body" style={styles.loginBtnText}>
-                    Sign In
+                    {t.admin.signIn}
                   </ThemedText>
                 )}
               </Pressable>

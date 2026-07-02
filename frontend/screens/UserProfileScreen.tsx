@@ -25,6 +25,8 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/hooks/useAuth";
 import { storage, User, authenticatedFetch, API_URL } from "@/utils/storage";
+import { appContextTracker } from "@/utils/appContextTracker";
+import { useLanguage } from "@/hooks/useLanguage";
 import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
 
 const AVATAR_COLORS = [
@@ -38,6 +40,7 @@ const AVATAR_COLORS = [
 
 export default function UserProfileScreen() {
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const { user: authUser, logout } = useAuth();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -74,6 +77,9 @@ export default function UserProfileScreen() {
       if (authUser) {
         loadUserData();
       }
+      appContextTracker.setContext({
+        currentScreen: "Profile",
+      });
     }, [authUser]),
   );
 
@@ -125,9 +131,9 @@ export default function UserProfileScreen() {
           await storage.updateUser(updated);
           setUser(updated);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert("Success", "Profile picture updated successfully");
+          Alert.alert(t.common.success || "Success", t.profile.uploadSuccess);
         } else {
-          Alert.alert("Error", "Failed to update profile picture on server");
+          Alert.alert(t.common.error || "Error", t.profile.uploadError);
         }
       } catch (err) {
         console.warn("Failed to save picture:", err);
@@ -135,7 +141,7 @@ export default function UserProfileScreen() {
         const updated = { ...user, profileImage: base64 };
         await storage.updateUser(updated);
         setUser(updated);
-        Alert.alert("Offline Success", "Profile picture saved locally.");
+        Alert.alert(t.common.success || "Success", t.profile.offlineSuccess);
       } finally {
         setIsUpdating(false);
       }
@@ -146,8 +152,8 @@ export default function UserProfileScreen() {
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
       Alert.alert(
-        "Permission Denied",
-        "Camera permission is required to take photos",
+        t.profile.permissionDenied,
+        t.profile.cameraPermission,
       );
       return;
     }
@@ -169,7 +175,7 @@ export default function UserProfileScreen() {
   const handlePickFromLibrary = async () => {
     const hasPermission = await requestLibraryPermission();
     if (!hasPermission) {
-      Alert.alert("Permission Denied", "Photo library permission is required");
+      Alert.alert(t.profile.permissionDenied, t.profile.libraryPermission);
       return;
     }
 
@@ -188,10 +194,10 @@ export default function UserProfileScreen() {
   };
 
   const handleRemoveProfileImage = () => {
-    Alert.alert("Remove Picture", "Remove profile picture?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t.profile.removePhoto, t.profile.removeConfirm, [
+      { text: t.common.cancel || "Cancel", style: "cancel" },
       {
-        text: "Remove",
+        text: t.common.delete || "Remove",
         style: "destructive",
         onPress: async () => {
           if (user) {
@@ -208,15 +214,15 @@ export default function UserProfileScreen() {
                 Haptics.notificationAsync(
                   Haptics.NotificationFeedbackType.Success,
                 );
-                Alert.alert("Success", "Profile picture removed");
+                Alert.alert(t.common.success || "Success", t.profile.removeSuccess);
               } else {
-                Alert.alert("Error", "Failed to remove profile picture");
+                Alert.alert(t.common.error || "Error", t.profile.removeError);
               }
             } catch (err) {
               const updated = { ...user, profileImage: undefined };
               await storage.updateUser(updated);
               setUser(updated);
-              Alert.alert("Offline Success", "Profile picture removed locally");
+              Alert.alert(t.common.success || "Success", t.profile.removeOfflineSuccess);
             } finally {
               setIsUpdating(false);
               setShowImageModal(false);
@@ -243,18 +249,18 @@ export default function UserProfileScreen() {
     if (!currentUser) return;
 
     if (!editName.trim() || !editPhone.trim()) {
-      Alert.alert("Error", "Name and Phone are required");
+      Alert.alert(t.common.error || "Error", t.profile.errorFieldsRequired);
       return;
     }
     const phoneRegex = /^[6-9]\d{9}$/;
     if (!phoneRegex.test(editPhone.trim())) {
-      Alert.alert("Error", "Please enter a valid 10-digit mobile number");
+      Alert.alert(t.common.error || "Error", t.supervisor.errorPhoneInvalid);
       return;
     }
     if (editEmail.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(editEmail.trim())) {
-        Alert.alert("Error", "Please enter a valid email address");
+        Alert.alert(t.common.error || "Error", t.profile.errorEmail);
         return;
       }
     }
@@ -274,7 +280,7 @@ export default function UserProfileScreen() {
 
       if (!res.ok) {
         const errorData = await res.json();
-        Alert.alert("Error", errorData.error || "Failed to update profile");
+        Alert.alert(t.common.error || "Error", errorData.error || t.profile.error);
         return;
       }
 
@@ -301,7 +307,7 @@ export default function UserProfileScreen() {
 
       setShowEditModal(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Success", "Profile updated successfully");
+      Alert.alert(t.common.success || "Success", t.profile.success);
     } catch (err: any) {
       // Offline fallback
       const updated: User = {
@@ -315,7 +321,7 @@ export default function UserProfileScreen() {
       await storage.updateUser(updated);
       setUser(updated);
       setShowEditModal(false);
-      Alert.alert("Offline Success", "Profile updated locally.");
+      Alert.alert(t.common.success || "Success", t.profile.success);
     } finally {
       setIsUpdating(false);
     }
@@ -323,15 +329,15 @@ export default function UserProfileScreen() {
 
   const handleChangePassword = async () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
-      Alert.alert("Error", "Please fill all fields");
+      Alert.alert(t.common.error || "Error", t.admin.errorFields);
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
+      Alert.alert(t.common.error || "Error", t.profile.passwordMismatch);
       return;
     }
     if (newPassword.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters");
+      Alert.alert(t.common.error || "Error", t.profile.passwordLength);
       return;
     }
 
@@ -344,7 +350,7 @@ export default function UserProfileScreen() {
 
       if (!res.ok) {
         const errorData = await res.json();
-        Alert.alert("Error", errorData.error || "Failed to change password");
+        Alert.alert(t.common.error || "Error", errorData.error || t.profile.passwordError);
         return;
       }
 
@@ -353,11 +359,11 @@ export default function UserProfileScreen() {
       setNewPassword("");
       setConfirmPassword("");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Success", "Password changed successfully");
+      Alert.alert(t.common.success || "Success", t.profile.passwordSuccess);
     } catch (err: any) {
       Alert.alert(
-        "Error",
-        err.message || "Failed to update password on server",
+        t.common.error || "Error",
+        err.message || t.profile.passwordError,
       );
     } finally {
       setIsUpdating(false);
@@ -367,7 +373,7 @@ export default function UserProfileScreen() {
   const handleDeleteAccount = async () => {
     if (Platform.OS === "web") {
       const confirmed = window.confirm(
-        "Are you sure? This action is PERMANENT. All your data will be deleted from the server and cannot be recovered.",
+        `${t.profile.deleteAccountTitle}\n\n${t.profile.deleteAccountConfirm}`,
       );
       if (confirmed && user) {
         setIsUpdating(true);
@@ -384,12 +390,12 @@ export default function UserProfileScreen() {
     }
 
     Alert.alert(
-      "Delete Account",
-      "Are you sure? This action is PERMANENT. All your data (workers, attendance, payments, projects) will be deleted from the server and cannot be recovered.",
+      t.profile.deleteAccountTitle,
+      t.profile.deleteAccountConfirm,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t.common.cancel || "Cancel", style: "cancel" },
         {
-          text: "Delete Permanently",
+          text: t.profile.deleteAccountBtn,
           style: "destructive",
           onPress: async () => {
             if (user) {
@@ -399,8 +405,8 @@ export default function UserProfileScreen() {
                 await logout();
               } catch (err: any) {
                 Alert.alert(
-                  "Error",
-                  err.message || "Failed to delete account. Please try again.",
+                  t.common.error || "Error",
+                  err.message || t.profile.deleteAccountError,
                 );
               } finally {
                 setIsUpdating(false);
@@ -413,9 +419,9 @@ export default function UserProfileScreen() {
   };
 
   const getRoleLabel = (r: string) => {
-    if (r === "contractor") return "👷 Contractor";
-    if (r === "builder") return "🏗️ Builder / Owner";
-    if (r === "supervisor") return "👨💼 Supervisor";
+    if (r === "contractor") return "👷 " + t.profile.contractor;
+    if (r === "builder") return "🏗️ " + t.profile.builder;
+    if (r === "supervisor") return "👨💼 " + t.profile.supervisor;
     return r.toUpperCase();
   };
 
@@ -545,7 +551,7 @@ export default function UserProfileScreen() {
               ]}
             >
               <ThemedText style={styles.planBadgeText}>
-                Plan: {getPlanLabel(user.plan || "free")}
+                {t.profile.plan || "Plan"}: {getPlanLabel(user.plan || "free")}
               </ThemedText>
             </View>
           </LinearGradient>
@@ -562,7 +568,7 @@ export default function UserProfileScreen() {
           ]}
         >
           <ThemedText type="h3" style={styles.sectionTitle}>
-            Account Information
+            {t.profile.accountInfo}
           </ThemedText>
 
           <View style={styles.infoRow}>
@@ -571,7 +577,7 @@ export default function UserProfileScreen() {
             </View>
             <View style={styles.infoTextWrapper}>
               <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                Mobile Number
+                {t.profile.mobile}
               </ThemedText>
               <ThemedText type="body" style={styles.infoValue}>
                 {user.phone}
@@ -585,10 +591,10 @@ export default function UserProfileScreen() {
             </View>
             <View style={styles.infoTextWrapper}>
               <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                Email Address
+                {t.profile.email}
               </ThemedText>
               <ThemedText type="body" style={styles.infoValue}>
-                {user.email || "Not Provided"}
+                {user.email || t.profile.notProvided}
               </ThemedText>
             </View>
           </View>
@@ -599,10 +605,10 @@ export default function UserProfileScreen() {
             </View>
             <View style={styles.infoTextWrapper}>
               <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                Business Address
+                {t.profile.businessAddress}
               </ThemedText>
               <ThemedText type="body" style={styles.infoValue}>
-                {user.address || "Not Provided"}
+                {user.address || t.profile.notProvided}
               </ThemedText>
             </View>
           </View>
@@ -613,7 +619,7 @@ export default function UserProfileScreen() {
             </View>
             <View style={styles.infoTextWrapper}>
               <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                Member Since
+                {t.profile.memberSince}
               </ThemedText>
               <ThemedText type="body" style={styles.infoValue}>
                 {new Date(user.createdAt).toLocaleDateString("en-IN", {
@@ -631,7 +637,7 @@ export default function UserProfileScreen() {
             </View>
             <View style={styles.infoTextWrapper}>
               <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                User ID
+                {t.profile.userId}
               </ThemedText>
               <ThemedText
                 type="small"
@@ -660,7 +666,7 @@ export default function UserProfileScreen() {
           >
             <Feather name="edit-2" size={16} color="#FFFFFF" />
             <ThemedText style={styles.actionButtonText}>
-              Edit Profile
+              {t.profile.editProfile}
             </ThemedText>
           </Pressable>
 
@@ -679,7 +685,7 @@ export default function UserProfileScreen() {
             <ThemedText
               style={[styles.actionButtonText, { color: theme.text }]}
             >
-              Change Password
+              {t.profile.changePassword}
             </ThemedText>
           </Pressable>
 
@@ -689,7 +695,7 @@ export default function UserProfileScreen() {
           >
             <Feather name="trash-2" size={16} color={theme.error} />
             <ThemedText style={styles.deleteButtonText}>
-              Delete Account
+              {t.profile.deleteAccountTitle}
             </ThemedText>
           </Pressable>
         </View>
@@ -713,7 +719,7 @@ export default function UserProfileScreen() {
             ]}
           >
             <ThemedText type="h3" style={styles.sheetTitle}>
-              Profile Picture
+              {t.profile.editAvatar}
             </ThemedText>
 
             <Pressable
@@ -721,7 +727,7 @@ export default function UserProfileScreen() {
               style={styles.sheetOption}
             >
               <Feather name="camera" size={20} color={theme.text} />
-              <ThemedText style={styles.sheetOptionText}>Take Photo</ThemedText>
+              <ThemedText style={styles.sheetOptionText}>{t.profile.camera}</ThemedText>
             </Pressable>
 
             <Pressable
@@ -730,7 +736,7 @@ export default function UserProfileScreen() {
             >
               <Feather name="image" size={20} color={theme.text} />
               <ThemedText style={styles.sheetOptionText}>
-                Choose from Gallery
+                {t.profile.library}
               </ThemedText>
             </Pressable>
 
@@ -743,7 +749,7 @@ export default function UserProfileScreen() {
                 <ThemedText
                   style={[styles.sheetOptionText, { color: theme.error }]}
                 >
-                  Remove Current Photo
+                  {t.profile.removePhoto}
                 </ThemedText>
               </Pressable>
             ) : null}
@@ -752,7 +758,7 @@ export default function UserProfileScreen() {
               onPress={() => setShowImageModal(false)}
               style={[styles.sheetCloseBtn, { backgroundColor: theme.border }]}
             >
-              <ThemedText style={{ fontWeight: "700" }}>Cancel</ThemedText>
+              <ThemedText style={{ fontWeight: "700" }}>{t.common.cancel || "Cancel"}</ThemedText>
             </Pressable>
           </View>
         </Pressable>
@@ -773,7 +779,7 @@ export default function UserProfileScreen() {
             ]}
           >
             <View style={styles.formHeader}>
-              <ThemedText type="h2">Edit Profile</ThemedText>
+              <ThemedText type="h2">{t.profile.editProfile}</ThemedText>
               <Pressable
                 onPress={() => setShowEditModal(false)}
                 style={styles.formCloseIcon}
@@ -784,7 +790,7 @@ export default function UserProfileScreen() {
 
             <ScrollView contentContainerStyle={styles.formScroll}>
               <ThemedText type="small" style={styles.label}>
-                Full Name
+                {t.profile.fullName}
               </ThemedText>
               <TextInput
                 style={[
@@ -797,12 +803,12 @@ export default function UserProfileScreen() {
                 ]}
                 value={editName}
                 onChangeText={setEditName}
-                placeholder="Enter full name"
+                placeholder={t.profile.fullName}
                 placeholderTextColor={theme.textSecondary}
               />
 
               <ThemedText type="small" style={styles.label}>
-                Mobile Number
+                {t.profile.mobile}
               </ThemedText>
               <TextInput
                 style={[
@@ -816,12 +822,12 @@ export default function UserProfileScreen() {
                 value={editPhone}
                 onChangeText={setEditPhone}
                 keyboardType="phone-pad"
-                placeholder="Enter mobile number"
+                placeholder={t.profile.mobile}
                 placeholderTextColor={theme.textSecondary}
               />
 
               <ThemedText type="small" style={styles.label}>
-                Email Address
+                {t.profile.email}
               </ThemedText>
               <TextInput
                 style={[
@@ -836,12 +842,12 @@ export default function UserProfileScreen() {
                 onChangeText={setEditEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                placeholder="Enter email address"
+                placeholder={t.profile.email}
                 placeholderTextColor={theme.textSecondary}
               />
 
               <ThemedText type="small" style={styles.label}>
-                Business Address
+                {t.profile.businessAddress}
               </ThemedText>
               <TextInput
                 style={[
@@ -857,13 +863,13 @@ export default function UserProfileScreen() {
                 onChangeText={setEditAddress}
                 multiline
                 numberOfLines={3}
-                placeholder="Enter address"
+                placeholder={t.profile.businessAddress}
                 placeholderTextColor={theme.textSecondary}
               />
 
               {/* Avatar Color Selector */}
               <ThemedText type="small" style={styles.label}>
-                Choose Avatar Theme
+                {t.profile.avatarColor}
               </ThemedText>
               <View style={styles.colorPalette}>
                 {AVATAR_COLORS.map((c) => (
@@ -902,7 +908,7 @@ export default function UserProfileScreen() {
                     },
                   ]}
                 >
-                  <ThemedText style={{ color: theme.text }}>Cancel</ThemedText>
+                  <ThemedText style={{ color: theme.text }}>{t.common.cancel || "Cancel"}</ThemedText>
                 </Pressable>
 
                 <Pressable
@@ -911,7 +917,7 @@ export default function UserProfileScreen() {
                   style={[styles.formBtn, { backgroundColor: theme.primary }]}
                 >
                   <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>
-                    Update Profile
+                    {t.profile.saveChanges}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -935,7 +941,7 @@ export default function UserProfileScreen() {
             ]}
           >
             <View style={styles.formHeader}>
-              <ThemedText type="h2">Change Password</ThemedText>
+              <ThemedText type="h2">{t.profile.changePassword}</ThemedText>
               <Pressable
                 onPress={() => setShowPasswordModal(false)}
                 style={styles.formCloseIcon}
@@ -946,7 +952,7 @@ export default function UserProfileScreen() {
 
             <ScrollView contentContainerStyle={styles.formScroll}>
               <ThemedText type="small" style={styles.label}>
-                Current Password
+                {t.profile.oldPassword}
               </ThemedText>
               <TextInput
                 style={[
@@ -960,12 +966,12 @@ export default function UserProfileScreen() {
                 secureTextEntry
                 value={oldPassword}
                 onChangeText={setOldPassword}
-                placeholder="Enter current password"
+                placeholder={t.profile.oldPassword}
                 placeholderTextColor={theme.textSecondary}
               />
 
               <ThemedText type="small" style={styles.label}>
-                New Password
+                {t.profile.newPassword}
               </ThemedText>
               <TextInput
                 style={[
@@ -979,12 +985,12 @@ export default function UserProfileScreen() {
                 secureTextEntry
                 value={newPassword}
                 onChangeText={setNewPassword}
-                placeholder="Min 6 characters"
+                placeholder={t.profile.passwordLength}
                 placeholderTextColor={theme.textSecondary}
               />
 
               <ThemedText type="small" style={styles.label}>
-                Confirm New Password
+                {t.profile.confirmPassword}
               </ThemedText>
               <TextInput
                 style={[
@@ -998,7 +1004,7 @@ export default function UserProfileScreen() {
                 secureTextEntry
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                placeholder="Repeat new password"
+                placeholder={t.profile.confirmPassword}
                 placeholderTextColor={theme.textSecondary}
               />
 
@@ -1022,7 +1028,7 @@ export default function UserProfileScreen() {
                     },
                   ]}
                 >
-                  <ThemedText style={{ color: theme.text }}>Cancel</ThemedText>
+                  <ThemedText style={{ color: theme.text }}>{t.common.cancel || "Cancel"}</ThemedText>
                 </Pressable>
 
                 <Pressable
@@ -1031,7 +1037,7 @@ export default function UserProfileScreen() {
                   style={[styles.formBtn, { backgroundColor: theme.primary }]}
                 >
                   <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>
-                    Change Password
+                    {t.profile.changePassword}
                   </ThemedText>
                 </Pressable>
               </View>

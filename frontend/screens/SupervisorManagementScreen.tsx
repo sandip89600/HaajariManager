@@ -18,6 +18,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/hooks/useAuth";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
 import { storage, Project, API_URL, authenticatedFetch } from "@/utils/storage";
+import { useLanguage } from "@/hooks/useLanguage";
+import { appContextTracker } from "@/utils/appContextTracker";
 
 interface SupervisorUser {
   _id: string;
@@ -30,6 +32,7 @@ interface SupervisorUser {
 
 export default function SupervisorManagementScreen() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
 
@@ -68,7 +71,7 @@ export default function SupervisorManagementScreen() {
         setSupervisors(data);
       }
     } catch {
-      Alert.alert("Error", "Failed to fetch supervisors or projects");
+      Alert.alert(t.common.error || "Error", t.supervisor.errorFetch);
     } finally {
       setIsLoading(false);
     }
@@ -81,15 +84,11 @@ export default function SupervisorManagementScreen() {
     const count = supervisors.length;
 
     if (plan === "free") {
-      setUpgradeMessage(
-        "Supervisor accounts are not available on the Free Plan. Upgrade to a Professional or Business Plan to invite supervisors.",
-      );
+      setUpgradeMessage(t.supervisor.upgradeFree);
       setUpgradeModalVisible(true);
       return;
     } else if (plan === "professional" && count >= 2) {
-      setUpgradeMessage(
-        "You have reached the limit of 2 supervisor accounts on the Professional Plan. Upgrade to the Business Plan to unlock unlimited supervisors.",
-      );
+      setUpgradeMessage(t.supervisor.upgradeProfessional);
       setUpgradeModalVisible(true);
       return;
     }
@@ -123,15 +122,15 @@ export default function SupervisorManagementScreen() {
 
   const handleSaveSupervisor = async () => {
     if (!name.trim()) {
-      Alert.alert("Error", "Name is required");
+      Alert.alert(t.common.error || "Error", t.supervisor.errorNameRequired);
       return;
     }
     if (!phone.trim() || !/^\d{10}$/.test(phone.trim())) {
-      Alert.alert("Error", "Please enter a valid 10-digit mobile number");
+      Alert.alert(t.common.error || "Error", t.supervisor.errorPhoneInvalid);
       return;
     }
     if (!editingSupervisor && !password.trim()) {
-      Alert.alert("Error", "Password is required for new supervisors");
+      Alert.alert(t.common.error || "Error", t.supervisor.errorPasswordRequired);
       return;
     }
 
@@ -160,7 +159,7 @@ export default function SupervisorManagementScreen() {
           setModalVisible(false);
         } else {
           const err = await res.json();
-          Alert.alert("Error", err.error || "Failed to update supervisor");
+          Alert.alert(t.common.error || "Error", err.error || t.supervisor.errorUpdate);
         }
       } else {
         // Create new supervisor
@@ -185,11 +184,11 @@ export default function SupervisorManagementScreen() {
           setUpgradeModalVisible(true);
         } else {
           const err = await res.json();
-          Alert.alert("Error", err.error || "Failed to create supervisor");
+          Alert.alert(t.common.error || "Error", err.error || t.supervisor.errorCreate);
         }
       }
     } catch {
-      Alert.alert("Error", "Could not connect to server");
+      Alert.alert(t.common.error || "Error", t.supervisor.errorConnect);
     } finally {
       setIsLoading(false);
     }
@@ -197,12 +196,12 @@ export default function SupervisorManagementScreen() {
 
   const handleDeleteSupervisor = async (supervisorId: string) => {
     Alert.alert(
-      "Confirm Delete",
-      "Are you sure you want to delete this supervisor account? They will lose access to mark attendance immediately.",
+      t.supervisor.confirmDeleteTitle,
+      t.supervisor.confirmDeleteMessage,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t.common.cancel || "Cancel", style: "cancel" },
         {
-          text: "Delete Account",
+          text: t.supervisor.deleteAccount,
           style: "destructive",
           onPress: async () => {
             try {
@@ -217,10 +216,10 @@ export default function SupervisorManagementScreen() {
                   prev.filter((s) => s._id !== supervisorId),
                 );
               } else {
-                Alert.alert("Error", "Failed to delete supervisor account");
+                Alert.alert(t.common.error || "Error", t.supervisor.errorDelete);
               }
             } catch {
-              Alert.alert("Error", "Server unreachable");
+              Alert.alert(t.common.error || "Error", t.supervisor.errorServer);
             }
           },
         },
@@ -245,17 +244,17 @@ export default function SupervisorManagementScreen() {
           ),
         );
       } else {
-        Alert.alert("Error", "Failed to update supervisor status");
+        Alert.alert(t.common.error || "Error", t.supervisor.errorStatus);
       }
     } catch {
-      Alert.alert("Error", "Server unreachable");
+      Alert.alert(t.common.error || "Error", t.supervisor.errorServer);
     }
   };
 
   return (
     <ThemedView style={styles.container}>
       <View style={styles.headerRow}>
-        <ThemedText type="h2">Supervisors</ThemedText>
+        <ThemedText type="h2">{t.supervisor.title}</ThemedText>
         <Pressable
           onPress={handleOpenAddModal}
           style={[styles.addBtn, { backgroundColor: theme.primary }]}
@@ -269,7 +268,7 @@ export default function SupervisorManagementScreen() {
               marginLeft: Spacing.sm,
             }}
           >
-            Add Supervisor
+            {t.supervisor.addSupervisor}
           </ThemedText>
         </Pressable>
       </View>
@@ -289,8 +288,7 @@ export default function SupervisorManagementScreen() {
               textAlign: "center",
             }}
           >
-            No supervisor accounts added. Create supervisors to delegate
-            attendance marking.
+            {t.supervisor.noSupervisors}
           </ThemedText>
         </View>
       ) : (
@@ -312,11 +310,11 @@ export default function SupervisorManagementScreen() {
                 <View>
                   <ThemedText type="h3">{item.name}</ThemedText>
                   <ThemedText
-                    type="small"
-                    style={{
-                      color: theme.textSecondary,
-                      marginTop: Spacing.xs,
-                    }}
+                     type="small"
+                     style={{
+                       color: theme.textSecondary,
+                       marginTop: Spacing.xs,
+                     }}
                   >
                     📱 {item.phone}
                   </ThemedText>
@@ -341,7 +339,7 @@ export default function SupervisorManagementScreen() {
                       fontWeight: "600",
                     }}
                   >
-                    {item.isActive ? "ACTIVE" : "DISABLED"}
+                    {item.isActive ? t.project.active.toUpperCase() : "DISABLED"}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -352,7 +350,7 @@ export default function SupervisorManagementScreen() {
                   type="small"
                   style={{ color: theme.textSecondary, fontWeight: "700" }}
                 >
-                  Assigned Projects:
+                  {t.supervisor.assignedProjects}
                 </ThemedText>
                 <View style={styles.badgeRow}>
                   {item.assignedProjects && item.assignedProjects.length > 0 ? (
@@ -377,7 +375,7 @@ export default function SupervisorManagementScreen() {
                       type="small"
                       style={{ color: Colors.light.error }}
                     >
-                      No projects assigned
+                      {t.project.noProjects}
                     </ThemedText>
                   )}
                 </View>
@@ -400,7 +398,7 @@ export default function SupervisorManagementScreen() {
                     type="small"
                     style={{ color: theme.primary, marginLeft: Spacing.sm }}
                   >
-                    Edit
+                    {t.common.edit || "Edit"}
                   </ThemedText>
                 </Pressable>
                 <Pressable
@@ -422,7 +420,7 @@ export default function SupervisorManagementScreen() {
                       marginLeft: Spacing.sm,
                     }}
                   >
-                    Delete
+                    {t.common.delete || "Delete"}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -450,12 +448,12 @@ export default function SupervisorManagementScreen() {
               contentContainerStyle={{ paddingBottom: Spacing["2xl"] }}
             >
               <ThemedText type="h2" style={styles.modalTitle}>
-                {editingSupervisor ? "Edit Supervisor" : "Invite Supervisor"}
+                {editingSupervisor ? t.supervisor.editSupervisor : t.supervisor.inviteSupervisor}
               </ThemedText>
 
               <View style={styles.inputContainer}>
                 <ThemedText type="body" style={styles.label}>
-                  Supervisor Name
+                  {t.supervisor.name}
                 </ThemedText>
                 <TextInput
                   style={[
@@ -468,14 +466,14 @@ export default function SupervisorManagementScreen() {
                   ]}
                   value={name}
                   onChangeText={setName}
-                  placeholder="e.g. Ramesh Kumar"
+                  placeholder={t.supervisor.namePlaceholder}
                   placeholderTextColor={theme.textSecondary}
                 />
               </View>
 
               <View style={styles.inputContainer}>
                 <ThemedText type="body" style={styles.label}>
-                  Mobile Number
+                  {t.supervisor.phone}
                 </ThemedText>
                 <TextInput
                   style={[
@@ -490,14 +488,14 @@ export default function SupervisorManagementScreen() {
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   maxLength={10}
-                  placeholder="e.g. 9876543210"
+                  placeholder={t.supervisor.phonePlaceholder}
                   placeholderTextColor={theme.textSecondary}
                 />
               </View>
 
               <View style={styles.inputContainer}>
                 <ThemedText type="body" style={styles.label}>
-                  {editingSupervisor ? "New Password (Optional)" : "Password"}
+                  {editingSupervisor ? t.supervisor.passwordNewPlaceholder : t.supervisor.password}
                 </ThemedText>
                 <TextInput
                   style={[
@@ -513,8 +511,8 @@ export default function SupervisorManagementScreen() {
                   secureTextEntry
                   placeholder={
                     editingSupervisor
-                      ? "Leave blank to keep current"
-                      : "e.g. 123456"
+                      ? t.supervisor.passwordEditPlaceholder
+                      : t.supervisor.passwordPlaceholder
                   }
                   placeholderTextColor={theme.textSecondary}
                 />
@@ -522,7 +520,7 @@ export default function SupervisorManagementScreen() {
 
               <View style={styles.projectsSelectSection}>
                 <ThemedText type="body" style={styles.label}>
-                  Assign to Construction Sites
+                  {t.supervisor.assignConstruction}
                 </ThemedText>
                 {projects.length === 0 ? (
                   <ThemedText
@@ -532,7 +530,7 @@ export default function SupervisorManagementScreen() {
                       marginVertical: Spacing.sm,
                     }}
                   >
-                    Please create a project site first.
+                    {t.supervisor.createProjectFirst}
                   </ThemedText>
                 ) : (
                   projects.map((proj) => {
@@ -578,7 +576,7 @@ export default function SupervisorManagementScreen() {
                     { borderColor: theme.border, borderWidth: 1 },
                   ]}
                 >
-                  <ThemedText type="body">Cancel</ThemedText>
+                  <ThemedText type="body">{t.common.cancel || "Cancel"}</ThemedText>
                 </Pressable>
                 <Pressable
                   onPress={handleSaveSupervisor}
@@ -588,7 +586,7 @@ export default function SupervisorManagementScreen() {
                     type="body"
                     style={{ color: "#FFFFFF", fontWeight: "600" }}
                   >
-                    Save
+                    {t.common.save || "Save"}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -621,7 +619,7 @@ export default function SupervisorManagementScreen() {
               type="h2"
               style={{ textAlign: "center", marginBottom: Spacing.sm }}
             >
-              Upgrade Subscription
+              {t.supervisor.upgradeTitle}
             </ThemedText>
             <ThemedText
               type="body"
@@ -648,7 +646,7 @@ export default function SupervisorManagementScreen() {
                 type="body"
                 style={{ color: "#FFFFFF", fontWeight: "700" }}
               >
-                View Pricing Plans
+                {t.supervisor.viewPricingPlans}
               </ThemedText>
             </Pressable>
 
@@ -659,7 +657,7 @@ export default function SupervisorManagementScreen() {
                 { borderColor: theme.border, borderWidth: 1 },
               ]}
             >
-              <ThemedText type="body">Not Now</ThemedText>
+              <ThemedText type="body">{t.supervisor.notNow}</ThemedText>
             </Pressable>
           </ThemedView>
         </View>

@@ -37,6 +37,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
+import { appContextTracker } from "@/utils/appContextTracker";
 import { useAuth } from "@/hooks/useAuth";
 import { Language, languageNames } from "@/constants/i18n";
 import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
@@ -235,6 +236,9 @@ export default function SettingsScreen() {
       loadProfileAndState();
       loadNotifSettings();
       loadMetrics();
+      appContextTracker.setContext({
+        currentScreen: "Settings",
+      });
     }, []),
   );
 

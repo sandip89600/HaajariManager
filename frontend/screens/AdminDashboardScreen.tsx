@@ -23,6 +23,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { API_URL } from "@/utils/storage";
+import { useLanguage } from "@/hooks/useLanguage";
+import { appContextTracker } from "@/utils/appContextTracker";
 
 // Import custom charts
 import {
@@ -102,6 +104,7 @@ interface AdminUserItem {
 }
 
 export default function AdminDashboardScreen() {
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
 
@@ -213,6 +216,9 @@ export default function AdminDashboardScreen() {
   // Verify Admin Session
   useFocusEffect(
     React.useCallback(() => {
+      appContextTracker.setContext({
+        currentScreen: "Admin",
+      });
       const verifySessionAndLoad = async () => {
         setIsLoadingData(true);
         try {
@@ -1197,7 +1203,7 @@ export default function AdminDashboardScreen() {
       <View style={styles.adminHeader}>
         <View>
           <ThemedText type="h1" style={styles.dashboardTitle}>
-            Haajari Control Center
+            {t.admin.dashboard}
           </ThemedText>
           <View style={styles.connectionRow}>
             <View
@@ -1220,8 +1226,8 @@ export default function AdminDashboardScreen() {
               }}
             >
               {socketConnected
-                ? "Live Socket Link Active"
-                : "Socket Server Connecting..."}
+                ? t.admin.liveSocket
+                : t.admin.socketConnecting}
             </ThemedText>
           </View>
         </View>
@@ -1238,14 +1244,14 @@ export default function AdminDashboardScreen() {
           contentContainerStyle={styles.tabScroll}
         >
           {[
-            { id: "dashboard", label: "Dashboard", icon: "activity" },
-            { id: "users", label: "Users", icon: "users" },
-            { id: "workers", label: "Workers", icon: "briefcase" },
-            { id: "attendance", label: "Attendance", icon: "calendar" },
-            { id: "payments", label: "Payments", icon: "credit-card" },
-            { id: "support", label: "Support & Help", icon: "help-circle" },
-            { id: "security", label: "Security & Sessions", icon: "lock" },
-            { id: "profile", label: "Profile", icon: "shield" },
+            { id: "dashboard", label: t.admin.dashboardTab || "Dashboard", icon: "activity" },
+            { id: "users", label: t.admin.usersTab || "Users", icon: "users" },
+            { id: "workers", label: t.workers.title || "Workers", icon: "briefcase" },
+            { id: "attendance", label: t.attendance.title || "Attendance", icon: "calendar" },
+            { id: "payments", label: t.admin.payments || "Payments", icon: "credit-card" },
+            { id: "support", label: t.support.title || "Support & Help", icon: "help-circle" },
+            { id: "security", label: t.device.title || "Security & Sessions", icon: "lock" },
+            { id: "profile", label: t.profile.title || "Profile", icon: "shield" },
           ].map((tab) => (
             <Pressable
               key={tab.id}

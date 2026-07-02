@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -15,12 +15,24 @@ import { useTheme } from "@/hooks/useTheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import * as Haptics from "expo-haptics";
+import { useLanguage } from "@/hooks/useLanguage";
+import { appContextTracker } from "@/utils/appContextTracker";
 
 export default function SupportScreen() {
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const tabBarHeight = insets.bottom + 60;
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      appContextTracker.setContext({
+        currentScreen: "Support",
+      });
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const handleWhatsApp = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -32,7 +44,7 @@ export default function SupportScreen() {
       window.open(url, "_blank");
     } else {
       Linking.openURL(url).catch(() => {
-        Alert.alert("Error", "WhatsApp is not installed on this device.");
+        Alert.alert("Error", t.support.whatsappAlert);
       });
     }
   };
@@ -47,7 +59,7 @@ export default function SupportScreen() {
       window.location.href = url;
     } else {
       Linking.openURL(url).catch(() => {
-        Alert.alert("Error", "Could not open email client.");
+        Alert.alert("Error", t.support.emailAlert);
       });
     }
   };
@@ -70,7 +82,7 @@ export default function SupportScreen() {
         >
           <Feather name="chevron-left" size={28} color={theme.text} />
         </Pressable>
-        <ThemedText type="h3">Support & Help Center</ThemedText>
+        <ThemedText type="h3">{t.support.title}</ThemedText>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -83,14 +95,13 @@ export default function SupportScreen() {
         }}
       >
         <ThemedText type="h1" style={styles.title}>
-          Support & Help Center
+          {t.support.title}
         </ThemedText>
         <ThemedText
           type="body"
           style={[styles.subtitle, { color: theme.textSecondary }]}
         >
-          We're here to assist you. Choose your preferred way of contacting us
-          below.
+          {t.support.contactUs}
         </ThemedText>
 
         {/* WHATSAPP CARD */}
@@ -108,14 +119,13 @@ export default function SupportScreen() {
             <Feather name="message-circle" size={32} color="#4CAF50" />
           </View>
           <ThemedText type="h2" style={styles.cardTitle}>
-            WhatsApp Support
+            {t.support.whatsappTitle}
           </ThemedText>
           <ThemedText
             type="body"
             style={[styles.cardDesc, { color: theme.textSecondary }]}
           >
-            Chat directly with our support team for quick answers regarding
-            attendance, payments, or setting up your account.
+            {t.support.whatsappDesc}
           </ThemedText>
           <ThemedText
             type="h3"
@@ -140,7 +150,7 @@ export default function SupportScreen() {
               style={{ marginRight: Spacing.xs }}
             />
             <ThemedText style={styles.actionButtonText}>
-              Start WhatsApp Chat
+              {t.support.whatsappButton}
             </ThemedText>
           </Pressable>
         </View>
@@ -160,14 +170,13 @@ export default function SupportScreen() {
             <Feather name="mail" size={32} color="#2196F3" />
           </View>
           <ThemedText type="h2" style={styles.cardTitle}>
-            Email Support
+            {t.support.emailTitle}
           </ThemedText>
           <ThemedText
             type="body"
             style={[styles.cardDesc, { color: theme.textSecondary }]}
           >
-            Send us your detailed queries or attachments, and our tech team will
-            resolve your issue promptly.
+            {t.support.emailDesc}
           </ThemedText>
           <ThemedText
             type="h3"
@@ -192,7 +201,7 @@ export default function SupportScreen() {
               style={{ marginRight: Spacing.xs }}
             />
             <ThemedText style={styles.actionButtonText}>
-              Send Support Email
+              {t.support.emailButton}
             </ThemedText>
           </Pressable>
         </View>

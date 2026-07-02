@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Platform,
   Modal,
+  DeviceEventEmitter,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import {
@@ -35,6 +36,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { storage, Worker, WorkerCategory } from "@/utils/storage";
+import { appContextTracker } from "@/utils/appContextTracker";
 import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/MainTabNavigator";
 import { useAuth } from "@/hooks/useAuth";
@@ -278,8 +280,20 @@ export default function WorkersScreen() {
   useFocusEffect(
     useCallback(() => {
       loadWorkers();
+      appContextTracker.setContext({
+        currentScreen: "Workers",
+        selectedWorkerId: null,
+        selectedWorkerName: null,
+      });
     }, [role, user]),
   );
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("refreshData", () => {
+      loadWorkers();
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     navigation.setOptions({
@@ -318,10 +332,18 @@ export default function WorkersScreen() {
   };
 
   const handleEditWorker = (worker: Worker) => {
+    appContextTracker.setContext({
+      selectedWorkerId: worker.id,
+      selectedWorkerName: worker.name,
+    });
     navigation.navigate("AddWorker", { workerId: worker.id });
   };
 
   const handleDeleteWorker = (worker: Worker) => {
+    appContextTracker.setContext({
+      selectedWorkerId: worker.id,
+      selectedWorkerName: worker.name,
+    });
     if (Platform.OS === "web") {
       const confirmed = window.confirm(
         `${t.workers.delete}? ${t.workers.deleteConfirm}`,

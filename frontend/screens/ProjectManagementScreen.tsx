@@ -18,9 +18,12 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/hooks/useAuth";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
 import { storage, Project, generateId } from "@/utils/storage";
+import { useLanguage } from "@/hooks/useLanguage";
+import { appContextTracker } from "@/utils/appContextTracker";
 
 export default function ProjectManagementScreen() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
 
@@ -40,13 +43,22 @@ export default function ProjectManagementScreen() {
     loadProjects();
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      appContextTracker.setContext({
+        currentScreen: "ProjectManagement",
+      });
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   const loadProjects = async () => {
     setIsLoading(true);
     try {
       const data = await storage.getProjects();
       setProjects(data);
     } catch {
-      Alert.alert("Error", "Failed to load projects");
+      Alert.alert(t.common.error || "Error", t.project.errorLoad);
     } finally {
       setIsLoading(false);
     }
@@ -68,7 +80,7 @@ export default function ProjectManagementScreen() {
 
   const handleSaveProject = async () => {
     if (!projectName.trim()) {
-      Alert.alert("Error", "Please enter project name");
+      Alert.alert(t.common.error || "Error", t.project.projectNameRequired);
       return;
     }
 
@@ -102,7 +114,7 @@ export default function ProjectManagementScreen() {
         setModalVisible(false);
         setUpgradeModalVisible(true);
       } else {
-        Alert.alert("Error", "Failed to save project");
+        Alert.alert(t.common.error || "Error", t.project.errorSave);
       }
     }
   };
@@ -110,33 +122,33 @@ export default function ProjectManagementScreen() {
   const handleDeleteProject = async (projectId: string) => {
     if (Platform.OS === "web") {
       const confirmed = window.confirm(
-        "Confirm Delete\n\nAre you sure you want to delete this project? Associated workers will be unassigned.",
+        `${t.project.confirmDeleteTitle}\n\n${t.project.confirmDeleteMessage}`,
       );
       if (confirmed) {
         try {
           await storage.deleteProject(projectId);
           setProjects((prev) => prev.filter((p) => p.id !== projectId));
         } catch {
-          alert("Error: Failed to delete project");
+          alert(`${t.common.error || "Error"}: ${t.project.errorDelete}`);
         }
       }
       return;
     }
 
     Alert.alert(
-      "Confirm Delete",
-      "Are you sure you want to delete this project? Associated workers will be unassigned.",
+      t.project.confirmDeleteTitle,
+      t.project.confirmDeleteMessage,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t.common.cancel || "Cancel", style: "cancel" },
         {
-          text: "Delete Project",
+          text: t.project.deleteProject,
           style: "destructive",
           onPress: async () => {
             try {
               await storage.deleteProject(projectId);
               setProjects((prev) => prev.filter((p) => p.id !== projectId));
             } catch {
-              Alert.alert("Error", "Failed to delete project");
+              Alert.alert(t.common.error || "Error", t.project.errorDelete);
             }
           },
         },
@@ -153,14 +165,14 @@ export default function ProjectManagementScreen() {
         prev.map((p) => (p.id === project.id ? updated : p)),
       );
     } catch {
-      Alert.alert("Error", "Failed to update project status");
+      Alert.alert(t.common.error || "Error", t.project.errorStatus);
     }
   };
 
   return (
     <ThemedView style={styles.container}>
       <View style={styles.headerRow}>
-        <ThemedText type="h2">Project List</ThemedText>
+        <ThemedText type="h2">{t.project.title}</ThemedText>
         <Pressable
           onPress={handleOpenAddModal}
           style={[styles.addBtn, { backgroundColor: theme.primary }]}
@@ -174,7 +186,7 @@ export default function ProjectManagementScreen() {
               marginLeft: Spacing.sm,
             }}
           >
-            Add Project
+            {t.project.addProject}
           </ThemedText>
         </Pressable>
       </View>
@@ -190,7 +202,7 @@ export default function ProjectManagementScreen() {
             type="body"
             style={{ color: theme.textSecondary, marginTop: Spacing.md }}
           >
-            No projects created yet. Add your first construction site.
+            {t.project.noProjects}
           </ThemedText>
         </View>
       ) : (
@@ -245,7 +257,7 @@ export default function ProjectManagementScreen() {
                       fontWeight: "600",
                     }}
                   >
-                    {item.status.toUpperCase()}
+                    {item.status === "active" ? t.project.active.toUpperCase() : t.project.completed.toUpperCase()}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -267,7 +279,7 @@ export default function ProjectManagementScreen() {
                     type="small"
                     style={{ color: theme.primary, marginLeft: Spacing.sm }}
                   >
-                    Edit
+                    {t.common.edit || "Edit"}
                   </ThemedText>
                 </Pressable>
                 <Pressable
@@ -289,7 +301,7 @@ export default function ProjectManagementScreen() {
                       marginLeft: Spacing.sm,
                     }}
                   >
-                    Delete
+                    {t.common.delete || "Delete"}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -313,12 +325,12 @@ export default function ProjectManagementScreen() {
             ]}
           >
             <ThemedText type="h2" style={styles.modalTitle}>
-              {editingProject ? "Edit Project" : "Add New Project"}
+              {editingProject ? t.project.editProject : t.project.addProject}
             </ThemedText>
 
             <View style={styles.inputContainer}>
               <ThemedText type="body" style={styles.label}>
-                Project/Site Name
+                {t.project.projectName}
               </ThemedText>
               <TextInput
                 style={[
@@ -331,14 +343,14 @@ export default function ProjectManagementScreen() {
                 ]}
                 value={projectName}
                 onChangeText={setProjectName}
-                placeholder="e.g. Metro Heights Phase 1"
+                placeholder={t.project.projectNamePlaceholder}
                 placeholderTextColor={theme.textSecondary}
               />
             </View>
 
             <View style={styles.inputContainer}>
               <ThemedText type="body" style={styles.label}>
-                Location / Address
+                {t.project.location}
               </ThemedText>
               <TextInput
                 style={[
@@ -351,7 +363,7 @@ export default function ProjectManagementScreen() {
                 ]}
                 value={projectLocation}
                 onChangeText={setProjectLocation}
-                placeholder="e.g. Sector 62, Noida"
+                placeholder={t.project.locationPlaceholder}
                 placeholderTextColor={theme.textSecondary}
               />
             </View>
@@ -364,7 +376,7 @@ export default function ProjectManagementScreen() {
                   { borderColor: theme.border, borderWidth: 1 },
                 ]}
               >
-                <ThemedText type="body">Cancel</ThemedText>
+                <ThemedText type="body">{t.common.cancel || "Cancel"}</ThemedText>
               </Pressable>
               <Pressable
                 onPress={handleSaveProject}
@@ -374,7 +386,7 @@ export default function ProjectManagementScreen() {
                   type="body"
                   style={{ color: "#FFFFFF", fontWeight: "600" }}
                 >
-                  Save
+                  {t.common.save || "Save"}
                 </ThemedText>
               </Pressable>
             </View>
@@ -406,7 +418,7 @@ export default function ProjectManagementScreen() {
               type="h2"
               style={{ textAlign: "center", marginBottom: Spacing.sm }}
             >
-              Upgrade to Professional Plan
+              {t.project.professionalTitle}
             </ThemedText>
             <ThemedText
               type="body"
@@ -416,9 +428,7 @@ export default function ProjectManagementScreen() {
                 marginBottom: Spacing.xl,
               }}
             >
-              The Free plan is limited to 1 active project. Upgrade to create
-              multiple projects, assign unlimited workers, and access GPS
-              features.
+              {t.project.professionalDesc}
             </ThemedText>
 
             <Pressable
@@ -435,7 +445,7 @@ export default function ProjectManagementScreen() {
                 type="body"
                 style={{ color: "#FFFFFF", fontWeight: "700" }}
               >
-                View Upgrade Plans
+                {t.project.viewUpgradePlans}
               </ThemedText>
             </Pressable>
 
@@ -446,7 +456,7 @@ export default function ProjectManagementScreen() {
                 { borderColor: theme.border, borderWidth: 1 },
               ]}
             >
-              <ThemedText type="body">Not Now</ThemedText>
+              <ThemedText type="body">{t.project.notNow}</ThemedText>
             </Pressable>
           </ThemedView>
         </View>

@@ -8,9 +8,11 @@ import { useTheme } from "@/hooks/useTheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Spacing } from "@/constants/theme";
 import { privacyPolicyContent } from "@/data/privacyPolicy";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export default function PrivacyPolicyScreen() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const tabBarHeight = insets.bottom + 60;
@@ -32,7 +34,7 @@ export default function PrivacyPolicyScreen() {
         >
           <Feather name="chevron-left" size={28} color={theme.text} />
         </Pressable>
-        <ThemedText type="h3">Privacy Policy</ThemedText>
+        <ThemedText type="h3">{t.support.privacyPolicy}</ThemedText>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -44,7 +46,7 @@ export default function PrivacyPolicyScreen() {
         }}
       >
         <ThemedText type="h2" style={{ marginBottom: Spacing.lg }}>
-          Privacy Policy
+          {t.support.privacyPolicy}
         </ThemedText>
 
         {privacyPolicyContent.map((section, idx) => (
