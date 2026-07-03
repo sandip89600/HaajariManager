@@ -116,7 +116,17 @@
     "attendanceReminderDesc": "Get reminded to mark attendance every day",
     "reminderTime": "Reminder Time",
     "salaryReminder": "Month-End Salary Reminder",
-    "salaryReminderDesc": "Reminder to process payments at month end"
+    "salaryReminderDesc": "Reminder to process payments at month end",
+    "excludedModules": "Excluded Modules",
+    "labourMarketplace": "Labour Marketplace",
+    "labourMarketplaceDesc": "Labour hiring & bidding portal",
+    "labourJobFeed": "Labour Job Feed",
+    "labourJobFeedDesc": "Live construction vacancy listings",
+    "labourManagement": "Labour Management Marketplace",
+    "labourManagementDesc": "Subcontractor & union agreements",
+    "excluded": "Excluded",
+    "siteManagement": "Site Management",
+    "siteManagementDesc": "Complete remote construction dashboard"
   },
   "gps": {
     "permissionDenied": "Location permission denied",

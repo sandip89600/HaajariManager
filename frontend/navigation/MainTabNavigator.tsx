@@ -23,6 +23,7 @@ import UserProfileScreen from "@/screens/UserProfileScreen";
 import SupportScreen from "@/screens/SupportScreen";
 import PrivacySettingsScreen from "@/screens/PrivacySettingsScreen";
 import DeviceManagementScreen from "@/screens/DeviceManagementScreen";
+import SiteManagementScreen from "@/screens/SiteManagementScreen";
 
 export type MainTabParamList = {
   AttendanceTab: undefined;
@@ -41,6 +42,7 @@ export type RootStackParamList = {
   Support: undefined;
   PrivacySettings: undefined;
   DeviceManagement: undefined;
+  SiteManagement: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -194,6 +196,13 @@ export default function MainTabNavigator() {
       <Stack.Screen
         name="DeviceManagement"
         component={DeviceManagementScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="SiteManagement"
+        component={SiteManagementScreen}
         options={{
           headerShown: false,
         }}

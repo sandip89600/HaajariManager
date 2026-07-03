@@ -1084,6 +1084,14 @@ export default function SettingsScreen() {
                     label="Supervisor Management"
                     sublabel="Create and assign site supervisor accounts"
                     onPress={() => navigation.navigate("SupervisorManagement")}
+                    theme={theme}
+                  />
+                  <SettingRow
+                    icon="grid"
+                    iconColor="#FF5722"
+                    label={t.settings.siteManagement}
+                    sublabel={t.settings.siteManagementDesc}
+                    onPress={() => navigation.navigate("SiteManagement")}
                     isLast
                     theme={theme}
                   />
@@ -1114,6 +1122,14 @@ export default function SettingsScreen() {
                     label="Business Analytics"
                     sublabel="View attendance rates, salaries, and reports"
                     onPress={() => navigation.navigate("SummaryTab")}
+                    theme={theme}
+                  />
+                  <SettingRow
+                    icon="grid"
+                    iconColor="#FF5722"
+                    label={t.settings.siteManagement}
+                    sublabel={t.settings.siteManagementDesc}
+                    onPress={() => navigation.navigate("SiteManagement")}
                     isLast
                     theme={theme}
                   />
@@ -1136,6 +1152,14 @@ export default function SettingsScreen() {
                     label="Assigned Workers"
                     sublabel="View active workforce assigned to your project sites"
                     onPress={() => setShowWorkersModal(true)}
+                    theme={theme}
+                  />
+                  <SettingRow
+                    icon="grid"
+                    iconColor="#FF5722"
+                    label={t.settings.siteManagement}
+                    sublabel={t.settings.siteManagementDesc}
+                    onPress={() => navigation.navigate("SiteManagement")}
                     isLast
                     theme={theme}
                   />
@@ -1407,6 +1431,50 @@ export default function SettingsScreen() {
             label="Submit Feedback"
             sublabel="Rate us and suggest platform improvements"
             onPress={() => setShowFeedbackModal(true)}
+            isLast
+            theme={theme}
+          />
+        </SettingCard>
+
+        {/* ─── 9B. EXCLUDED MODULES ─── */}
+        <ThemedText type="small" style={styles.sectionLabel}>
+          {t.settings.excludedModules}
+        </ThemedText>
+        <SettingCard theme={theme} isDark={isDark}>
+          <SettingRow
+            icon="shopping-bag"
+            iconColor={theme.textSecondary}
+            label={t.settings.labourMarketplace}
+            sublabel={t.settings.labourMarketplaceDesc}
+            right={
+              <ThemedText type="small" style={{ color: theme.error, fontWeight: "600" }}>
+                {t.settings.excluded}
+              </ThemedText>
+            }
+            theme={theme}
+          />
+          <SettingRow
+            icon="rss"
+            iconColor={theme.textSecondary}
+            label={t.settings.labourJobFeed}
+            sublabel={t.settings.labourJobFeedDesc}
+            right={
+              <ThemedText type="small" style={{ color: theme.error, fontWeight: "600" }}>
+                {t.settings.excluded}
+              </ThemedText>
+            }
+            theme={theme}
+          />
+          <SettingRow
+            icon="briefcase"
+            iconColor={theme.textSecondary}
+            label={t.settings.labourManagement}
+            sublabel={t.settings.labourManagementDesc}
+            right={
+              <ThemedText type="small" style={{ color: theme.error, fontWeight: "600" }}>
+                {t.settings.excluded}
+              </ThemedText>
+            }
             isLast
             theme={theme}
           />
