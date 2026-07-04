@@ -353,7 +353,9 @@ export default function PrivacySettingsScreen() {
           {isSaving ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <ThemedText style={styles.saveBtnText}>{t.privacy.saveChanges}</ThemedText>
+            <ThemedText style={styles.saveBtnText}>
+              {t.privacy.saveChanges}
+            </ThemedText>
           )}
         </Pressable>
       </ScreenScrollView>

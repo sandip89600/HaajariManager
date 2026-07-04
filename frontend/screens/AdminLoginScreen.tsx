@@ -102,9 +102,7 @@ export default function AdminLoginScreen() {
       }
       navigation.navigate("AdminDashboard" as any);
     } catch (e: any) {
-      setError(
-        e.response?.data?.error || t.admin.errorServer,
-      );
+      setError(e.response?.data?.error || t.admin.errorServer);
       console.error("[Admin Login] Failed to connect to server:", e);
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

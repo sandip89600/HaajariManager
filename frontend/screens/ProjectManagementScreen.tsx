@@ -135,25 +135,21 @@ export default function ProjectManagementScreen() {
       return;
     }
 
-    Alert.alert(
-      t.project.confirmDeleteTitle,
-      t.project.confirmDeleteMessage,
-      [
-        { text: t.common.cancel || "Cancel", style: "cancel" },
-        {
-          text: t.project.deleteProject,
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await storage.deleteProject(projectId);
-              setProjects((prev) => prev.filter((p) => p.id !== projectId));
-            } catch {
-              Alert.alert(t.common.error || "Error", t.project.errorDelete);
-            }
-          },
+    Alert.alert(t.project.confirmDeleteTitle, t.project.confirmDeleteMessage, [
+      { text: t.common.cancel || "Cancel", style: "cancel" },
+      {
+        text: t.project.deleteProject,
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await storage.deleteProject(projectId);
+            setProjects((prev) => prev.filter((p) => p.id !== projectId));
+          } catch {
+            Alert.alert(t.common.error || "Error", t.project.errorDelete);
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const handleToggleStatus = async (project: Project) => {
@@ -257,7 +253,9 @@ export default function ProjectManagementScreen() {
                       fontWeight: "600",
                     }}
                   >
-                    {item.status === "active" ? t.project.active.toUpperCase() : t.project.completed.toUpperCase()}
+                    {item.status === "active"
+                      ? t.project.active.toUpperCase()
+                      : t.project.completed.toUpperCase()}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -376,7 +374,9 @@ export default function ProjectManagementScreen() {
                   { borderColor: theme.border, borderWidth: 1 },
                 ]}
               >
-                <ThemedText type="body">{t.common.cancel || "Cancel"}</ThemedText>
+                <ThemedText type="body">
+                  {t.common.cancel || "Cancel"}
+                </ThemedText>
               </Pressable>
               <Pressable
                 onPress={handleSaveProject}

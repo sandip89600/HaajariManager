@@ -121,50 +121,151 @@ export default function SiteManagementScreen() {
 
   // Activity list
   const [activities, setActivities] = useState<RecentActivity[]>([
-    { id: "act-1", type: "checkin", text: "Amit Kumar checked in at Metro Heights", timeStr: "10 mins ago" },
-    { id: "act-2", type: "task", text: "Drywall plaster completed at Sector 5 Villa", timeStr: "45 mins ago" },
-    { id: "act-3", type: "photo", text: "Ramesh uploaded foundation verification photo", timeStr: "1 hour ago" },
-    { id: "act-4", type: "material", text: "50 Cement bags approved for Flyover Site", timeStr: "2 hours ago" },
-    { id: "act-5", type: "voice", text: "Contractor sent voice instruction to Mason Team B", timeStr: "3 hours ago" },
+    {
+      id: "act-1",
+      type: "checkin",
+      text: "Amit Kumar checked in at Metro Heights",
+      timeStr: "10 mins ago",
+    },
+    {
+      id: "act-2",
+      type: "task",
+      text: "Drywall plaster completed at Sector 5 Villa",
+      timeStr: "45 mins ago",
+    },
+    {
+      id: "act-3",
+      type: "photo",
+      text: "Ramesh uploaded foundation verification photo",
+      timeStr: "1 hour ago",
+    },
+    {
+      id: "act-4",
+      type: "material",
+      text: "50 Cement bags approved for Flyover Site",
+      timeStr: "2 hours ago",
+    },
+    {
+      id: "act-5",
+      type: "voice",
+      text: "Contractor sent voice instruction to Mason Team B",
+      timeStr: "3 hours ago",
+    },
   ]);
 
   // Today's Daily Work Plans
   const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([
-    { id: "p-1", siteId: "site-1", teamName: "Mason Team A", workerIds: ["w-1"], taskName: "Laying foundation reinforcement structure", status: "pending" },
-    { id: "p-2", siteId: "site-2", teamName: "Plaster Team", workerIds: ["w-2"], taskName: "Finishing drywall and plastering walls", status: "completed" },
-    { id: "p-3", siteId: "site-1", teamName: "Helper Crew", workerIds: [], taskName: "Moving excavation aggregates to Section B", status: "blocked" },
+    {
+      id: "p-1",
+      siteId: "site-1",
+      teamName: "Mason Team A",
+      workerIds: ["w-1"],
+      taskName: "Laying foundation reinforcement structure",
+      status: "pending",
+    },
+    {
+      id: "p-2",
+      siteId: "site-2",
+      teamName: "Plaster Team",
+      workerIds: ["w-2"],
+      taskName: "Finishing drywall and plastering walls",
+      status: "completed",
+    },
+    {
+      id: "p-3",
+      siteId: "site-1",
+      teamName: "Helper Crew",
+      workerIds: [],
+      taskName: "Moving excavation aggregates to Section B",
+      status: "blocked",
+    },
   ]);
 
   // Material requests list
   const [materialRequests, setMaterialRequests] = useState<MaterialRequest[]>([
-    { id: "m-1", siteId: "site-1", materialName: "53-Grade OPC Cement Bags", quantity: "150 Bags", requestedBy: "Supervisor Rakesh", status: "pending", date: Date.now() - 3600000 * 2 },
-    { id: "m-2", siteId: "site-2", materialName: "TMT Steel Rebars 12mm", quantity: "2 Tons", requestedBy: "Supervisor Dev", status: "approved", date: Date.now() - 3600000 * 24 },
+    {
+      id: "m-1",
+      siteId: "site-1",
+      materialName: "53-Grade OPC Cement Bags",
+      quantity: "150 Bags",
+      requestedBy: "Supervisor Rakesh",
+      status: "pending",
+      date: Date.now() - 3600000 * 2,
+    },
+    {
+      id: "m-2",
+      siteId: "site-2",
+      materialName: "TMT Steel Rebars 12mm",
+      quantity: "2 Tons",
+      requestedBy: "Supervisor Dev",
+      status: "approved",
+      date: Date.now() - 3600000 * 24,
+    },
   ]);
 
   // Notices
   const [notices, setNotices] = useState<Notice[]>([
-    { id: "n-1", title: "Mandatory Hard Hat Policy", body: "All workers and supervisors must wear class-A hard hats at all times.", category: "safety", createdAt: Date.now() - 3600000 * 12 },
-    { id: "n-2", title: "Independence Day Holiday", body: "All sites closed on August 15th.", category: "holiday", createdAt: Date.now() - 3600000 * 48 },
+    {
+      id: "n-1",
+      title: "Mandatory Hard Hat Policy",
+      body: "All workers and supervisors must wear class-A hard hats at all times.",
+      category: "safety",
+      createdAt: Date.now() - 3600000 * 12,
+    },
+    {
+      id: "n-2",
+      title: "Independence Day Holiday",
+      body: "All sites closed on August 15th.",
+      category: "holiday",
+      createdAt: Date.now() - 3600000 * 48,
+    },
   ]);
 
   // Blocked tasks
   const [blockedTasks, setBlockedTasks] = useState<BlockedTask[]>([
-    { id: "b-1", siteId: "site-1", taskName: "Excavation of Section B", reason: "Heavy monsoon rains logged key pathways", createdAt: Date.now() - 3600000 * 4 },
+    {
+      id: "b-1",
+      siteId: "site-1",
+      taskName: "Excavation of Section B",
+      reason: "Heavy monsoon rains logged key pathways",
+      createdAt: Date.now() - 3600000 * 4,
+    },
   ]);
 
   // Leave Requests
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([
-    { id: "l-1", workerName: "Sanjay Singh", reason: "Family emergency in hometown", dateStr: "04 July 2026", status: "pending" },
+    {
+      id: "l-1",
+      workerName: "Sanjay Singh",
+      reason: "Family emergency in hometown",
+      dateStr: "04 July 2026",
+      status: "pending",
+    },
   ]);
 
   // Photo Verification uploads
-  const [photoVerifications, setPhotoVerifications] = useState<PhotoVerification[]>([
-    { id: "v-1", siteId: "site-2", workerName: "Vikram Mistri", taskName: "Tiling floor phase 2", photoUri: "https://images.unsplash.com/photo-1581094288338-2314dddb7eed?w=400", status: "pending" },
+  const [photoVerifications, setPhotoVerifications] = useState<
+    PhotoVerification[]
+  >([
+    {
+      id: "v-1",
+      siteId: "site-2",
+      workerName: "Vikram Mistri",
+      taskName: "Tiling floor phase 2",
+      photoUri:
+        "https://images.unsplash.com/photo-1581094288338-2314dddb7eed?w=400",
+      status: "pending",
+    },
   ]);
 
   // Chat message list
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { id: "c-1", sender: "hai", text: "Hello! I am HAI, your read-only site assistant. Ask me anything about today's progress, material updates, or roster allocations.", timestamp: Date.now() },
+    {
+      id: "c-1",
+      sender: "hai",
+      text: "Hello! I am HAI, your read-only site assistant. Ask me anything about today's progress, material updates, or roster allocations.",
+      timestamp: Date.now(),
+    },
   ]);
   const [chatInput, setChatInput] = useState("");
 
@@ -173,8 +274,18 @@ export default function SiteManagementScreen() {
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
 
   // Quick Action Modal states
-  const [activeModal, setActiveModal] = useState<"site" | "task" | "worker" | "notice" | "voice" | "material" | "details" | null>(null);
-  const [selectedSiteForDetails, setSelectedSiteForDetails] = useState<Project | null>(null);
+  const [activeModal, setActiveModal] = useState<
+    | "site"
+    | "task"
+    | "worker"
+    | "notice"
+    | "voice"
+    | "material"
+    | "details"
+    | null
+  >(null);
+  const [selectedSiteForDetails, setSelectedSiteForDetails] =
+    useState<Project | null>(null);
 
   // Forms states
   // Site
@@ -240,7 +351,8 @@ export default function SiteManagementScreen() {
     return sites.filter(
       (s) =>
         s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (s.location && s.location.toLowerCase().includes(searchQuery.toLowerCase())),
+        (s.location &&
+          s.location.toLowerCase().includes(searchQuery.toLowerCase())),
     );
   }, [sites, searchQuery]);
 
@@ -273,7 +385,12 @@ export default function SiteManagementScreen() {
 
       // Add activity
       setActivities((prev) => [
-        { id: generateId(), type: "checkin", text: `New Site "${newProj.name}" created`, timeStr: "Just now" },
+        {
+          id: generateId(),
+          type: "checkin",
+          text: `New Site "${newProj.name}" created`,
+          timeStr: "Just now",
+        },
         ...prev,
       ]);
 
@@ -305,7 +422,12 @@ export default function SiteManagementScreen() {
     setDailyPlans((prev) => [newPlan, ...prev]);
 
     setActivities((prev) => [
-      { id: generateId(), type: "task", text: `Task "${newPlan.taskName}" assigned to ${newPlan.teamName}`, timeStr: "Just now" },
+      {
+        id: generateId(),
+        type: "task",
+        text: `Task "${newPlan.taskName}" assigned to ${newPlan.teamName}`,
+        timeStr: "Just now",
+      },
       ...prev,
     ]);
 
@@ -342,7 +464,12 @@ export default function SiteManagementScreen() {
       setWorkers((prev) => [newWorker, ...prev]);
 
       setActivities((prev) => [
-        { id: generateId(), type: "checkin", text: `Worker "${newWorker.name}" added to workforce`, timeStr: "Just now" },
+        {
+          id: generateId(),
+          type: "checkin",
+          text: `Worker "${newWorker.name}" added to workforce`,
+          timeStr: "Just now",
+        },
         ...prev,
       ]);
 
@@ -383,7 +510,12 @@ export default function SiteManagementScreen() {
       setIsRecording(false);
       setTaskVoiceUri(`voice_${Date.now()}.mp3`);
       setActivities((prev) => [
-        { id: generateId(), type: "voice", text: `Voice instruction recorded for dispatch`, timeStr: "Just now" },
+        {
+          id: generateId(),
+          type: "voice",
+          text: `Voice instruction recorded for dispatch`,
+          timeStr: "Just now",
+        },
         ...prev,
       ]);
       Alert.alert("Recorded", "Voice note saved.");
@@ -408,7 +540,12 @@ export default function SiteManagementScreen() {
     setMaterialRequests((prev) => [newReq, ...prev]);
 
     setActivities((prev) => [
-      { id: generateId(), type: "material", text: `Material request submitted: ${newReq.materialName}`, timeStr: "Just now" },
+      {
+        id: generateId(),
+        type: "material",
+        text: `Material request submitted: ${newReq.materialName}`,
+        timeStr: "Just now",
+      },
       ...prev,
     ]);
 
@@ -420,14 +557,22 @@ export default function SiteManagementScreen() {
   };
 
   // ─── APPROVAL BOARD ACTIONS ────────────────────────────────────────────────
-  const handleApproveMaterial = (id: string, status: MaterialRequest["status"]) => {
+  const handleApproveMaterial = (
+    id: string,
+    status: MaterialRequest["status"],
+  ) => {
     setMaterialRequests((prev) =>
       prev.map((r) => (r.id === id ? { ...r, status } : r)),
     );
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (status === "approved") {
       setActivities((prev) => [
-        { id: generateId(), type: "material", text: `Material request ID ${id} approved`, timeStr: "Just now" },
+        {
+          id: generateId(),
+          type: "material",
+          text: `Material request ID ${id} approved`,
+          timeStr: "Just now",
+        },
         ...prev,
       ]);
     }
@@ -444,13 +589,18 @@ export default function SiteManagementScreen() {
   const handleResolveBlocked = (id: string) => {
     setBlockedTasks((prev) => prev.filter((b) => b.id !== id));
     setDailyPlans((prev) =>
-      prev.map((p) => (p.status === "blocked" ? { ...p, status: "pending" } : p)),
+      prev.map((p) =>
+        p.status === "blocked" ? { ...p, status: "pending" } : p,
+      ),
     );
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert("Resolved", "Block flags cleared. Task shifted to pending.");
   };
 
-  const handleApprovePhoto = (id: string, status: PhotoVerification["status"]) => {
+  const handleApprovePhoto = (
+    id: string,
+    status: PhotoVerification["status"],
+  ) => {
     setPhotoVerifications((prev) =>
       prev.map((p) => (p.id === id ? { ...p, status } : p)),
     );
@@ -492,7 +642,9 @@ export default function SiteManagementScreen() {
         } else if (query.includes("worker") || query.includes("deploy")) {
           responseText = `There are ${workers.length} registered builders and masons in the active workforce directory. Check the Distribution chart for allocations.`;
         } else if (query.includes("material") || query.includes("order")) {
-          const pend = materialRequests.filter((r) => r.status === "pending").length;
+          const pend = materialRequests.filter(
+            (r) => r.status === "pending",
+          ).length;
           responseText = `Roster shows ${pend} pending material request(s) awaiting approval in the Command console.`;
         } else if (query.includes("weather") || query.includes("rain")) {
           responseText =
@@ -529,16 +681,21 @@ export default function SiteManagementScreen() {
 
   // Stats
   const activeSitesCount = sites.filter((s) => s.status === "active").length;
-  const completedTasksCount = dailyPlans.filter((p) => p.status === "completed").length;
+  const completedTasksCount = dailyPlans.filter(
+    (p) => p.status === "completed",
+  ).length;
   const blockedTasksCount = blockedTasks.length;
 
   if (!hasAccess) {
     return (
       <ThemedView style={styles.deniedContainer}>
         <Feather name="shield-off" size={64} color={theme.error} />
-        <ThemedText type="h2" style={styles.deniedTitle}>Access Denied</ThemedText>
+        <ThemedText type="h2" style={styles.deniedTitle}>
+          Access Denied
+        </ThemedText>
         <ThemedText style={{ color: theme.textSecondary, textAlign: "center" }}>
-          Only Contractors, Builders, and Company Admin roles can launch the Command Center.
+          Only Contractors, Builders, and Company Admin roles can launch the
+          Command Center.
         </ThemedText>
       </ThemedView>
     );
@@ -552,7 +709,9 @@ export default function SiteManagementScreen() {
           <Feather name="arrow-left" size={24} color={theme.text} />
         </Pressable>
         <View style={styles.headerInfo}>
-          <ThemedText type="h1" style={styles.headerTitle}>Haajari Command Center</ThemedText>
+          <ThemedText type="h1" style={styles.headerTitle}>
+            Haajari Command Center
+          </ThemedText>
           <ThemedText type="small" style={{ color: theme.textSecondary }}>
             Construction Site Command & Control Terminal
           </ThemedText>
@@ -564,32 +723,57 @@ export default function SiteManagementScreen() {
             { backgroundColor: sosActive ? theme.error : theme.error + "20" },
           ]}
         >
-          <Feather name="alert-triangle" size={16} color={sosActive ? "#FFFFFF" : theme.error} />
-          <ThemedText style={[styles.sosButtonText, { color: sosActive ? "#FFFFFF" : theme.error }]}>
+          <Feather
+            name="alert-triangle"
+            size={16}
+            color={sosActive ? "#FFFFFF" : theme.error}
+          />
+          <ThemedText
+            style={[
+              styles.sosButtonText,
+              { color: sosActive ? "#FFFFFF" : theme.error },
+            ]}
+          >
             SOS
           </ThemedText>
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
-        
+      <ScrollView
+        contentContainerStyle={styles.scrollBody}
+        showsVerticalScrollIndicator={false}
+      >
         {/* ─── 0. WEATHER WIDGET (SECTION 12) ─── */}
-        <LinearGradient colors={["#1E2022", "#2D3033"]} style={styles.weatherCard}>
+        <LinearGradient
+          colors={["#1E2022", "#2D3033"]}
+          style={styles.weatherCard}
+        >
           <View style={styles.weatherHeaderRow}>
             <View>
-              <ThemedText style={{ fontWeight: "800", color: "#FF8C00", fontSize: 13 }}>
+              <ThemedText
+                style={{ fontWeight: "800", color: "#FF8C00", fontSize: 13 }}
+              >
                 CONSTRUCTION WEATHER MONITOR
               </ThemedText>
-              <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "700", marginTop: 2 }}>
+              <ThemedText
+                type="body"
+                style={{ color: "#FFFFFF", fontWeight: "700", marginTop: 2 }}
+              >
                 Monsoon Rain Alerts • Noida Region
               </ThemedText>
             </View>
             <Feather name="cloud-rain" size={28} color="#FF9800" />
           </View>
           <View style={styles.weatherBody}>
-            <ThemedText type="h2" style={{ color: "#FFFFFF" }}>28°C • Precipitation Risk 85%</ThemedText>
-            <ThemedText type="small" style={{ color: "#EF5350", fontWeight: "700", marginTop: 4 }}>
-              🚨 WARNING: High precipitation risk. Concrete foundation pouring is recommended to pause.
+            <ThemedText type="h2" style={{ color: "#FFFFFF" }}>
+              28°C • Precipitation Risk 85%
+            </ThemedText>
+            <ThemedText
+              type="small"
+              style={{ color: "#EF5350", fontWeight: "700", marginTop: 4 }}
+            >
+              🚨 WARNING: High precipitation risk. Concrete foundation pouring
+              is recommended to pause.
             </ThemedText>
           </View>
         </LinearGradient>
@@ -597,17 +781,25 @@ export default function SiteManagementScreen() {
         {/* ─── SIX SUMMARY CARDS (REQUIRED BY USER) ─── */}
         <View style={styles.cardsGrid}>
           {/* Active Sites */}
-          <LinearGradient colors={["#FF6B35", "#FF8C5E"]} style={styles.summaryCard}>
+          <LinearGradient
+            colors={["#FF6B35", "#FF8C5E"]}
+            style={styles.summaryCard}
+          >
             <View style={styles.summaryCardHeader}>
               <ThemedText style={{ fontSize: 20 }}>🏗</ThemedText>
               <Feather name="map" size={16} color="#FFFFFF" />
             </View>
-            <ThemedText style={styles.summaryNum}>{activeSitesCount}</ThemedText>
+            <ThemedText style={styles.summaryNum}>
+              {activeSitesCount}
+            </ThemedText>
             <ThemedText style={styles.summaryLabel}>Active Sites</ThemedText>
           </LinearGradient>
 
           {/* Total Workers */}
-          <LinearGradient colors={["#1E3A5F", "#2A5282"]} style={styles.summaryCard}>
+          <LinearGradient
+            colors={["#1E3A5F", "#2A5282"]}
+            style={styles.summaryCard}
+          >
             <View style={styles.summaryCardHeader}>
               <ThemedText style={{ fontSize: 20 }}>👷</ThemedText>
               <Feather name="users" size={16} color="#FFFFFF" />
@@ -617,37 +809,55 @@ export default function SiteManagementScreen() {
           </LinearGradient>
 
           {/* Today's Tasks */}
-          <LinearGradient colors={["#7C3AED", "#9061F3"]} style={styles.summaryCard}>
+          <LinearGradient
+            colors={["#7C3AED", "#9061F3"]}
+            style={styles.summaryCard}
+          >
             <View style={styles.summaryCardHeader}>
               <ThemedText style={{ fontSize: 20 }}>📋</ThemedText>
               <Feather name="clipboard" size={16} color="#FFFFFF" />
             </View>
-            <ThemedText style={styles.summaryNum}>{dailyPlans.length}</ThemedText>
+            <ThemedText style={styles.summaryNum}>
+              {dailyPlans.length}
+            </ThemedText>
             <ThemedText style={styles.summaryLabel}>Today's Tasks</ThemedText>
           </LinearGradient>
 
           {/* Completed Tasks */}
-          <LinearGradient colors={["#4CAF50", "#66BB6A"]} style={styles.summaryCard}>
+          <LinearGradient
+            colors={["#4CAF50", "#66BB6A"]}
+            style={styles.summaryCard}
+          >
             <View style={styles.summaryCardHeader}>
               <ThemedText style={{ fontSize: 20 }}>✅</ThemedText>
               <Feather name="check-circle" size={16} color="#FFFFFF" />
             </View>
-            <ThemedText style={styles.summaryNum}>{completedTasksCount}</ThemedText>
+            <ThemedText style={styles.summaryNum}>
+              {completedTasksCount}
+            </ThemedText>
             <ThemedText style={styles.summaryLabel}>Completed Tasks</ThemedText>
           </LinearGradient>
 
           {/* Blocked Tasks */}
-          <LinearGradient colors={["#F44336", "#EF5350"]} style={styles.summaryCard}>
+          <LinearGradient
+            colors={["#F44336", "#EF5350"]}
+            style={styles.summaryCard}
+          >
             <View style={styles.summaryCardHeader}>
               <ThemedText style={{ fontSize: 20 }}>⚠</ThemedText>
               <Feather name="alert-triangle" size={16} color="#FFFFFF" />
             </View>
-            <ThemedText style={styles.summaryNum}>{blockedTasksCount}</ThemedText>
+            <ThemedText style={styles.summaryNum}>
+              {blockedTasksCount}
+            </ThemedText>
             <ThemedText style={styles.summaryLabel}>Blocked Tasks</ThemedText>
           </LinearGradient>
 
           {/* Site Progress */}
-          <LinearGradient colors={["#2196F3", "#42A5F5"]} style={styles.summaryCard}>
+          <LinearGradient
+            colors={["#2196F3", "#42A5F5"]}
+            style={styles.summaryCard}
+          >
             <View style={styles.summaryCardHeader}>
               <ThemedText style={{ fontSize: 20 }}>📊</ThemedText>
               <Feather name="trending-up" size={16} color="#FFFFFF" />
@@ -658,8 +868,21 @@ export default function SiteManagementScreen() {
         </View>
 
         {/* ─── 1. SEARCH BAR (SECTION 1) ─── */}
-        <View style={[styles.searchBox, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-          <Feather name="search" size={18} color={theme.textSecondary} style={{ marginRight: Spacing.sm }} />
+        <View
+          style={[
+            styles.searchBox,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <Feather
+            name="search"
+            size={18}
+            color={theme.textSecondary}
+            style={{ marginRight: Spacing.sm }}
+          />
           <TextInput
             style={[styles.searchInput, { color: theme.text }]}
             value={searchQuery}
@@ -675,88 +898,187 @@ export default function SiteManagementScreen() {
         </View>
 
         {/* ─── 2. QUICK ACTIONS (SECTION 2) ─── */}
-        <ThemedText type="h3" style={styles.widgetHeader}>Quick Command Actions</ThemedText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.sm }}>
-          <Pressable onPress={() => setActiveModal("site")} style={[styles.actionBtn, { backgroundColor: theme.primary }]}>
+        <ThemedText type="h3" style={styles.widgetHeader}>
+          Quick Command Actions
+        </ThemedText>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: Spacing.sm }}
+        >
+          <Pressable
+            onPress={() => setActiveModal("site")}
+            style={[styles.actionBtn, { backgroundColor: theme.primary }]}
+          >
             <Feather name="map" size={16} color="#FFFFFF" />
             <ThemedText style={styles.actionBtnText}>Create Site</ThemedText>
           </Pressable>
-          <Pressable onPress={() => setActiveModal("task")} style={[styles.actionBtn, { backgroundColor: "#7C3AED" }]}>
+          <Pressable
+            onPress={() => setActiveModal("task")}
+            style={[styles.actionBtn, { backgroundColor: "#7C3AED" }]}
+          >
             <Feather name="clipboard" size={16} color="#FFFFFF" />
             <ThemedText style={styles.actionBtnText}>Assign Task</ThemedText>
           </Pressable>
-          <Pressable onPress={() => setActiveModal("worker")} style={[styles.actionBtn, { backgroundColor: "#00BCD4" }]}>
+          <Pressable
+            onPress={() => setActiveModal("worker")}
+            style={[styles.actionBtn, { backgroundColor: "#00BCD4" }]}
+          >
             <Feather name="user-plus" size={16} color="#FFFFFF" />
             <ThemedText style={styles.actionBtnText}>Add Worker</ThemedText>
           </Pressable>
-          <Pressable onPress={() => setActiveModal("notice")} style={[styles.actionBtn, { backgroundColor: "#E91E63" }]}>
+          <Pressable
+            onPress={() => setActiveModal("notice")}
+            style={[styles.actionBtn, { backgroundColor: "#E91E63" }]}
+          >
             <Feather name="volume-2" size={16} color="#FFFFFF" />
             <ThemedText style={styles.actionBtnText}>Create Notice</ThemedText>
           </Pressable>
-          <Pressable onPress={() => setActiveModal("voice")} style={[styles.actionBtn, { backgroundColor: "#FF9800" }]}>
+          <Pressable
+            onPress={() => setActiveModal("voice")}
+            style={[styles.actionBtn, { backgroundColor: "#FF9800" }]}
+          >
             <Feather name="mic" size={16} color="#FFFFFF" />
             <ThemedText style={styles.actionBtnText}>Record Voice</ThemedText>
           </Pressable>
-          <Pressable onPress={() => setActiveModal("material")} style={[styles.actionBtn, { backgroundColor: "#2196F3" }]}>
+          <Pressable
+            onPress={() => setActiveModal("material")}
+            style={[styles.actionBtn, { backgroundColor: "#2196F3" }]}
+          >
             <Feather name="shopping-cart" size={16} color="#FFFFFF" />
             <ThemedText style={styles.actionBtnText}>Order Material</ThemedText>
           </Pressable>
         </ScrollView>
 
         {/* ─── 3. MY SITES (SECTION 3) ─── */}
-        <ThemedText type="h3" style={styles.widgetHeader}>My Sites Directory</ThemedText>
+        <ThemedText type="h3" style={styles.widgetHeader}>
+          My Sites Directory
+        </ThemedText>
         {filteredSites.length === 0 ? (
           <View style={styles.noDataBox}>
-            <ThemedText style={{ color: theme.textSecondary }}>No sites matched search query.</ThemedText>
+            <ThemedText style={{ color: theme.textSecondary }}>
+              No sites matched search query.
+            </ThemedText>
           </View>
         ) : (
           filteredSites.map((site) => {
             const siteWorkers = workers.filter((w) => w.projectId === site.id);
             const activePlans = dailyPlans.filter((p) => p.siteId === site.id);
             return (
-              <View key={site.id} style={[styles.siteItemCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+              <View
+                key={site.id}
+                style={[
+                  styles.siteItemCard,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
                 <View style={styles.siteItemHead}>
                   <View>
                     <ThemedText type="h3">{site.name}</ThemedText>
-                    <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
+                    <ThemedText
+                      type="small"
+                      style={{ color: theme.textSecondary, marginTop: 2 }}
+                    >
                       📍 {site.location || "Location not set"}
                     </ThemedText>
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: theme.success + "20" }]}>
-                    <ThemedText type="small" style={{ color: theme.success, fontWeight: "700" }}>ACTIVE</ThemedText>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: theme.success + "20" },
+                    ]}
+                  >
+                    <ThemedText
+                      type="small"
+                      style={{ color: theme.success, fontWeight: "700" }}
+                    >
+                      ACTIVE
+                    </ThemedText>
                   </View>
                 </View>
 
-                <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                <View
+                  style={[styles.divider, { backgroundColor: theme.border }]}
+                />
 
                 <View style={styles.siteItemStats}>
                   <View style={styles.siteStatRow}>
-                    <Feather name="user" size={14} color={theme.textSecondary} />
+                    <Feather
+                      name="user"
+                      size={14}
+                      color={theme.textSecondary}
+                    />
                     <ThemedText type="small" style={{ marginLeft: 6 }}>
-                      Supervisor: <ThemedText type="small" style={{ fontWeight: "700" }}>{siteSupervisor}</ThemedText>
+                      Supervisor:{" "}
+                      <ThemedText type="small" style={{ fontWeight: "700" }}>
+                        {siteSupervisor}
+                      </ThemedText>
                     </ThemedText>
                   </View>
                   <View style={styles.siteStatRow}>
-                    <Feather name="users" size={14} color={theme.textSecondary} />
+                    <Feather
+                      name="users"
+                      size={14}
+                      color={theme.textSecondary}
+                    />
                     <ThemedText type="small" style={{ marginLeft: 6 }}>
-                      Present: <ThemedText type="small" style={{ fontWeight: "700", color: theme.success }}>{siteWorkers.length}</ThemedText>
-                      {"  |  "}Absent: <ThemedText type="small" style={{ fontWeight: "700", color: theme.error }}>0</ThemedText>
+                      Present:{" "}
+                      <ThemedText
+                        type="small"
+                        style={{ fontWeight: "700", color: theme.success }}
+                      >
+                        {siteWorkers.length}
+                      </ThemedText>
+                      {"  |  "}Absent:{" "}
+                      <ThemedText
+                        type="small"
+                        style={{ fontWeight: "700", color: theme.error }}
+                      >
+                        0
+                      </ThemedText>
                     </ThemedText>
                   </View>
                   <View style={styles.siteStatRow}>
-                    <Feather name="activity" size={14} color={theme.textSecondary} />
+                    <Feather
+                      name="activity"
+                      size={14}
+                      color={theme.textSecondary}
+                    />
                     <ThemedText type="small" style={{ marginLeft: 6 }}>
-                      Active Tasks: <ThemedText type="small" style={{ fontWeight: "700" }}>{activePlans.length}</ThemedText>
+                      Active Tasks:{" "}
+                      <ThemedText type="small" style={{ fontWeight: "700" }}>
+                        {activePlans.length}
+                      </ThemedText>
                     </ThemedText>
                   </View>
                 </View>
 
                 <View style={styles.progressRow}>
-                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Progress</ThemedText>
-                  <ThemedText type="small" style={{ fontWeight: "700" }}>75%</ThemedText>
+                  <ThemedText
+                    type="small"
+                    style={{ color: theme.textSecondary }}
+                  >
+                    Progress
+                  </ThemedText>
+                  <ThemedText type="small" style={{ fontWeight: "700" }}>
+                    75%
+                  </ThemedText>
                 </View>
-                <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
-                  <View style={[styles.progressValue, { backgroundColor: theme.info, width: "75%" }]} />
+                <View
+                  style={[
+                    styles.progressTrack,
+                    { backgroundColor: theme.border },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.progressValue,
+                      { backgroundColor: theme.info, width: "75%" },
+                    ]}
+                  />
                 </View>
 
                 <Pressable
@@ -764,9 +1086,20 @@ export default function SiteManagementScreen() {
                     setSelectedSiteForDetails(site);
                     setActiveModal("details");
                   }}
-                  style={[styles.detailsBtn, { borderColor: theme.primary, borderWidth: 1 }]}
+                  style={[
+                    styles.detailsBtn,
+                    { borderColor: theme.primary, borderWidth: 1 },
+                  ]}
                 >
-                  <ThemedText style={{ color: theme.primary, fontWeight: "700", fontSize: 13 }}>View Details</ThemedText>
+                  <ThemedText
+                    style={{
+                      color: theme.primary,
+                      fontWeight: "700",
+                      fontSize: 13,
+                    }}
+                  >
+                    View Details
+                  </ThemedText>
                 </Pressable>
               </View>
             );
@@ -774,151 +1107,299 @@ export default function SiteManagementScreen() {
         )}
 
         {/* ─── 4. TODAY'S WORK (SECTION 4) ─── */}
-        <ThemedText type="h3" style={styles.widgetHeader}>Today's Work Tasks</ThemedText>
+        <ThemedText type="h3" style={styles.widgetHeader}>
+          Today's Work Tasks
+        </ThemedText>
         {dailyPlans.map((plan) => {
           const site = sites.find((s) => s.id === plan.siteId);
           return (
-            <View key={plan.id} style={[styles.planRowCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+            <View
+              key={plan.id}
+              style={[
+                styles.planRowCard,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
               <View style={styles.planRowHeader}>
                 <View>
-                  <ThemedText style={{ fontWeight: "700" }}>{plan.teamName}</ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary }}>{site?.name || "Global Site"}</ThemedText>
+                  <ThemedText style={{ fontWeight: "700" }}>
+                    {plan.teamName}
+                  </ThemedText>
+                  <ThemedText
+                    type="small"
+                    style={{ color: theme.textSecondary }}
+                  >
+                    {site?.name || "Global Site"}
+                  </ThemedText>
                 </View>
                 <Pressable
                   onPress={() => {
                     setDailyPlans((prev) =>
-                      prev.map((p) => (p.id === plan.id ? { ...p, status: p.status === "completed" ? "pending" : "completed" } : p)),
+                      prev.map((p) =>
+                        p.id === plan.id
+                          ? {
+                              ...p,
+                              status:
+                                p.status === "completed"
+                                  ? "pending"
+                                  : "completed",
+                            }
+                          : p,
+                      ),
                     );
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    Haptics.notificationAsync(
+                      Haptics.NotificationFeedbackType.Success,
+                    );
                   }}
                   style={[
                     styles.checkCircle,
                     {
-                      borderColor: plan.status === "completed" ? theme.success : theme.border,
-                      backgroundColor: plan.status === "completed" ? theme.success : "transparent",
+                      borderColor:
+                        plan.status === "completed"
+                          ? theme.success
+                          : theme.border,
+                      backgroundColor:
+                        plan.status === "completed"
+                          ? theme.success
+                          : "transparent",
                     },
                   ]}
                 >
-                  {plan.status === "completed" && <Feather name="check" size={12} color="#FFFFFF" />}
+                  {plan.status === "completed" && (
+                    <Feather name="check" size={12} color="#FFFFFF" />
+                  )}
                 </Pressable>
               </View>
-              <ThemedText style={{ marginTop: 6, fontSize: 13 }}>{plan.taskName}</ThemedText>
+              <ThemedText style={{ marginTop: 6, fontSize: 13 }}>
+                {plan.taskName}
+              </ThemedText>
             </View>
           );
         })}
 
         {/* ─── 5. WORKER DISTRIBUTION (SECTION 5) ─── */}
-        <ThemedText type="h3" style={styles.widgetHeader}>Worker Distribution</ThemedText>
-        <View style={[styles.distributionCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+        <ThemedText type="h3" style={styles.widgetHeader}>
+          Worker Distribution
+        </ThemedText>
+        <View
+          style={[
+            styles.distributionCard,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
           {sites.map((site) => {
             const count = workers.filter((w) => w.projectId === site.id).length;
             const pct = workers.length > 0 ? (count / workers.length) * 100 : 0;
             return (
               <View key={site.id} style={styles.distRow}>
-                <ThemedText type="small" style={styles.distLabel}>{site.name}</ThemedText>
+                <ThemedText type="small" style={styles.distLabel}>
+                  {site.name}
+                </ThemedText>
                 <View style={styles.distTrack}>
-                  <View style={[styles.distFill, { backgroundColor: theme.primary, width: `${Math.max(pct, 10)}%` }]} />
+                  <View
+                    style={[
+                      styles.distFill,
+                      {
+                        backgroundColor: theme.primary,
+                        width: `${Math.max(pct, 10)}%`,
+                      },
+                    ]}
+                  />
                 </View>
-                <ThemedText type="small" style={styles.distCount}>{count} Workers</ThemedText>
+                <ThemedText type="small" style={styles.distCount}>
+                  {count} Workers
+                </ThemedText>
               </View>
             );
           })}
           {sites.length === 0 && (
-            <ThemedText style={{ color: theme.textSecondary, textAlign: "center" }}>No active allocations.</ThemedText>
+            <ThemedText
+              style={{ color: theme.textSecondary, textAlign: "center" }}
+            >
+              No active allocations.
+            </ThemedText>
           )}
         </View>
 
         {/* ─── 6. PENDING APPROVALS (SECTION 6) ─── */}
-        <ThemedText type="h3" style={styles.widgetHeader}>Pending Approvals</ThemedText>
-        <View style={[styles.approvalsCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+        <ThemedText type="h3" style={styles.widgetHeader}>
+          Pending Approvals
+        </ThemedText>
+        <View
+          style={[
+            styles.approvalsCard,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
           {/* Leave Requests */}
-          {leaveRequests.filter((l) => l.status === "pending").map((req) => (
-            <View key={req.id} style={styles.approvalItem}>
-              <View style={styles.approvalInfo}>
-                <ThemedText style={{ fontWeight: "700" }}>Leave Request: {req.workerName}</ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>{req.reason} • {req.dateStr}</ThemedText>
+          {leaveRequests
+            .filter((l) => l.status === "pending")
+            .map((req) => (
+              <View key={req.id} style={styles.approvalItem}>
+                <View style={styles.approvalInfo}>
+                  <ThemedText style={{ fontWeight: "700" }}>
+                    Leave Request: {req.workerName}
+                  </ThemedText>
+                  <ThemedText
+                    type="small"
+                    style={{ color: theme.textSecondary }}
+                  >
+                    {req.reason} • {req.dateStr}
+                  </ThemedText>
+                </View>
+                <View style={styles.approvalBtns}>
+                  <Pressable
+                    onPress={() => handleApproveLeave(req.id, "approved")}
+                    style={[styles.btnMini, { backgroundColor: theme.success }]}
+                  >
+                    <Feather name="check" size={14} color="#FFFFFF" />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleApproveLeave(req.id, "rejected")}
+                    style={[styles.btnMini, { backgroundColor: theme.error }]}
+                  >
+                    <Feather name="x" size={14} color="#FFFFFF" />
+                  </Pressable>
+                </View>
               </View>
-              <View style={styles.approvalBtns}>
-                <Pressable onPress={() => handleApproveLeave(req.id, "approved")} style={[styles.btnMini, { backgroundColor: theme.success }]}>
-                  <Feather name="check" size={14} color="#FFFFFF" />
-                </Pressable>
-                <Pressable onPress={() => handleApproveLeave(req.id, "rejected")} style={[styles.btnMini, { backgroundColor: theme.error }]}>
-                  <Feather name="x" size={14} color="#FFFFFF" />
-                </Pressable>
-              </View>
-            </View>
-          ))}
+            ))}
 
           {/* Blocked Tasks */}
           {blockedTasks.map((block) => (
             <View key={block.id} style={styles.approvalItem}>
               <View style={styles.approvalInfo}>
-                <ThemedText style={{ fontWeight: "700", color: theme.error }}>Blocked: {block.taskName}</ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>Reason: {block.reason}</ThemedText>
+                <ThemedText style={{ fontWeight: "700", color: theme.error }}>
+                  Blocked: {block.taskName}
+                </ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  Reason: {block.reason}
+                </ThemedText>
               </View>
-              <Pressable onPress={() => handleResolveBlocked(block.id)} style={[styles.resolveBtn, { backgroundColor: theme.info }]}>
-                <ThemedText style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 11 }}>Resolve</ThemedText>
+              <Pressable
+                onPress={() => handleResolveBlocked(block.id)}
+                style={[styles.resolveBtn, { backgroundColor: theme.info }]}
+              >
+                <ThemedText
+                  style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 11 }}
+                >
+                  Resolve
+                </ThemedText>
               </Pressable>
             </View>
           ))}
 
           {/* Photo Verification */}
-          {photoVerifications.filter((p) => p.status === "pending").map((ver) => (
-            <View key={ver.id} style={styles.approvalItem}>
-              <View style={styles.approvalInfo}>
-                <ThemedText style={{ fontWeight: "700" }}>Photo Verification: {ver.workerName}</ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>Task: {ver.taskName}</ThemedText>
+          {photoVerifications
+            .filter((p) => p.status === "pending")
+            .map((ver) => (
+              <View key={ver.id} style={styles.approvalItem}>
+                <View style={styles.approvalInfo}>
+                  <ThemedText style={{ fontWeight: "700" }}>
+                    Photo Verification: {ver.workerName}
+                  </ThemedText>
+                  <ThemedText
+                    type="small"
+                    style={{ color: theme.textSecondary }}
+                  >
+                    Task: {ver.taskName}
+                  </ThemedText>
+                </View>
+                <View style={styles.approvalBtns}>
+                  <Pressable
+                    onPress={() => handleApprovePhoto(ver.id, "approved")}
+                    style={[styles.btnMini, { backgroundColor: theme.success }]}
+                  >
+                    <Feather name="check" size={14} color="#FFFFFF" />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleApprovePhoto(ver.id, "rejected")}
+                    style={[styles.btnMini, { backgroundColor: theme.error }]}
+                  >
+                    <Feather name="x" size={14} color="#FFFFFF" />
+                  </Pressable>
+                </View>
               </View>
-              <View style={styles.approvalBtns}>
-                <Pressable onPress={() => handleApprovePhoto(ver.id, "approved")} style={[styles.btnMini, { backgroundColor: theme.success }]}>
-                  <Feather name="check" size={14} color="#FFFFFF" />
-                </Pressable>
-                <Pressable onPress={() => handleApprovePhoto(ver.id, "rejected")} style={[styles.btnMini, { backgroundColor: theme.error }]}>
-                  <Feather name="x" size={14} color="#FFFFFF" />
-                </Pressable>
-              </View>
-            </View>
-          ))}
+            ))}
 
           {blockedTasks.length === 0 &&
             leaveRequests.filter((l) => l.status === "pending").length === 0 &&
-            photoVerifications.filter((p) => p.status === "pending").length === 0 && (
-              <ThemedText style={{ color: theme.textSecondary, textAlign: "center" }}>No pending approvals.</ThemedText>
+            photoVerifications.filter((p) => p.status === "pending").length ===
+              0 && (
+              <ThemedText
+                style={{ color: theme.textSecondary, textAlign: "center" }}
+              >
+                No pending approvals.
+              </ThemedText>
             )}
         </View>
 
         {/* ─── 7. MATERIAL REQUESTS (SECTION 7) ─── */}
-        <ThemedText type="h3" style={styles.widgetHeader}>Material Orders & Log</ThemedText>
+        <ThemedText type="h3" style={styles.widgetHeader}>
+          Material Orders & Log
+        </ThemedText>
         {materialRequests.map((req) => {
           const site = sites.find((s) => s.id === req.siteId);
           return (
-            <View key={req.id} style={[styles.materialLogCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+            <View
+              key={req.id}
+              style={[
+                styles.materialLogCard,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
               <View style={styles.matLogHeader}>
                 <View>
-                  <ThemedText style={{ fontWeight: "700" }}>{req.materialName}</ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary }}>Site: {site?.name || "Global"} | Qty: {req.quantity}</ThemedText>
+                  <ThemedText style={{ fontWeight: "700" }}>
+                    {req.materialName}
+                  </ThemedText>
+                  <ThemedText
+                    type="small"
+                    style={{ color: theme.textSecondary }}
+                  >
+                    Site: {site?.name || "Global"} | Qty: {req.quantity}
+                  </ThemedText>
                 </View>
-                <View style={[styles.statusBadge, {
-                  backgroundColor:
-                    req.status === "approved"
-                      ? theme.success + "20"
-                      : req.status === "rejected"
-                        ? theme.error + "20"
-                        : req.status === "delivered"
-                          ? theme.info + "20"
-                          : theme.warning + "20",
-                }]}>
-                  <ThemedText type="small" style={{
-                    color:
-                      req.status === "approved"
-                        ? theme.success
-                        : req.status === "rejected"
-                          ? theme.error
-                          : req.status === "delivered"
-                            ? theme.info
-                            : theme.warning,
-                    fontWeight: "700",
-                  }}>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    {
+                      backgroundColor:
+                        req.status === "approved"
+                          ? theme.success + "20"
+                          : req.status === "rejected"
+                            ? theme.error + "20"
+                            : req.status === "delivered"
+                              ? theme.info + "20"
+                              : theme.warning + "20",
+                    },
+                  ]}
+                >
+                  <ThemedText
+                    type="small"
+                    style={{
+                      color:
+                        req.status === "approved"
+                          ? theme.success
+                          : req.status === "rejected"
+                            ? theme.error
+                            : req.status === "delivered"
+                              ? theme.info
+                              : theme.warning,
+                      fontWeight: "700",
+                    }}
+                  >
                     {req.status.toUpperCase()}
                   </ThemedText>
                 </View>
@@ -926,18 +1407,38 @@ export default function SiteManagementScreen() {
 
               {req.status === "pending" && (
                 <View style={styles.matLogBtns}>
-                  <Pressable onPress={() => handleApproveMaterial(req.id, "approved")} style={[styles.matBtn, { backgroundColor: theme.success }]}>
+                  <Pressable
+                    onPress={() => handleApproveMaterial(req.id, "approved")}
+                    style={[styles.matBtn, { backgroundColor: theme.success }]}
+                  >
                     <ThemedText style={styles.matBtnText}>Approve</ThemedText>
                   </Pressable>
-                  <Pressable onPress={() => handleApproveMaterial(req.id, "rejected")} style={[styles.matBtn, { backgroundColor: theme.error }]}>
+                  <Pressable
+                    onPress={() => handleApproveMaterial(req.id, "rejected")}
+                    style={[styles.matBtn, { backgroundColor: theme.error }]}
+                  >
                     <ThemedText style={styles.matBtnText}>Reject</ThemedText>
                   </Pressable>
                 </View>
               )}
 
               {req.status === "approved" && (
-                <Pressable onPress={() => handleApproveMaterial(req.id, "delivered")} style={[styles.matDeliverBtn, { borderColor: theme.info, borderWidth: 1 }]}>
-                  <ThemedText style={{ color: theme.info, fontWeight: "700", fontSize: 12 }}>Mark Delivered</ThemedText>
+                <Pressable
+                  onPress={() => handleApproveMaterial(req.id, "delivered")}
+                  style={[
+                    styles.matDeliverBtn,
+                    { borderColor: theme.info, borderWidth: 1 },
+                  ]}
+                >
+                  <ThemedText
+                    style={{
+                      color: theme.info,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
+                    Mark Delivered
+                  </ThemedText>
                 </Pressable>
               )}
             </View>
@@ -945,16 +1446,46 @@ export default function SiteManagementScreen() {
         })}
 
         {/* ─── 8. AI ASSISTANT (SECTION 8) ─── */}
-        <ThemedText type="h3" style={styles.widgetHeader}>AI Site Command Assistant</ThemedText>
-        <View style={[styles.aiCommandBox, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-          <View style={[styles.aiHeaderRow, { borderBottomColor: theme.border }]}>
+        <ThemedText type="h3" style={styles.widgetHeader}>
+          AI Site Command Assistant
+        </ThemedText>
+        <View
+          style={[
+            styles.aiCommandBox,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <View
+            style={[styles.aiHeaderRow, { borderBottomColor: theme.border }]}
+          >
             <Feather name="cpu" size={16} color={theme.primary} />
-            <ThemedText style={{ fontWeight: "700", marginLeft: 6 }}>HAI Command Copilot (Read-Only)</ThemedText>
+            <ThemedText style={{ fontWeight: "700", marginLeft: 6 }}>
+              HAI Command Copilot (Read-Only)
+            </ThemedText>
           </View>
-          <ScrollView style={styles.aiChatScroll} contentContainerStyle={{ gap: Spacing.sm, padding: Spacing.sm }}>
+          <ScrollView
+            style={styles.aiChatScroll}
+            contentContainerStyle={{ gap: Spacing.sm, padding: Spacing.sm }}
+          >
             {chatMessages.map((msg) => (
-              <View key={msg.id} style={[styles.chatBubble, msg.sender === "user" ? styles.userBubble : styles.haiBubble]}>
-                <ThemedText style={{ color: msg.sender === "user" ? "#FFFFFF" : theme.text, fontSize: 13 }}>{msg.text}</ThemedText>
+              <View
+                key={msg.id}
+                style={[
+                  styles.chatBubble,
+                  msg.sender === "user" ? styles.userBubble : styles.haiBubble,
+                ]}
+              >
+                <ThemedText
+                  style={{
+                    color: msg.sender === "user" ? "#FFFFFF" : theme.text,
+                    fontSize: 13,
+                  }}
+                >
+                  {msg.text}
+                </ThemedText>
               </View>
             ))}
           </ScrollView>
@@ -967,66 +1498,153 @@ export default function SiteManagementScreen() {
               placeholderTextColor={theme.textSecondary}
               onSubmitEditing={handleSendChatMessage}
             />
-            <Pressable onPress={handleSendChatMessage} style={[styles.aiSendBtn, { backgroundColor: theme.primary }]}>
+            <Pressable
+              onPress={handleSendChatMessage}
+              style={[styles.aiSendBtn, { backgroundColor: theme.primary }]}
+            >
               <Feather name="send" size={14} color="#FFFFFF" />
             </Pressable>
           </View>
         </View>
 
         {/* ─── 9. RECENT ACTIVITIES (SECTION 9) ─── */}
-        <ThemedText type="h3" style={styles.widgetHeader}>Recent Site Activity Log</ThemedText>
-        <View style={[styles.timelineCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+        <ThemedText type="h3" style={styles.widgetHeader}>
+          Recent Site Activity Log
+        </ThemedText>
+        <View
+          style={[
+            styles.timelineCard,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
           {activities.map((act, index) => (
             <View key={act.id} style={styles.timelineItem}>
               <View style={styles.timelineIndicators}>
-                <View style={[styles.timelineDot, { backgroundColor: theme.primary }]} />
-                {index < activities.length - 1 && <View style={[styles.timelineLine, { backgroundColor: theme.border }]} />}
+                <View
+                  style={[
+                    styles.timelineDot,
+                    { backgroundColor: theme.primary },
+                  ]}
+                />
+                {index < activities.length - 1 && (
+                  <View
+                    style={[
+                      styles.timelineLine,
+                      { backgroundColor: theme.border },
+                    ]}
+                  />
+                )}
               </View>
               <View style={styles.timelineContent}>
-                <ThemedText style={{ fontSize: 13, fontWeight: "600" }}>{act.text}</ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>{act.timeStr}</ThemedText>
+                <ThemedText style={{ fontSize: 13, fontWeight: "600" }}>
+                  {act.text}
+                </ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  {act.timeStr}
+                </ThemedText>
               </View>
             </View>
           ))}
         </View>
 
         {/* ─── 10. REPORTS & ANALYTICS (SECTION 10) ─── */}
-        <ThemedText type="h3" style={styles.widgetHeader}>Reports & Command Analytics</ThemedText>
-        <View style={[styles.analyticsCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-          <ThemedText style={{ fontWeight: "700" }}>Weekly Command Completion</ThemedText>
+        <ThemedText type="h3" style={styles.widgetHeader}>
+          Reports & Command Analytics
+        </ThemedText>
+        <View
+          style={[
+            styles.analyticsCard,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <ThemedText style={{ fontWeight: "700" }}>
+            Weekly Command Completion
+          </ThemedText>
           <View style={styles.chartBarGroup}>
-            <ThemedText type="small" style={{ width: 60 }}>Week 1</ThemedText>
+            <ThemedText type="small" style={{ width: 60 }}>
+              Week 1
+            </ThemedText>
             <View style={styles.chartBarTrack}>
-              <View style={[styles.chartBarFill, { backgroundColor: theme.success, width: "90%" }]} />
+              <View
+                style={[
+                  styles.chartBarFill,
+                  { backgroundColor: theme.success, width: "90%" },
+                ]}
+              />
             </View>
             <ThemedText type="small">90%</ThemedText>
           </View>
           <View style={styles.chartBarGroup}>
-            <ThemedText type="small" style={{ width: 60 }}>Week 2</ThemedText>
+            <ThemedText type="small" style={{ width: 60 }}>
+              Week 2
+            </ThemedText>
             <View style={styles.chartBarTrack}>
-              <View style={[styles.chartBarFill, { backgroundColor: theme.success, width: "80%" }]} />
+              <View
+                style={[
+                  styles.chartBarFill,
+                  { backgroundColor: theme.success, width: "80%" },
+                ]}
+              />
             </View>
             <ThemedText type="small">80%</ThemedText>
           </View>
           <View style={styles.chartBarGroup}>
-            <ThemedText type="small" style={{ width: 60 }}>Week 3</ThemedText>
+            <ThemedText type="small" style={{ width: 60 }}>
+              Week 3
+            </ThemedText>
             <View style={styles.chartBarTrack}>
-              <View style={[styles.chartBarFill, { backgroundColor: theme.success, width: "75%" }]} />
+              <View
+                style={[
+                  styles.chartBarFill,
+                  { backgroundColor: theme.success, width: "75%" },
+                ]}
+              />
             </View>
             <ThemedText type="small">75%</ThemedText>
           </View>
         </View>
 
         {/* ─── 11. EMERGENCY ALERTS (SECTION 11) ─── */}
-        <ThemedText type="h3" style={styles.widgetHeader}>Emergency Command center logs</ThemedText>
-        <View style={[styles.emergencyLogCard, { backgroundColor: sosActive ? theme.error + "20" : theme.backgroundDefault, borderColor: sosActive ? theme.error : theme.border }]}>
+        <ThemedText type="h3" style={styles.widgetHeader}>
+          Emergency Command center logs
+        </ThemedText>
+        <View
+          style={[
+            styles.emergencyLogCard,
+            {
+              backgroundColor: sosActive
+                ? theme.error + "20"
+                : theme.backgroundDefault,
+              borderColor: sosActive ? theme.error : theme.border,
+            },
+          ]}
+        >
           <View style={styles.emergencyHeadRow}>
-            <Feather name="alert-octagon" size={20} color={sosActive ? theme.error : theme.textSecondary} />
-            <ThemedText style={{ fontWeight: "800", marginLeft: 6, color: sosActive ? theme.error : theme.text }}>
+            <Feather
+              name="alert-octagon"
+              size={20}
+              color={sosActive ? theme.error : theme.textSecondary}
+            />
+            <ThemedText
+              style={{
+                fontWeight: "800",
+                marginLeft: 6,
+                color: sosActive ? theme.error : theme.text,
+              }}
+            >
               {sosActive ? "CRITICAL SOS ACTIVE" : "ALL SYSTEMS GREEN"}
             </ThemedText>
           </View>
-          <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
+          <ThemedText
+            type="small"
+            style={{ color: theme.textSecondary, marginTop: 4 }}
+          >
             {sosActive
               ? "SOS broadcast sent to site terminals. Fire/Injury teams alert is dispatch status."
               : "No active emergencies logged on building structures."}
@@ -1039,30 +1657,66 @@ export default function SiteManagementScreen() {
       {/* SITE CREATE MODAL */}
       <Modal visible={activeModal === "site"} transparent animationType="slide">
         <View style={styles.modalBack}>
-          <ThemedView style={[styles.modalBoxContent, { backgroundColor: theme.backgroundRoot }]}>
-            <ThemedText type="h2" style={styles.modalTitle}>Create Site</ThemedText>
-            <ThemedText type="small" style={styles.label}>Site Name</ThemedText>
+          <ThemedView
+            style={[
+              styles.modalBoxContent,
+              { backgroundColor: theme.backgroundRoot },
+            ]}
+          >
+            <ThemedText type="h2" style={styles.modalTitle}>
+              Create Site
+            </ThemedText>
+            <ThemedText type="small" style={styles.label}>
+              Site Name
+            </ThemedText>
             <TextInput
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundDefault,
+                },
+              ]}
               value={siteName}
               onChangeText={setSiteName}
               placeholder="e.g. Metro Heights Phase 1"
               placeholderTextColor={theme.textSecondary}
             />
-            <ThemedText type="small" style={styles.label}>Location</ThemedText>
+            <ThemedText type="small" style={styles.label}>
+              Location
+            </ThemedText>
             <TextInput
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundDefault,
+                },
+              ]}
               value={siteLocation}
               onChangeText={setSiteLocation}
               placeholder="e.g. Sector 62, Noida"
               placeholderTextColor={theme.textSecondary}
             />
             <View style={styles.modalBtns}>
-              <Pressable onPress={() => setActiveModal(null)} style={[styles.modalBtn, { borderColor: theme.border, borderWidth: 1 }]}>
+              <Pressable
+                onPress={() => setActiveModal(null)}
+                style={[
+                  styles.modalBtn,
+                  { borderColor: theme.border, borderWidth: 1 },
+                ]}
+              >
                 <ThemedText>Cancel</ThemedText>
               </Pressable>
-              <Pressable onPress={handleCreateSite} style={[styles.modalBtn, { backgroundColor: theme.primary }]}>
-                <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Save</ThemedText>
+              <Pressable
+                onPress={handleCreateSite}
+                style={[styles.modalBtn, { backgroundColor: theme.primary }]}
+              >
+                <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                  Save
+                </ThemedText>
               </Pressable>
             </View>
           </ThemedView>
@@ -1072,42 +1726,94 @@ export default function SiteManagementScreen() {
       {/* ASSIGN TASK MODAL */}
       <Modal visible={activeModal === "task"} transparent animationType="slide">
         <View style={styles.modalBack}>
-          <ThemedView style={[styles.modalBoxContent, { backgroundColor: theme.backgroundRoot }]}>
-            <ThemedText type="h2" style={styles.modalTitle}>Assign Task</ThemedText>
-            <ThemedText type="small" style={styles.label}>Select Construction Site</ThemedText>
+          <ThemedView
+            style={[
+              styles.modalBoxContent,
+              { backgroundColor: theme.backgroundRoot },
+            ]}
+          >
+            <ThemedText type="h2" style={styles.modalTitle}>
+              Assign Task
+            </ThemedText>
+            <ThemedText type="small" style={styles.label}>
+              Select Construction Site
+            </ThemedText>
             <ScrollView horizontal style={{ marginBottom: 10 }}>
               {sites.map((s) => (
                 <Pressable
                   key={s.id}
                   onPress={() => setTaskSiteId(s.id)}
-                  style={[styles.dropdownPill, { backgroundColor: taskSiteId === s.id ? theme.primary : theme.backgroundSecondary }]}
+                  style={[
+                    styles.dropdownPill,
+                    {
+                      backgroundColor:
+                        taskSiteId === s.id
+                          ? theme.primary
+                          : theme.backgroundSecondary,
+                    },
+                  ]}
                 >
-                  <ThemedText style={{ color: taskSiteId === s.id ? "#FFFFFF" : theme.text }}>{s.name}</ThemedText>
+                  <ThemedText
+                    style={{
+                      color: taskSiteId === s.id ? "#FFFFFF" : theme.text,
+                    }}
+                  >
+                    {s.name}
+                  </ThemedText>
                 </Pressable>
               ))}
             </ScrollView>
-            <ThemedText type="small" style={styles.label}>Team Name</ThemedText>
+            <ThemedText type="small" style={styles.label}>
+              Team Name
+            </ThemedText>
             <TextInput
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundDefault,
+                },
+              ]}
               value={taskTeam}
               onChangeText={setTaskTeam}
               placeholder="e.g. Mason Crew"
               placeholderTextColor={theme.textSecondary}
             />
-            <ThemedText type="small" style={styles.label}>Task Description</ThemedText>
+            <ThemedText type="small" style={styles.label}>
+              Task Description
+            </ThemedText>
             <TextInput
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundDefault,
+                },
+              ]}
               value={taskNameText}
               onChangeText={setTaskNameText}
               placeholder="Task details..."
               placeholderTextColor={theme.textSecondary}
             />
             <View style={styles.modalBtns}>
-              <Pressable onPress={() => setActiveModal(null)} style={[styles.modalBtn, { borderColor: theme.border, borderWidth: 1 }]}>
+              <Pressable
+                onPress={() => setActiveModal(null)}
+                style={[
+                  styles.modalBtn,
+                  { borderColor: theme.border, borderWidth: 1 },
+                ]}
+              >
                 <ThemedText>Cancel</ThemedText>
               </Pressable>
-              <Pressable onPress={handleAssignTask} style={[styles.modalBtn, { backgroundColor: theme.primary }]}>
-                <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Dispatch</ThemedText>
+              <Pressable
+                onPress={handleAssignTask}
+                style={[styles.modalBtn, { backgroundColor: theme.primary }]}
+              >
+                <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                  Dispatch
+                </ThemedText>
               </Pressable>
             </View>
           </ThemedView>
@@ -1115,45 +1821,101 @@ export default function SiteManagementScreen() {
       </Modal>
 
       {/* ADD WORKER MODAL */}
-      <Modal visible={activeModal === "worker"} transparent animationType="slide">
+      <Modal
+        visible={activeModal === "worker"}
+        transparent
+        animationType="slide"
+      >
         <View style={styles.modalBack}>
-          <ThemedView style={[styles.modalBoxContent, { backgroundColor: theme.backgroundRoot }]}>
-            <ThemedText type="h2" style={styles.modalTitle}>Add Worker</ThemedText>
-            <ThemedText type="small" style={styles.label}>Worker Name</ThemedText>
+          <ThemedView
+            style={[
+              styles.modalBoxContent,
+              { backgroundColor: theme.backgroundRoot },
+            ]}
+          >
+            <ThemedText type="h2" style={styles.modalTitle}>
+              Add Worker
+            </ThemedText>
+            <ThemedText type="small" style={styles.label}>
+              Worker Name
+            </ThemedText>
             <TextInput
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundDefault,
+                },
+              ]}
               value={workerName}
               onChangeText={setWorkerName}
               placeholder="Full Name"
               placeholderTextColor={theme.textSecondary}
             />
-            <ThemedText type="small" style={styles.label}>Daily Rate (Rs)</ThemedText>
+            <ThemedText type="small" style={styles.label}>
+              Daily Rate (Rs)
+            </ThemedText>
             <TextInput
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundDefault,
+                },
+              ]}
               value={workerRate}
               onChangeText={setWorkerRate}
               placeholder="Daily Wage e.g. 500"
               placeholderTextColor={theme.textSecondary}
               keyboardType="numeric"
             />
-            <ThemedText type="small" style={styles.label}>Site Assignment</ThemedText>
+            <ThemedText type="small" style={styles.label}>
+              Site Assignment
+            </ThemedText>
             <ScrollView horizontal style={{ marginBottom: 10 }}>
               {sites.map((s) => (
                 <Pressable
                   key={s.id}
                   onPress={() => setWorkerSiteId(s.id)}
-                  style={[styles.dropdownPill, { backgroundColor: workerSiteId === s.id ? theme.primary : theme.backgroundSecondary }]}
+                  style={[
+                    styles.dropdownPill,
+                    {
+                      backgroundColor:
+                        workerSiteId === s.id
+                          ? theme.primary
+                          : theme.backgroundSecondary,
+                    },
+                  ]}
                 >
-                  <ThemedText style={{ color: workerSiteId === s.id ? "#FFFFFF" : theme.text }}>{s.name}</ThemedText>
+                  <ThemedText
+                    style={{
+                      color: workerSiteId === s.id ? "#FFFFFF" : theme.text,
+                    }}
+                  >
+                    {s.name}
+                  </ThemedText>
                 </Pressable>
               ))}
             </ScrollView>
             <View style={styles.modalBtns}>
-              <Pressable onPress={() => setActiveModal(null)} style={[styles.modalBtn, { borderColor: theme.border, borderWidth: 1 }]}>
+              <Pressable
+                onPress={() => setActiveModal(null)}
+                style={[
+                  styles.modalBtn,
+                  { borderColor: theme.border, borderWidth: 1 },
+                ]}
+              >
                 <ThemedText>Cancel</ThemedText>
               </Pressable>
-              <Pressable onPress={handleAddWorker} style={[styles.modalBtn, { backgroundColor: theme.primary }]}>
-                <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Register</ThemedText>
+              <Pressable
+                onPress={handleAddWorker}
+                style={[styles.modalBtn, { backgroundColor: theme.primary }]}
+              >
+                <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                  Register
+                </ThemedText>
               </Pressable>
             </View>
           </ThemedView>
@@ -1161,21 +1923,50 @@ export default function SiteManagementScreen() {
       </Modal>
 
       {/* CREATE NOTICE MODAL */}
-      <Modal visible={activeModal === "notice"} transparent animationType="slide">
+      <Modal
+        visible={activeModal === "notice"}
+        transparent
+        animationType="slide"
+      >
         <View style={styles.modalBack}>
-          <ThemedView style={[styles.modalBoxContent, { backgroundColor: theme.backgroundRoot }]}>
-            <ThemedText type="h2" style={styles.modalTitle}>Post Notice</ThemedText>
-            <ThemedText type="small" style={styles.label}>Notice Title</ThemedText>
+          <ThemedView
+            style={[
+              styles.modalBoxContent,
+              { backgroundColor: theme.backgroundRoot },
+            ]}
+          >
+            <ThemedText type="h2" style={styles.modalTitle}>
+              Post Notice
+            </ThemedText>
+            <ThemedText type="small" style={styles.label}>
+              Notice Title
+            </ThemedText>
             <TextInput
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundDefault,
+                },
+              ]}
               value={noticeTitle}
               onChangeText={setNoticeTitle}
               placeholder="e.g. Safety Policy Update"
               placeholderTextColor={theme.textSecondary}
             />
-            <ThemedText type="small" style={styles.label}>Notice Description</ThemedText>
+            <ThemedText type="small" style={styles.label}>
+              Notice Description
+            </ThemedText>
             <TextInput
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundDefault,
+                },
+              ]}
               value={noticeBody}
               onChangeText={setNoticeBody}
               placeholder="Detailed text..."
@@ -1183,11 +1974,22 @@ export default function SiteManagementScreen() {
               multiline
             />
             <View style={styles.modalBtns}>
-              <Pressable onPress={() => setActiveModal(null)} style={[styles.modalBtn, { borderColor: theme.border, borderWidth: 1 }]}>
+              <Pressable
+                onPress={() => setActiveModal(null)}
+                style={[
+                  styles.modalBtn,
+                  { borderColor: theme.border, borderWidth: 1 },
+                ]}
+              >
                 <ThemedText>Cancel</ThemedText>
               </Pressable>
-              <Pressable onPress={handleCreateNotice} style={[styles.modalBtn, { backgroundColor: theme.primary }]}>
-                <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Post</ThemedText>
+              <Pressable
+                onPress={handleCreateNotice}
+                style={[styles.modalBtn, { backgroundColor: theme.primary }]}
+              >
+                <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                  Post
+                </ThemedText>
               </Pressable>
             </View>
           </ThemedView>
@@ -1195,19 +1997,39 @@ export default function SiteManagementScreen() {
       </Modal>
 
       {/* RECORD VOICE MODAL */}
-      <Modal visible={activeModal === "voice"} transparent animationType="slide">
+      <Modal
+        visible={activeModal === "voice"}
+        transparent
+        animationType="slide"
+      >
         <View style={styles.modalBack}>
-          <ThemedView style={[styles.modalBoxContent, { backgroundColor: theme.backgroundRoot }]}>
-            <ThemedText type="h2" style={styles.modalTitle}>Record Voice Note</ThemedText>
+          <ThemedView
+            style={[
+              styles.modalBoxContent,
+              { backgroundColor: theme.backgroundRoot },
+            ]}
+          >
+            <ThemedText type="h2" style={styles.modalTitle}>
+              Record Voice Note
+            </ThemedText>
             <Pressable
               onPress={handleRecordVoiceInstruction}
-              style={[styles.sosAlertBtn, { backgroundColor: theme.primary, marginTop: Spacing.xl }]}
+              style={[
+                styles.sosAlertBtn,
+                { backgroundColor: theme.primary, marginTop: Spacing.xl },
+              ]}
             >
               <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>
                 {isRecording ? "Listening..." : "Tap to Record (2s)"}
               </ThemedText>
             </Pressable>
-            <Pressable onPress={() => setActiveModal(null)} style={[styles.sosCancelBtn, { borderColor: theme.border, borderWidth: 1 }]}>
+            <Pressable
+              onPress={() => setActiveModal(null)}
+              style={[
+                styles.sosCancelBtn,
+                { borderColor: theme.border, borderWidth: 1 },
+              ]}
+            >
               <ThemedText>Cancel</ThemedText>
             </Pressable>
           </ThemedView>
@@ -1215,44 +2037,100 @@ export default function SiteManagementScreen() {
       </Modal>
 
       {/* MATERIAL ORDER MODAL */}
-      <Modal visible={activeModal === "material"} transparent animationType="slide">
+      <Modal
+        visible={activeModal === "material"}
+        transparent
+        animationType="slide"
+      >
         <View style={styles.modalBack}>
-          <ThemedView style={[styles.modalBoxContent, { backgroundColor: theme.backgroundRoot }]}>
-            <ThemedText type="h2" style={styles.modalTitle}>Order Material</ThemedText>
-            <ThemedText type="small" style={styles.label}>Material Item</ThemedText>
+          <ThemedView
+            style={[
+              styles.modalBoxContent,
+              { backgroundColor: theme.backgroundRoot },
+            ]}
+          >
+            <ThemedText type="h2" style={styles.modalTitle}>
+              Order Material
+            </ThemedText>
+            <ThemedText type="small" style={styles.label}>
+              Material Item
+            </ThemedText>
             <TextInput
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundDefault,
+                },
+              ]}
               value={matName}
               onChangeText={setMatName}
               placeholder="e.g. Portland Cement"
               placeholderTextColor={theme.textSecondary}
             />
-            <ThemedText type="small" style={styles.label}>Quantity Required</ThemedText>
+            <ThemedText type="small" style={styles.label}>
+              Quantity Required
+            </ThemedText>
             <TextInput
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundDefault,
+                },
+              ]}
               value={matQty}
               onChangeText={setMatQty}
               placeholder="e.g. 100 Bags"
               placeholderTextColor={theme.textSecondary}
             />
-            <ThemedText type="small" style={styles.label}>Construction Site</ThemedText>
+            <ThemedText type="small" style={styles.label}>
+              Construction Site
+            </ThemedText>
             <ScrollView horizontal style={{ marginBottom: 10 }}>
               {sites.map((s) => (
                 <Pressable
                   key={s.id}
                   onPress={() => setMatSiteId(s.id)}
-                  style={[styles.dropdownPill, { backgroundColor: matSiteId === s.id ? theme.primary : theme.backgroundSecondary }]}
+                  style={[
+                    styles.dropdownPill,
+                    {
+                      backgroundColor:
+                        matSiteId === s.id
+                          ? theme.primary
+                          : theme.backgroundSecondary,
+                    },
+                  ]}
                 >
-                  <ThemedText style={{ color: matSiteId === s.id ? "#FFFFFF" : theme.text }}>{s.name}</ThemedText>
+                  <ThemedText
+                    style={{
+                      color: matSiteId === s.id ? "#FFFFFF" : theme.text,
+                    }}
+                  >
+                    {s.name}
+                  </ThemedText>
                 </Pressable>
               ))}
             </ScrollView>
             <View style={styles.modalBtns}>
-              <Pressable onPress={() => setActiveModal(null)} style={[styles.modalBtn, { borderColor: theme.border, borderWidth: 1 }]}>
+              <Pressable
+                onPress={() => setActiveModal(null)}
+                style={[
+                  styles.modalBtn,
+                  { borderColor: theme.border, borderWidth: 1 },
+                ]}
+              >
                 <ThemedText>Cancel</ThemedText>
               </Pressable>
-              <Pressable onPress={handleCreateMaterialRequest} style={[styles.modalBtn, { backgroundColor: theme.primary }]}>
-                <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Submit Request</ThemedText>
+              <Pressable
+                onPress={handleCreateMaterialRequest}
+                style={[styles.modalBtn, { backgroundColor: theme.primary }]}
+              >
+                <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                  Submit Request
+                </ThemedText>
               </Pressable>
             </View>
           </ThemedView>
@@ -1260,28 +2138,66 @@ export default function SiteManagementScreen() {
       </Modal>
 
       {/* SITE DETAILS MODAL */}
-      <Modal visible={activeModal === "details"} transparent animationType="slide">
+      <Modal
+        visible={activeModal === "details"}
+        transparent
+        animationType="slide"
+      >
         <View style={styles.modalBack}>
-          <ThemedView style={[styles.detailsModalBox, { backgroundColor: theme.backgroundRoot }]}>
-            <ThemedText type="h2" style={styles.modalTitle}>{selectedSiteForDetails?.name}</ThemedText>
-            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-              <ThemedText type="h3" style={{ marginTop: 10 }}>Workforce Allocation</ThemedText>
-              {workers.filter((w) => w.projectId === selectedSiteForDetails?.id).map((w) => (
-                <ThemedText key={w.id} style={{ paddingVertical: 4 }}>• {w.name} ({w.category})</ThemedText>
-              ))}
-              {workers.filter((w) => w.projectId === selectedSiteForDetails?.id).length === 0 && (
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>No workers allocated yet.</ThemedText>
+          <ThemedView
+            style={[
+              styles.detailsModalBox,
+              { backgroundColor: theme.backgroundRoot },
+            ]}
+          >
+            <ThemedText type="h2" style={styles.modalTitle}>
+              {selectedSiteForDetails?.name}
+            </ThemedText>
+            <ScrollView
+              style={{ flex: 1 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <ThemedText type="h3" style={{ marginTop: 10 }}>
+                Workforce Allocation
+              </ThemedText>
+              {workers
+                .filter((w) => w.projectId === selectedSiteForDetails?.id)
+                .map((w) => (
+                  <ThemedText key={w.id} style={{ paddingVertical: 4 }}>
+                    • {w.name} ({w.category})
+                  </ThemedText>
+                ))}
+              {workers.filter((w) => w.projectId === selectedSiteForDetails?.id)
+                .length === 0 && (
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  No workers allocated yet.
+                </ThemedText>
               )}
 
-              <ThemedText type="h3" style={{ marginTop: 15 }}>Today's Tasks</ThemedText>
-              {dailyPlans.filter((p) => p.siteId === selectedSiteForDetails?.id).map((p) => (
-                <ThemedText key={p.id} style={{ paddingVertical: 4 }}>• {p.taskName} ({p.status.toUpperCase()})</ThemedText>
-              ))}
-              {dailyPlans.filter((p) => p.siteId === selectedSiteForDetails?.id).length === 0 && (
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>No work plans logged.</ThemedText>
+              <ThemedText type="h3" style={{ marginTop: 15 }}>
+                Today's Tasks
+              </ThemedText>
+              {dailyPlans
+                .filter((p) => p.siteId === selectedSiteForDetails?.id)
+                .map((p) => (
+                  <ThemedText key={p.id} style={{ paddingVertical: 4 }}>
+                    • {p.taskName} ({p.status.toUpperCase()})
+                  </ThemedText>
+                ))}
+              {dailyPlans.filter((p) => p.siteId === selectedSiteForDetails?.id)
+                .length === 0 && (
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  No work plans logged.
+                </ThemedText>
               )}
             </ScrollView>
-            <Pressable onPress={() => setActiveModal(null)} style={[styles.sosCancelBtn, { borderColor: theme.border, borderWidth: 1 }]}>
+            <Pressable
+              onPress={() => setActiveModal(null)}
+              style={[
+                styles.sosCancelBtn,
+                { borderColor: theme.border, borderWidth: 1 },
+              ]}
+            >
               <ThemedText>Close Dashboard</ThemedText>
             </Pressable>
           </ThemedView>
@@ -1291,22 +2207,66 @@ export default function SiteManagementScreen() {
       {/* SOS SELECTION MODAL */}
       <Modal visible={showEmergencyModal} transparent animationType="fade">
         <View style={styles.modalBack}>
-          <ThemedView style={[styles.modalBoxContent, { backgroundColor: theme.backgroundRoot }]}>
-            <Feather name="alert-octagon" size={48} color={theme.error} style={{ alignSelf: "center", marginBottom: 12 }} />
-            <ThemedText type="h2" style={{ textAlign: "center", marginBottom: 6 }}>CRITICAL SOS ALERT</ThemedText>
-            <ThemedText type="small" style={{ textAlign: "center", color: theme.textSecondary, marginBottom: 18 }}>
-              Select the alert category. This will broadcast immediately to all dashboards and safety networks.
+          <ThemedView
+            style={[
+              styles.modalBoxContent,
+              { backgroundColor: theme.backgroundRoot },
+            ]}
+          >
+            <Feather
+              name="alert-octagon"
+              size={48}
+              color={theme.error}
+              style={{ alignSelf: "center", marginBottom: 12 }}
+            />
+            <ThemedText
+              type="h2"
+              style={{ textAlign: "center", marginBottom: 6 }}
+            >
+              CRITICAL SOS ALERT
             </ThemedText>
-            <Pressable onPress={() => handleTriggerEmergencySOS("Fire")} style={[styles.sosAlertBtn, { backgroundColor: "#FF3B30" }]}>
-              <ThemedText style={styles.sosAlertBtnText}>🔥 Fire Alert</ThemedText>
+            <ThemedText
+              type="small"
+              style={{
+                textAlign: "center",
+                color: theme.textSecondary,
+                marginBottom: 18,
+              }}
+            >
+              Select the alert category. This will broadcast immediately to all
+              dashboards and safety networks.
+            </ThemedText>
+            <Pressable
+              onPress={() => handleTriggerEmergencySOS("Fire")}
+              style={[styles.sosAlertBtn, { backgroundColor: "#FF3B30" }]}
+            >
+              <ThemedText style={styles.sosAlertBtnText}>
+                🔥 Fire Alert
+              </ThemedText>
             </Pressable>
-            <Pressable onPress={() => handleTriggerEmergencySOS("Injury")} style={[styles.sosAlertBtn, { backgroundColor: "#FF9500" }]}>
-              <ThemedText style={styles.sosAlertBtnText}>🩹 Worker Injury</ThemedText>
+            <Pressable
+              onPress={() => handleTriggerEmergencySOS("Injury")}
+              style={[styles.sosAlertBtn, { backgroundColor: "#FF9500" }]}
+            >
+              <ThemedText style={styles.sosAlertBtnText}>
+                🩹 Worker Injury
+              </ThemedText>
             </Pressable>
-            <Pressable onPress={() => handleTriggerEmergencySOS("Damage")} style={[styles.sosAlertBtn, { backgroundColor: "#5856D6" }]}>
-              <ThemedText style={styles.sosAlertBtnText}>🏗 Structural Damage</ThemedText>
+            <Pressable
+              onPress={() => handleTriggerEmergencySOS("Damage")}
+              style={[styles.sosAlertBtn, { backgroundColor: "#5856D6" }]}
+            >
+              <ThemedText style={styles.sosAlertBtnText}>
+                🏗 Structural Damage
+              </ThemedText>
             </Pressable>
-            <Pressable onPress={() => setShowEmergencyModal(false)} style={[styles.sosCancelBtn, { borderColor: theme.border, borderWidth: 1 }]}>
+            <Pressable
+              onPress={() => setShowEmergencyModal(false)}
+              style={[
+                styles.sosCancelBtn,
+                { borderColor: theme.border, borderWidth: 1 },
+              ]}
+            >
               <ThemedText>Cancel</ThemedText>
             </Pressable>
           </ThemedView>

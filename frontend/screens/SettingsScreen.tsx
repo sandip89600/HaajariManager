@@ -1447,7 +1447,10 @@ export default function SettingsScreen() {
             label={t.settings.labourMarketplace}
             sublabel={t.settings.labourMarketplaceDesc}
             right={
-              <ThemedText type="small" style={{ color: theme.error, fontWeight: "600" }}>
+              <ThemedText
+                type="small"
+                style={{ color: theme.error, fontWeight: "600" }}
+              >
                 {t.settings.excluded}
               </ThemedText>
             }
@@ -1459,7 +1462,10 @@ export default function SettingsScreen() {
             label={t.settings.labourJobFeed}
             sublabel={t.settings.labourJobFeedDesc}
             right={
-              <ThemedText type="small" style={{ color: theme.error, fontWeight: "600" }}>
+              <ThemedText
+                type="small"
+                style={{ color: theme.error, fontWeight: "600" }}
+              >
                 {t.settings.excluded}
               </ThemedText>
             }
@@ -1471,7 +1477,10 @@ export default function SettingsScreen() {
             label={t.settings.labourManagement}
             sublabel={t.settings.labourManagementDesc}
             right={
-              <ThemedText type="small" style={{ color: theme.error, fontWeight: "600" }}>
+              <ThemedText
+                type="small"
+                style={{ color: theme.error, fontWeight: "600" }}
+              >
                 {t.settings.excluded}
               </ThemedText>
             }

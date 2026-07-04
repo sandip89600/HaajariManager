@@ -12,7 +12,19 @@ class AppContextTracker {
   private activeBottomSheet: string | null = null;
   private callbacks: Record<string, Function> = {};
 
-  setContext(data: Partial<Omit<AppContextTracker, "callbacks" | "registerCallback" | "unregisterCallback" | "triggerCallback" | "getContext" | "setContext">>) {
+  setContext(
+    data: Partial<
+      Omit<
+        AppContextTracker,
+        | "callbacks"
+        | "registerCallback"
+        | "unregisterCallback"
+        | "triggerCallback"
+        | "getContext"
+        | "setContext"
+      >
+    >,
+  ) {
     Object.assign(this, data);
     DeviceEventEmitter.emit("appContextChanged", this.getContext());
   }

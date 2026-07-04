@@ -841,9 +841,12 @@ export default function SummaryScreen() {
   );
 
   useEffect(() => {
-    appContextTracker.registerCallback("exportPDF", (type: "attendance" | "summary") => {
-      handleExportPDF(type || "summary");
-    });
+    appContextTracker.registerCallback(
+      "exportPDF",
+      (type: "attendance" | "summary") => {
+        handleExportPDF(type || "summary");
+      },
+    );
     const sub = DeviceEventEmitter.addListener("refreshData", () => {
       loadSummaries();
     });

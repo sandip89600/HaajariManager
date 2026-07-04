@@ -45,71 +45,143 @@ import { navigationRef } from "@/navigation/navigationRef";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-const parseLocalCommand = (text: string): { action: string; data: any; response: string } | null => {
+const parseLocalCommand = (
+  text: string,
+): { action: string; data: any; response: string } | null => {
   const t = text.toLowerCase().trim();
   if (!t) return null;
 
   // Navigation commands
-  if (t.includes("worker") || t.includes("kaamgar") || t.includes("kamgar") || t.includes("kormi")) {
-    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("chalo") || t.includes("go to") || t.includes("view")) {
+  if (
+    t.includes("worker") ||
+    t.includes("kaamgar") ||
+    t.includes("kamgar") ||
+    t.includes("kormi")
+  ) {
+    if (
+      t.includes("open") ||
+      t.includes("kholo") ||
+      t.includes("navigate") ||
+      t.includes("chalo") ||
+      t.includes("go to") ||
+      t.includes("view")
+    ) {
       return {
         action: "OPEN_SCREEN",
         data: { screen: "Workers" },
-        response: "Opening Workers screen."
+        response: "Opening Workers screen.",
       };
     }
   }
-  if (t.includes("summary") || t.includes("payment") || t.includes("bhugtan") || t.includes("hisab") || t.includes("pay")) {
-    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("chalo") || t.includes("go to") || t.includes("view")) {
+  if (
+    t.includes("summary") ||
+    t.includes("payment") ||
+    t.includes("bhugtan") ||
+    t.includes("hisab") ||
+    t.includes("pay")
+  ) {
+    if (
+      t.includes("open") ||
+      t.includes("kholo") ||
+      t.includes("navigate") ||
+      t.includes("chalo") ||
+      t.includes("go to") ||
+      t.includes("view")
+    ) {
       return {
         action: "OPEN_SCREEN",
         data: { screen: "Summary" },
-        response: "Opening Summary screen."
+        response: "Opening Summary screen.",
       };
     }
   }
-  if (t.includes("attendance") || t.includes("haajari") || t.includes("hajiri") || t.includes("presence")) {
-    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("chalo") || t.includes("go to") || t.includes("view")) {
+  if (
+    t.includes("attendance") ||
+    t.includes("haajari") ||
+    t.includes("hajiri") ||
+    t.includes("presence")
+  ) {
+    if (
+      t.includes("open") ||
+      t.includes("kholo") ||
+      t.includes("navigate") ||
+      t.includes("chalo") ||
+      t.includes("go to") ||
+      t.includes("view")
+    ) {
       return {
         action: "OPEN_SCREEN",
         data: { screen: "Attendance" },
-        response: "Opening Attendance screen."
+        response: "Opening Attendance screen.",
       };
     }
   }
   if (t.includes("setting") || t.includes("vinyas") || t.includes("bhavana")) {
-    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("chalo") || t.includes("go to") || t.includes("view")) {
+    if (
+      t.includes("open") ||
+      t.includes("kholo") ||
+      t.includes("navigate") ||
+      t.includes("chalo") ||
+      t.includes("go to") ||
+      t.includes("view")
+    ) {
       return {
         action: "OPEN_SCREEN",
         data: { screen: "Settings" },
-        response: "Opening Settings screen."
+        response: "Opening Settings screen.",
       };
     }
   }
-  if (t.includes("profile") || t.includes("account") || t.includes("khata") || t.includes("user")) {
-    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("go to")) {
+  if (
+    t.includes("profile") ||
+    t.includes("account") ||
+    t.includes("khata") ||
+    t.includes("user")
+  ) {
+    if (
+      t.includes("open") ||
+      t.includes("kholo") ||
+      t.includes("navigate") ||
+      t.includes("go to")
+    ) {
       return {
         action: "OPEN_SCREEN",
         data: { screen: "Profile" },
-        response: "Opening Profile screen."
+        response: "Opening Profile screen.",
       };
     }
   }
-  if (t.includes("back") || t.includes("piche") || t.includes("wapas") || t.includes("pichhe")) {
+  if (
+    t.includes("back") ||
+    t.includes("piche") ||
+    t.includes("wapas") ||
+    t.includes("pichhe")
+  ) {
     return {
       action: "GO_BACK",
       data: {},
-      response: "Going back."
+      response: "Going back.",
     };
   }
 
   // Settings modification
-  if (t.includes("theme") || t.includes("dark") || t.includes("light") || t.includes("color")) {
-    if (t.includes("switch") || t.includes("change") || t.includes("badlo") || t.includes("toggle") || t.includes("toggled")) {
+  if (
+    t.includes("theme") ||
+    t.includes("dark") ||
+    t.includes("light") ||
+    t.includes("color")
+  ) {
+    if (
+      t.includes("switch") ||
+      t.includes("change") ||
+      t.includes("badlo") ||
+      t.includes("toggle") ||
+      t.includes("toggled")
+    ) {
       return {
         action: "SWITCH_THEME",
         data: {},
-        response: "Switching app theme."
+        response: "Switching app theme.",
       };
     }
   }
@@ -394,7 +466,9 @@ export default function VoiceAssistant() {
     }
 
     if (recordingRef.current || isPreparingRecordingRef.current) {
-      console.log("[Live Loop] Recording is already active or preparing. Skipping createAsync.");
+      console.log(
+        "[Live Loop] Recording is already active or preparing. Skipping createAsync.",
+      );
       return;
     }
 
@@ -452,7 +526,11 @@ export default function VoiceAssistant() {
           // Schedule the next recording slot with a small delay to allow native resources to fully release
           if (liveActiveRef.current && !isSpeaking && !pendingConfirmation) {
             setTimeout(() => {
-              if (liveActiveRef.current && !isSpeaking && !pendingConfirmation) {
+              if (
+                liveActiveRef.current &&
+                !isSpeaking &&
+                !pendingConfirmation
+              ) {
                 runLiveLoop();
               }
             }, 300);
@@ -694,7 +772,8 @@ export default function VoiceAssistant() {
     } catch (err) {
       console.error("Error processing audio on backend", err);
       showToast("Offline: Internet connection lost.", "error");
-      const errMsg = "Sorry, I couldn't connect to the server. Please check your internet connection.";
+      const errMsg =
+        "Sorry, I couldn't connect to the server. Please check your internet connection.";
       setTranscript(errMsg);
       setAiResponse(errMsg);
       speakResponse(errMsg);
@@ -1003,12 +1082,18 @@ export default function VoiceAssistant() {
           break;
         }
         case "EXPORT_PDF": {
-          const success = await appContextTracker.triggerCallback("exportPDF", data.type);
+          const success = await appContextTracker.triggerCallback(
+            "exportPDF",
+            data.type,
+          );
           if (success !== null) {
             setExecutedAction("EXPORT_PDF");
             setActionDetail("Exported PDF summary report successfully");
           } else {
-            showToast("PDF Export is only available on Summary screen", "error");
+            showToast(
+              "PDF Export is only available on Summary screen",
+              "error",
+            );
           }
           break;
         }
@@ -1260,10 +1345,14 @@ export default function VoiceAssistant() {
             style={[
               styles.livePanelOverlay,
               {
-                backgroundColor: isDark ? "rgba(10, 10, 15, 0.9)" : "rgba(255, 255, 255, 0.9)",
-                borderTopColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)",
+                backgroundColor: isDark
+                  ? "rgba(10, 10, 15, 0.9)"
+                  : "rgba(255, 255, 255, 0.9)",
+                borderTopColor: isDark
+                  ? "rgba(255, 255, 255, 0.08)"
+                  : "rgba(0, 0, 0, 0.08)",
                 height: 330,
-              }
+              },
             ]}
           >
             {/* Confirmation Banner */}
@@ -1274,12 +1363,19 @@ export default function VoiceAssistant() {
                 style={[
                   styles.confirmationBox,
                   {
-                    backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
+                    backgroundColor: isDark
+                      ? "rgba(255, 255, 255, 0.05)"
+                      : "rgba(0, 0, 0, 0.03)",
                     borderColor: theme.border,
-                  }
+                  },
                 ]}
               >
-                <Feather name="alert-triangle" size={20} color={theme.primary} style={{ marginRight: Spacing.sm }} />
+                <Feather
+                  name="alert-triangle"
+                  size={20}
+                  color={theme.primary}
+                  style={{ marginRight: Spacing.sm }}
+                />
                 <View style={{ flex: 1 }}>
                   <ThemedText style={{ fontWeight: "700", fontSize: 13 }}>
                     {pendingConfirmation.message}
@@ -1291,9 +1387,14 @@ export default function VoiceAssistant() {
                       setPendingConfirmation(null);
                       if (liveActiveRef.current) runLiveLoop();
                     }}
-                    style={[styles.confirmBtnCancel, { borderColor: theme.border }]}
+                    style={[
+                      styles.confirmBtnCancel,
+                      { borderColor: theme.border },
+                    ]}
                   >
-                    <ThemedText style={{ fontSize: 12, fontWeight: "600" }}>Cancel</ThemedText>
+                    <ThemedText style={{ fontSize: 12, fontWeight: "600" }}>
+                      Cancel
+                    </ThemedText>
                   </Pressable>
                   <Pressable
                     onPress={async () => {
@@ -1303,9 +1404,16 @@ export default function VoiceAssistant() {
                       showToast("Action confirmed and executed", "success");
                       if (liveActiveRef.current) runLiveLoop();
                     }}
-                    style={[styles.confirmBtnExecute, { backgroundColor: theme.primary }]}
+                    style={[
+                      styles.confirmBtnExecute,
+                      { backgroundColor: theme.primary },
+                    ]}
                   >
-                    <ThemedText style={{ fontSize: 12, fontWeight: "700", color: "#FFF" }}>Confirm</ThemedText>
+                    <ThemedText
+                      style={{ fontSize: 12, fontWeight: "700", color: "#FFF" }}
+                    >
+                      Confirm
+                    </ThemedText>
                   </Pressable>
                 </View>
               </Animated.View>
@@ -1315,11 +1423,12 @@ export default function VoiceAssistant() {
             <View style={styles.dialogueContainer}>
               {transcript ? (
                 <ThemedText style={styles.userTranscriptText} numberOfLines={1}>
-                  🎙️ You: "{transcript}"
+                  🎙️ You: &quot;{transcript}&quot;
                 </ThemedText>
               ) : (
                 <ThemedText style={styles.liveInstructionsHeading}>
-                  Ask anything to manage workers, attendance, payments, or settings!
+                  Ask anything to manage workers, attendance, payments, or
+                  settings!
                 </ThemedText>
               )}
               {aiResponse ? (
@@ -1339,12 +1448,12 @@ export default function VoiceAssistant() {
                     backgroundColor: isProcessing
                       ? "#3B82F6"
                       : isSpeaking
-                      ? "#8B5CF6"
-                      : isRecording
-                      ? "#FF6B35"
-                      : "#FF8C35",
+                        ? "#8B5CF6"
+                        : isRecording
+                          ? "#FF6B35"
+                          : "#FF8C35",
                   },
-                  animatedRing
+                  animatedRing,
                 ]}
               />
 
@@ -1355,15 +1464,23 @@ export default function VoiceAssistant() {
                     isProcessing
                       ? ["#2563EB", "#3B82F6"] // Thinking
                       : isSpeaking
-                      ? ["#7C3AED", "#8B5CF6"] // Responding
-                      : isRecording
-                      ? ["#EF4444", "#FF6B35"] // Listening
-                      : ["#FF6B35", "#FF8C35"] // Default Idle
+                        ? ["#7C3AED", "#8B5CF6"] // Responding
+                        : isRecording
+                          ? ["#EF4444", "#FF6B35"] // Listening
+                          : ["#FF6B35", "#FF8C35"] // Default Idle
                   }
                   style={styles.orbGradient}
                 >
                   <Feather
-                    name={isSpeaking ? "volume-2" : isProcessing ? "loader" : isRecording ? "mic" : "zap"}
+                    name={
+                      isSpeaking
+                        ? "volume-2"
+                        : isProcessing
+                          ? "loader"
+                          : isRecording
+                            ? "mic"
+                            : "zap"
+                    }
                     size={22}
                     color="#FFFFFF"
                   />
@@ -1373,33 +1490,86 @@ export default function VoiceAssistant() {
 
             {/* Copilot Status & Waveform */}
             <View style={{ alignItems: "center", marginVertical: Spacing.xs }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", fontSize: 11 }}>
+              <ThemedText
+                type="small"
+                style={{
+                  color: theme.textSecondary,
+                  fontWeight: "700",
+                  fontSize: 11,
+                }}
+              >
                 {isSpeaking
                   ? "HAI is responding..."
                   : isProcessing
-                  ? "HAI is thinking..."
-                  : isRecording
-                  ? "HAI is listening..."
-                  : "HAI Copilot Active"}
+                    ? "HAI is thinking..."
+                    : isRecording
+                      ? "HAI is listening..."
+                      : "HAI Copilot Active"}
               </ThemedText>
 
               {/* Waveform Equalizer when listening */}
               {isRecording && (
                 <View style={[styles.waveformContainer, { marginTop: 4 }]}>
-                  <Animated.View style={[styles.waveBar, { backgroundColor: "#FF6B35" }, animatedWave1]} />
-                  <Animated.View style={[styles.waveBar, { backgroundColor: "#FF7C35" }, animatedWave2]} />
-                  <Animated.View style={[styles.waveBar, { backgroundColor: "#FF8C35" }, animatedWave3]} />
-                  <Animated.View style={[styles.waveBar, { backgroundColor: "#FF9C35" }, animatedWave4]} />
-                  <Animated.View style={[styles.waveBar, { backgroundColor: "#FFAC35" }, animatedWave5]} />
+                  <Animated.View
+                    style={[
+                      styles.waveBar,
+                      { backgroundColor: "#FF6B35" },
+                      animatedWave1,
+                    ]}
+                  />
+                  <Animated.View
+                    style={[
+                      styles.waveBar,
+                      { backgroundColor: "#FF7C35" },
+                      animatedWave2,
+                    ]}
+                  />
+                  <Animated.View
+                    style={[
+                      styles.waveBar,
+                      { backgroundColor: "#FF8C35" },
+                      animatedWave3,
+                    ]}
+                  />
+                  <Animated.View
+                    style={[
+                      styles.waveBar,
+                      { backgroundColor: "#FF9C35" },
+                      animatedWave4,
+                    ]}
+                  />
+                  <Animated.View
+                    style={[
+                      styles.waveBar,
+                      { backgroundColor: "#FFAC35" },
+                      animatedWave5,
+                    ]}
+                  />
                 </View>
               )}
             </View>
 
             {/* Simple Guides / Instructions list */}
-            <View style={[styles.guideRow, { borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }]}>
-              <Feather name="info" size={12} color={theme.textSecondary} style={{ marginRight: 4 }} />
+            <View
+              style={[
+                styles.guideRow,
+                {
+                  borderColor: isDark
+                    ? "rgba(255,255,255,0.08)"
+                    : "rgba(0,0,0,0.08)",
+                },
+              ]}
+            >
+              <Feather
+                name="info"
+                size={12}
+                color={theme.textSecondary}
+                style={{ marginRight: 4 }}
+              />
               <ThemedText style={styles.guideText}>
-                Try: "Amit present", "Open Settings", "Bhugtan 500", "Export PDF Summary"
+                {
+                  'Try: "Amit present", "Open Settings", "Bhugtan 500", "Export PDF Summary"'
+                }
               </ThemedText>
             </View>
 

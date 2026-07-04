@@ -130,7 +130,10 @@ export default function SupervisorManagementScreen() {
       return;
     }
     if (!editingSupervisor && !password.trim()) {
-      Alert.alert(t.common.error || "Error", t.supervisor.errorPasswordRequired);
+      Alert.alert(
+        t.common.error || "Error",
+        t.supervisor.errorPasswordRequired,
+      );
       return;
     }
 
@@ -159,7 +162,10 @@ export default function SupervisorManagementScreen() {
           setModalVisible(false);
         } else {
           const err = await res.json();
-          Alert.alert(t.common.error || "Error", err.error || t.supervisor.errorUpdate);
+          Alert.alert(
+            t.common.error || "Error",
+            err.error || t.supervisor.errorUpdate,
+          );
         }
       } else {
         // Create new supervisor
@@ -184,7 +190,10 @@ export default function SupervisorManagementScreen() {
           setUpgradeModalVisible(true);
         } else {
           const err = await res.json();
-          Alert.alert(t.common.error || "Error", err.error || t.supervisor.errorCreate);
+          Alert.alert(
+            t.common.error || "Error",
+            err.error || t.supervisor.errorCreate,
+          );
         }
       }
     } catch {
@@ -216,7 +225,10 @@ export default function SupervisorManagementScreen() {
                   prev.filter((s) => s._id !== supervisorId),
                 );
               } else {
-                Alert.alert(t.common.error || "Error", t.supervisor.errorDelete);
+                Alert.alert(
+                  t.common.error || "Error",
+                  t.supervisor.errorDelete,
+                );
               }
             } catch {
               Alert.alert(t.common.error || "Error", t.supervisor.errorServer);
@@ -310,11 +322,11 @@ export default function SupervisorManagementScreen() {
                 <View>
                   <ThemedText type="h3">{item.name}</ThemedText>
                   <ThemedText
-                     type="small"
-                     style={{
-                       color: theme.textSecondary,
-                       marginTop: Spacing.xs,
-                     }}
+                    type="small"
+                    style={{
+                      color: theme.textSecondary,
+                      marginTop: Spacing.xs,
+                    }}
                   >
                     📱 {item.phone}
                   </ThemedText>
@@ -339,7 +351,9 @@ export default function SupervisorManagementScreen() {
                       fontWeight: "600",
                     }}
                   >
-                    {item.isActive ? t.project.active.toUpperCase() : "DISABLED"}
+                    {item.isActive
+                      ? t.project.active.toUpperCase()
+                      : "DISABLED"}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -448,7 +462,9 @@ export default function SupervisorManagementScreen() {
               contentContainerStyle={{ paddingBottom: Spacing["2xl"] }}
             >
               <ThemedText type="h2" style={styles.modalTitle}>
-                {editingSupervisor ? t.supervisor.editSupervisor : t.supervisor.inviteSupervisor}
+                {editingSupervisor
+                  ? t.supervisor.editSupervisor
+                  : t.supervisor.inviteSupervisor}
               </ThemedText>
 
               <View style={styles.inputContainer}>
@@ -495,7 +511,9 @@ export default function SupervisorManagementScreen() {
 
               <View style={styles.inputContainer}>
                 <ThemedText type="body" style={styles.label}>
-                  {editingSupervisor ? t.supervisor.passwordNewPlaceholder : t.supervisor.password}
+                  {editingSupervisor
+                    ? t.supervisor.passwordNewPlaceholder
+                    : t.supervisor.password}
                 </ThemedText>
                 <TextInput
                   style={[
@@ -576,7 +594,9 @@ export default function SupervisorManagementScreen() {
                     { borderColor: theme.border, borderWidth: 1 },
                   ]}
                 >
-                  <ThemedText type="body">{t.common.cancel || "Cancel"}</ThemedText>
+                  <ThemedText type="body">
+                    {t.common.cancel || "Cancel"}
+                  </ThemedText>
                 </Pressable>
                 <Pressable
                   onPress={handleSaveSupervisor}

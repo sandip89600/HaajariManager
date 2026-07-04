@@ -102,7 +102,10 @@ export default function DeviceManagementScreen() {
                 },
               );
               if (res.ok) {
-                Alert.alert(t.common.success || "Success", t.device.successRevoke);
+                Alert.alert(
+                  t.common.success || "Success",
+                  t.device.successRevoke,
+                );
                 loadSessions();
               } else {
                 Alert.alert(t.common.error || "Error", t.device.errorRevoke);
@@ -119,41 +122,37 @@ export default function DeviceManagementScreen() {
   };
 
   const handleLogoutAllDevices = async () => {
-    Alert.alert(
-      t.device.logoutAllTitle,
-      t.device.logoutAllConfirm,
-      [
-        { text: t.common.cancel || "Cancel", style: "cancel" },
-        {
-          text: t.device.logoutAllButton,
-          style: "destructive",
-          onPress: async () => {
-            setIsActionLoading(true);
-            try {
-              const res = await authenticatedFetch(
-                `${API_URL}/auth/security/logout-all`,
-                {
-                  method: "POST",
-                },
+    Alert.alert(t.device.logoutAllTitle, t.device.logoutAllConfirm, [
+      { text: t.common.cancel || "Cancel", style: "cancel" },
+      {
+        text: t.device.logoutAllButton,
+        style: "destructive",
+        onPress: async () => {
+          setIsActionLoading(true);
+          try {
+            const res = await authenticatedFetch(
+              `${API_URL}/auth/security/logout-all`,
+              {
+                method: "POST",
+              },
+            );
+            if (res.ok) {
+              Alert.alert(
+                t.common.success || "Success",
+                t.device.successLogoutAll,
               );
-              if (res.ok) {
-                Alert.alert(
-                  t.common.success || "Success",
-                  t.device.successLogoutAll,
-                );
-                loadSessions();
-              } else {
-                Alert.alert(t.common.error || "Error", t.device.errorLogoutAll);
-              }
-            } catch (e) {
+              loadSessions();
+            } else {
               Alert.alert(t.common.error || "Error", t.device.errorLogoutAll);
-            } finally {
-              setIsActionLoading(false);
             }
-          },
+          } catch (e) {
+            Alert.alert(t.common.error || "Error", t.device.errorLogoutAll);
+          } finally {
+            setIsActionLoading(false);
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   if (isLoading) {
@@ -287,7 +286,8 @@ export default function DeviceManagementScreen() {
                       marginTop: 4,
                     }}
                   >
-                    {t.device.lastActive}: {new Date(device.lastActiveAt).toLocaleString()}
+                    {t.device.lastActive}:{" "}
+                    {new Date(device.lastActiveAt).toLocaleString()}
                   </ThemedText>
                 </View>
                 <Pressable

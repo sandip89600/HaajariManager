@@ -151,10 +151,7 @@ export default function UserProfileScreen() {
   const handlePickFromCamera = async () => {
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      Alert.alert(
-        t.profile.permissionDenied,
-        t.profile.cameraPermission,
-      );
+      Alert.alert(t.profile.permissionDenied, t.profile.cameraPermission);
       return;
     }
 
@@ -214,7 +211,10 @@ export default function UserProfileScreen() {
                 Haptics.notificationAsync(
                   Haptics.NotificationFeedbackType.Success,
                 );
-                Alert.alert(t.common.success || "Success", t.profile.removeSuccess);
+                Alert.alert(
+                  t.common.success || "Success",
+                  t.profile.removeSuccess,
+                );
               } else {
                 Alert.alert(t.common.error || "Error", t.profile.removeError);
               }
@@ -222,7 +222,10 @@ export default function UserProfileScreen() {
               const updated = { ...user, profileImage: undefined };
               await storage.updateUser(updated);
               setUser(updated);
-              Alert.alert(t.common.success || "Success", t.profile.removeOfflineSuccess);
+              Alert.alert(
+                t.common.success || "Success",
+                t.profile.removeOfflineSuccess,
+              );
             } finally {
               setIsUpdating(false);
               setShowImageModal(false);
@@ -280,7 +283,10 @@ export default function UserProfileScreen() {
 
       if (!res.ok) {
         const errorData = await res.json();
-        Alert.alert(t.common.error || "Error", errorData.error || t.profile.error);
+        Alert.alert(
+          t.common.error || "Error",
+          errorData.error || t.profile.error,
+        );
         return;
       }
 
@@ -350,7 +356,10 @@ export default function UserProfileScreen() {
 
       if (!res.ok) {
         const errorData = await res.json();
-        Alert.alert(t.common.error || "Error", errorData.error || t.profile.passwordError);
+        Alert.alert(
+          t.common.error || "Error",
+          errorData.error || t.profile.passwordError,
+        );
         return;
       }
 
@@ -389,33 +398,29 @@ export default function UserProfileScreen() {
       return;
     }
 
-    Alert.alert(
-      t.profile.deleteAccountTitle,
-      t.profile.deleteAccountConfirm,
-      [
-        { text: t.common.cancel || "Cancel", style: "cancel" },
-        {
-          text: t.profile.deleteAccountBtn,
-          style: "destructive",
-          onPress: async () => {
-            if (user) {
-              setIsUpdating(true);
-              try {
-                await storage.deleteUser(user.id);
-                await logout();
-              } catch (err: any) {
-                Alert.alert(
-                  t.common.error || "Error",
-                  err.message || t.profile.deleteAccountError,
-                );
-              } finally {
-                setIsUpdating(false);
-              }
+    Alert.alert(t.profile.deleteAccountTitle, t.profile.deleteAccountConfirm, [
+      { text: t.common.cancel || "Cancel", style: "cancel" },
+      {
+        text: t.profile.deleteAccountBtn,
+        style: "destructive",
+        onPress: async () => {
+          if (user) {
+            setIsUpdating(true);
+            try {
+              await storage.deleteUser(user.id);
+              await logout();
+            } catch (err: any) {
+              Alert.alert(
+                t.common.error || "Error",
+                err.message || t.profile.deleteAccountError,
+              );
+            } finally {
+              setIsUpdating(false);
             }
-          },
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const getRoleLabel = (r: string) => {
@@ -727,7 +732,9 @@ export default function UserProfileScreen() {
               style={styles.sheetOption}
             >
               <Feather name="camera" size={20} color={theme.text} />
-              <ThemedText style={styles.sheetOptionText}>{t.profile.camera}</ThemedText>
+              <ThemedText style={styles.sheetOptionText}>
+                {t.profile.camera}
+              </ThemedText>
             </Pressable>
 
             <Pressable
@@ -758,7 +765,9 @@ export default function UserProfileScreen() {
               onPress={() => setShowImageModal(false)}
               style={[styles.sheetCloseBtn, { backgroundColor: theme.border }]}
             >
-              <ThemedText style={{ fontWeight: "700" }}>{t.common.cancel || "Cancel"}</ThemedText>
+              <ThemedText style={{ fontWeight: "700" }}>
+                {t.common.cancel || "Cancel"}
+              </ThemedText>
             </Pressable>
           </View>
         </Pressable>
@@ -908,7 +917,9 @@ export default function UserProfileScreen() {
                     },
                   ]}
                 >
-                  <ThemedText style={{ color: theme.text }}>{t.common.cancel || "Cancel"}</ThemedText>
+                  <ThemedText style={{ color: theme.text }}>
+                    {t.common.cancel || "Cancel"}
+                  </ThemedText>
                 </Pressable>
 
                 <Pressable
@@ -1028,7 +1039,9 @@ export default function UserProfileScreen() {
                     },
                   ]}
                 >
-                  <ThemedText style={{ color: theme.text }}>{t.common.cancel || "Cancel"}</ThemedText>
+                  <ThemedText style={{ color: theme.text }}>
+                    {t.common.cancel || "Cancel"}
+                  </ThemedText>
                 </Pressable>
 
                 <Pressable

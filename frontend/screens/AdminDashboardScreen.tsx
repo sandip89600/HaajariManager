@@ -1225,9 +1225,7 @@ export default function AdminDashboardScreen() {
                 fontWeight: "700",
               }}
             >
-              {socketConnected
-                ? t.admin.liveSocket
-                : t.admin.socketConnecting}
+              {socketConnected ? t.admin.liveSocket : t.admin.socketConnecting}
             </ThemedText>
           </View>
         </View>
@@ -1244,14 +1242,42 @@ export default function AdminDashboardScreen() {
           contentContainerStyle={styles.tabScroll}
         >
           {[
-            { id: "dashboard", label: t.admin.dashboardTab || "Dashboard", icon: "activity" },
+            {
+              id: "dashboard",
+              label: t.admin.dashboardTab || "Dashboard",
+              icon: "activity",
+            },
             { id: "users", label: t.admin.usersTab || "Users", icon: "users" },
-            { id: "workers", label: t.workers.title || "Workers", icon: "briefcase" },
-            { id: "attendance", label: t.attendance.title || "Attendance", icon: "calendar" },
-            { id: "payments", label: t.admin.payments || "Payments", icon: "credit-card" },
-            { id: "support", label: t.support.title || "Support & Help", icon: "help-circle" },
-            { id: "security", label: t.device.title || "Security & Sessions", icon: "lock" },
-            { id: "profile", label: t.profile.title || "Profile", icon: "shield" },
+            {
+              id: "workers",
+              label: t.workers.title || "Workers",
+              icon: "briefcase",
+            },
+            {
+              id: "attendance",
+              label: t.attendance.title || "Attendance",
+              icon: "calendar",
+            },
+            {
+              id: "payments",
+              label: t.admin.payments || "Payments",
+              icon: "credit-card",
+            },
+            {
+              id: "support",
+              label: t.support.title || "Support & Help",
+              icon: "help-circle",
+            },
+            {
+              id: "security",
+              label: t.device.title || "Security & Sessions",
+              icon: "lock",
+            },
+            {
+              id: "profile",
+              label: t.profile.title || "Profile",
+              icon: "shield",
+            },
           ].map((tab) => (
             <Pressable
               key={tab.id}
