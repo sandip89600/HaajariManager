@@ -8,6 +8,7 @@ import {
   Dimensions,
   ScrollView,
   DeviceEventEmitter,
+  TextInput,
 } from "react-native";
 import { appContextTracker } from "@/utils/appContextTracker";
 import { BlurView } from "expo-blur";
@@ -50,6 +51,128 @@ const parseLocalCommand = (
 ): { action: string; data: any; response: string } | null => {
   const t = text.toLowerCase().trim();
   if (!t) return null;
+
+  // 1. ADD WORKER, ADD DAY RATE, ADD CATEGORY
+  if (
+    t.includes("add worker") ||
+    t.startsWith("add worker") ||
+    t.includes("add kaamgar") ||
+    t.includes("add kamgar")
+  ) {
+    const clean = t.replace(/add worker|add kaamgar|add kamgar/g, "").trim();
+    if (clean) {
+      const parts = clean.split(/\s+/);
+      const name = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+
+      let dailyRate = 500;
+      let category = "labour";
+
+      const rateMatch = clean.match(/\b\d+\b/);
+      if (rateMatch) {
+        dailyRate = parseInt(rateMatch[0]);
+      }
+
+      const categories = [
+        "labour",
+        "bai",
+        "mistri",
+        "bandkam",
+        "plaster",
+        "tiles",
+        "sutar",
+      ];
+      for (const cat of categories) {
+        if (clean.includes(cat)) {
+          category = cat;
+          break;
+        }
+      }
+
+      return {
+        action: "ADD_WORKER",
+        data: { name, dailyRate, category },
+        response: `Successfully created worker "${name}" with daily rate of ₹${dailyRate} and category "${category}".`,
+      };
+    } else {
+      const defaultName = "New Worker";
+      return {
+        action: "ADD_WORKER",
+        data: { name: defaultName, dailyRate: 500, category: "labour" },
+        response: `Successfully created default worker "${defaultName}".`,
+      };
+    }
+  }
+
+  if (
+    t.includes("add day rate") ||
+    t.includes("add daily rate") ||
+    t.includes("add rate")
+  ) {
+    const rateMatch = t.match(/\b\d+\b/);
+    const dailyRate = rateMatch ? parseInt(rateMatch[0]) : 500;
+    const name = `Worker ₹${dailyRate}`;
+    return {
+      action: "ADD_WORKER",
+      data: { name, dailyRate, category: "labour" },
+      response: `Successfully created worker with daily rate of ₹${dailyRate}.`,
+    };
+  }
+
+  if (t.includes("add category")) {
+    let category = "labour";
+    const categories = [
+      "labour",
+      "bai",
+      "mistri",
+      "bandkam",
+      "plaster",
+      "tiles",
+      "sutar",
+    ];
+    for (const cat of categories) {
+      if (t.includes(cat)) {
+        category = cat;
+        break;
+      }
+    }
+    const name = `Worker ${category.charAt(0).toUpperCase() + category.slice(1)}`;
+    return {
+      action: "ADD_WORKER",
+      data: { name, dailyRate: 500, category },
+      response: `Successfully created worker with category "${category}".`,
+    };
+  }
+
+  // 2. READ IT
+  if (
+    t.includes("read it") ||
+    t.includes("read") ||
+    t.includes("list") ||
+    t.includes("padho") ||
+    t.includes("suno")
+  ) {
+    return {
+      action: "READ_LIST",
+      data: {},
+      response: "Reading the list of workers.",
+    };
+  }
+
+  // 3. DELETE IT & EDIT THIS
+  if (
+    t.includes("delete it") ||
+    t.includes("delete") ||
+    t.includes("hata do") ||
+    t.includes("edit this") ||
+    t.includes("edit") ||
+    t.includes("badlo")
+  ) {
+    return {
+      action: "DELETE_LAST_WORKER",
+      data: {},
+      response: "Deleting the last added worker.",
+    };
+  }
 
   // Navigation commands
   if (
@@ -210,6 +333,7 @@ export default function VoiceAssistant() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [aiResponse, setAiResponse] = useState("");
+  const [liveTextCommand, setLiveTextCommand] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [executedAction, setExecutedAction] = useState<string | null>(null);
   const [actionDetail, setActionDetail] = useState<string | null>(null);
@@ -580,23 +704,54 @@ export default function VoiceAssistant() {
 
       if (response.ok) {
         const result = await response.json();
+        const transcriptText = result.transcript;
+        if (transcriptText) {
+          setTranscript(transcriptText);
 
-        if (
-          result.transcript &&
-          result.action &&
-          result.action !== "UNKNOWN" &&
-          result.action !== "INCOMPLETE"
-        ) {
-          if (result.response) {
-            speakResponse(result.response);
+          // 1. Try local parser first
+          const localParsed = parseLocalCommand(transcriptText);
+          if (localParsed) {
+            setAiResponse(localParsed.response);
+            speakResponse(localParsed.response);
+            await executeAction(localParsed.action, localParsed.data);
+            showToast(`Executed: ${localParsed.action}`, "success");
+            return;
           }
-          await executeAction(result.action, result.data);
-          showToast(`Executed: ${result.action}`, "success");
+
+          // 2. Fallback to server action
+          if (
+            result.action &&
+            result.action !== "UNKNOWN" &&
+            result.action !== "INCOMPLETE"
+          ) {
+            if (result.response) {
+              setAiResponse(result.response);
+              speakResponse(result.response);
+            }
+            await executeAction(result.action, result.data);
+            showToast(`Executed: ${result.action}`, "success");
+          }
         }
       }
     } catch (err) {
       console.error("Live audio processing failed:", err);
       showToast("Offline: Internet connection lost.", "error");
+    }
+  };
+
+  const handleTextCommand = async (text: string) => {
+    setTranscript(text);
+    const localParsed = parseLocalCommand(text);
+    if (localParsed) {
+      setAiResponse(localParsed.response);
+      speakResponse(localParsed.response);
+      await executeAction(localParsed.action, localParsed.data);
+      showToast(`Executed: ${localParsed.action}`, "success");
+    } else {
+      const resp = `Command "${text}" not recognized locally. Try "Add worker Rajesh" or "read it".`;
+      setAiResponse(resp);
+      speakResponse(resp);
+      showToast("Command not recognized", "error");
     }
   };
 
@@ -721,6 +876,25 @@ export default function VoiceAssistant() {
       if (result.transcript) {
         setTranscript(result.transcript);
 
+        // 1. Try local command parser
+        const localParsed = parseLocalCommand(result.transcript);
+        if (localParsed) {
+          setAiResponse(localParsed.response);
+          speakResponse(localParsed.response);
+          await executeAction(localParsed.action, localParsed.data);
+          showToast(`Executed: ${localParsed.action}`, "success");
+
+          if (mode === "chat") {
+            setChatHistory([
+              ...chatHistory,
+              { role: "user" as const, text: result.transcript },
+              { role: "model" as const, text: localParsed.response },
+            ]);
+          }
+          return;
+        }
+
+        // 2. Fallback to server actions
         if (mode === "chat") {
           const newHistory = [
             ...chatHistory,
@@ -894,6 +1068,41 @@ export default function VoiceAssistant() {
       }
 
       switch (action) {
+        case "READ_LIST": {
+          const workersList = await storage.getWorkers();
+          if (workersList.length === 0) {
+            const resp = "You have no workers added yet.";
+            setAiResponse(resp);
+            speakResponse(resp);
+            setActionDetail(resp);
+          } else {
+            const names = workersList.map((w) => w.name).join(", ");
+            const resp = `You have ${workersList.length} workers: ${names}.`;
+            setAiResponse(resp);
+            speakResponse(resp);
+            setActionDetail(`Read workers list: ${names}`);
+          }
+          setExecutedAction("READ_LIST");
+          break;
+        }
+        case "DELETE_LAST_WORKER": {
+          const workersList = await storage.getWorkers();
+          if (workersList.length === 0) {
+            const resp = "No workers to delete.";
+            setAiResponse(resp);
+            speakResponse(resp);
+            setActionDetail(resp);
+          } else {
+            const lastWorker = workersList[workersList.length - 1];
+            await storage.deleteWorker(lastWorker.id);
+            const resp = `Deleted worker ${lastWorker.name}.`;
+            setAiResponse(resp);
+            speakResponse(resp);
+            setActionDetail(`Deleted Last Worker: ${lastWorker.name}`);
+          }
+          setExecutedAction("DELETE_LAST_WORKER");
+          break;
+        }
         case "ADD_WORKER": {
           const newWorker: Worker = {
             id: "",
@@ -1438,57 +1647,42 @@ export default function VoiceAssistant() {
               ) : null}
             </View>
 
-            {/* Main Orb Centerpiece */}
+            {/* Main Simple Listen Button Centerpiece */}
             <View style={styles.orbCenterpiece}>
-              {/* Outer pulsing glowing ring */}
-              <Animated.View
-                style={[
-                  styles.orbGlowingAura,
-                  {
-                    backgroundColor: isProcessing
-                      ? "#3B82F6"
-                      : isSpeaking
-                        ? "#8B5CF6"
-                        : isRecording
-                          ? "#FF6B35"
-                          : "#FF8C35",
-                  },
-                  animatedRing,
-                ]}
-              />
-
-              {/* Central Pulsing Orb */}
-              <Animated.View style={[styles.orbMain, animatedButton]}>
-                <LinearGradient
-                  colors={
-                    isProcessing
-                      ? ["#2563EB", "#3B82F6"] // Thinking
-                      : isSpeaking
-                        ? ["#7C3AED", "#8B5CF6"] // Responding
-                        : isRecording
-                          ? ["#EF4444", "#FF6B35"] // Listening
-                          : ["#FF6B35", "#FF8C35"] // Default Idle
-                  }
-                  style={styles.orbGradient}
-                >
-                  <Feather
-                    name={
-                      isSpeaking
-                        ? "volume-2"
-                        : isProcessing
-                          ? "loader"
-                          : isRecording
-                            ? "mic"
-                            : "zap"
+              <Pressable
+                onPress={async () => {
+                  if (isRecording) {
+                    setIsRecording(false);
+                    if (recordingRef.current) {
+                      try {
+                        await recordingRef.current.stopAndUnloadAsync();
+                      } catch {}
+                      recordingRef.current = null;
                     }
-                    size={22}
-                    color="#FFFFFF"
-                  />
-                </LinearGradient>
-              </Animated.View>
+                  } else {
+                    runLiveLoop();
+                  }
+                }}
+                style={[
+                  styles.orbMain,
+                  {
+                    backgroundColor: isRecording ? "#EF4444" : theme.primary,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    borderWidth: 2,
+                    borderColor: "#FFFFFF",
+                  },
+                ]}
+              >
+                <Feather
+                  name={isRecording ? "mic" : "mic-off"}
+                  size={26}
+                  color="#FFFFFF"
+                />
+              </Pressable>
             </View>
 
-            {/* Copilot Status & Waveform */}
+            {/* Copilot Status Label */}
             <View style={{ alignItems: "center", marginVertical: Spacing.xs }}>
               <ThemedText
                 type="small"
@@ -1498,55 +1692,48 @@ export default function VoiceAssistant() {
                   fontSize: 11,
                 }}
               >
-                {isSpeaking
-                  ? "HAI is responding..."
-                  : isProcessing
-                    ? "HAI is thinking..."
-                    : isRecording
-                      ? "HAI is listening..."
-                      : "HAI Copilot Active"}
+                {isRecording ? "Listening..." : "Tap to Listen"}
               </ThemedText>
+            </View>
 
-              {/* Waveform Equalizer when listening */}
-              {isRecording && (
-                <View style={[styles.waveformContainer, { marginTop: 4 }]}>
-                  <Animated.View
-                    style={[
-                      styles.waveBar,
-                      { backgroundColor: "#FF6B35" },
-                      animatedWave1,
-                    ]}
-                  />
-                  <Animated.View
-                    style={[
-                      styles.waveBar,
-                      { backgroundColor: "#FF7C35" },
-                      animatedWave2,
-                    ]}
-                  />
-                  <Animated.View
-                    style={[
-                      styles.waveBar,
-                      { backgroundColor: "#FF8C35" },
-                      animatedWave3,
-                    ]}
-                  />
-                  <Animated.View
-                    style={[
-                      styles.waveBar,
-                      { backgroundColor: "#FF9C35" },
-                      animatedWave4,
-                    ]}
-                  />
-                  <Animated.View
-                    style={[
-                      styles.waveBar,
-                      { backgroundColor: "#FFAC35" },
-                      animatedWave5,
-                    ]}
-                  />
-                </View>
-              )}
+            {/* Text Input Fallback for Live Mode */}
+            <View
+              style={[
+                styles.liveInputContainer,
+                {
+                  borderColor: isDark
+                    ? "rgba(255, 255, 255, 0.15)"
+                    : "rgba(0, 0, 0, 0.12)",
+                  backgroundColor: isDark
+                    ? "rgba(255, 255, 255, 0.05)"
+                    : "rgba(0, 0, 0, 0.02)",
+                },
+              ]}
+            >
+              <TextInput
+                style={[styles.liveTextInput, { color: theme.text }]}
+                placeholder='Type command ("Add worker Rajesh", "read it", "delete it")...'
+                placeholderTextColor={theme.textSecondary}
+                value={liveTextCommand}
+                onChangeText={setLiveTextCommand}
+                onSubmitEditing={() => {
+                  if (liveTextCommand.trim()) {
+                    handleTextCommand(liveTextCommand);
+                    setLiveTextCommand("");
+                  }
+                }}
+              />
+              <Pressable
+                onPress={() => {
+                  if (liveTextCommand.trim()) {
+                    handleTextCommand(liveTextCommand);
+                    setLiveTextCommand("");
+                  }
+                }}
+                style={[styles.liveSendBtn, { backgroundColor: theme.primary }]}
+              >
+                <Feather name="send" size={12} color="#FFF" />
+              </Pressable>
             </View>
 
             {/* Simple Guides / Instructions list */}
@@ -2257,5 +2444,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     ...Shadows.sm,
+  },
+  liveInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "90%",
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.sm,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  liveTextInput: {
+    flex: 1,
+    height: "100%",
+    fontSize: 13,
+    paddingHorizontal: Spacing.xs,
+  },
+  liveSendBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
