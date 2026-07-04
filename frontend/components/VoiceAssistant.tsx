@@ -9,6 +9,7 @@ import {
   ScrollView,
   DeviceEventEmitter,
   TextInput,
+  KeyboardAvoidingView,
 } from "react-native";
 import { appContextTracker } from "@/utils/appContextTracker";
 import { BlurView } from "expo-blur";
@@ -46,13 +47,14 @@ import { navigationRef } from "@/navigation/navigationRef";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
+// ─── LOCAL COMMAND PARSER ──────────────────────────────────────────────────────
 const parseLocalCommand = (
   text: string,
 ): { action: string; data: any; response: string } | null => {
   const t = text.toLowerCase().trim();
   if (!t) return null;
 
-  // 1. ADD WORKER, ADD DAY RATE, ADD CATEGORY
+  // 1. ADD WORKER
   if (
     t.includes("add worker") ||
     t.startsWith("add worker") ||
@@ -62,110 +64,70 @@ const parseLocalCommand = (
     const clean = t.replace(/add worker|add kaamgar|add kamgar/g, "").trim();
     if (clean) {
       const parts = clean.split(/\s+/);
-      const name = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-
+      const name =
+        parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
       let dailyRate = 500;
       let category = "labour";
-
       const rateMatch = clean.match(/\b\d+\b/);
-      if (rateMatch) {
-        dailyRate = parseInt(rateMatch[0]);
-      }
-
+      if (rateMatch) dailyRate = parseInt(rateMatch[0]);
       const categories = [
-        "labour",
-        "bai",
-        "mistri",
-        "bandkam",
-        "plaster",
-        "tiles",
-        "sutar",
+        "labour", "bai", "mistri", "bandkam", "plaster", "tiles", "sutar",
       ];
       for (const cat of categories) {
-        if (clean.includes(cat)) {
-          category = cat;
-          break;
-        }
+        if (clean.includes(cat)) { category = cat; break; }
       }
-
       return {
         action: "ADD_WORKER",
         data: { name, dailyRate, category },
-        response: `Successfully created worker "${name}" with daily rate of ₹${dailyRate} and category "${category}".`,
+        response: `Worker "${name}" added — Rs.${dailyRate}/day, ${category}.`,
       };
     } else {
-      const defaultName = "New Worker";
       return {
         action: "ADD_WORKER",
-        data: { name: defaultName, dailyRate: 500, category: "labour" },
-        response: `Successfully created default worker "${defaultName}".`,
+        data: { name: "New Worker", dailyRate: 500, category: "labour" },
+        response: 'Worker "New Worker" created with default settings.',
       };
     }
   }
 
-  if (
-    t.includes("add day rate") ||
-    t.includes("add daily rate") ||
-    t.includes("add rate")
-  ) {
+  // 2. ADD DAY RATE / ADD CATEGORY
+  if (t.includes("add day rate") || t.includes("add daily rate") || t.includes("add rate")) {
     const rateMatch = t.match(/\b\d+\b/);
     const dailyRate = rateMatch ? parseInt(rateMatch[0]) : 500;
-    const name = `Worker ₹${dailyRate}`;
     return {
       action: "ADD_WORKER",
-      data: { name, dailyRate, category: "labour" },
-      response: `Successfully created worker with daily rate of ₹${dailyRate}.`,
+      data: { name: `Worker Rs.${dailyRate}`, dailyRate, category: "labour" },
+      response: `Worker created with daily rate of Rs.${dailyRate}.`,
     };
   }
 
   if (t.includes("add category")) {
     let category = "labour";
-    const categories = [
-      "labour",
-      "bai",
-      "mistri",
-      "bandkam",
-      "plaster",
-      "tiles",
-      "sutar",
-    ];
+    const categories = ["labour", "bai", "mistri", "bandkam", "plaster", "tiles", "sutar"];
     for (const cat of categories) {
-      if (t.includes(cat)) {
-        category = cat;
-        break;
-      }
+      if (t.includes(cat)) { category = cat; break; }
     }
     const name = `Worker ${category.charAt(0).toUpperCase() + category.slice(1)}`;
     return {
       action: "ADD_WORKER",
       data: { name, dailyRate: 500, category },
-      response: `Successfully created worker with category "${category}".`,
+      response: `Worker created with category "${category}".`,
     };
   }
 
-  // 2. READ IT
+  // 3. READ IT
   if (
-    t.includes("read it") ||
-    t.includes("read") ||
-    t.includes("list") ||
-    t.includes("padho") ||
-    t.includes("suno")
+    t.includes("read it") || t.includes("read") || t.includes("list") ||
+    t.includes("padho") || t.includes("suno")
   ) {
-    return {
-      action: "READ_LIST",
-      data: {},
-      response: "Reading the list of workers.",
-    };
+    return { action: "READ_LIST", data: {}, response: "Reading worker list..." };
   }
 
-  // 3. DELETE IT & EDIT THIS
+  // 4. DELETE IT / EDIT THIS
   if (
-    t.includes("delete it") ||
-    t.includes("delete") ||
-    t.includes("hata do") ||
-    t.includes("edit this") ||
-    t.includes("edit") ||
-    t.includes("badlo")
+    t.includes("delete it") || t.includes("delete") ||
+    t.includes("hata do") || t.includes("edit this") ||
+    t.includes("edit") || t.includes("badlo")
   ) {
     return {
       action: "DELETE_LAST_WORKER",
@@ -174,166 +136,112 @@ const parseLocalCommand = (
     };
   }
 
-  // Navigation commands
-  if (
-    t.includes("worker") ||
-    t.includes("kaamgar") ||
-    t.includes("kamgar") ||
-    t.includes("kormi")
-  ) {
-    if (
-      t.includes("open") ||
-      t.includes("kholo") ||
-      t.includes("navigate") ||
-      t.includes("chalo") ||
-      t.includes("go to") ||
-      t.includes("view")
-    ) {
-      return {
-        action: "OPEN_SCREEN",
-        data: { screen: "Workers" },
-        response: "Opening Workers screen.",
-      };
+  // Navigation
+  if (t.includes("worker") || t.includes("kaamgar") || t.includes("kamgar")) {
+    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("go to") || t.includes("view")) {
+      return { action: "OPEN_SCREEN", data: { screen: "Workers" }, response: "Opening Workers screen." };
     }
   }
-  if (
-    t.includes("summary") ||
-    t.includes("payment") ||
-    t.includes("bhugtan") ||
-    t.includes("hisab") ||
-    t.includes("pay")
-  ) {
-    if (
-      t.includes("open") ||
-      t.includes("kholo") ||
-      t.includes("navigate") ||
-      t.includes("chalo") ||
-      t.includes("go to") ||
-      t.includes("view")
-    ) {
-      return {
-        action: "OPEN_SCREEN",
-        data: { screen: "Summary" },
-        response: "Opening Summary screen.",
-      };
+  if (t.includes("summary") || t.includes("payment") || t.includes("bhugtan") || t.includes("hisab") || t.includes("pay")) {
+    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("go to") || t.includes("view")) {
+      return { action: "OPEN_SCREEN", data: { screen: "Summary" }, response: "Opening Summary screen." };
     }
   }
-  if (
-    t.includes("attendance") ||
-    t.includes("haajari") ||
-    t.includes("hajiri") ||
-    t.includes("presence")
-  ) {
-    if (
-      t.includes("open") ||
-      t.includes("kholo") ||
-      t.includes("navigate") ||
-      t.includes("chalo") ||
-      t.includes("go to") ||
-      t.includes("view")
-    ) {
-      return {
-        action: "OPEN_SCREEN",
-        data: { screen: "Attendance" },
-        response: "Opening Attendance screen.",
-      };
+  if (t.includes("attendance") || t.includes("haajari") || t.includes("hajiri") || t.includes("presence")) {
+    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("go to") || t.includes("view")) {
+      return { action: "OPEN_SCREEN", data: { screen: "Attendance" }, response: "Opening Attendance screen." };
     }
   }
   if (t.includes("setting") || t.includes("vinyas") || t.includes("bhavana")) {
-    if (
-      t.includes("open") ||
-      t.includes("kholo") ||
-      t.includes("navigate") ||
-      t.includes("chalo") ||
-      t.includes("go to") ||
-      t.includes("view")
-    ) {
-      return {
-        action: "OPEN_SCREEN",
-        data: { screen: "Settings" },
-        response: "Opening Settings screen.",
-      };
+    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("go to") || t.includes("view")) {
+      return { action: "OPEN_SCREEN", data: { screen: "Settings" }, response: "Opening Settings screen." };
     }
   }
-  if (
-    t.includes("profile") ||
-    t.includes("account") ||
-    t.includes("khata") ||
-    t.includes("user")
-  ) {
-    if (
-      t.includes("open") ||
-      t.includes("kholo") ||
-      t.includes("navigate") ||
-      t.includes("go to")
-    ) {
-      return {
-        action: "OPEN_SCREEN",
-        data: { screen: "Profile" },
-        response: "Opening Profile screen.",
-      };
+  if (t.includes("profile") || t.includes("account") || t.includes("khata") || t.includes("user")) {
+    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("go to")) {
+      return { action: "OPEN_SCREEN", data: { screen: "Profile" }, response: "Opening Profile screen." };
     }
   }
-  if (
-    t.includes("back") ||
-    t.includes("piche") ||
-    t.includes("wapas") ||
-    t.includes("pichhe")
-  ) {
-    return {
-      action: "GO_BACK",
-      data: {},
-      response: "Going back.",
-    };
+  if (t.includes("back") || t.includes("piche") || t.includes("wapas") || t.includes("pichhe")) {
+    return { action: "GO_BACK", data: {}, response: "Going back." };
   }
-
-  // Settings modification
-  if (
-    t.includes("theme") ||
-    t.includes("dark") ||
-    t.includes("light") ||
-    t.includes("color")
-  ) {
-    if (
-      t.includes("switch") ||
-      t.includes("change") ||
-      t.includes("badlo") ||
-      t.includes("toggle") ||
-      t.includes("toggled")
-    ) {
-      return {
-        action: "SWITCH_THEME",
-        data: {},
-        response: "Switching app theme.",
-      };
+  if (t.includes("theme") || t.includes("dark") || t.includes("light") || t.includes("color")) {
+    if (t.includes("switch") || t.includes("change") || t.includes("badlo") || t.includes("toggle")) {
+      return { action: "SWITCH_THEME", data: {}, response: "Switching app theme." };
     }
   }
 
   return null;
 };
 
+// ─── TYPES ─────────────────────────────────────────────────────────────────────
 interface ChatMessage {
   role: "user" | "model";
   text: string;
+  timestamp?: number;
 }
 
-type CopilotMode = "none" | "voice" | "chat" | "live";
+type CopilotMode = "none" | "launcher" | "voice" | "chat" | "live";
 
+// ─── QUICK LAUNCHER CARDS ──────────────────────────────────────────────────────
+const LAUNCHER_CARDS = [
+  {
+    id: "voice",
+    icon: "mic" as const,
+    title: "Voice Command",
+    subtitle: "Say what you need done",
+    color: "#FF6B35",
+    bg: "rgba(255,107,53,0.12)",
+  },
+  {
+    id: "chat",
+    icon: "message-square" as const,
+    title: "Chat with AI",
+    subtitle: "Ask questions, get reports",
+    color: "#3B82F6",
+    bg: "rgba(59,130,246,0.12)",
+  },
+  {
+    id: "live",
+    icon: "zap" as const,
+    title: "Live Mode",
+    subtitle: "Hands-free continuous listening",
+    color: "#F59E0B",
+    bg: "rgba(245,158,11,0.12)",
+  },
+  {
+    id: "summary",
+    icon: "bar-chart-2" as const,
+    title: "Today's Summary",
+    subtitle: "Quick overview of site status",
+    color: "#10B981",
+    bg: "rgba(16,185,129,0.12)",
+  },
+  {
+    id: "add_worker",
+    icon: "user-plus" as const,
+    title: "Add Worker",
+    subtitle: "Register a new site worker",
+    color: "#8B5CF6",
+    bg: "rgba(139,92,246,0.12)",
+  },
+];
+
+// ─── MAIN COMPONENT ────────────────────────────────────────────────────────────
 export default function VoiceAssistant() {
   const { theme, isDark, setThemeMode } = useTheme();
   const { language } = useLanguage();
 
-  // Mode Selection State
+  // Mode
   const [mode, setMode] = useState<CopilotMode>("none");
-  const [isExpanded, setIsExpanded] = useState(false);
 
-  // Core Processing States
+  // Core processing states
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [voiceTranscriptPreview, setVoiceTranscriptPreview] = useState("");
   const [aiResponse, setAiResponse] = useState("");
-  const [liveTextCommand, setLiveTextCommand] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [executedAction, setExecutedAction] = useState<string | null>(null);
   const [actionDetail, setActionDetail] = useState<string | null>(null);
@@ -343,19 +251,26 @@ export default function VoiceAssistant() {
     message: string;
   } | null>(null);
 
-  // Toast System State
+  // Input states
+  const [chatInput, setChatInput] = useState("");
+  const [liveTextCommand, setLiveTextCommand] = useState("");
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [hasProactiveHint, setHasProactiveHint] = useState(false);
+
+  // Toast
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "info";
   } | null>(null);
 
-  // Refs for audio and timing loops
+  // Refs
   const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const liveActiveRef = useRef(false);
   const liveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const voiceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isPreparingRecordingRef = useRef(false);
+  const chatInputRef = useRef<TextInput>(null);
 
   // Waveform shared values
   const pulse1 = useSharedValue(1);
@@ -364,54 +279,48 @@ export default function VoiceAssistant() {
   const pulse4 = useSharedValue(1);
   const pulse5 = useSharedValue(1);
 
+  // Button animations
   const buttonScale = useSharedValue(1);
   const pulseRingScale = useSharedValue(1);
-  const pulseRingOpacity = useSharedValue(0.6);
-  const menuAnimation = useSharedValue(0);
+  const pulseRingOpacity = useSharedValue(0);
 
-  // Synchronize waveforms
+  // ─── PROACTIVE HINT ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const ctx = appContextTracker.getContext();
+    setHasProactiveHint(ctx.currentScreen === "AttendanceTab");
+  }, []);
+
+  // ─── PROACTIVE GLOW ANIMATION ────────────────────────────────────────────────
+  useEffect(() => {
+    if (hasProactiveHint && mode === "none") {
+      pulseRingScale.value = withRepeat(
+        withSequence(
+          withTiming(1.4, { duration: 1800 }),
+          withTiming(1.0, { duration: 1800 }),
+        ),
+        -1, false,
+      );
+      pulseRingOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.7, { duration: 1800 }),
+          withTiming(0, { duration: 1800 }),
+        ),
+        -1, false,
+      );
+    } else {
+      pulseRingScale.value = withTiming(1, { duration: 300 });
+      pulseRingOpacity.value = withTiming(0, { duration: 300 });
+    }
+  }, [hasProactiveHint, mode, pulseRingOpacity, pulseRingScale]);
+
+  // ─── WAVEFORM ANIMATIONS ─────────────────────────────────────────────────────
   useEffect(() => {
     if (isRecording) {
-      pulse1.value = withRepeat(
-        withSequence(
-          withTiming(2.5, { duration: 300 }),
-          withTiming(1, { duration: 300 }),
-        ),
-        -1,
-        true,
-      );
-      pulse2.value = withRepeat(
-        withSequence(
-          withTiming(1.8, { duration: 250 }),
-          withTiming(1, { duration: 250 }),
-        ),
-        -1,
-        true,
-      );
-      pulse3.value = withRepeat(
-        withSequence(
-          withTiming(3.0, { duration: 350 }),
-          withTiming(1, { duration: 350 }),
-        ),
-        -1,
-        true,
-      );
-      pulse4.value = withRepeat(
-        withSequence(
-          withTiming(2.0, { duration: 280 }),
-          withTiming(1, { duration: 280 }),
-        ),
-        -1,
-        true,
-      );
-      pulse5.value = withRepeat(
-        withSequence(
-          withTiming(1.5, { duration: 200 }),
-          withTiming(1, { duration: 200 }),
-        ),
-        -1,
-        true,
-      );
+      pulse1.value = withRepeat(withSequence(withTiming(2.5, { duration: 300 }), withTiming(1, { duration: 300 })), -1, true);
+      pulse2.value = withRepeat(withSequence(withTiming(1.8, { duration: 250 }), withTiming(1, { duration: 250 })), -1, true);
+      pulse3.value = withRepeat(withSequence(withTiming(3.0, { duration: 350 }), withTiming(1, { duration: 350 })), -1, true);
+      pulse4.value = withRepeat(withSequence(withTiming(2.0, { duration: 280 }), withTiming(1, { duration: 280 })), -1, true);
+      pulse5.value = withRepeat(withSequence(withTiming(1.5, { duration: 200 }), withTiming(1, { duration: 200 })), -1, true);
     } else {
       pulse1.value = withTiming(1);
       pulse2.value = withTiming(1);
@@ -421,142 +330,95 @@ export default function VoiceAssistant() {
     }
   }, [isRecording, pulse1, pulse2, pulse3, pulse4, pulse5]);
 
-  const animatedWave1 = useAnimatedStyle(() => ({
-    transform: [{ scaleY: pulse1.value }],
-  }));
-  const animatedWave2 = useAnimatedStyle(() => ({
-    transform: [{ scaleY: pulse2.value }],
-  }));
-  const animatedWave3 = useAnimatedStyle(() => ({
-    transform: [{ scaleY: pulse3.value }],
-  }));
-  const animatedWave4 = useAnimatedStyle(() => ({
-    transform: [{ scaleY: pulse4.value }],
-  }));
-  const animatedWave5 = useAnimatedStyle(() => ({
-    transform: [{ scaleY: pulse5.value }],
-  }));
+  // ─── ANIMATED STYLES ─────────────────────────────────────────────────────────
+  const animatedWave1 = useAnimatedStyle(() => ({ transform: [{ scaleY: pulse1.value }] }));
+  const animatedWave2 = useAnimatedStyle(() => ({ transform: [{ scaleY: pulse2.value }] }));
+  const animatedWave3 = useAnimatedStyle(() => ({ transform: [{ scaleY: pulse3.value }] }));
+  const animatedWave4 = useAnimatedStyle(() => ({ transform: [{ scaleY: pulse4.value }] }));
+  const animatedWave5 = useAnimatedStyle(() => ({ transform: [{ scaleY: pulse5.value }] }));
 
   const animatedButton = useAnimatedStyle(() => ({
     transform: [{ scale: buttonScale.value }],
   }));
-
-  // Idle pulse ring animations for premium AI look
-  useEffect(() => {
-    pulseRingScale.value = withRepeat(
-      withTiming(1.35, { duration: 2500 }),
-      -1,
-      false,
-    );
-    pulseRingOpacity.value = withRepeat(
-      withSequence(
-        withTiming(0, { duration: 2500 }),
-        withTiming(0.6, { duration: 0 }),
-      ),
-      -1,
-      false,
-    );
-  }, [pulseRingOpacity, pulseRingScale]);
-
-  // Sync menu animation shared value
-  useEffect(() => {
-    menuAnimation.value = withSpring(isExpanded ? 1 : 0, { damping: 15 });
-  }, [isExpanded, menuAnimation]);
-
   const animatedRing = useAnimatedStyle(() => ({
     transform: [{ scale: pulseRingScale.value }],
     opacity: pulseRingOpacity.value,
   }));
 
-  const containerStyle = useAnimatedStyle(() => ({
-    width: withSpring(isExpanded ? 260 : 60, { damping: 15 }),
-  }));
-
-  const voiceStyle = useAnimatedStyle(() => ({
-    opacity: menuAnimation.value,
-    pointerEvents: isExpanded ? "auto" : "none",
-    transform: [{ translateX: menuAnimation.value * -65 }],
-  }));
-
-  const chatStyle = useAnimatedStyle(() => ({
-    opacity: menuAnimation.value,
-    pointerEvents: isExpanded ? "auto" : "none",
-    transform: [{ translateX: menuAnimation.value * -125 }],
-  }));
-
-  const liveStyle = useAnimatedStyle(() => ({
-    opacity: menuAnimation.value,
-    pointerEvents: isExpanded ? "auto" : "none",
-    transform: [{ translateX: menuAnimation.value * -185 }],
-  }));
-
-  // Toast Timer Hook
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
-
-  // Clean up Live loop on unmount
-  useEffect(() => {
-    return () => {
-      liveActiveRef.current = false;
-      if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
-      if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
-    };
-  }, []);
-
-  const showToast = (
-    message: string,
-    type: "success" | "error" | "info" = "success",
-  ) => {
+  // ─── TOAST ───────────────────────────────────────────────────────────────────
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
     setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
   };
 
-  // Toggle Menu
-  const toggleMenu = () => {
+  // ─── TTS ─────────────────────────────────────────────────────────────────────
+  const speakResponse = (text: string, onDone?: () => void) => {
+    Speech.stop();
+    const hasDevanagari = /[\u0900-\u097F]/.test(text);
+    const hindiKeywords = ["kijiye", "karo", "hai", "laga", "dena", "aap", "mera"];
+    const hasHindiKeyword = hindiKeywords.some((k) => text.toLowerCase().includes(k));
+    const lang = hasDevanagari || hasHindiKeyword ? "hi-IN" : "en-IN";
+    setIsSpeaking(true);
+    Speech.speak(text, {
+      language: lang,
+      rate: 0.95,
+      onDone: () => {
+        setIsSpeaking(false);
+        if (onDone) onDone();
+        if (liveActiveRef.current && !isRecording && !isProcessing && !pendingConfirmation) {
+          setTimeout(() => { if (liveActiveRef.current) runLiveLoop(); }, 400);
+        }
+      },
+      onError: () => { setIsSpeaking(false); if (onDone) onDone(); },
+    });
+  };
+
+  // ─── FUZZY WORKER MATCH ───────────────────────────────────────────────────────
+  const fuzzyMatchWorker = (workers: Worker[], name: string): Worker | null => {
+    const normalized = name.toLowerCase().trim();
+    return (
+      workers.find((w) => w.name.toLowerCase() === normalized) ||
+      workers.find(
+        (w) =>
+          w.name.toLowerCase().includes(normalized) ||
+          normalized.includes(w.name.toLowerCase()),
+      ) ||
+      null
+    );
+  };
+
+  // ─── MODE STARTERS ────────────────────────────────────────────────────────────
+  const openLauncher = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsExpanded(!isExpanded);
+    setMode("launcher");
   };
 
-  // 1. VOICE MODE SETUP
   const startVoiceMode = async () => {
     Speech.stop();
-    setTranscript("");
-    setExecutedAction(null);
-    setActionDetail(null);
     setMode("voice");
-    setIsExpanded(false);
-
-    // Auto start recording for quick command
-    setTimeout(startRecording, 100);
+    setVoiceTranscriptPreview("");
+    setTranscript("");
+    await startRecording();
   };
 
-  // 2. CHAT MODE SETUP
   const startChatMode = () => {
     Speech.stop();
-    setTranscript("");
+    setMode("chat");
     setExecutedAction(null);
     setActionDetail(null);
-    setMode("chat");
-    setIsExpanded(false);
-
     if (chatHistory.length === 0) {
       setAiResponse(
-        "Hi! I'm HAI, your AI-powered workforce assistant. I can help you manage workers, attendance, payments, advances, reports, and navigate the app using voice, chat, or live assistance.",
+        "Hi! I'm HAI, your AI assistant. Ask me anything about workers, attendance, payments, or your site.",
       );
     }
+    setTimeout(() => chatInputRef.current?.focus(), 400);
   };
 
-  // 3. LIVE COPILOT MODE SETUP
   const startLiveMode = async () => {
     Speech.stop();
-    setIsExpanded(false);
-    liveActiveRef.current = true;
     setMode("live");
-    showToast("Live Copilot Mode Activated ⚡", "info");
-
+    liveActiveRef.current = true;
+    showToast("Live Mode Active", "info");
     runLiveLoop();
   };
 
@@ -566,120 +428,102 @@ export default function VoiceAssistant() {
       clearTimeout(liveTimeoutRef.current);
       liveTimeoutRef.current = null;
     }
-
     if (recordingRef.current) {
-      try {
-        await recordingRef.current.stopAndUnloadAsync();
-      } catch {}
+      try { await recordingRef.current.stopAndUnloadAsync(); } catch {}
       recordingRef.current = null;
     }
-
     setIsRecording(false);
     setIsProcessing(false);
     setMode("none");
-    showToast("Live Copilot Deactivated", "info");
+    showToast("Live Mode Stopped", "info");
   };
 
-  // Live Copilot continuous listening loop
+  const closeLauncher = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMode("none");
+  };
+
+  const closeAssistant = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMode("none");
+    if (voiceTimeoutRef.current) {
+      clearTimeout(voiceTimeoutRef.current);
+      voiceTimeoutRef.current = null;
+    }
+    if (recordingRef.current) {
+      try { recordingRef.current.stopAndUnloadAsync(); } catch {}
+      recordingRef.current = null;
+    }
+    setIsRecording(false);
+    setIsProcessing(false);
+    Speech.stop();
+  };
+
+  // ─── LIVE LOOP ────────────────────────────────────────────────────────────────
   const runLiveLoop = async () => {
     if (!liveActiveRef.current) return;
-
-    // If AI is currently speaking or confirmation is pending, do not start recording
-    if (isSpeaking || pendingConfirmation) {
-      return;
-    }
-
-    if (recordingRef.current || isPreparingRecordingRef.current) {
-      console.log(
-        "[Live Loop] Recording is already active or preparing. Skipping createAsync.",
-      );
-      return;
-    }
+    if (isSpeaking || pendingConfirmation) return;
+    if (recordingRef.current || isPreparingRecordingRef.current) return;
 
     try {
       isPreparingRecordingRef.current = true;
       setIsRecording(true);
       await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       const recordingOptions = {
         android: {
           extension: ".m4a",
           outputFormat: Audio.AndroidOutputFormat.MPEG_4,
           audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 44100,
-          numberOfChannels: 1,
-          bitRate: 128000,
+          sampleRate: 44100, numberOfChannels: 1, bitRate: 128000,
         },
         ios: {
           extension: ".m4a",
           outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
           audioQuality: Audio.IOSAudioQuality.HIGH,
-          sampleRate: 44100,
-          numberOfChannels: 1,
-          bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
+          sampleRate: 44100, numberOfChannels: 1, bitRate: 128000,
+          linearPCMBitDepth: 16 as const, linearPCMIsBigEndian: false, linearPCMIsFloat: false,
         },
-        web: {
-          mimeType: "audio/webm",
-          bitsPerSecond: 128000,
-        },
+        web: { mimeType: "audio/webm", bitsPerSecond: 128000 },
       };
-
       const { recording } = await Audio.Recording.createAsync(recordingOptions);
       recordingRef.current = recording;
       isPreparingRecordingRef.current = false;
 
-      // Record in 4.5 second listening slots
       liveTimeoutRef.current = setTimeout(async () => {
         if (!liveActiveRef.current) return;
-
         try {
           setIsRecording(false);
           setIsProcessing(true);
-
           await recording.stopAndUnloadAsync();
           const uri = recording.getURI();
           recordingRef.current = null;
 
-          // Schedule the next recording slot with a small delay to allow native resources to fully release
           if (liveActiveRef.current && !isSpeaking && !pendingConfirmation) {
             setTimeout(() => {
-              if (
-                liveActiveRef.current &&
-                !isSpeaking &&
-                !pendingConfirmation
-              ) {
-                runLiveLoop();
-              }
+              if (liveActiveRef.current && !isSpeaking && !pendingConfirmation) runLiveLoop();
             }, 300);
           }
 
           if (uri && liveActiveRef.current) {
-            const base64Audio = await FileSystem.readAsStringAsync(uri, {
-              encoding: "base64",
-            });
+            const base64Audio = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
             await processLiveAudio(base64Audio);
           }
         } catch (e) {
-          console.error("Live loop stop recording failed:", e);
+          console.error("Live loop stop error:", e);
         } finally {
           setIsProcessing(false);
         }
       }, 4500);
     } catch (err) {
       isPreparingRecordingRef.current = false;
-      console.error("Failed to run live loop:", err);
+      console.error("Live loop create error:", err);
       showToast("Microphone error in Live Mode", "error");
       stopLiveMode();
     }
   };
 
+  // ─── PROCESS LIVE AUDIO ───────────────────────────────────────────────────────
   const processLiveAudio = async (base64Audio: string) => {
     try {
       const auth = await storage.getAuth();
@@ -696,7 +540,7 @@ export default function VoiceAssistant() {
           audio: base64Audio,
           mimeType: Platform.OS === "ios" ? "audio/x-m4a" : "audio/mp4",
           history: [],
-          language: language,
+          language,
           currentScreen: ctx.currentScreen,
           screenContext: ctx,
         }),
@@ -707,38 +551,28 @@ export default function VoiceAssistant() {
         const transcriptText = result.transcript;
         if (transcriptText) {
           setTranscript(transcriptText);
-
-          // 1. Try local parser first
           const localParsed = parseLocalCommand(transcriptText);
           if (localParsed) {
             setAiResponse(localParsed.response);
             speakResponse(localParsed.response);
             await executeAction(localParsed.action, localParsed.data);
-            showToast(`Executed: ${localParsed.action}`, "success");
+            showToast(`Done: ${localParsed.action}`, "success");
             return;
           }
-
-          // 2. Fallback to server action
-          if (
-            result.action &&
-            result.action !== "UNKNOWN" &&
-            result.action !== "INCOMPLETE"
-          ) {
-            if (result.response) {
-              setAiResponse(result.response);
-              speakResponse(result.response);
-            }
+          if (result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE") {
+            if (result.response) { setAiResponse(result.response); speakResponse(result.response); }
             await executeAction(result.action, result.data);
-            showToast(`Executed: ${result.action}`, "success");
+            showToast(`Done: ${result.action}`, "success");
           }
         }
       }
     } catch (err) {
       console.error("Live audio processing failed:", err);
-      showToast("Offline: Internet connection lost.", "error");
+      showToast("Offline — check connection", "error");
     }
   };
 
+  // ─── TEXT COMMAND ─────────────────────────────────────────────────────────────
   const handleTextCommand = async (text: string) => {
     setTranscript(text);
     const localParsed = parseLocalCommand(text);
@@ -746,62 +580,43 @@ export default function VoiceAssistant() {
       setAiResponse(localParsed.response);
       speakResponse(localParsed.response);
       await executeAction(localParsed.action, localParsed.data);
-      showToast(`Executed: ${localParsed.action}`, "success");
+      showToast(`Done: ${localParsed.action}`, "success");
     } else {
-      const resp = `Command "${text}" not recognized locally. Try "Add worker Rajesh" or "read it".`;
+      const resp = `"${text}" not recognized. Try "Add worker Rajesh" or "read it".`;
       setAiResponse(resp);
       speakResponse(resp);
       showToast("Command not recognized", "error");
     }
   };
 
-  // Audio Recording Flow
+  // ─── RECORDING ───────────────────────────────────────────────────────────────
   const startRecording = async () => {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       const recordingOptions = {
         android: {
           extension: ".m4a",
           outputFormat: Audio.AndroidOutputFormat.MPEG_4,
           audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 44100,
-          numberOfChannels: 1,
-          bitRate: 128000,
+          sampleRate: 44100, numberOfChannels: 1, bitRate: 128000,
         },
         ios: {
           extension: ".m4a",
           outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
           audioQuality: Audio.IOSAudioQuality.HIGH,
-          sampleRate: 44100,
-          numberOfChannels: 1,
-          bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
+          sampleRate: 44100, numberOfChannels: 1, bitRate: 128000,
+          linearPCMBitDepth: 16 as const, linearPCMIsBigEndian: false, linearPCMIsFloat: false,
         },
-        web: {
-          mimeType: "audio/webm",
-          bitsPerSecond: 128000,
-        },
+        web: { mimeType: "audio/webm", bitsPerSecond: 128000 },
       };
-
       const { recording } = await Audio.Recording.createAsync(recordingOptions);
       recordingRef.current = recording;
       setIsRecording(true);
-      setTranscript("HAI is listening...");
       Speech.stop();
-
-      // Auto-stop recording after 5.5 seconds in Voice Mode to allow execution without manual interaction
       if (mode === "voice") {
-        voiceTimeoutRef.current = setTimeout(() => {
-          stopRecording();
-        }, 5500);
+        voiceTimeoutRef.current = setTimeout(() => stopRecording(), 5500);
       }
     } catch (err) {
       console.error("Failed to start recording", err);
@@ -810,29 +625,21 @@ export default function VoiceAssistant() {
   };
 
   const stopRecording = async () => {
-    if (voiceTimeoutRef.current) {
-      clearTimeout(voiceTimeoutRef.current);
-      voiceTimeoutRef.current = null;
-    }
+    if (voiceTimeoutRef.current) { clearTimeout(voiceTimeoutRef.current); voiceTimeoutRef.current = null; }
     if (!recordingRef.current) return;
     setIsRecording(false);
     setIsProcessing(true);
-    setTranscript("HAI is thinking...");
 
     try {
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
-
       if (uri) {
-        const base64Audio = await FileSystem.readAsStringAsync(uri, {
-          encoding: "base64",
-        });
+        const base64Audio = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
         await processAudio(base64Audio);
       }
     } catch (err) {
       console.error("Failed to stop recording", err);
-      setTranscript("Recording failed. Please try again.");
       setIsProcessing(false);
     }
   };
@@ -845,21 +652,14 @@ export default function VoiceAssistant() {
 
       const response = await fetch(`${API_URL}/voice/process`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           audio: base64Audio,
           mimeType: Platform.OS === "ios" ? "audio/x-m4a" : "audio/mp4",
-          history:
-            mode === "chat"
-              ? chatHistory.map((ch) => ({
-                  role: ch.role,
-                  parts: [{ text: ch.text }],
-                }))
-              : [],
-          language: language,
+          history: mode === "chat"
+            ? chatHistory.map((ch) => ({ role: ch.role, parts: [{ text: ch.text }] }))
+            : [],
+          language,
           currentScreen: ctx.currentScreen,
           screenContext: ctx,
         }),
@@ -867,186 +667,145 @@ export default function VoiceAssistant() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("[Voice] Backend error response:", errorText);
-        throw new Error(`Voice processing server error: ${errorText}`);
+        throw new Error(`Voice server error: ${errorText}`);
       }
 
       const result = await response.json();
 
       if (result.transcript) {
         setTranscript(result.transcript);
+        if (mode === "voice") setVoiceTranscriptPreview(result.transcript);
 
-        // 1. Try local command parser
         const localParsed = parseLocalCommand(result.transcript);
         if (localParsed) {
           setAiResponse(localParsed.response);
           speakResponse(localParsed.response);
           await executeAction(localParsed.action, localParsed.data);
-          showToast(`Executed: ${localParsed.action}`, "success");
-
+          showToast(`Done: ${localParsed.action}`, "success");
           if (mode === "chat") {
-            setChatHistory([
-              ...chatHistory,
-              { role: "user" as const, text: result.transcript },
-              { role: "model" as const, text: localParsed.response },
+            setChatHistory((prev) => [
+              ...prev,
+              { role: "user", text: result.transcript, timestamp: Date.now() },
+              { role: "model", text: localParsed.response, timestamp: Date.now() },
             ]);
           }
+          setIsProcessing(false);
           return;
         }
 
-        // 2. Fallback to server actions
         if (mode === "chat") {
-          const newHistory = [
+          const newHistory: ChatMessage[] = [
             ...chatHistory,
-            { role: "user" as const, text: result.transcript },
+            { role: "user", text: result.transcript, timestamp: Date.now() },
           ];
-
           if (result.response) {
             setAiResponse(result.response);
-            newHistory.push({ role: "model" as const, text: result.response });
+            newHistory.push({ role: "model", text: result.response, timestamp: Date.now() });
             setChatHistory(newHistory);
             speakResponse(result.response);
           }
-
-          if (
-            result.action &&
-            result.action !== "INCOMPLETE" &&
-            result.action !== "UNKNOWN"
-          ) {
+          if (result.action && result.action !== "INCOMPLETE" && result.action !== "UNKNOWN") {
             await executeAction(result.action, result.data);
           } else {
             setExecutedAction(null);
             setActionDetail(null);
           }
         } else if (mode === "voice") {
-          // Voice Mode executes immediately with no chat logs
-          if (result.response) {
-            speakResponse(result.response);
-          }
-
-          if (
-            result.action &&
-            result.action !== "INCOMPLETE" &&
-            result.action !== "UNKNOWN"
-          ) {
+          if (result.response) speakResponse(result.response);
+          if (result.action && result.action !== "INCOMPLETE" && result.action !== "UNKNOWN") {
             await executeAction(result.action, result.data);
-            showToast(`Command Executed: ${result.action}`, "success");
+            showToast(`Done: ${result.action}`, "success");
           } else if (result.action === "INCOMPLETE") {
             showToast(result.response || "Details incomplete.", "info");
           } else {
             showToast("Command not understood.", "error");
           }
-
-          // Auto close voice mode pill after 2.5s
-          setTimeout(() => {
-            setMode("none");
-          }, 2500);
         }
       }
     } catch (err) {
-      console.error("Error processing audio on backend", err);
-      showToast("Offline: Internet connection lost.", "error");
-      const errMsg =
-        "Sorry, I couldn't connect to the server. Please check your internet connection.";
-      setTranscript(errMsg);
-      setAiResponse(errMsg);
-      speakResponse(errMsg);
-      if (mode === "voice") {
-        setTimeout(() => setMode("none"), 2500);
-      }
+      console.error("Audio processing failed:", err);
+      showToast("Offline — check connection", "error");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const speakResponse = async (text: string, onDoneCallback?: () => void) => {
-    setIsSpeaking(true);
+  // ─── CHAT TEXT SUBMIT ─────────────────────────────────────────────────────────
+  const submitChatText = async (text: string) => {
+    if (!text.trim()) return;
+    const userMsg: ChatMessage = { role: "user", text: text.trim(), timestamp: Date.now() };
+    setChatHistory((prev) => [...prev, userMsg]);
+    setChatInput("");
+    setIsProcessing(true);
 
-    // Stop active recording immediately before speaking to avoid double recording / self feedback loop
-    if (liveActiveRef.current && recordingRef.current) {
-      try {
-        if (liveTimeoutRef.current) {
-          clearTimeout(liveTimeoutRef.current);
-          liveTimeoutRef.current = null;
+    try {
+      const localParsed = parseLocalCommand(text);
+      if (localParsed) {
+        setAiResponse(localParsed.response);
+        speakResponse(localParsed.response);
+        await executeAction(localParsed.action, localParsed.data);
+        showToast(`Done: ${localParsed.action}`, "success");
+        setChatHistory((prev) => [
+          ...prev,
+          { role: "model", text: localParsed.response, timestamp: Date.now() },
+        ]);
+        setIsProcessing(false);
+        return;
+      }
+
+      const auth = await storage.getAuth();
+      const token = auth?.token;
+      const ctx = appContextTracker.getContext();
+
+      const response = await fetch(`${API_URL}/voice/process`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          text: text.trim(),
+          history: chatHistory.map((ch) => ({ role: ch.role, parts: [{ text: ch.text }] })),
+          language,
+          currentScreen: ctx.currentScreen,
+          screenContext: ctx,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.response) {
+          const aiMsg: ChatMessage = { role: "model", text: result.response, timestamp: Date.now() };
+          setChatHistory((prev) => [...prev, aiMsg]);
+          setAiResponse(result.response);
+          speakResponse(result.response);
         }
-        setIsRecording(false);
-        const rec = recordingRef.current;
-        recordingRef.current = null;
-        await rec.stopAndUnloadAsync();
-      } catch (err) {
-        console.warn("[Voice] Error stopping recording for TTS:", err);
+        if (result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE") {
+          await executeAction(result.action, result.data);
+        }
       }
+    } catch (err) {
+      console.error("Chat text submit failed:", err);
+      setChatHistory((prev) => [
+        ...prev,
+        { role: "model", text: "Connection error. Check your internet and try again.", timestamp: Date.now() },
+      ]);
+    } finally {
+      setIsProcessing(false);
     }
-
-    const isHindi =
-      /[\u0900-\u097F]/.test(text) ||
-      text.toLowerCase().includes("kijiye") ||
-      text.toLowerCase().includes("karo") ||
-      text.toLowerCase().includes("hai") ||
-      text.toLowerCase().includes("laga") ||
-      text.toLowerCase().includes("dena");
-
-    const cleanResume = () => {
-      setIsSpeaking(false);
-      if (onDoneCallback) {
-        onDoneCallback();
-      } else if (liveActiveRef.current) {
-        // Automatically resume live loop
-        runLiveLoop();
-      }
-    };
-
-    Speech.speak(text, {
-      language: isHindi ? "hi-IN" : "en-IN",
-      pitch: 1.0,
-      rate: 1.0,
-      onDone: cleanResume,
-      onStopped: cleanResume,
-      onError: cleanResume,
-    });
   };
 
-  // Helper: Fuzzy match worker name
-  const fuzzyMatchWorker = (workers: Worker[], name: string): Worker | null => {
-    if (!name) return null;
-    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-    const target = clean(name);
-
-    let match = workers.find((w) => clean(w.name) === target);
-    if (match) return match;
-
-    match = workers.find(
-      (w) => clean(w.name).includes(target) || target.includes(clean(w.name)),
-    );
-    return match || null;
-  };
-
+  // ─── EXECUTE ACTION ───────────────────────────────────────────────────────────
   const executeAction = async (action: string, data: any) => {
-    // Intercept destructive actions for confirmation
-    if (
-      action === "DELETE_WORKER" ||
-      action === "DELETE_PAYMENT" ||
-      action === "DELETE_ATTENDANCE" ||
-      action === "DELETE_ACCOUNT"
-    ) {
+    if (["DELETE_WORKER", "DELETE_PAYMENT", "DELETE_ATTENDANCE", "DELETE_ACCOUNT"].includes(action)) {
       let message = "Are you sure you want to delete this?";
-      if (action === "DELETE_WORKER" && data.name) {
-        message = `Are you sure you want to delete worker "${data.name}"?`;
-      } else if (action === "DELETE_PAYMENT") {
-        message = `Are you sure you want to delete this payment?`;
-      } else if (action === "DELETE_ATTENDANCE") {
-        message = `Are you sure you want to delete this attendance record?`;
-      } else if (action === "DELETE_ACCOUNT") {
-        message = `Are you sure you want to delete your account? This is permanent.`;
-      }
-
+      if (action === "DELETE_WORKER" && data.name) message = `Delete worker "${data.name}"?`;
+      else if (action === "DELETE_PAYMENT") message = "Delete this payment?";
+      else if (action === "DELETE_ATTENDANCE") message = "Delete this attendance record?";
+      else if (action === "DELETE_ACCOUNT") message = "Delete your account? This is permanent.";
       setPendingConfirmation({ action, data, message });
       setTranscript(message);
       setAiResponse(message);
       speakResponse(message);
       return;
     }
-
     await executeActionDirect(action, data);
   };
 
@@ -1058,47 +817,39 @@ export default function VoiceAssistant() {
       if (data.name) {
         worker = fuzzyMatchWorker(workers, data.name);
         if (!worker && action !== "ADD_WORKER") {
-          const errText = "Worker not found.";
+          const errText = `Worker "${data.name}" not found.`;
           setAiResponse(errText);
           speakResponse(errText);
           setExecutedAction("ERROR");
-          setActionDetail(`Worker "${data.name}" not found in database.`);
+          setActionDetail(errText);
           return;
         }
       }
 
       switch (action) {
         case "READ_LIST": {
-          const workersList = await storage.getWorkers();
-          if (workersList.length === 0) {
+          const list = await storage.getWorkers();
+          if (list.length === 0) {
             const resp = "You have no workers added yet.";
-            setAiResponse(resp);
-            speakResponse(resp);
-            setActionDetail(resp);
+            setAiResponse(resp); speakResponse(resp); setActionDetail(resp);
           } else {
-            const names = workersList.map((w) => w.name).join(", ");
-            const resp = `You have ${workersList.length} workers: ${names}.`;
-            setAiResponse(resp);
-            speakResponse(resp);
-            setActionDetail(`Read workers list: ${names}`);
+            const names = list.map((w) => w.name).join(", ");
+            const resp = `You have ${list.length} workers: ${names}.`;
+            setAiResponse(resp); speakResponse(resp); setActionDetail(`Workers: ${names}`);
           }
           setExecutedAction("READ_LIST");
           break;
         }
         case "DELETE_LAST_WORKER": {
-          const workersList = await storage.getWorkers();
-          if (workersList.length === 0) {
+          const list = await storage.getWorkers();
+          if (list.length === 0) {
             const resp = "No workers to delete.";
-            setAiResponse(resp);
-            speakResponse(resp);
-            setActionDetail(resp);
+            setAiResponse(resp); speakResponse(resp); setActionDetail(resp);
           } else {
-            const lastWorker = workersList[workersList.length - 1];
-            await storage.deleteWorker(lastWorker.id);
-            const resp = `Deleted worker ${lastWorker.name}.`;
-            setAiResponse(resp);
-            speakResponse(resp);
-            setActionDetail(`Deleted Last Worker: ${lastWorker.name}`);
+            const last = list[list.length - 1];
+            await storage.deleteWorker(last.id);
+            const resp = `Deleted worker ${last.name}.`;
+            setAiResponse(resp); speakResponse(resp); setActionDetail(`Deleted: ${last.name}`);
           }
           setExecutedAction("DELETE_LAST_WORKER");
           break;
@@ -1115,27 +866,20 @@ export default function VoiceAssistant() {
           };
           await storage.addWorker(newWorker);
           setExecutedAction("ADD_WORKER");
-          setActionDetail(
-            `Worker: ${data.name} (Daily Rate: ₹${data.dailyRate || 500})`,
-          );
+          setActionDetail(`Worker: ${data.name} (Rs.${data.dailyRate || 500}/day)`);
           break;
         }
         case "UPDATE_WORKER": {
           if (worker) {
             const updated = {
               ...worker,
-              dailyRate:
-                data.dailyRate !== undefined
-                  ? data.dailyRate
-                  : worker.dailyRate,
+              dailyRate: data.dailyRate !== undefined ? data.dailyRate : worker.dailyRate,
               category: data.category || worker.category,
               phone: data.phone || worker.phone,
             };
             await storage.updateWorker(updated);
             setExecutedAction("UPDATE_WORKER");
-            setActionDetail(
-              `Updated: ${worker.name} (Daily Rate: ₹${updated.dailyRate})`,
-            );
+            setActionDetail(`Updated: ${worker.name} (Rs.${updated.dailyRate}/day)`);
           }
           break;
         }
@@ -1143,19 +887,17 @@ export default function VoiceAssistant() {
           if (worker) {
             await storage.deleteWorker(worker.id);
             setExecutedAction("DELETE_WORKER");
-            setActionDetail(`Deleted Worker: ${worker.name}`);
+            setActionDetail(`Deleted: ${worker.name}`);
           }
           break;
         }
         case "MARK_ATTENDANCE": {
           if (worker) {
             const dateObj = data.date ? new Date(data.date) : new Date();
-
             let val: AttendanceRecord["value"] = "P";
             if (data.status === "Absent") val = "A";
             else if (data.status === "Half Day") val = "H";
             else if (data.status === "Overtime") val = "OT";
-
             const record: AttendanceRecord = {
               workerId: worker.id,
               year: dateObj.getFullYear(),
@@ -1169,12 +911,8 @@ export default function VoiceAssistant() {
             };
             await storage.setAttendanceRecord(record);
             setExecutedAction("MARK_ATTENDANCE");
-
-            let details = `Attendance: ${worker.name} — ${data.status}`;
-            if (data.advance) details += ` (Advance: ₹${data.advance})`;
-            if (data.overtimeHours)
-              details += ` (OT Hours: ${data.overtimeHours})`;
-
+            let details = `${worker.name} — ${data.status}`;
+            if (data.advance) details += ` (Advance: Rs.${data.advance})`;
             setActionDetail(details);
           }
           break;
@@ -1194,9 +932,7 @@ export default function VoiceAssistant() {
             };
             await storage.addPayment(payment);
             setExecutedAction("ADD_PAYMENT");
-            setActionDetail(
-              `Payment Paid: ${worker.name} — ₹${data.amount} (${payment.method})`,
-            );
+            setActionDetail(`${worker.name} — Rs.${data.amount}`);
           }
           break;
         }
@@ -1211,7 +947,6 @@ export default function VoiceAssistant() {
                 r.month === dateObj.getMonth() &&
                 r.day === dateObj.getDate(),
             );
-
             const record: AttendanceRecord = {
               workerId: worker.id,
               year: dateObj.getFullYear(),
@@ -1223,12 +958,9 @@ export default function VoiceAssistant() {
               finalPay: 0,
               timestamp: Date.now(),
             };
-
             await storage.setAttendanceRecord(record);
             setExecutedAction("ADD_ADVANCE");
-            setActionDetail(
-              `Advance Recorded: ${worker.name} — ₹${data.amount}`,
-            );
+            setActionDetail(`Advance: ${worker.name} — Rs.${data.amount}`);
           }
           break;
         }
@@ -1239,70 +971,50 @@ export default function VoiceAssistant() {
               params: { voiceSearchQuery: data.query },
             });
             setExecutedAction("SEARCH_WORKER");
-            setActionDetail(`Searching workers for: "${data.query}"`);
+            setActionDetail(`Searching: "${data.query}"`);
           }
           break;
         }
         case "OPEN_SCREEN": {
           if (navigationRef.isReady()) {
             const target = data.screen;
-            let navTarget = "MainTabs";
             let subScreen = "AttendanceTab";
-
             if (target === "Workers") subScreen = "WorkersTab";
             else if (target === "Attendance") subScreen = "AttendanceTab";
             else if (target === "Summary") subScreen = "SummaryTab";
             else if (target === "Settings") subScreen = "SettingsTab";
-
             if (target === "Dashboard") {
               navigationRef.navigate("AdminDashboard");
             } else if (target === "Profile") {
               navigationRef.navigate("UserProfile");
             } else if (target === "Subscription") {
-              navigationRef.navigate("MainTabs", {
-                screen: "SettingsTab",
-                params: { openUpgrade: true },
-              });
+              navigationRef.navigate("MainTabs", { screen: "SettingsTab", params: { openUpgrade: true } });
             } else if (target === "Reports") {
               navigationRef.navigate("MainTabs", { screen: "SummaryTab" });
             } else {
-              navigationRef.navigate(navTarget, { screen: subScreen });
+              navigationRef.navigate("MainTabs", { screen: subScreen });
             }
-
             setExecutedAction("OPEN_SCREEN");
             setActionDetail(`Navigated to: ${target}`);
           }
           break;
         }
-        case "SHOW_SUMMARY": {
-          if (navigationRef.isReady()) {
-            navigationRef.navigate("MainTabs", { screen: "SummaryTab" });
-            setExecutedAction("SHOW_SUMMARY");
-            setActionDetail("Opened Payment Summary Screen");
-          }
-          break;
-        }
+        case "SHOW_SUMMARY":
         case "SHOW_REPORT": {
           if (navigationRef.isReady()) {
             navigationRef.navigate("MainTabs", { screen: "SummaryTab" });
-            setExecutedAction("SHOW_REPORT");
-            setActionDetail("Opened Reports Screen");
+            setExecutedAction(action);
+            setActionDetail("Opened Summary Screen");
           }
           break;
         }
         case "EXPORT_PDF": {
-          const success = await appContextTracker.triggerCallback(
-            "exportPDF",
-            data.type,
-          );
+          const success = await appContextTracker.triggerCallback("exportPDF", data.type);
           if (success !== null) {
             setExecutedAction("EXPORT_PDF");
-            setActionDetail("Exported PDF summary report successfully");
+            setActionDetail("Exported PDF summary report");
           } else {
-            showToast(
-              "PDF Export is only available on Summary screen",
-              "error",
-            );
+            showToast("PDF Export only available on Summary screen", "error");
           }
           break;
         }
@@ -1317,876 +1029,622 @@ export default function VoiceAssistant() {
         case "SWITCH_THEME": {
           await setThemeMode(isDark ? "light" : "dark");
           setExecutedAction("SWITCH_THEME");
-          setActionDetail("Switched app theme mode");
+          setActionDetail("Switched theme");
           break;
         }
         default:
           break;
       }
 
-      // Notify the active screen that data has changed and needs to be reloaded!
       DeviceEventEmitter.emit("refreshData");
     } catch (err) {
       console.error("Action execution error:", err);
       setExecutedAction("ERROR");
-      setActionDetail("Execution failed. Please check local database state.");
+      setActionDetail("Execution failed.");
     }
   };
 
-  const closeAssistant = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setMode("none");
-    if (voiceTimeoutRef.current) {
-      clearTimeout(voiceTimeoutRef.current);
-      voiceTimeoutRef.current = null;
-    }
-    if (recordingRef.current) {
-      try {
-        recordingRef.current.stopAndUnloadAsync();
-      } catch {}
-      recordingRef.current = null;
-    }
-    setIsRecording(false);
-    setIsProcessing(false);
-    Speech.stop();
-  };
-
+  // ─── AUTO-SCROLL CHAT ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (scrollViewRef.current) {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      setTimeout(() => { scrollViewRef.current?.scrollToEnd({ animated: true }); }, 100);
     }
-  }, [chatHistory, aiResponse]);
+  }, [chatHistory, isProcessing]);
 
+  // ─── CONTEXT BANNER ───────────────────────────────────────────────────────────
+  const ctx = appContextTracker.getContext();
+  const contextBannerText = [
+    ctx.currentScreen && ctx.currentScreen !== "Unknown" ? ctx.currentScreen : null,
+    ctx.selectedWorkerName ? `Worker: ${ctx.selectedWorkerName}` : null,
+  ].filter(Boolean).join(" · ");
+
+  // ─── SIMPLE MARKDOWN RENDERER (bold + bullets) ────────────────────────────────
+  const renderAIText = (text: string) => {
+    const lines = text.split("\n");
+    return lines.map((line, idx) => {
+      const isBullet = line.startsWith("- ") || line.startsWith("• ");
+      const cleaned = isBullet ? line.slice(2) : line;
+      const parts = cleaned.split(/(\*\*[^*]+\*\*)/g);
+      const richParts = parts.map((part, pIdx) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return <ThemedText key={pIdx} style={{ fontWeight: "700" }}>{part.slice(2, -2)}</ThemedText>;
+        }
+        return <ThemedText key={pIdx} style={{ fontSize: 14, lineHeight: 20 }}>{part}</ThemedText>;
+      });
+      return (
+        <View key={idx} style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: isBullet ? 3 : 0 }}>
+          {isBullet && (
+            <ThemedText style={{ color: theme.primary, fontWeight: "700", marginRight: 6, fontSize: 14 }}>•</ThemedText>
+          )}
+          <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap" }}>{richParts}</View>
+        </View>
+      );
+    });
+  };
+
+  // ─── RENDER ───────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* Dynamic Top-level Toast Notification system */}
+      {/* ── TOAST ─────────────────────────────────────────────────────────── */}
       {toast && (
         <Animated.View
-          entering={SlideInDown.duration(300)}
+          entering={SlideInDown.duration(260)}
           exiting={FadeOut.duration(200)}
           style={[
             styles.toastContainer,
             {
               backgroundColor:
-                toast.type === "success"
-                  ? "rgba(16, 185, 129, 0.95)"
-                  : toast.type === "error"
-                    ? "rgba(239, 68, 68, 0.95)"
-                    : "rgba(59, 130, 246, 0.95)",
+                toast.type === "success" ? "rgba(16,185,129,0.95)"
+                  : toast.type === "error" ? "rgba(239,68,68,0.95)"
+                  : "rgba(59,130,246,0.95)",
             },
           ]}
         >
           <Feather
-            name={
-              toast.type === "success"
-                ? "check-circle"
-                : toast.type === "error"
-                  ? "alert-circle"
-                  : "info"
-            }
-            size={18}
-            color="#FFFFFF"
+            name={toast.type === "success" ? "check-circle" : toast.type === "error" ? "alert-circle" : "info"}
+            size={16} color="#FFF"
           />
           <ThemedText style={styles.toastText}>{toast.message}</ThemedText>
         </Animated.View>
       )}
 
-      {/* Floating AI Button & Expandable Fan Menu */}
-      {mode === "none" && (
-        <Animated.View style={[styles.floatingButtonContainer, containerStyle]}>
-          {/* Main Button */}
-          <Pressable
-            onPress={toggleMenu}
-            onPressIn={() => {
-              buttonScale.value = withSpring(0.9, { damping: 10 });
-            }}
-            onPressOut={() => {
-              buttonScale.value = withSpring(1, { damping: 10 });
-            }}
-            style={styles.mainFloatingButtonWrapper}
-          >
-            {/* Pulsing ring when idle */}
-            {!isExpanded && (
-              <Animated.View style={[styles.pulseRing, animatedRing]} />
-            )}
-            <Animated.View
-              style={[styles.floatingButtonContent, animatedButton]}
-            >
-              <LinearGradient
-                colors={["#FF6B35", "#FF8C35"]}
-                style={styles.floatingButton}
-              >
-                <Feather
-                  name={isExpanded ? "x" : "cpu"}
-                  size={26}
-                  color="#FFFFFF"
-                />
-              </LinearGradient>
-            </Animated.View>
-          </Pressable>
-
-          {/* Fan Button 1: 🎙 Voice */}
-          <Animated.View style={[styles.fanButtonWrapper, voiceStyle]}>
-            <Pressable onPress={startVoiceMode}>
-              <LinearGradient
-                colors={["#FF6B35", "#FF8C35"]}
-                style={styles.fanButton}
-              >
-                <Feather name="mic" size={20} color="#FFFFFF" />
-              </LinearGradient>
-            </Pressable>
-            <ThemedText type="small" style={styles.fanLabel}>
-              HAI Voice
-            </ThemedText>
+      {/* ── FLOATING AI BUTTON ────────────────────────────────────────────── */}
+      {(mode === "none" || mode === "launcher") && (
+        <Pressable
+          onPress={mode === "none" ? openLauncher : closeLauncher}
+          onPressIn={() => { buttonScale.value = withSpring(0.88, { mass: 0.5, damping: 15 }); }}
+          onPressOut={() => { buttonScale.value = withSpring(1, { mass: 0.5, damping: 15 }); }}
+          style={styles.fab}
+        >
+          <Animated.View style={[styles.fabGlowRing, animatedRing]} />
+          <Animated.View style={animatedButton}>
+            <LinearGradient colors={["#FF6B35", "#FF8C35"]} style={styles.fabGradient}>
+              <Feather name={mode === "launcher" ? "x" : "cpu"} size={26} color="#FFF" />
+            </LinearGradient>
           </Animated.View>
-
-          {/* Fan Button 2: 💬 Chat */}
-          <Animated.View style={[styles.fanButtonWrapper, chatStyle]}>
-            <Pressable onPress={startChatMode}>
-              <LinearGradient
-                colors={["#3B82F6", "#4F46E5"]}
-                style={styles.fanButton}
-              >
-                <Feather name="message-square" size={20} color="#FFFFFF" />
-              </LinearGradient>
-            </Pressable>
-            <ThemedText type="small" style={styles.fanLabel}>
-              HAI Chat
-            </ThemedText>
-          </Animated.View>
-
-          {/* Fan Button 3: ⚡ Live */}
-          <Animated.View style={[styles.fanButtonWrapper, liveStyle]}>
-            <Pressable onPress={startLiveMode}>
-              <LinearGradient
-                colors={["#F59E0B", "#D97706"]}
-                style={styles.fanButton}
-              >
-                <Feather name="zap" size={20} color="#FFFFFF" />
-              </LinearGradient>
-            </Pressable>
-            <ThemedText type="small" style={styles.fanLabel}>
-              HAI Live
-            </ThemedText>
-          </Animated.View>
-        </Animated.View>
+        </Pressable>
       )}
 
-      {/* Voice Mode Floating Pill Overlay */}
-      {mode === "voice" && (
-        <View style={styles.voiceModeOverlay} pointerEvents="box-none">
-          <BlurView
-            intensity={95}
-            tint={isDark ? "dark" : "light"}
-            style={styles.voiceModePill}
-          >
-            <View style={styles.voiceModeContent}>
-              <Feather
-                name="mic"
-                size={20}
-                color="#FF6B35"
-                style={{ marginRight: Spacing.sm }}
-              />
-              {isRecording ? (
-                <>
-                  <ThemedText style={styles.voiceModeStatus}>
-                    HAI is listening...
-                  </ThemedText>
-                  <View style={styles.miniWaveform}>
-                    <Animated.View
-                      style={[styles.miniWaveBar, animatedWave1]}
-                    />
-                    <Animated.View
-                      style={[styles.miniWaveBar, animatedWave2]}
-                    />
-                    <Animated.View
-                      style={[styles.miniWaveBar, animatedWave3]}
-                    />
-                  </View>
-                  <Pressable
-                    onPress={stopRecording}
-                    style={{
-                      marginRight: Spacing.sm,
-                      padding: 6,
-                      backgroundColor: "rgba(239, 68, 68, 0.1)",
-                      borderRadius: BorderRadius.sm,
-                    }}
-                  >
-                    <Feather name="square" size={14} color="#EF4444" />
-                  </Pressable>
-                </>
-              ) : isProcessing ? (
-                <>
-                  <ActivityIndicator
-                    size="small"
-                    color="#FF6B35"
-                    style={{ marginRight: Spacing.sm }}
-                  />
-                  <ThemedText style={styles.voiceModeStatus}>
-                    HAI is thinking...
-                  </ThemedText>
-                </>
-              ) : (
-                <ThemedText style={styles.voiceModeStatus}>
-                  {transcript || "Speak command"}
-                </ThemedText>
-              )}
-
-              <Pressable
-                onPress={closeAssistant}
-                style={styles.voiceCloseButton}
-              >
-                <Feather name="x" size={18} color={theme.text} />
-              </Pressable>
-            </View>
-          </BlurView>
-        </View>
-      )}
-
-      {/* Live Copilot Floating Panel Overlay (inspired by Gemini Live) */}
-      {mode === "live" && (
+      {/* ── QUICK LAUNCHER ────────────────────────────────────────────────── */}
+      {mode === "launcher" && (
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          <BlurView
-            intensity={isDark ? 50 : 75}
-            tint={isDark ? "dark" : "light"}
+          <Pressable style={styles.launcherBackdrop} onPress={closeLauncher} />
+          <Animated.View
+            entering={SlideInDown.springify().mass(0.7).damping(18).stiffness(180)}
+            exiting={SlideOutDown.duration(220)}
             style={[
-              styles.livePanelOverlay,
+              styles.launcherSheet,
               {
-                backgroundColor: isDark
-                  ? "rgba(10, 10, 15, 0.9)"
-                  : "rgba(255, 255, 255, 0.9)",
-                borderTopColor: isDark
-                  ? "rgba(255, 255, 255, 0.08)"
-                  : "rgba(0, 0, 0, 0.08)",
-                height: 330,
+                backgroundColor: isDark ? "rgba(14,14,22,0.97)" : "rgba(255,255,255,0.98)",
+                borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
               },
             ]}
           >
-            {/* Confirmation Banner */}
-            {pendingConfirmation ? (
-              <Animated.View
-                entering={FadeIn.duration(250)}
-                exiting={FadeOut.duration(200)}
-                style={[
-                  styles.confirmationBox,
+            <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)" }]} />
+
+            {/* Header */}
+            <View style={styles.launcherHeaderRow}>
+              <LinearGradient colors={["#FF6B35", "#FF8C35"]} style={styles.launcherHeaderIcon}>
+                <Feather name="cpu" size={14} color="#FFF" />
+              </LinearGradient>
+              <View>
+                <ThemedText style={styles.launcherTitle}>HAI Assistant</ThemedText>
+                <ThemedText style={[styles.launcherSubtitle, { color: theme.textSecondary }]}>
+                  What do you need?
+                </ThemedText>
+              </View>
+            </View>
+
+            {/* Cards */}
+            {LAUNCHER_CARDS.map((card) => (
+              <Pressable
+                key={card.id}
+                style={({ pressed }) => [
+                  styles.launcherCard,
                   {
-                    backgroundColor: isDark
-                      ? "rgba(255, 255, 255, 0.05)"
-                      : "rgba(0, 0, 0, 0.03)",
-                    borderColor: theme.border,
+                    backgroundColor: pressed ? card.bg : isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.025)",
+                    borderColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
                   },
                 ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  if (card.id === "voice") { setMode("none"); setTimeout(() => startVoiceMode(), 50); }
+                  else if (card.id === "chat") { setMode("none"); setTimeout(() => startChatMode(), 50); }
+                  else if (card.id === "live") { setMode("none"); setTimeout(() => startLiveMode(), 50); }
+                  else if (card.id === "summary") {
+                    setMode("none");
+                    if (navigationRef.isReady()) navigationRef.navigate("MainTabs", { screen: "SummaryTab" });
+                  } else if (card.id === "add_worker") {
+                    setMode("none");
+                    if (navigationRef.isReady()) navigationRef.navigate("AddWorker", undefined);
+                  }
+                }}
               >
-                <Feather
-                  name="alert-triangle"
-                  size={20}
-                  color={theme.primary}
-                  style={{ marginRight: Spacing.sm }}
-                />
-                <View style={{ flex: 1 }}>
-                  <ThemedText style={{ fontWeight: "700", fontSize: 13 }}>
-                    {pendingConfirmation.message}
+                <View style={[styles.launcherCardIcon, { backgroundColor: card.bg }]}>
+                  <Feather name={card.icon} size={20} color={card.color} />
+                </View>
+                <View style={styles.launcherCardText}>
+                  <ThemedText style={styles.launcherCardTitle}>{card.title}</ThemedText>
+                  <ThemedText style={[styles.launcherCardSub, { color: theme.textSecondary }]}>
+                    {card.subtitle}
                   </ThemedText>
                 </View>
-                <View style={styles.confirmButtonsRow}>
+                <Feather name="chevron-right" size={16} color={theme.textSecondary} />
+              </Pressable>
+            ))}
+          </Animated.View>
+        </View>
+      )}
+
+      {/* ── VOICE OVERLAY ─────────────────────────────────────────────────── */}
+      {mode === "voice" && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <Pressable style={styles.darkBackdrop} onPress={closeAssistant} />
+          <Animated.View
+            entering={SlideInDown.springify().mass(0.6).damping(18)}
+            exiting={SlideOutDown.duration(200)}
+            style={[
+              styles.voiceSheet,
+              {
+                backgroundColor: isDark ? "rgba(10,10,18,0.97)" : "rgba(255,255,255,0.98)",
+                borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+              },
+            ]}
+          >
+            <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)" }]} />
+
+            <ThemedText style={[styles.voiceLabel, { color: theme.textSecondary }]}>
+              {isProcessing ? "Processing…" : isRecording ? "Listening" : voiceTranscriptPreview ? "Review & Send" : "Ready"}
+            </ThemedText>
+
+            {/* Waveform / icon */}
+            <View style={styles.voiceWaveRow}>
+              {isRecording ? (
+                <>
+                  <Animated.View style={[styles.voiceBar, { backgroundColor: "#FF6B35" }, animatedWave1]} />
+                  <Animated.View style={[styles.voiceBar, { backgroundColor: "#FF7A35" }, animatedWave2]} />
+                  <Animated.View style={[styles.voiceBar, { backgroundColor: "#FF8C35" }, animatedWave3]} />
+                  <Animated.View style={[styles.voiceBar, { backgroundColor: "#FF7A35" }, animatedWave4]} />
+                  <Animated.View style={[styles.voiceBar, { backgroundColor: "#FF6B35" }, animatedWave5]} />
+                </>
+              ) : isProcessing ? (
+                <ActivityIndicator size="large" color="#FF6B35" />
+              ) : (
+                <Feather name="mic" size={42} color={theme.primary} />
+              )}
+            </View>
+
+            {/* Preview / edit */}
+            {voiceTranscriptPreview ? (
+              <View style={[styles.previewBox, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)", borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)" }]}>
+                <Feather name="mic" size={14} color={theme.primary} style={{ marginRight: 8 }} />
+                <TextInput
+                  style={[styles.previewInput, { color: theme.text }]}
+                  value={voiceTranscriptPreview}
+                  onChangeText={setVoiceTranscriptPreview}
+                  multiline
+                  placeholder="Edit before sending..."
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
+            ) : null}
+
+            {/* Controls */}
+            <View style={styles.voiceControls}>
+              <Pressable
+                style={[styles.voiceCtrlBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]}
+                onPress={closeAssistant}
+              >
+                <Feather name="x" size={22} color={theme.textSecondary} />
+              </Pressable>
+
+              <Pressable
+                style={[styles.voiceRecordBtn, { backgroundColor: isRecording ? "#EF4444" : theme.primary }]}
+                onPress={isRecording ? stopRecording : startRecording}
+              >
+                <Feather name={isRecording ? "square" : "mic"} size={28} color="#FFF" />
+              </Pressable>
+
+              {voiceTranscriptPreview ? (
+                <Pressable
+                  style={[styles.voiceCtrlBtn, { backgroundColor: theme.primary }]}
+                  onPress={async () => {
+                    if (voiceTranscriptPreview.trim()) {
+                      await handleTextCommand(voiceTranscriptPreview);
+                      setVoiceTranscriptPreview("");
+                      closeAssistant();
+                    }
+                  }}
+                >
+                  <Feather name="send" size={22} color="#FFF" />
+                </Pressable>
+              ) : (
+                <View style={styles.voiceCtrlBtnPlaceholder} />
+              )}
+            </View>
+
+            <ThemedText style={[styles.voiceHint, { color: theme.textSecondary }]}>
+              Say "Add worker Rajesh", "mark present", "show summary"…
+            </ThemedText>
+          </Animated.View>
+        </View>
+      )}
+
+      {/* ── LIVE MODE ─────────────────────────────────────────────────────── */}
+      {mode === "live" && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <Animated.View
+            entering={SlideInDown.springify().damping(18)}
+            exiting={SlideOutDown.duration(200)}
+            style={[
+              styles.livePanel,
+              {
+                backgroundColor: isDark ? "rgba(8,8,16,0.96)" : "rgba(255,255,255,0.96)",
+                borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+              },
+            ]}
+          >
+            <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)" }]} />
+
+            <Pressable style={styles.liveCloseBtn} onPress={stopLiveMode}>
+              <Feather name="x" size={18} color={theme.textSecondary} />
+            </Pressable>
+
+            {/* Pending confirmation */}
+            {pendingConfirmation && (
+              <Animated.View
+                entering={FadeIn.duration(220)}
+                exiting={FadeOut.duration(180)}
+                style={[styles.confirmBox, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)", borderColor: theme.border }]}
+              >
+                <Feather name="alert-triangle" size={16} color={theme.primary} style={{ marginRight: 8 }} />
+                <ThemedText style={{ flex: 1, fontSize: 13, fontWeight: "600" }}>
+                  {pendingConfirmation.message}
+                </ThemedText>
+                <View style={{ flexDirection: "row", gap: 8 }}>
                   <Pressable
-                    onPress={() => {
-                      setPendingConfirmation(null);
-                      if (liveActiveRef.current) runLiveLoop();
-                    }}
-                    style={[
-                      styles.confirmBtnCancel,
-                      { borderColor: theme.border },
-                    ]}
+                    style={[styles.confirmBtn, { borderColor: theme.border, borderWidth: 1 }]}
+                    onPress={() => { setPendingConfirmation(null); if (liveActiveRef.current) runLiveLoop(); }}
                   >
-                    <ThemedText style={{ fontSize: 12, fontWeight: "600" }}>
-                      Cancel
-                    </ThemedText>
+                    <ThemedText style={{ fontSize: 12, fontWeight: "600" }}>Cancel</ThemedText>
                   </Pressable>
                   <Pressable
+                    style={[styles.confirmBtn, { backgroundColor: theme.primary }]}
                     onPress={async () => {
                       const { action, data } = pendingConfirmation;
                       setPendingConfirmation(null);
                       await executeActionDirect(action, data);
-                      showToast("Action confirmed and executed", "success");
+                      showToast("Done", "success");
                       if (liveActiveRef.current) runLiveLoop();
                     }}
-                    style={[
-                      styles.confirmBtnExecute,
-                      { backgroundColor: theme.primary },
-                    ]}
                   >
-                    <ThemedText
-                      style={{ fontSize: 12, fontWeight: "700", color: "#FFF" }}
-                    >
-                      Confirm
-                    </ThemedText>
+                    <ThemedText style={{ fontSize: 12, fontWeight: "700", color: "#FFF" }}>Confirm</ThemedText>
                   </Pressable>
                 </View>
               </Animated.View>
-            ) : null}
+            )}
 
-            {/* Top Dialogue & Transcript display */}
-            <View style={styles.dialogueContainer}>
+            {/* Status dot */}
+            <View style={styles.liveStatusRow}>
+              <View style={[styles.liveStatusDot, {
+                backgroundColor: isProcessing ? "#F59E0B" : isSpeaking ? "#3B82F6" : isRecording ? "#10B981" : "#6B7280",
+              }]} />
+              <ThemedText style={[styles.liveStatusText, { color: theme.textSecondary }]}>
+                {isProcessing ? "Processing…" : isSpeaking ? "Speaking…" : isRecording ? "Listening…" : "Tap mic to start"}
+              </ThemedText>
+            </View>
+
+            {/* Waveform — only when recording */}
+            {isRecording && (
+              <View style={styles.liveWaveRow}>
+                <Animated.View style={[styles.liveBar, { backgroundColor: "#FF6B35" }, animatedWave1]} />
+                <Animated.View style={[styles.liveBar, { backgroundColor: "#FF7A35" }, animatedWave2]} />
+                <Animated.View style={[styles.liveBar, { backgroundColor: "#FF8C35" }, animatedWave3]} />
+                <Animated.View style={[styles.liveBar, { backgroundColor: "#FF7A35" }, animatedWave4]} />
+                <Animated.View style={[styles.liveBar, { backgroundColor: "#FF6B35" }, animatedWave5]} />
+              </View>
+            )}
+
+            {/* Transcript */}
+            <View style={styles.liveDialogue}>
               {transcript ? (
-                <ThemedText style={styles.userTranscriptText} numberOfLines={1}>
-                  🎙️ You: &quot;{transcript}&quot;
+                <ThemedText style={[styles.liveTranscriptText, { color: theme.primary }]} numberOfLines={2}>
+                  🎙 {transcript}
                 </ThemedText>
-              ) : (
-                <ThemedText style={styles.liveInstructionsHeading}>
-                  Ask anything to manage workers, attendance, payments, or
-                  settings!
-                </ThemedText>
-              )}
+              ) : null}
               {aiResponse ? (
-                <ThemedText style={styles.aiResponseText} numberOfLines={2}>
+                <ThemedText style={[styles.liveAiText, { color: theme.text }]} numberOfLines={3}>
                   HAI: {aiResponse}
                 </ThemedText>
               ) : null}
             </View>
 
-            {/* Main Simple Listen Button Centerpiece */}
-            <View style={styles.orbCenterpiece}>
-              <Pressable
-                onPress={async () => {
-                  if (isRecording) {
-                    setIsRecording(false);
-                    if (recordingRef.current) {
-                      try {
-                        await recordingRef.current.stopAndUnloadAsync();
-                      } catch {}
-                      recordingRef.current = null;
-                    }
-                  } else {
-                    runLiveLoop();
+            {/* Mic button */}
+            <Pressable
+              style={[styles.liveMicBtn, { backgroundColor: isRecording ? "#EF4444" : theme.primary }]}
+              onPress={async () => {
+                if (isRecording) {
+                  setIsRecording(false);
+                  if (recordingRef.current) {
+                    try { await recordingRef.current.stopAndUnloadAsync(); } catch {}
+                    recordingRef.current = null;
                   }
-                }}
-                style={[
-                  styles.orbMain,
-                  {
-                    backgroundColor: isRecording ? "#EF4444" : theme.primary,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    borderWidth: 2,
-                    borderColor: "#FFFFFF",
-                  },
-                ]}
-              >
-                <Feather
-                  name={isRecording ? "mic" : "mic-off"}
-                  size={26}
-                  color="#FFFFFF"
-                />
-              </Pressable>
-            </View>
-
-            {/* Copilot Status Label */}
-            <View style={{ alignItems: "center", marginVertical: Spacing.xs }}>
-              <ThemedText
-                type="small"
-                style={{
-                  color: theme.textSecondary,
-                  fontWeight: "700",
-                  fontSize: 11,
-                }}
-              >
-                {isRecording ? "Listening..." : "Tap to Listen"}
-              </ThemedText>
-            </View>
-
-            {/* Text Input Fallback for Live Mode */}
-            <View
-              style={[
-                styles.liveInputContainer,
-                {
-                  borderColor: isDark
-                    ? "rgba(255, 255, 255, 0.15)"
-                    : "rgba(0, 0, 0, 0.12)",
-                  backgroundColor: isDark
-                    ? "rgba(255, 255, 255, 0.05)"
-                    : "rgba(0, 0, 0, 0.02)",
-                },
-              ]}
+                } else {
+                  runLiveLoop();
+                }
+              }}
             >
+              <Feather name={isRecording ? "mic-off" : "mic"} size={26} color="#FFF" />
+            </Pressable>
+
+            {/* Text fallback */}
+            <View style={[styles.liveInputRow, { borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)", backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)" }]}>
               <TextInput
                 style={[styles.liveTextInput, { color: theme.text }]}
-                placeholder='Type command ("Add worker Rajesh", "read it", "delete it")...'
+                placeholder='Type: "Add worker Rajesh", "read it"…'
                 placeholderTextColor={theme.textSecondary}
                 value={liveTextCommand}
                 onChangeText={setLiveTextCommand}
                 onSubmitEditing={() => {
-                  if (liveTextCommand.trim()) {
-                    handleTextCommand(liveTextCommand);
-                    setLiveTextCommand("");
-                  }
+                  if (liveTextCommand.trim()) { handleTextCommand(liveTextCommand); setLiveTextCommand(""); }
                 }}
               />
               <Pressable
-                onPress={() => {
-                  if (liveTextCommand.trim()) {
-                    handleTextCommand(liveTextCommand);
-                    setLiveTextCommand("");
-                  }
-                }}
                 style={[styles.liveSendBtn, { backgroundColor: theme.primary }]}
+                onPress={() => {
+                  if (liveTextCommand.trim()) { handleTextCommand(liveTextCommand); setLiveTextCommand(""); }
+                }}
               >
-                <Feather name="send" size={12} color="#FFF" />
-              </Pressable>
-            </View>
-
-            {/* Simple Guides / Instructions list */}
-            <View
-              style={[
-                styles.guideRow,
-                {
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.08)"
-                    : "rgba(0,0,0,0.08)",
-                },
-              ]}
-            >
-              <Feather
-                name="info"
-                size={12}
-                color={theme.textSecondary}
-                style={{ marginRight: 4 }}
-              />
-              <ThemedText style={styles.guideText}>
-                {
-                  'Try: "Amit present", "Open Settings", "Bhugtan 500", "Export PDF Summary"'
-                }
-              </ThemedText>
-            </View>
-
-            {/* Close Copilot Button */}
-            <Pressable onPress={stopLiveMode} style={styles.liveCloseFloatBtn}>
-              <Feather name="mic-off" size={15} color="#FFFFFF" />
-            </Pressable>
-          </BlurView>
-        </View>
-      )}
-
-      {/* Chat Mode bottom sheet */}
-      {mode === "chat" && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          <Pressable style={styles.backdrop} onPress={closeAssistant} />
-
-          <Animated.View
-            entering={SlideInDown.springify().damping(18)}
-            exiting={SlideOutDown.duration(200)}
-            style={[
-              styles.assistantPanel,
-              {
-                backgroundColor: isDark
-                  ? "rgba(15, 23, 42, 0.94)"
-                  : "rgba(255, 255, 255, 0.96)",
-                borderTopColor: isDark
-                  ? "rgba(255, 255, 255, 0.1)"
-                  : "rgba(0, 0, 0, 0.1)",
-              },
-            ]}
-          >
-            {Platform.OS === "ios" && (
-              <BlurView
-                intensity={95}
-                tint={isDark ? "dark" : "light"}
-                style={StyleSheet.absoluteFill}
-              />
-            )}
-
-            <View style={styles.panelHeader}>
-              <View style={styles.panelHeaderTitle}>
-                <LinearGradient
-                  colors={["#FF6B35", "#FF8C35"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.headerIndicator}
-                />
-                <ThemedText type="h3" style={{ fontWeight: "800" }}>
-                  Ask HAI
-                </ThemedText>
-              </View>
-              <Pressable onPress={closeAssistant} style={styles.closeButton}>
-                <Feather name="x" size={20} color={theme.textSecondary} />
-              </Pressable>
-            </View>
-
-            <ScrollView
-              ref={scrollViewRef}
-              style={styles.chatArea}
-              contentContainerStyle={{ paddingBottom: Spacing.md }}
-              showsVerticalScrollIndicator={false}
-            >
-              {chatHistory.map((chat, idx) => (
-                <View
-                  key={idx}
-                  style={[
-                    styles.chatBubble,
-                    chat.role === "user" ? styles.userBubble : styles.aiBubble,
-                    chat.role === "user"
-                      ? { backgroundColor: theme.primary }
-                      : {
-                          backgroundColor: isDark
-                            ? "rgba(255, 255, 255, 0.05)"
-                            : "rgba(0, 0, 0, 0.03)",
-                        },
-                  ]}
-                >
-                  <ThemedText
-                    type="body"
-                    style={{
-                      color: chat.role === "user" ? "#FFFFFF" : theme.text,
-                    }}
-                  >
-                    {chat.text}
-                  </ThemedText>
-                </View>
-              ))}
-
-              {chatHistory.length === 0 && (
-                <View style={styles.aiHomeScreen}>
-                  <View style={styles.aiLogoContainer}>
-                    <LinearGradient
-                      colors={["#FF6B35", "#FF8C35"]}
-                      style={styles.aiLogoBadge}
-                    >
-                      <Feather name="cpu" size={32} color="#FFFFFF" />
-                    </LinearGradient>
-                  </View>
-                  <ThemedText type="h1" style={styles.aiHomeHeader}>
-                    HAI
-                  </ThemedText>
-                  <ThemedText
-                    type="small"
-                    style={[styles.aiHomeSubtitle, { color: theme.primary }]}
-                  >
-                    Haajari Artificial Intelligence
-                  </ThemedText>
-                  <ThemedText
-                    type="body"
-                    style={[
-                      styles.aiHomeDescription,
-                      { color: theme.textSecondary },
-                    ]}
-                  >
-                    {
-                      "Your intelligent workforce assistant for managing workers, attendance, payments, advances, reports, and app navigation."
-                    }
-                  </ThemedText>
-                  <View style={styles.aiGreetingBox}>
-                    <ThemedText
-                      type="body"
-                      style={{ fontWeight: "700", textAlign: "center" }}
-                    >
-                      {
-                        "Hi! I'm HAI, your AI-powered workforce assistant. I can help you manage workers, attendance, payments, advances, reports, and navigate the app using voice, chat, or live assistance."
-                      }
-                    </ThemedText>
-                  </View>
-                </View>
-              )}
-            </ScrollView>
-
-            {executedAction && (
-              <Animated.View
-                entering={FadeIn.duration(300)}
-                exiting={FadeOut.duration(200)}
-                style={[
-                  styles.actionIndicatorBox,
-                  {
-                    backgroundColor:
-                      executedAction === "ERROR"
-                        ? "rgba(239, 68, 68, 0.1)"
-                        : "rgba(16, 185, 129, 0.1)",
-                    borderColor:
-                      executedAction === "ERROR"
-                        ? "rgba(239, 68, 68, 0.2)"
-                        : "rgba(16, 185, 129, 0.2)",
-                  },
-                ]}
-              >
-                <Feather
-                  name={
-                    executedAction === "ERROR" ? "alert-circle" : "check-circle"
-                  }
-                  size={16}
-                  color={executedAction === "ERROR" ? "#EF4444" : "#10B981"}
-                />
-                <View style={{ marginLeft: Spacing.sm, flex: 1 }}>
-                  <ThemedText
-                    type="small"
-                    style={{
-                      fontWeight: "700",
-                      color: executedAction === "ERROR" ? "#EF4444" : "#10B981",
-                    }}
-                  >
-                    {executedAction === "ERROR"
-                      ? "Action Failed"
-                      : "Action Executed"}
-                  </ThemedText>
-                  <ThemedText
-                    type="small"
-                    style={{ color: theme.textSecondary }}
-                  >
-                    {actionDetail}
-                  </ThemedText>
-                </View>
-              </Animated.View>
-            )}
-
-            <View
-              style={[
-                styles.interactionArea,
-                {
-                  borderTopColor: isDark
-                    ? "rgba(255,255,255,0.06)"
-                    : "rgba(0,0,0,0.05)",
-                },
-              ]}
-            >
-              {isRecording ? (
-                <View style={styles.waveformContainer}>
-                  <Animated.View
-                    style={[
-                      styles.waveBar,
-                      { backgroundColor: "#FF6B35" },
-                      animatedWave1,
-                    ]}
-                  />
-                  <Animated.View
-                    style={[
-                      styles.waveBar,
-                      { backgroundColor: "#FF7C35" },
-                      animatedWave2,
-                    ]}
-                  />
-                  <Animated.View
-                    style={[
-                      styles.waveBar,
-                      { backgroundColor: "#FF8C35" },
-                      animatedWave3,
-                    ]}
-                  />
-                  <Animated.View
-                    style={[
-                      styles.waveBar,
-                      { backgroundColor: "#FF9C35" },
-                      animatedWave4,
-                    ]}
-                  />
-                  <Animated.View
-                    style={[
-                      styles.waveBar,
-                      { backgroundColor: "#FFAC35" },
-                      animatedWave5,
-                    ]}
-                  />
-                </View>
-              ) : isProcessing ? (
-                <View style={styles.waveformContainer}>
-                  <ActivityIndicator size="small" color="#FF6B35" />
-                </View>
-              ) : (
-                <View style={styles.waveformContainer}>
-                  <ThemedText
-                    type="small"
-                    style={{ color: theme.textSecondary }}
-                  >
-                    {transcript || "Tap mic to speak"}
-                  </ThemedText>
-                </View>
-              )}
-
-              <Pressable
-                onPress={isRecording ? stopRecording : startRecording}
-                disabled={isProcessing}
-                style={styles.micButtonWrapper}
-              >
-                <LinearGradient
-                  colors={
-                    isRecording
-                      ? ["#EF4444", "#FF5C5C"]
-                      : ["#FF6B35", "#FF8C35"]
-                  }
-                  style={styles.micBtn}
-                >
-                  <Feather
-                    name={isRecording ? "square" : "mic"}
-                    size={22}
-                    color="#FFFFFF"
-                  />
-                </LinearGradient>
+                <Feather name="send" size={14} color="#FFF" />
               </Pressable>
             </View>
           </Animated.View>
+        </View>
+      )}
+
+      {/* ── CHAT PANEL ────────────────────────────────────────────────────── */}
+      {mode === "chat" && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <Pressable style={styles.darkBackdrop} onPress={closeAssistant} />
+
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.chatKAV}
+            keyboardVerticalOffset={0}
+            pointerEvents="box-none"
+          >
+            <Animated.View
+              entering={SlideInDown.springify().mass(0.7).damping(18).stiffness(180)}
+              exiting={SlideOutDown.duration(220)}
+              style={[
+                styles.chatPanel,
+                {
+                  backgroundColor: isDark ? "rgba(10,10,20,0.98)" : "rgba(255,255,255,0.99)",
+                  borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                },
+              ]}
+            >
+              <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)" }]} />
+
+              {/* Header */}
+              <View style={styles.chatHeader}>
+                <View style={styles.chatHeaderLeft}>
+                  <LinearGradient colors={["#FF6B35", "#FF8C35"]} style={styles.chatAvatar}>
+                    <Feather name="cpu" size={14} color="#FFF" />
+                  </LinearGradient>
+                  <View>
+                    <ThemedText style={styles.chatHeaderTitle}>HAI</ThemedText>
+                    <ThemedText style={[styles.chatHeaderSub, { color: theme.textSecondary }]}>
+                      {isSpeaking ? "Speaking…" : isProcessing ? "Thinking…" : "AI Assistant"}
+                    </ThemedText>
+                  </View>
+                </View>
+                <Pressable
+                  style={[styles.chatCloseBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]}
+                  onPress={closeAssistant}
+                >
+                  <Feather name="x" size={18} color={theme.textSecondary} />
+                </Pressable>
+              </View>
+
+              {/* Context banner */}
+              {contextBannerText ? (
+                <View style={[styles.contextBanner, {
+                  backgroundColor: isDark ? "rgba(255,107,53,0.1)" : "rgba(255,107,53,0.08)",
+                  borderColor: isDark ? "rgba(255,107,53,0.2)" : "rgba(255,107,53,0.15)",
+                }]}>
+                  <Feather name="map-pin" size={11} color={theme.primary} style={{ marginRight: 6 }} />
+                  <ThemedText style={[styles.contextBannerText, { color: theme.primary }]}>
+                    {contextBannerText}
+                  </ThemedText>
+                </View>
+              ) : null}
+
+              {/* Messages */}
+              <ScrollView
+                ref={scrollViewRef}
+                style={styles.chatScroll}
+                contentContainerStyle={styles.chatScrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Empty state */}
+                {chatHistory.length === 0 && (
+                  <View style={styles.emptyState}>
+                    <LinearGradient colors={["#FF6B35", "#FF8C35"]} style={styles.emptyAvatar}>
+                      <Feather name="cpu" size={28} color="#FFF" />
+                    </LinearGradient>
+                    <ThemedText style={styles.emptyTitle}>HAI Assistant</ThemedText>
+                    <ThemedText style={[styles.emptySub, { color: theme.textSecondary }]}>
+                      Ask me anything about your site — workers, attendance, payments, reports.
+                    </ThemedText>
+                    {["Who's absent today?", "Add worker Rajesh", "Show this month's summary"].map((s) => (
+                      <Pressable
+                        key={s}
+                        style={[styles.suggestion, { borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)", backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)" }]}
+                        onPress={() => submitChatText(s)}
+                      >
+                        <ThemedText style={{ fontSize: 13 }}>{s}</ThemedText>
+                        <Feather name="arrow-up-right" size={14} color={theme.primary} />
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+
+                {/* Bubbles */}
+                {chatHistory.map((msg, idx) => {
+                  const isUser = msg.role === "user";
+                  return (
+                    <View key={idx} style={[styles.bubbleRow, isUser ? styles.bubbleRowUser : styles.bubbleRowAI]}>
+                      {!isUser && (
+                        <LinearGradient colors={["#FF6B35", "#FF8C35"]} style={styles.bubbleAvatar}>
+                          <Feather name="cpu" size={10} color="#FFF" />
+                        </LinearGradient>
+                      )}
+                      <View style={[styles.bubble, isUser
+                        ? [styles.userBubble, { backgroundColor: theme.primary }]
+                        : [styles.aiBubble, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)", borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]
+                      ]}>
+                        {isUser
+                          ? <ThemedText style={{ fontSize: 14, color: "#FFF", lineHeight: 20 }}>{msg.text}</ThemedText>
+                          : <View>{renderAIText(msg.text)}</View>
+                        }
+                      </View>
+                    </View>
+                  );
+                })}
+
+                {/* Typing indicator */}
+                {isProcessing && (
+                  <Animated.View entering={FadeIn.duration(200)} style={styles.bubbleRow}>
+                    <LinearGradient colors={["#FF6B35", "#FF8C35"]} style={styles.bubbleAvatar}>
+                      <Feather name="cpu" size={10} color="#FFF" />
+                    </LinearGradient>
+                    <View style={[styles.bubble, styles.aiBubble, {
+                      backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+                      borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                      paddingVertical: 14,
+                    }]}>
+                      <View style={styles.typingDots}>
+                        {[0, 1, 2].map((i) => (
+                          <View key={i} style={[styles.typingDot, { backgroundColor: theme.primary }]} />
+                        ))}
+                      </View>
+                    </View>
+                  </Animated.View>
+                )}
+
+                {/* Action chip */}
+                {executedAction && executedAction !== "ERROR" && actionDetail && (
+                  <View style={[styles.actionChip, { backgroundColor: isDark ? "rgba(16,185,129,0.1)" : "rgba(16,185,129,0.08)", borderColor: isDark ? "rgba(16,185,129,0.2)" : "rgba(16,185,129,0.15)" }]}>
+                    <Feather name="check-circle" size={13} color="#10B981" />
+                    <ThemedText style={{ fontSize: 12, color: "#10B981", marginLeft: 6 }}>{actionDetail}</ThemedText>
+                  </View>
+                )}
+              </ScrollView>
+
+              {/* ── INPUT BAR ── */}
+              <View style={[styles.inputBar, {
+                borderTopColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
+                backgroundColor: isDark ? "rgba(10,10,20,0.98)" : "rgba(255,255,255,0.99)",
+              }]}>
+                {/* Attach */}
+                <Pressable
+                  style={[styles.inputIconBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)" }]}
+                  onPress={() => setAttachMenuOpen(!attachMenuOpen)}
+                >
+                  <Feather name={attachMenuOpen ? "x" : "paperclip"} size={18} color={theme.textSecondary} />
+                </Pressable>
+
+                {/* Attach menu */}
+                {attachMenuOpen && (
+                  <Animated.View
+                    entering={FadeIn.duration(180)}
+                    style={[styles.attachMenu, { backgroundColor: isDark ? "rgba(20,20,30,0.97)" : "rgba(255,255,255,0.98)", borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }]}
+                  >
+                    {([
+                      { icon: "camera" as const, label: "Camera" },
+                      { icon: "image" as const, label: "Image" },
+                      { icon: "file" as const, label: "Document" },
+                      { icon: "user" as const, label: "Worker" },
+                      { icon: "map-pin" as const, label: "Site" },
+                    ]).map((item) => (
+                      <Pressable
+                        key={item.label}
+                        style={styles.attachItem}
+                        onPress={() => { setAttachMenuOpen(false); showToast(`${item.label} coming soon`, "info"); }}
+                      >
+                        <View style={[styles.attachItemIcon, { backgroundColor: "rgba(255,107,53,0.1)" }]}>
+                          <Feather name={item.icon} size={16} color="#FF6B35" />
+                        </View>
+                        <ThemedText style={{ fontSize: 11, marginTop: 4 }}>{item.label}</ThemedText>
+                      </Pressable>
+                    ))}
+                  </Animated.View>
+                )}
+
+                {/* Text */}
+                <TextInput
+                  ref={chatInputRef}
+                  style={[styles.chatInput, { color: theme.text, backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" }]}
+                  placeholder="Ask anything about your site…"
+                  placeholderTextColor={theme.textSecondary}
+                  value={chatInput}
+                  onChangeText={setChatInput}
+                  multiline
+                  maxLength={500}
+                  onSubmitEditing={() => { if (chatInput.trim()) submitChatText(chatInput); }}
+                  blurOnSubmit={false}
+                />
+
+                {/* Adaptive mic/send */}
+                {chatInput.trim() ? (
+                  <Pressable style={[styles.inputIconBtn, { backgroundColor: theme.primary }]} onPress={() => submitChatText(chatInput)}>
+                    <Feather name="send" size={18} color="#FFF" />
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    style={[styles.inputIconBtn, { backgroundColor: isRecording ? "#EF4444" : isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]}
+                    onPress={isRecording ? stopRecording : startRecording}
+                  >
+                    <Feather name={isRecording ? "square" : "mic"} size={18} color={isRecording ? "#FFF" : theme.textSecondary} />
+                  </Pressable>
+                )}
+              </View>
+            </Animated.View>
+          </KeyboardAvoidingView>
         </View>
       )}
     </>
   );
 }
 
+// ─── STYLES ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  floatingButtonContainer: {
-    position: "absolute",
-    bottom: 90,
-    right: 20,
-    height: 60,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "flex-start",
-    zIndex: 9999,
-  },
-  mainFloatingButtonWrapper: {
-    zIndex: 10002,
-    width: 60,
-    height: 60,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  pulseRing: {
-    position: "absolute",
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#FF6B35",
-    zIndex: -1,
-  },
-  floatingButtonContent: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-  },
-  floatingButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    ...Shadows.md,
-  },
-  fanButtonWrapper: {
-    position: "absolute",
-    alignItems: "center",
-    zIndex: 10001,
-  },
-  fanButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    ...Shadows.md,
-  },
-  fanLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#888",
-    marginTop: 2,
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    zIndex: 9998,
-  },
-  assistantPanel: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: SCREEN_HEIGHT * 0.42,
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    borderTopWidth: 1,
-    overflow: "hidden",
-    zIndex: 9999,
-    paddingTop: Spacing.md,
-  },
-  panelHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  panelHeaderTitle: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  headerIndicator: {
-    width: 4,
-    height: 16,
-    borderRadius: 2,
-    marginRight: Spacing.xs,
-  },
-  closeButton: {
-    padding: 6,
-  },
-  chatArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.md,
-  },
-  chatBubble: {
-    maxWidth: "85%",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: BorderRadius.md,
-    marginVertical: 4,
-  },
-  userBubble: {
-    alignSelf: "flex-end",
-    borderBottomRightRadius: 2,
-  },
-  aiBubble: {
-    alignSelf: "flex-start",
-    borderBottomLeftRadius: 2,
-  },
-  interactionArea: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: "transparent",
-  },
-  waveformContainer: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 44,
-    paddingRight: Spacing.sm,
-  },
-  waveBar: {
-    width: 4,
-    height: 16,
-    borderRadius: 2,
-    marginHorizontal: 3,
-  },
-  micButtonWrapper: {
-    ...Shadows.sm,
-  },
-  micBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  actionIndicatorBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    marginHorizontal: Spacing.md,
-    marginBottom: Spacing.xs,
-  },
+  // Toast
   toastContainer: {
     position: "absolute",
-    top: 50,
+    top: 52,
     left: 20,
     right: 20,
     paddingVertical: 12,
@@ -2194,278 +1652,540 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     flexDirection: "row",
     alignItems: "center",
-    zIndex: 10005,
+    zIndex: 10010,
     ...Shadows.lg,
   },
   toastText: {
-    color: "#FFFFFF",
-    marginLeft: Spacing.sm,
+    color: "#FFF",
+    marginLeft: 10,
     fontSize: 14,
     fontWeight: "600",
     flex: 1,
   },
-  voiceModeOverlay: {
+
+  // FAB
+  fab: {
     position: "absolute",
-    bottom: 160,
-    left: 20,
+    bottom: 90,
     right: 20,
+    width: 60,
+    height: 60,
     zIndex: 9999,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  voiceModePill: {
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    overflow: "hidden",
+  fabGlowRing: {
+    position: "absolute",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#FF6B35",
+    zIndex: -1,
+  },
+  fabGradient: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
     ...Shadows.lg,
   },
-  voiceModeContent: {
+
+  // Shared handle
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+
+  // Shared backdrops
+  launcherBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.48)",
+    zIndex: 9997,
+  },
+  darkBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    zIndex: 9997,
+  },
+
+  // Launcher sheet
+  launcherSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: BorderRadius["2xl"],
+    borderTopRightRadius: BorderRadius["2xl"],
+    borderTopWidth: 1,
+    paddingTop: 12,
+    paddingBottom: 40,
+    paddingHorizontal: Spacing.lg,
+    zIndex: 9998,
+    ...Shadows.lg,
+  },
+  launcherHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.md,
-    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+    gap: 10,
   },
-  voiceModeStatus: {
-    fontSize: 15,
+  launcherHeaderIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  launcherTitle: {
+    fontSize: 18,
     fontWeight: "700",
-    flex: 1,
   },
-  miniWaveform: {
+  launcherSubtitle: {
+    fontSize: 12,
+  },
+  launcherCard: {
     flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 13,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: 7,
+    minHeight: 62,
+  },
+  launcherCardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.md,
   },
-  miniWaveBar: {
-    width: 3,
-    height: 12,
-    borderRadius: 1.5,
-    marginHorizontal: 1.5,
-  },
-  voiceCloseButton: {
-    padding: 4,
-  },
-  liveModeOverlay: {
+  launcherCardText: { flex: 1 },
+  launcherCardTitle: { fontSize: 15, fontWeight: "700", marginBottom: 2 },
+  launcherCardSub: { fontSize: 12 },
+
+  // Voice sheet
+  voiceSheet: {
     position: "absolute",
-    top: 60,
-    alignSelf: "center",
-    zIndex: 9999,
-  },
-  liveModePill: {
-    borderRadius: 25,
-    borderWidth: 1,
-    overflow: "hidden",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: BorderRadius["2xl"],
+    borderTopRightRadius: BorderRadius["2xl"],
+    borderTopWidth: 1,
+    paddingTop: 12,
+    paddingBottom: 44,
+    paddingHorizontal: Spacing.xl,
+    zIndex: 9998,
+    alignItems: "center",
     ...Shadows.lg,
   },
-  liveModeContent: {
+  voiceLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 24,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  voiceWaveRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    justifyContent: "center",
+    height: 64,
+    gap: 6,
+    marginBottom: 24,
   },
-  liveDot: {
+  voiceBar: {
+    width: 6,
+    height: 28,
+    borderRadius: 3,
+  },
+  previewBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    width: "100%",
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    padding: Spacing.md,
+    marginBottom: 20,
+  },
+  previewInput: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 22,
+    maxHeight: 80,
+  },
+  voiceControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 24,
+    marginBottom: 18,
+  },
+  voiceCtrlBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  voiceCtrlBtnPlaceholder: {
+    width: 52,
+    height: 52,
+  },
+  voiceRecordBtn: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    justifyContent: "center",
+    alignItems: "center",
+    ...Shadows.lg,
+  },
+  voiceHint: {
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 18,
+    paddingHorizontal: 20,
+  },
+
+  // Live panel
+  livePanel: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: BorderRadius["2xl"],
+    borderTopRightRadius: BorderRadius["2xl"],
+    borderTopWidth: 1,
+    paddingTop: 12,
+    paddingBottom: 40,
+    paddingHorizontal: Spacing.lg,
+    alignItems: "center",
+    zIndex: 9998,
+    ...Shadows.lg,
+  },
+  liveCloseBtn: {
+    position: "absolute",
+    top: 20,
+    right: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  confirmBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: Spacing.md,
+    ...Shadows.sm,
+  },
+  confirmBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: BorderRadius.sm,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  liveStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  liveStatusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#F59E0B",
     marginRight: 8,
   },
-  liveModeText: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginRight: 12,
+  liveStatusText: {
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 0.3,
   },
-  liveStopBtn: {
-    backgroundColor: "#EF4444",
-    padding: 6,
-    borderRadius: 12,
-  },
-  aiHomeScreen: {
+  liveWaveRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing.xl,
-    marginTop: Spacing.xl,
+    height: 44,
+    gap: 5,
+    marginBottom: 8,
   },
-  aiLogoContainer: {
+  liveBar: {
+    width: 5,
+    height: 20,
+    borderRadius: 2.5,
+  },
+  liveDialogue: {
+    width: "100%",
+    minHeight: 52,
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
     marginBottom: Spacing.md,
   },
-  aiLogoBadge: {
+  liveTranscriptText: {
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  liveAiText: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 20,
+    opacity: 0.85,
+  },
+  liveMicBtn: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+    ...Shadows.lg,
+  },
+  liveInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+  },
+  liveTextInput: {
+    flex: 1,
+    fontSize: 13,
+    paddingHorizontal: Spacing.xs,
+  },
+  liveSendBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  // Chat
+  chatKAV: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 9998,
+    justifyContent: "flex-end",
+  },
+  chatPanel: {
+    height: SCREEN_HEIGHT * 0.86,
+    borderTopLeftRadius: BorderRadius["2xl"],
+    borderTopRightRadius: BorderRadius["2xl"],
+    borderTopWidth: 1,
+    overflow: "hidden",
+    ...Shadows.lg,
+  },
+  chatHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(128,128,128,0.15)",
+  },
+  chatHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  chatAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  chatHeaderTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  chatHeaderSub: {
+    fontSize: 11,
+  },
+  chatCloseBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  contextBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.xs,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+  },
+  contextBannerText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  chatScroll: {
+    flex: 1,
+  },
+  chatScrollContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    paddingBottom: 8,
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: Spacing["2xl"],
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyAvatar: {
     width: 64,
     height: 64,
     borderRadius: 32,
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: Spacing.md,
     ...Shadows.md,
   },
-  aiHomeHeader: {
-    fontSize: 28,
-    fontWeight: "900",
-    marginBottom: 4,
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 8,
   },
-  aiHomeSubtitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 1.5,
-    marginBottom: Spacing.md,
-  },
-  aiHomeDescription: {
+  emptySub: {
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
     marginBottom: Spacing.xl,
-    paddingHorizontal: Spacing.md,
   },
-  aiGreetingBox: {
-    width: "100%",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    backgroundColor: "rgba(255, 107, 53, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 107, 53, 0.15)",
-  },
-  livePanelOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 330,
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    borderTopWidth: 1,
-    padding: Spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "visible",
-  },
-  dialogueContainer: {
-    width: "100%",
-    minHeight: 65,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  userTranscriptText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#FF6B35",
-    textAlign: "center",
-    marginBottom: 4,
-  },
-  liveInstructionsHeading: {
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-    opacity: 0.65,
-  },
-  aiResponseText: {
-    fontSize: 14,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  guideRow: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderTopWidth: 1,
-    paddingTop: Spacing.sm,
-    marginTop: Spacing.sm,
-  },
-  guideText: {
-    fontSize: 10,
-    fontWeight: "600",
-    opacity: 0.7,
-  },
-  confirmationBox: {
-    position: "absolute",
-    top: -85,
-    left: Spacing.md,
-    right: Spacing.md,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.sm,
-    borderWidth: 1,
+  suggestion: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    ...Shadows.md,
+    width: "100%",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: 8,
   },
-  confirmButtonsRow: {
+  bubbleRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    marginBottom: 8,
+  },
+  bubbleRowUser: {
+    justifyContent: "flex-end",
+  },
+  bubbleRowAI: {
+    justifyContent: "flex-start",
+  },
+  bubbleAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 6,
+    marginBottom: 2,
+  },
+  bubble: {
+    maxWidth: "80%",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+  },
+  userBubble: {
+    borderBottomRightRadius: 4,
+  },
+  aiBubble: {
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
+  },
+  typingDots: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 5,
   },
-  confirmBtnCancel: {
+  typingDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    opacity: 0.7,
+  },
+  actionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "center",
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.full,
     borderWidth: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: Spacing.xs,
+    marginTop: 4,
+    marginBottom: 8,
   },
-  confirmBtnExecute: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: BorderRadius.sm,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  orbCenterpiece: {
-    width: 90,
-    height: 90,
-    justifyContent: "center",
-    alignItems: "center",
+  inputBar: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingBottom: Platform.OS === "ios" ? 28 : Spacing.md,
+    borderTopWidth: 1,
+    gap: 8,
     position: "relative",
   },
-  orbGlowingAura: {
-    position: "absolute",
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-  },
-  orbMain: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    overflow: "hidden",
-    ...Shadows.md,
-  },
-  orbGradient: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  liveCloseFloatBtn: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(239, 68, 68, 0.75)",
-    justifyContent: "center",
-    alignItems: "center",
-    ...Shadows.sm,
-  },
-  liveInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "90%",
+  inputIconBtn: {
+    width: 40,
     height: 40,
     borderRadius: 20,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.sm,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.sm,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  liveTextInput: {
+  chatInput: {
     flex: 1,
-    height: "100%",
-    fontSize: 13,
-    paddingHorizontal: Spacing.xs,
+    minHeight: 40,
+    maxHeight: 100,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === "ios" ? 10 : 8,
+    fontSize: 15,
+    lineHeight: 20,
   },
-  liveSendBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  attachMenu: {
+    position: "absolute",
+    bottom: 68,
+    left: 16,
+    flexDirection: "row",
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    padding: Spacing.md,
+    gap: Spacing.md,
+    zIndex: 1,
+    ...Shadows.lg,
+  },
+  attachItem: {
+    alignItems: "center",
+    minWidth: 44,
+  },
+  attachItemIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
   },
