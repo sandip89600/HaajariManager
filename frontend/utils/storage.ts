@@ -214,6 +214,7 @@ export type ThemeMode = "light" | "dark" | "system";
 export const STORAGE_KEYS_EXT = {
   PAYMENTS: "@haajari/payments",
   NOTIFICATION_SETTINGS: "@haajari/notification_settings",
+  VOICE_SETTINGS: "@haajari/voice_settings",
 };
 
 export interface NotificationSettings {
@@ -222,6 +223,22 @@ export interface NotificationSettings {
   reminderMinute: number;
   salaryReminderEnabled: boolean;
 }
+
+export interface VoiceSettings {
+  enabled: boolean;
+  speed: number;
+  pitch: number;
+  volume: number;
+  languageAuto: boolean;
+}
+
+export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
+  enabled: true,
+  speed: 1.0,
+  pitch: 1.0,
+  volume: 1.0,
+  languageAuto: true,
+};
 
 export const storage = {
   // Auth methods
@@ -880,6 +897,22 @@ export const storage = {
   async setNotificationSettings(settings: NotificationSettings): Promise<void> {
     await AsyncStorage.setItem(
       STORAGE_KEYS_EXT.NOTIFICATION_SETTINGS,
+      JSON.stringify(settings),
+    );
+  },
+
+  async getVoiceSettings(): Promise<VoiceSettings> {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS_EXT.VOICE_SETTINGS);
+      return data ? { ...DEFAULT_VOICE_SETTINGS, ...JSON.parse(data) } : DEFAULT_VOICE_SETTINGS;
+    } catch {
+      return DEFAULT_VOICE_SETTINGS;
+    }
+  },
+
+  async setVoiceSettings(settings: VoiceSettings): Promise<void> {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS_EXT.VOICE_SETTINGS,
       JSON.stringify(settings),
     );
   },

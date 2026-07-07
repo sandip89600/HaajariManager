@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  DeviceEventEmitter,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -50,6 +51,8 @@ import {
   API_URL,
   STORAGE_KEYS,
   STORAGE_KEYS_EXT,
+  VoiceSettings,
+  DEFAULT_VOICE_SETTINGS,
 } from "@/utils/storage";
 import {
   scheduleAttendanceReminder,
@@ -190,6 +193,11 @@ export default function SettingsScreen() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Voice Settings States
+  const [voiceSettings, setVoiceSettingsState] = useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS);
+  const [showSpeedModal, setShowSpeedModal] = useState(false);
+  const [showPitchModal, setShowPitchModal] = useState(false);
+
   useEffect(() => {
     if (route.params?.openUpgrade) {
       setShowUpgradeModal(true);
@@ -236,6 +244,7 @@ export default function SettingsScreen() {
     useCallback(() => {
       loadProfileAndState();
       loadNotifSettings();
+      loadVoiceSettings();
       loadMetrics();
       appContextTracker.setContext({
         currentScreen: "Settings",
@@ -373,6 +382,34 @@ export default function SettingsScreen() {
   const loadNotifSettings = async () => {
     const saved = await storage.getNotificationSettings();
     if (saved) setNotifSettings(saved);
+  };
+
+  const loadVoiceSettings = async () => {
+    const saved = await storage.getVoiceSettings();
+    setVoiceSettingsState(saved);
+  };
+
+  const handleVoiceToggle = async (val: boolean) => {
+    const updated = { ...voiceSettings, enabled: val };
+    setVoiceSettingsState(updated);
+    await storage.setVoiceSettings(updated);
+    DeviceEventEmitter.emit("voiceSettingsChanged", updated);
+  };
+
+  const handleVoiceSpeedSelect = async (speed: number) => {
+    const updated = { ...voiceSettings, speed };
+    setVoiceSettingsState(updated);
+    await storage.setVoiceSettings(updated);
+    DeviceEventEmitter.emit("voiceSettingsChanged", updated);
+    setShowSpeedModal(false);
+  };
+
+  const handleVoicePitchSelect = async (pitch: number) => {
+    const updated = { ...voiceSettings, pitch };
+    setVoiceSettingsState(updated);
+    await storage.setVoiceSettings(updated);
+    DeviceEventEmitter.emit("voiceSettingsChanged", updated);
+    setShowPitchModal(false);
   };
 
   const loadMetrics = async () => {
@@ -1287,6 +1324,62 @@ export default function SettingsScreen() {
           />
         </SettingCard>
 
+        {/* ─── VOICE SETTINGS SECTION ─── */}
+        <ThemedText type="small" style={styles.sectionLabel}>
+          {t.voiceSettings?.title || "Voice Response"}
+        </ThemedText>
+        <SettingCard theme={theme} isDark={isDark}>
+          <SettingRow
+            icon="volume-2"
+            iconColor="#E91E63"
+            label={t.voiceSettings?.enable || "Enable Voice Response"}
+            sublabel={t.voiceSettings?.enableDesc || "Ask HAI speaks after completing actions"}
+            right={
+              <Switch
+                value={voiceSettings.enabled}
+                onValueChange={handleVoiceToggle}
+                trackColor={{ false: theme.border, true: "#4CAF50" }}
+                thumbColor="#FFFFFF"
+              />
+            }
+            isLast={!voiceSettings.enabled}
+            theme={theme}
+          />
+          {voiceSettings.enabled && (
+            <>
+              <SettingRow
+                icon="activity"
+                iconColor="#3F51B5"
+                label={t.voiceSettings?.speed || "Speech Speed"}
+                value={
+                  voiceSettings.speed <= 0.8
+                    ? t.voiceSettings?.speedSlow || "Slow"
+                    : voiceSettings.speed >= 1.2
+                    ? t.voiceSettings?.speedFast || "Fast"
+                    : t.voiceSettings?.speedNormal || "Normal"
+                }
+                onPress={() => setShowSpeedModal(true)}
+                theme={theme}
+              />
+              <SettingRow
+                icon="music"
+                iconColor="#9C27B0"
+                label={t.voiceSettings?.pitch || "Voice Pitch"}
+                value={
+                  voiceSettings.pitch <= 0.8
+                    ? t.voiceSettings?.pitchLow || "Low"
+                    : voiceSettings.pitch >= 1.2
+                    ? t.voiceSettings?.pitchHigh || "High"
+                    : t.voiceSettings?.pitchNormal || "Normal"
+                }
+                onPress={() => setShowPitchModal(true)}
+                isLast
+                theme={theme}
+              />
+            </>
+          )}
+        </SettingCard>
+
         {/* ─── 7. LANGUAGE SECTION ─── */}
         <ThemedText type="small" style={styles.sectionLabel}>
           {t.settings.language}
@@ -1697,6 +1790,222 @@ export default function SettingsScreen() {
               <ThemedText style={{ fontWeight: "700" }}>Close</ThemedText>
             </Pressable>
           </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ─── VOICE SPEED MODAL ─── */}
+      <Modal
+        visible={showSpeedModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSpeedModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowSpeedModal(false)}
+        >
+          <View
+            style={[
+              styles.bottomSheet,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
+            <ThemedText type="h3" style={styles.sheetTitle}>
+              {t.voiceSettings?.speed || "Speech Speed"}
+            </ThemedText>
+            <Pressable
+              onPress={() => handleVoiceSpeedSelect(0.75)}
+              style={[
+                styles.sheetOption,
+                voiceSettings.speed === 0.75 && {
+                  backgroundColor: "rgba(255, 107, 53, 0.08)",
+                },
+              ]}
+            >
+              <Feather
+                name={voiceSettings.speed === 0.75 ? "check-circle" : "activity"}
+                size={20}
+                color={voiceSettings.speed === 0.75 ? theme.primary : theme.text}
+              />
+              <ThemedText
+                style={[
+                  styles.sheetOptionText,
+                  voiceSettings.speed === 0.75 && {
+                    color: theme.primary,
+                    fontWeight: "700",
+                  },
+                ]}
+              >
+                {t.voiceSettings?.speedSlow || "Slow"} (0.75x)
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => handleVoiceSpeedSelect(1.0)}
+              style={[
+                styles.sheetOption,
+                voiceSettings.speed === 1.0 && {
+                  backgroundColor: "rgba(255, 107, 53, 0.08)",
+                },
+              ]}
+            >
+              <Feather
+                name={voiceSettings.speed === 1.0 ? "check-circle" : "activity"}
+                size={20}
+                color={voiceSettings.speed === 1.0 ? theme.primary : theme.text}
+              />
+              <ThemedText
+                style={[
+                  styles.sheetOptionText,
+                  voiceSettings.speed === 1.0 && {
+                    color: theme.primary,
+                    fontWeight: "700",
+                  },
+                ]}
+              >
+                {t.voiceSettings?.speedNormal || "Normal"} (1.0x)
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => handleVoiceSpeedSelect(1.25)}
+              style={[
+                styles.sheetOption,
+                voiceSettings.speed === 1.25 && {
+                  backgroundColor: "rgba(255, 107, 53, 0.08)",
+                },
+              ]}
+            >
+              <Feather
+                name={voiceSettings.speed === 1.25 ? "check-circle" : "activity"}
+                size={20}
+                color={voiceSettings.speed === 1.25 ? theme.primary : theme.text}
+              />
+              <ThemedText
+                style={[
+                  styles.sheetOptionText,
+                  voiceSettings.speed === 1.25 && {
+                    color: theme.primary,
+                    fontWeight: "700",
+                  },
+                ]}
+              >
+                {t.voiceSettings?.speedFast || "Fast"} (1.25x)
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowSpeedModal(false)}
+              style={[styles.sheetCloseBtn, { backgroundColor: theme.border }]}
+            >
+              <ThemedText style={{ fontWeight: "700" }}>Close</ThemedText>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* ─── VOICE PITCH MODAL ─── */}
+      <Modal
+        visible={showPitchModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPitchModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowPitchModal(false)}
+        >
+          <View
+            style={[
+              styles.bottomSheet,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
+            <ThemedText type="h3" style={styles.sheetTitle}>
+              {t.voiceSettings?.pitch || "Voice Pitch"}
+            </ThemedText>
+            <Pressable
+              onPress={() => handleVoicePitchSelect(0.8)}
+              style={[
+                styles.sheetOption,
+                voiceSettings.pitch === 0.8 && {
+                  backgroundColor: "rgba(255, 107, 53, 0.08)",
+                },
+              ]}
+            >
+              <Feather
+                name={voiceSettings.pitch === 0.8 ? "check-circle" : "music"}
+                size={20}
+                color={voiceSettings.pitch === 0.8 ? theme.primary : theme.text}
+              />
+              <ThemedText
+                style={[
+                  styles.sheetOptionText,
+                  voiceSettings.pitch === 0.8 && {
+                    color: theme.primary,
+                    fontWeight: "700",
+                  },
+                ]}
+              >
+                {t.voiceSettings?.pitchLow || "Low"}
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => handleVoicePitchSelect(1.0)}
+              style={[
+                styles.sheetOption,
+                voiceSettings.pitch === 1.0 && {
+                  backgroundColor: "rgba(255, 107, 53, 0.08)",
+                },
+              ]}
+            >
+              <Feather
+                name={voiceSettings.pitch === 1.0 ? "check-circle" : "music"}
+                size={20}
+                color={voiceSettings.pitch === 1.0 ? theme.primary : theme.text}
+              />
+              <ThemedText
+                style={[
+                  styles.sheetOptionText,
+                  voiceSettings.pitch === 1.0 && {
+                    color: theme.primary,
+                    fontWeight: "700",
+                  },
+                ]}
+              >
+                {t.voiceSettings?.pitchNormal || "Normal"}
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => handleVoicePitchSelect(1.2)}
+              style={[
+                styles.sheetOption,
+                voiceSettings.pitch === 1.2 && {
+                  backgroundColor: "rgba(255, 107, 53, 0.08)",
+                },
+              ]}
+            >
+              <Feather
+                name={voiceSettings.pitch === 1.2 ? "check-circle" : "music"}
+                size={20}
+                color={voiceSettings.pitch === 1.2 ? theme.primary : theme.text}
+              />
+              <ThemedText
+                style={[
+                  styles.sheetOptionText,
+                  voiceSettings.pitch === 1.2 && {
+                    color: theme.primary,
+                    fontWeight: "700",
+                  },
+                ]}
+              >
+                {t.voiceSettings?.pitchHigh || "High"}
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowPitchModal(false)}
+              style={[styles.sheetCloseBtn, { backgroundColor: theme.border }]}
+            >
+              <ThemedText style={{ fontWeight: "700" }}>Close</ThemedText>
+            </Pressable>
+          </View>
         </Pressable>
       </Modal>
 

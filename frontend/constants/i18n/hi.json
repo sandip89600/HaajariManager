@@ -512,5 +512,37 @@
     "emailButton": "Send Support Email",
     "whatsappAlert": "WhatsApp is not installed on this device.",
     "emailAlert": "Could not open email client."
+  },
+  "voiceSettings": {
+    "title": "आवाज़ प्रतिक्रिया",
+    "enable": "आवाज़ प्रतिक्रिया सक्षम करें",
+    "enableDesc": "Ask HAI कार्य पूरा होने पर बोलता है",
+    "speed": "बोलने की गति",
+    "speedSlow": "धीमा",
+    "speedNormal": "सामान्य",
+    "speedFast": "तेज़",
+    "pitch": "आवाज़ की पिच",
+    "pitchLow": "नीची",
+    "pitchNormal": "सामान्य",
+    "pitchHigh": "ऊँची"
+  },
+  "voiceConfirm": {
+    "workerAdded": "कर्मचारी जोड़ा गया।",
+    "workerDeleted": "कर्मचारी हटाया गया।",
+    "workerUpdated": "कर्मचारी अपडेट किया गया।",
+    "attendanceMarked": "उपस्थिती दर्ज की गई।",
+    "paymentSaved": "भुगतान सहेजा गया।",
+    "advanceRecorded": "अग्रिम दर्ज किया गया।",
+    "summaryOpened": "सारांश खोला गया।",
+    "settingsOpened": "सेटिंग्स खोली गई।",
+    "screenOpened": "स्क्रीन खोली गई।",
+    "themeChanged": "थीम बदला गया।",
+    "goBack": "पीछे जा रहे हैं।",
+    "searchResult": "कर्मचारी खोज रहे हैं।",
+    "exportStarted": "निर्यात शुरू हुआ।",
+    "errorNotFound": "कर्मचारी नहीं मिला।",
+    "errorRetry": "कृपया पुनः प्रयास करें।",
+    "errorNotUnderstood": "मैं समझ नहीं पाया।",
+    "errorOffline": "इंटरनेट कनेक्शन नहीं है।"
   }
 }

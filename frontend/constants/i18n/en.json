@@ -512,5 +512,37 @@
     "emailButton": "Send Support Email",
     "whatsappAlert": "WhatsApp is not installed on this device.",
     "emailAlert": "Could not open email client."
+  },
+  "voiceSettings": {
+    "title": "Voice Response",
+    "enable": "Enable Voice Response",
+    "enableDesc": "Ask HAI speaks after completing actions",
+    "speed": "Speech Speed",
+    "speedSlow": "Slow",
+    "speedNormal": "Normal",
+    "speedFast": "Fast",
+    "pitch": "Voice Pitch",
+    "pitchLow": "Low",
+    "pitchNormal": "Normal",
+    "pitchHigh": "High"
+  },
+  "voiceConfirm": {
+    "workerAdded": "Worker added.",
+    "workerDeleted": "Worker deleted.",
+    "workerUpdated": "Worker updated.",
+    "attendanceMarked": "Attendance marked.",
+    "paymentSaved": "Payment saved.",
+    "advanceRecorded": "Advance recorded.",
+    "summaryOpened": "Summary opened.",
+    "settingsOpened": "Settings opened.",
+    "screenOpened": "Screen opened.",
+    "themeChanged": "Theme updated.",
+    "goBack": "Going back.",
+    "searchResult": "Searching workers.",
+    "exportStarted": "Export started.",
+    "errorNotFound": "Worker not found.",
+    "errorRetry": "Please try again.",
+    "errorNotUnderstood": "I didn't understand that.",
+    "errorOffline": "No internet connection."
   }
 }

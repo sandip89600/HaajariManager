@@ -43,6 +43,8 @@ import {
   AttendanceRecord,
   PaymentRecord,
   authenticatedFetch,
+  VoiceSettings,
+  DEFAULT_VOICE_SETTINGS,
 } from "@/utils/storage";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { navigationRef } from "@/navigation/navigationRef";
@@ -232,9 +234,25 @@ const LAUNCHER_CARDS = [
 // ─── MAIN COMPONENT ────────────────────────────────────────────────────────────
 export default function VoiceAssistant() {
   const { theme, isDark, setThemeMode } = useTheme();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const isRecordingActiveRef = useRef(false);
+
+  // Language → BCP-47 locale map for Speech engine
+  const LANG_TO_LOCALE: Record<string, string> = {
+    en: "en-IN",
+    hi: "hi-IN",
+    mr: "mr-IN",
+    gu: "gu-IN",
+    ta: "ta-IN",
+    te: "te-IN",
+    kn: "kn-IN",
+    bn: "bn-IN",
+  };
+
+  // Voice settings (loaded from storage on mount)
+  const [voiceSettings, setVoiceSettingsState] = useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS);
+  const voiceSettingsRef = useRef<VoiceSettings>(DEFAULT_VOICE_SETTINGS);
 
   // Mode
   const [mode, setMode] = useState<CopilotMode>("none");
@@ -287,6 +305,23 @@ export default function VoiceAssistant() {
   const buttonScale = useSharedValue(1);
   const pulseRingScale = useSharedValue(1);
   const pulseRingOpacity = useSharedValue(0);
+
+  // ─── LOAD VOICE SETTINGS ────────────────────────────────────────────────────
+  useEffect(() => {
+    storage.getVoiceSettings().then((vs) => {
+      setVoiceSettingsState(vs);
+      voiceSettingsRef.current = vs;
+    });
+  }, []);
+
+  // Listen for voice settings changes (from SettingsScreen)
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("voiceSettingsChanged", (vs: VoiceSettings) => {
+      setVoiceSettingsState(vs);
+      voiceSettingsRef.current = vs;
+    });
+    return () => sub.remove();
+  }, []);
 
   // ─── PROACTIVE HINT ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -357,7 +392,44 @@ export default function VoiceAssistant() {
 
   // ─── TTS ─────────────────────────────────────────────────────────────────────
   const speakResponse = (text: string, onDone?: () => void) => {
-    if (onDone) onDone();
+    const vs = voiceSettingsRef.current;
+
+    // If voice response is disabled, just call onDone immediately
+    if (!vs.enabled) {
+      if (onDone) onDone();
+      return;
+    }
+
+    // Stop any in-progress speech
+    Speech.stop();
+
+    // Determine the locale based on current app language
+    const locale = LANG_TO_LOCALE[language] || "en-IN";
+
+    // Truncate long text (keep spoken confirmations short — under 3 seconds)
+    const maxLen = 120;
+    const spokenText = text.length > maxLen ? text.substring(0, maxLen) + "..." : text;
+
+    setIsSpeaking(true);
+
+    Speech.speak(spokenText, {
+      language: locale,
+      rate: vs.speed,
+      pitch: vs.pitch,
+      volume: vs.volume,
+      onStart: () => setIsSpeaking(true),
+      onDone: () => {
+        setIsSpeaking(false);
+        if (onDone) onDone();
+      },
+      onStopped: () => {
+        setIsSpeaking(false);
+      },
+      onError: () => {
+        setIsSpeaking(false);
+        if (onDone) onDone();
+      },
+    });
   };
 
   // ─── FUZZY WORKER MATCH ───────────────────────────────────────────────────────
@@ -528,13 +600,12 @@ export default function VoiceAssistant() {
           const localParsed = parseLocalCommand(transcriptText);
           if (localParsed) {
             setAiResponse(localParsed.response);
-            speakResponse(localParsed.response);
             await executeAction(localParsed.action, localParsed.data);
             showToast(`Done: ${localParsed.action}`, "success");
             return;
           }
           if (result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE") {
-            if (result.response) { setAiResponse(result.response); speakResponse(result.response); }
+            if (result.response) { setAiResponse(result.response); }
             await executeAction(result.action, result.data);
             showToast(`Done: ${result.action}`, "success");
           }
@@ -553,7 +624,6 @@ export default function VoiceAssistant() {
     const localParsed = parseLocalCommand(text);
     if (localParsed) {
       setAiResponse(localParsed.response);
-      speakResponse(localParsed.response);
       await executeAction(localParsed.action, localParsed.data);
       showToast(`Done: ${localParsed.action}`, "success");
     } else {
@@ -643,7 +713,6 @@ export default function VoiceAssistant() {
         const localParsed = parseLocalCommand(result.transcript);
         if (localParsed) {
           setAiResponse(localParsed.response);
-          speakResponse(localParsed.response);
           await executeAction(localParsed.action, localParsed.data);
           showToast(`Done: ${localParsed.action}`, "success");
           if (mode === "chat") {
@@ -666,7 +735,10 @@ export default function VoiceAssistant() {
             setAiResponse(result.response);
             newHistory.push({ role: "model", text: result.response, timestamp: Date.now() });
             setChatHistory(newHistory);
-            speakResponse(result.response);
+            const hasAction = result.action && result.action !== "INCOMPLETE" && result.action !== "UNKNOWN";
+            if (!hasAction) {
+              speakResponse(result.response);
+            }
           }
           if (result.action && result.action !== "INCOMPLETE" && result.action !== "UNKNOWN") {
             await executeAction(result.action, result.data);
@@ -675,14 +747,19 @@ export default function VoiceAssistant() {
             setActionDetail(null);
           }
         } else if (mode === "voice") {
-          if (result.response) speakResponse(result.response);
-          if (result.action && result.action !== "INCOMPLETE" && result.action !== "UNKNOWN") {
+          const hasAction = result.action && result.action !== "INCOMPLETE" && result.action !== "UNKNOWN";
+          if (result.response && !hasAction) {
+            speakResponse(result.response);
+          }
+          if (hasAction) {
             await executeAction(result.action, result.data);
             showToast(`Done: ${result.action}`, "success");
           } else if (result.action === "INCOMPLETE") {
             showToast(result.response || "Details incomplete.", "info");
+            if (result.response) speakResponse(result.response);
           } else {
             showToast("Command not understood.", "error");
+            speakResponse(t.voiceConfirm?.errorNotUnderstood || "I didn't understand that.");
           }
         }
       }
@@ -785,7 +862,10 @@ export default function VoiceAssistant() {
           const aiMsg: ChatMessage = { role: "model", text: result.response, timestamp: Date.now() };
           setChatHistory((prev) => [...prev, aiMsg]);
           setAiResponse(result.response);
-          speakResponse(result.response);
+          const hasAction = result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE";
+          if (!hasAction) {
+            speakResponse(result.response);
+          }
         }
         if (result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE") {
           await executeAction(result.action, result.data);
@@ -828,7 +908,7 @@ export default function VoiceAssistant() {
       if (data.name) {
         worker = fuzzyMatchWorker(workers, data.name);
         if (!worker && action !== "ADD_WORKER") {
-          const errText = `Worker "${data.name}" not found.`;
+          const errText = t.voiceConfirm?.errorNotFound || `Worker "${data.name}" not found.`;
           setAiResponse(errText);
           speakResponse(errText);
           setExecutedAction("ERROR");
@@ -841,11 +921,11 @@ export default function VoiceAssistant() {
         case "READ_LIST": {
           const list = await storage.getWorkers();
           if (list.length === 0) {
-            const resp = "You have no workers added yet.";
+            const resp = t.voiceConfirm?.errorNotFound || "You have no workers added yet.";
             setAiResponse(resp); speakResponse(resp); setActionDetail(resp);
           } else {
             const names = list.map((w) => w.name).join(", ");
-            const resp = `You have ${list.length} workers: ${names}.`;
+            const resp = `${t.voiceConfirm?.searchResult || "Reading worker list:"} ${names}.`;
             setAiResponse(resp); speakResponse(resp); setActionDetail(`Workers: ${names}`);
           }
           setExecutedAction("READ_LIST");
@@ -854,15 +934,14 @@ export default function VoiceAssistant() {
         case "DELETE_LAST_WORKER": {
           const list = await storage.getWorkers();
           if (list.length === 0) {
-            const resp = "No workers to delete.";
+            const resp = t.voiceConfirm?.errorNotFound || "No workers to delete.";
             setAiResponse(resp); speakResponse(resp); setActionDetail(resp);
           } else {
             const last = list[list.length - 1];
             await storage.deleteWorker(last.id);
-            const resp = `Deleted worker ${last.name}.`;
-            setAiResponse(resp); speakResponse(resp); setActionDetail(`Deleted: ${last.name}`);
+            setExecutedAction("DELETE_LAST_WORKER");
+            setActionDetail(`Deleted: ${last.name}`);
           }
-          setExecutedAction("DELETE_LAST_WORKER");
           break;
         }
         case "ADD_WORKER": {
@@ -1048,6 +1127,53 @@ export default function VoiceAssistant() {
       }
 
       DeviceEventEmitter.emit("refreshData");
+
+      // Spoken voice confirmations at the end of the action
+      if (action !== "READ_LIST") {
+        let confirmText = "";
+        switch (action) {
+          case "ADD_WORKER":
+            confirmText = t.voiceConfirm?.workerAdded || "Worker added.";
+            break;
+          case "UPDATE_WORKER":
+            confirmText = t.voiceConfirm?.workerUpdated || "Worker updated.";
+            break;
+          case "DELETE_WORKER":
+          case "DELETE_LAST_WORKER":
+            confirmText = t.voiceConfirm?.workerDeleted || "Worker deleted.";
+            break;
+          case "MARK_ATTENDANCE":
+            confirmText = t.voiceConfirm?.attendanceMarked || "Attendance marked.";
+            break;
+          case "ADD_PAYMENT":
+            confirmText = t.voiceConfirm?.paymentSaved || "Payment saved.";
+            break;
+          case "ADD_ADVANCE":
+            confirmText = t.voiceConfirm?.advanceRecorded || "Advance recorded.";
+            break;
+          case "OPEN_SCREEN":
+          case "SHOW_SUMMARY":
+          case "SHOW_REPORT":
+            confirmText = t.voiceConfirm?.screenOpened || "Screen opened.";
+            break;
+          case "SEARCH_WORKER":
+            confirmText = t.voiceConfirm?.searchResult || "Searching workers.";
+            break;
+          case "EXPORT_PDF":
+            confirmText = t.voiceConfirm?.exportStarted || "Export started.";
+            break;
+          case "GO_BACK":
+            confirmText = t.voiceConfirm?.goBack || "Going back.";
+            break;
+          case "SWITCH_THEME":
+            confirmText = t.voiceConfirm?.themeChanged || "Theme updated.";
+            break;
+        }
+        if (confirmText) {
+          setAiResponse(confirmText);
+          speakResponse(confirmText);
+        }
+      }
     } catch (err) {
       console.error("Action execution error:", err);
       setExecutedAction("ERROR");
