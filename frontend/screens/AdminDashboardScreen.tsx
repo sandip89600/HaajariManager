@@ -25,6 +25,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { API_URL } from "@/utils/storage";
 import { useLanguage } from "@/hooks/useLanguage";
 import { appContextTracker } from "@/utils/appContextTracker";
+import { useAuth } from "@/hooks/useAuth";
 
 // Import custom charts
 import {
@@ -107,6 +108,7 @@ export default function AdminDashboardScreen() {
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  const { logout } = useAuth();
 
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [adminUsername, setAdminUsername] = useState<string>("haajari896");
@@ -226,28 +228,20 @@ export default function AdminDashboardScreen() {
             "@haajari/admin_session",
           );
           if (!sessionData) {
-            navigation.navigate("AdminLogin" as any);
+            await logout();
             return;
           }
           const session = JSON.parse(sessionData);
-          if (session.token === "mock-offline-token") {
-            console.log(
-              "[Admin Dashboard] Detected stale mock token. Clearing and redirecting.",
-            );
-            await AsyncStorage.removeItem("@haajari/admin_session");
-            navigation.navigate("AdminLogin" as any);
-            return;
-          }
           setAdminToken(session.token);
           setAdminUsername(session.username || "haajari896");
           await loadDashboardData(session.token);
         } catch (e) {
           console.error("Error loading session in dashboard", e);
-          navigation.navigate("AdminLogin" as any);
+          await logout();
         }
       };
       verifySessionAndLoad();
-    }, [navigation, activeTab]),
+    }, [navigation, activeTab, logout]),
   );
 
   // Socket.IO hook
@@ -360,7 +354,7 @@ export default function AdminDashboardScreen() {
             "[Admin Frontend] Session expired or unauthorized. Clearing session and redirecting to login.",
           );
           await AsyncStorage.removeItem("@haajari/admin_session");
-          navigation.navigate("AdminLogin" as any);
+          await logout();
         }
       }
 
@@ -1180,7 +1174,7 @@ export default function AdminDashboardScreen() {
   const handleAdminLogout = async () => {
     disconnectSocket();
     await AsyncStorage.removeItem("@haajari/admin_session");
-    navigation.navigate("AdminLogin" as any);
+    await logout();
   };
 
   // Search filtering

@@ -4,11 +4,11 @@ import { ThemedText } from "@/components/ThemedText";
 import { Spacing, BorderRadius } from "@/constants/theme";
 
 const CHART_COLORS = {
-  primary: "#FF6B35", // Orange
-  success: "#10B981", // Teal Green
-  warning: "#FFC107", // Yellow
-  purple: "#8B5CF6", // Purple
-  blue: "#3B82F6", // Sky Blue
+  primary: "#F97316", // Safety Orange
+  success: "#22C55E", // Success Green
+  warning: "#F59E0B", // Amber
+  purple: "#A855F7", // Purple
+  blue: "#3B82F6", // Blue
   danger: "#EF4444", // Red
   border: "#212030",
   textSecondary: "#8E8E9F",

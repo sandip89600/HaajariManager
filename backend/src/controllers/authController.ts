@@ -75,8 +75,8 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
     const { password, name, phone, role, companyName, email, username } = req.body;
     console.log("[Registration Flow] User registration request received for phone:", phone);
 
-    if (!phone || !password || !name) {
-      return res.status(400).json({ error: "Missing required fields" });
+    if (!phone || !password || !name || !email || !username) {
+      return res.status(400).json({ error: "Missing required fields. Full name, username, email, phone, and password are all compulsory." });
     }
 
     const phoneTrimmed = phone.trim();
@@ -183,9 +183,24 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // 1. Check if admin login
-    if (phone === "haajari896") {
-      let adminUser = await User.findOne({ phone: "haajari896" });
-      const expectedPassword = ADMIN_CONFIG.password;
+    const inputCleaned = phone ? phone.trim().toLowerCase() : "";
+    const isAdminInput = 
+      inputCleaned === "haajari896" || 
+      inputCleaned === "admin" || 
+      inputCleaned === "admin@haajari.com" ||
+      inputCleaned === "sandeep@gmail.com";
+
+    if (isAdminInput) {
+      let adminUser = await User.findOne({ 
+        $or: [
+          { phone: "haajari896" },
+          { username: "admin" },
+          { email: "admin@haajari.com" },
+          { email: "sandeep@gmail.com" }
+        ] 
+      });
+      
+      const expectedPassword = inputCleaned === "sandeep@gmail.com" ? "sandeep121" : ADMIN_CONFIG.password;
       const passwordHash = await bcrypt.hash(expectedPassword, 12);
 
       if (!adminUser) {
@@ -202,6 +217,8 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
           tenantId: tenant._id,
           name: "System Admin",
           phone: "haajari896",
+          username: "admin",
+          email: inputCleaned === "sandeep@gmail.com" ? "sandeep@gmail.com" : "admin@haajari.com",
           passwordHash,
           role: "admin",
           isActive: true,
@@ -214,8 +231,13 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
         const isDbMatch = await bcrypt.compare(expectedPassword, adminUser.passwordHash);
         if (!isDbMatch) {
           adminUser.passwordHash = passwordHash;
-          await adminUser.save();
         }
+        // Ensure admin has email and username set
+        if (!adminUser.username) adminUser.username = "admin";
+        if (!adminUser.email) {
+          adminUser.email = inputCleaned === "sandeep@gmail.com" ? "sandeep@gmail.com" : "admin@haajari.com";
+        }
+        await adminUser.save();
       }
 
       const isMatch = password === expectedPassword;
@@ -248,6 +270,8 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
           id: adminUser._id,
           name: adminUser.name,
           phone: adminUser.phone,
+          username: adminUser.username || "admin",
+          email: adminUser.email || "admin@haajari.com",
           role: "admin",
           isVerified: true,
           plan: "business",

@@ -375,12 +375,13 @@ export const getAdminAnalytics = async (req: AuthenticatedRequest, res: Response
       records.forEach(r => {
         const rate = r.dailyRate !== undefined && r.dailyRate !== null ? r.dailyRate : w.dailyRate;
         const extra = (r.customWage !== undefined && r.customWage !== null) ? r.customWage : 0;
+        const ot = (r.overtimeWage !== undefined && r.overtimeWage !== null) ? r.overtimeWage : 0;
         let recordPay = 0;
 
         if (r.value === "P" || r.value === "OT") {
-          recordPay = rate;
+          recordPay = rate + extra + ot;
         } else if (r.value === "H") {
-          recordPay = (rate / 2);
+          recordPay = (rate / 2) + extra + ot;
         } else if (r.value === "A") {
           recordPay = 0;
         } else if (typeof r.value === "number") {
@@ -392,7 +393,7 @@ export const getAdminAnalytics = async (req: AuthenticatedRequest, res: Response
         advances += extra;
       });
       const paid = paymentsMap[wId] || 0;
-      const balance = earnings - paid - advances;
+      const balance = earnings - paid;
       if (balance > 0) {
         outstandingAmount += balance;
       }

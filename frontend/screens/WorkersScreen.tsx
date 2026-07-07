@@ -35,6 +35,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
+import { translateWorkerName } from "@/utils/transliteration";
 import { storage, Worker, WorkerCategory } from "@/utils/storage";
 import { appContextTracker } from "@/utils/appContextTracker";
 import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
@@ -65,6 +66,8 @@ function WorkerCard({
   role,
 }: WorkerCardProps) {
   const scale = useSharedValue(1);
+  const { language } = useLanguage();
+  const translatedName = translateWorkerName(worker.name, language);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -84,7 +87,7 @@ function WorkerCard({
   };
 
   const initials =
-    worker.name
+    translatedName
       .split(" ")
       .filter((w) => w.length > 0)
       .map((w) => w[0])
@@ -141,7 +144,7 @@ function WorkerCard({
 
         <View style={styles.workerInfo}>
           <ThemedText type="h3" style={{ fontWeight: "700" }}>
-            {worker.name}
+            {translatedName}
           </ThemedText>
           <View style={styles.workerDetails}>
             <View
@@ -229,7 +232,7 @@ function WorkerCard({
 
 export default function WorkersScreen() {
   const { theme, isDark } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user } = useAuth();
   const role = user?.role; // contractor, builder, supervisor
 
@@ -256,60 +259,16 @@ export default function WorkersScreen() {
 
   const filteredWorkers =
     voiceSearchQuery.trim() !== ""
-      ? workers.filter((w) =>
-          w.name.toLowerCase().includes(voiceSearchQuery.toLowerCase()),
-        )
+      ? workers.filter((w) => {
+          const transName = translateWorkerName(w.name, language);
+          return (
+            w.name.toLowerCase().includes(voiceSearchQuery.toLowerCase()) ||
+            transName.toLowerCase().includes(voiceSearchQuery.toLowerCase())
+          );
+        })
       : workers;
 
-  const handleAddWorker = () => {
-    if (role !== "supervisor") {
-      const limit =
-        currentPlan === "free"
-          ? 15
-          : currentPlan === "professional"
-            ? 100
-            : Infinity;
-      if (workers.length >= limit) {
-        setShowUpgradeLimitModal(true);
-        return;
-      }
-    }
-    navigation.navigate("AddWorker");
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      loadWorkers();
-      appContextTracker.setContext({
-        currentScreen: "Workers",
-        selectedWorkerId: null,
-        selectedWorkerName: null,
-      });
-    }, [role, user]),
-  );
-
-  useEffect(() => {
-    const sub = DeviceEventEmitter.addListener("refreshData", () => {
-      loadWorkers();
-    });
-    return () => sub.remove();
-  }, []);
-
-  useEffect(() => {
-    navigation.setOptions({
-      headerRight: () =>
-        role !== "supervisor" ? (
-          <Pressable
-            onPress={handleAddWorker}
-            style={{ marginRight: Spacing.md, padding: 4 }}
-          >
-            <Feather name="plus" size={24} color={theme.primary} />
-          </Pressable>
-        ) : null,
-    });
-  }, [navigation, role, workers, currentPlan, theme, handleAddWorker]);
-
-  const loadWorkers = async () => {
+  const loadWorkers = useCallback(async () => {
     setIsLoading(true);
     try {
       let loadedWorkers = await storage.getWorkers();
@@ -329,7 +288,55 @@ export default function WorkersScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [role, user]);
+
+  const handleAddWorker = useCallback(() => {
+    if (role !== "supervisor") {
+      const limit =
+        currentPlan === "free"
+          ? 15
+          : currentPlan === "professional"
+            ? 100
+            : Infinity;
+      if (workers.length >= limit) {
+        setShowUpgradeLimitModal(true);
+        return;
+      }
+    }
+    navigation.navigate("AddWorker");
+  }, [role, currentPlan, workers.length, navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadWorkers();
+      appContextTracker.setContext({
+        currentScreen: "Workers",
+        selectedWorkerId: null,
+        selectedWorkerName: null,
+      });
+    }, [loadWorkers]),
+  );
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("refreshData", () => {
+      loadWorkers();
+    });
+    return () => sub.remove();
+  }, [loadWorkers]);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () =>
+        role !== "supervisor" ? (
+          <Pressable
+            onPress={handleAddWorker}
+            style={{ marginRight: Spacing.md, padding: 4 }}
+          >
+            <Feather name="plus" size={24} color={theme.primary} />
+          </Pressable>
+        ) : null,
+    });
+  }, [navigation, role, theme.primary, handleAddWorker]);
 
   const handleEditWorker = (worker: Worker) => {
     appContextTracker.setContext({
@@ -451,7 +458,7 @@ export default function WorkersScreen() {
                   fontSize: 13,
                 }}
               >
-                Search: "{voiceSearchQuery}"
+                Search: {"\""}{voiceSearchQuery}{"\""}
               </ThemedText>
             </View>
             <Pressable onPress={handleClearSearch} style={{ padding: 4 }}>

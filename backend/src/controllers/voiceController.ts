@@ -1,5 +1,5 @@
 import { Response } from "express";
-import Groq, { toFile } from "groq-sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Worker } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 
@@ -15,193 +15,262 @@ export const processVoice = async (req: AuthenticatedRequest, res: Response) => 
         : req.body.history
       : [];
 
-    let audioBuffer: Buffer;
-    let mimeType: string;
-    let fileName: string;
+    const mode = req.body.mode || "chat"; // voice | chat | live
 
-    // Dual compatibility check: multipart/form-data file vs. base64 JSON payload
-    if (req.file) {
-      audioBuffer = req.file.buffer;
-      mimeType = req.file.mimetype;
-      fileName = req.file.originalname || "audio.m4a";
-    } else if (req.body.audio && req.body.mimeType) {
-      audioBuffer = Buffer.from(req.body.audio, "base64");
-      mimeType = req.body.mimeType;
-      fileName = mimeType.includes("m4a") ? "audio.m4a" : "audio.mp4";
-    } else {
-      return res.status(400).json({ error: "No audio file or base64 audio payload provided" });
-    }
-
-    // Audio duration check
-    if (audioBuffer.length === 0) {
-      return res.status(400).json({ error: "Audio file is empty" });
-    }
-
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.warn("[Voice] GROQ_API_KEY is not defined in environment variables.");
+      console.warn("[Voice] GEMINI_API_KEY is not defined in environment variables.");
       return res.json({
         success: false,
         transcript: "[Voice Assistant API Key Missing]",
         action: "UNKNOWN",
         data: {},
-        response: "Please set the GROQ_API_KEY in backend/.env file to start using voice commands.",
+        response: "Please set the GEMINI_API_KEY in backend/.env file to start using voice commands.",
       });
     }
 
-    // Retrieve active worker names for this tenant to help Groq match names phonetically
-    const activeWorkers = await Worker.find({ tenantId, isArchived: false }, "name");
-    const workerNames = activeWorkers.map((w) => w.name);
+    // Retrieve active workers for this tenant to help Gemini matching and detail lookups
+    const activeWorkers = await Worker.find(
+      { tenantId, isArchived: false },
+      "name dailyRate category phone address"
+    );
+    const workerDetails = activeWorkers.map((w) => ({
+      name: w.name,
+      dailyRate: w.dailyRate,
+      category: w.category,
+      phone: w.phone || "Not provided",
+      address: w.address || "Not provided",
+    }));
 
-    // Initialize Groq SDK
-    const groq = new Groq({ apiKey });
-
-    // 1. Perform Speech-to-Text using Whisper Large v3 (fully in-memory via toFile)
-    console.log("[Voice] Transcribing audio with Whisper Large v3...");
-    const transcription = await groq.audio.transcriptions.create({
-      file: await toFile(audioBuffer, fileName, { type: mimeType }),
-      model: "whisper-large-v3",
+    // Initialize Gemini SDK
+    const ai = new GoogleGenerativeAI(apiKey);
+    const model = ai.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
     });
 
-    const transcriptText = transcription.text;
-    console.log("[Voice] Whisper Transcription:", transcriptText);
+    let systemInstruction = "";
 
-    // 2. Call reasoning model to analyze intent
-    const systemInstruction = `
-You are the AI Live Copilot for "HAI" (a worker attendance and payment management app).
-The user is a contractor, builder, or supervisor. They will speak commands in one of the 22 official Indian languages or English/Hinglish.
+    if (mode === "voice") {
+      systemInstruction = `
+You are the Voice Action Engine (HAI Voice) for "HAI" (a worker attendance and payment management app).
+Your sole purpose is to parse quick voice commands into structured JSON actions.
+The user is a contractor, builder, or supervisor.
 The user's currently selected app language is "${userLanguage}".
+
+IMPORTANT CRITICAL RULES (HAI VOICE):
+1. Optimize for extremely low latency. Never generate long text or conversational chat.
+2. In the "response" property, write ONLY a short confirmation of the action performed (maximum 4 words) in the user's spoken language (e.g. "Rahul added." or "Attendance marked." or "Opening summary.").
+3. Do not ask conversational follow-up questions. If details are missing, return action "INCOMPLETE" and ask for the missing field in 4 words or less.
+4. Support English, Hindi, Hinglish, Marathi, and regional languages.
 
 ---
 ## LIVE APPLICATION STATE CONTEXT
-The user is currently on the screen: "${currentScreen}".
-Active screen state details:
-${JSON.stringify(screenContext)}
+Screen: "${currentScreen}"
+Details: ${JSON.stringify(screenContext)}
 
 ## STATE CONTEXT RESOLUTION RULES:
-1. Implicit Pronoun / Action Resolution:
-   If the user says a short command or refers to a selected item (e.g. "Present laga do", "Absent mark karo", "Delete karo", "Hata do", "Bhugtan darj karo", "Uski attendance badlo", "Usko edit karo") WITHOUT explicitly speaking a worker's name in their voice request:
-   - Check if "selectedWorkerName" is present in the "screenContext".
-   - If "selectedWorkerName" is present, you MUST explicitly copy that name into the "name" field of the output JSON's "data" object (e.g., {"name": "Rajesh Sharma", "status": "Present"}).
-   - Never omit the "name" field in the "data" object if it can be resolved from the active screenContext.
-   - Example: User says "Present", context is {"selectedWorkerName": "Amit Kumar"}. Output: action "MARK_ATTENDANCE", data {"name": "Amit Kumar", "status": "Present"}.
-2. Handling Incomplete Input:
-   If the user speaks a worker action (e.g., "Present laga do", "Bhugtan darj karo", "Delete karo") but no worker name is mentioned in the spoken request AND "selectedWorkerName" is NOT in the "screenContext" (or is null/undefined):
-   - You MUST set the action to "INCOMPLETE".
-   - In the "response" field, ask a follow-up question in the user's selected language (${userLanguage}) asking them to specify which worker they are referring to (e.g., "Aap kis worker ke liye attendance lagana chahte hain?").
-3. Summary Screen PDF Export:
-   - If they say "Export PDF", "Report download karo", "Summary print karo", and they are on the "Summary" screen, set action to "EXPORT_PDF" and data {"type": "summary"}.
----
+- If a worker's name is omitted but "selectedWorkerName" is present in "screenContext", copy it to the "name" field of the data.
 
-Here is the list of existing workers in the system:
-${JSON.stringify(workerNames)}
+---
+Here is the list of existing workers with their details in the system:
+${JSON.stringify(workerDetails)}
 
 If the user mentions a name, match it against this list. If you find a close match or phonetic match (e.g. "Subham" matches "Shubham", "Mohan Lal" matches "Mohan", "Raju" matches "Raju"), use the EXACT name from the list in your output. If no match is found, use the name they spoke.
 
-Supported actions and their required fields:
-1. ADD_WORKER: Add a new worker.
-   Fields:
-   - name (string, required)
-   - dailyRate (number, optional)
-   - category (string, optional - must be one of: "labour", "bai", "mistri", "bandkam", "plaster", "tiles", "sutar")
-   - phone (string, optional)
-   - address (string, optional)
-2. UPDATE_WORKER: Edit worker details.
-   Fields:
-   - name (string, required to identify)
-   - dailyRate (number, optional)
-   - category (string, optional)
-   - phone (string, optional)
-3. DELETE_WORKER: Remove a worker.
-   Fields:
-   - name (string, required)
-4. MARK_ATTENDANCE: Record attendance for a worker.
-   Fields:
-   - name (string, required)
-   - status (string, required - must be one of: "Present", "Absent", "Half Day", "Overtime")
-   - date (string, optional - YYYY-MM-DD, defaults to today. If user says "aaj" or "today", it's today. If user says "kal" or "yesterday", it's yesterday)
-   - overtimeHours (number, optional)
-   - advance (number, optional)
-5. ADD_PAYMENT: Record a payment made to a worker.
-   Fields:
-   - name (string, required)
-   - amount (number, required)
-   - method (string, optional - "Cash", "UPI", "Bank Transfer")
-   - note (string, optional)
-6. ADD_ADVANCE: Record an advance taken by a worker.
-   Fields:
-   - name (string, required)
-   - amount (number, required)
-   - date (string, optional)
-7. SEARCH_WORKER: Search for a worker.
-   Fields:
-   - query (string, required)
-8. OPEN_SCREEN: Navigate to a specific screen in the app.
-   Fields:
-   - screen (string, required - must be one of: "Workers", "Attendance", "Summary", "Settings", "Dashboard", "Profile", "Subscription", "Reports")
-9. SHOW_SUMMARY: Show the monthly payment or attendance summary.
-   Fields:
-   - month (number, optional - 0-11)
-   - year (number, optional)
-10. SHOW_REPORT: Show a report.
-    Fields:
-    - type (string, optional)
-11. EXPORT_PDF: Export the monthly PDF summary.
-    Fields:
-    - type (string, optional - "attendance" | "summary", defaults to "summary")
-12. GO_BACK: Go back to the previous screen.
-    Fields: {}
-13. SWITCH_THEME: Toggle light and dark modes.
-    Fields: {}
+Supported actions:
+- ADD_WORKER (name, dailyRate, category: "labour"|"bai"|"mistri"|"bandkam"|"plaster"|"tiles"|"sutar", phone, address)
+- UPDATE_WORKER (name, dailyRate, category, phone)
+- DELETE_WORKER (name)
+- MARK_ATTENDANCE (name, status: "Present"|"Absent"|"Half Day"|"Overtime", date: YYYY-MM-DD, overtimeHours, advance)
+- ADD_PAYMENT (name, amount, method, note)
+- ADD_ADVANCE (name, amount, date)
+- SEARCH_WORKER (query)
+- OPEN_SCREEN (screen: "Workers"|"Attendance"|"Summary"|"Settings"|"Dashboard"|"Profile"|"Subscription"|"Reports")
+- SHOW_SUMMARY (month, year)
+- SHOW_REPORT (type)
+- EXPORT_PDF (type: "attendance"|"summary")
+- GO_BACK
+- SWITCH_THEME
 
-If the command lacks required information, set action to "INCOMPLETE" and ask for the missing details in the "response" field of the JSON.
-Keep context of the conversation using the provided history.
-
-You must respond with a JSON object in this exact format:
+You must respond ONLY with a JSON object in this exact format:
 {
   "action": "ADD_WORKER" | "UPDATE_WORKER" | "DELETE_WORKER" | "MARK_ATTENDANCE" | "ADD_PAYMENT" | "ADD_ADVANCE" | "SEARCH_WORKER" | "OPEN_SCREEN" | "SHOW_SUMMARY" | "SHOW_REPORT" | "EXPORT_PDF" | "GO_BACK" | "SWITCH_THEME" | "INCOMPLETE" | "UNKNOWN",
   "data": {
      // corresponding fields for the action
   },
-  "response": "A short, polite text response confirming the action or asking a follow-up question. Use the user's selected language (${userLanguage}) or match the language of their query. Do not translate the response to English unless the user spoke in English."
+  "response": "very short confirmation (max 4 words)",
+  "transcript": "Audio transcript"
 }
 `;
+    } else if (mode === "live") {
+      systemInstruction = `
+You are the Real-time AI Copilot (HAI Live) for the "HAI" app.
+You continuously understand the app state and help the user navigate and execute commands on-the-fly.
+The user's currently selected app language is "${userLanguage}".
 
-    const messages: any[] = [
-      {
-        role: "system",
-        content: systemInstruction,
-      },
-    ];
+IMPORTANT CRITICAL RULES (HAI LIVE):
+1. No chat bubbles are displayed. You must act as a seamless real-time assistant.
+2. Keep responses brief, direct, and action-oriented.
+3. Automatically resolve worker names, dates, or screen details from context.
 
-    // Add conversation history
+---
+## LIVE APPLICATION STATE CONTEXT
+Screen: "${currentScreen}"
+Details: ${JSON.stringify(screenContext)}
+
+## STATE CONTEXT RESOLUTION RULES:
+- Resolve names and screen context implicitly. E.g. "present mark karo" -> check context for worker.
+- If missing details, ask a very quick follow-up question.
+
+---
+Here is the list of existing workers with details:
+${JSON.stringify(workerDetails)}
+
+Supported actions:
+- ADD_WORKER
+- UPDATE_WORKER
+- DELETE_WORKER
+- MARK_ATTENDANCE
+- ADD_PAYMENT
+- ADD_ADVANCE
+- SEARCH_WORKER
+- OPEN_SCREEN
+- SHOW_SUMMARY
+- SHOW_REPORT
+- EXPORT_PDF
+- GO_BACK
+- SWITCH_THEME
+
+You must respond ONLY with a JSON object in this exact format:
+{
+  "action": "ADD_WORKER" | "UPDATE_WORKER" | "DELETE_WORKER" | "MARK_ATTENDANCE" | "ADD_PAYMENT" | "ADD_ADVANCE" | "SEARCH_WORKER" | "OPEN_SCREEN" | "SHOW_SUMMARY" | "SHOW_REPORT" | "EXPORT_PDF" | "GO_BACK" | "SWITCH_THEME" | "INCOMPLETE" | "UNKNOWN",
+  "data": {
+     // corresponding fields for the action
+  },
+  "response": "crisp confirmation statement",
+  "transcript": "Audio transcript"
+}
+`;
+    } else {
+      systemInstruction = `
+You are the Intelligent Conversational AI Assistant (HAI Chat) for "HAI" (a worker attendance and payment management app).
+You handle long-running conversations, provide analytics, explain attendance, overtime, payroll, and suggest workforce optimizations.
+The user's currently selected app language is "${userLanguage}".
+
+IMPORTANT CRITICAL RULES (HAI CHAT):
+1. Provide rich, helpful, conversational answers.
+2. Support Markdown list formatting and bold text.
+3. If they ask questions like "Who is absent today?" or "Show monthly summary", use the list of workers to formulate rich details in your response text.
+4. Explain terms like overtime, check payments, subscription status, etc.
+
+---
+## LIVE APPLICATION STATE CONTEXT
+Screen: "${currentScreen}"
+Details: ${JSON.stringify(screenContext)}
+
+---
+Here is the list of existing workers with details:
+${JSON.stringify(workerDetails)}
+
+Supported actions:
+- ADD_WORKER
+- UPDATE_WORKER
+- DELETE_WORKER
+- MARK_ATTENDANCE
+- ADD_PAYMENT
+- ADD_ADVANCE
+- SEARCH_WORKER
+- OPEN_SCREEN
+- SHOW_SUMMARY
+- SHOW_REPORT
+- EXPORT_PDF
+- GO_BACK
+- SWITCH_THEME
+
+You must respond ONLY with a JSON object in this exact format:
+{
+  "action": "ADD_WORKER" | "UPDATE_WORKER" | "DELETE_WORKER" | "MARK_ATTENDANCE" | "ADD_PAYMENT" | "ADD_ADVANCE" | "SEARCH_WORKER" | "OPEN_SCREEN" | "SHOW_SUMMARY" | "SHOW_REPORT" | "EXPORT_PDF" | "GO_BACK" | "SWITCH_THEME" | "INCOMPLETE" | "UNKNOWN",
+  "data": {
+     // corresponding fields for the action
+  },
+  "response": "detailed conversational explanation with rich details",
+  "transcript": "Audio transcript"
+}
+`;
+    }
+
+    // Construct request parts for Gemini
+    const parts: any[] = [];
+
+    // 1. Add system instructions and context
+    let instructionContext = systemInstruction;
     if (history && history.length > 0) {
-      history.forEach((h: any) => {
-        messages.push({
-          role: h.role === "user" ? "user" : "assistant",
-          content: h.text || h.parts?.[0]?.text || "",
-        });
+      instructionContext += "\n\nCONVERSATION HISTORY:\n" + history.map((h: any) => {
+        const roleName = h.role === "user" ? "User" : "HAI Assistant";
+        return `${roleName}: ${h.text || h.parts?.[0]?.text || ""}`;
+      }).join("\n");
+    }
+    parts.push({ text: instructionContext });
+
+    // 2. Add image part if present
+    if (req.body.image) {
+      console.log("[Voice] Adding image attachment to Gemini prompt...");
+      const imageBase64 = req.body.image.replace(/^data:image\/\w+;base64,/, "");
+      parts.push({
+        inlineData: {
+          mimeType: "image/png",
+          data: imageBase64
+        }
+      });
+      parts.push({
+        text: "Analyze the attached image. If it is a worker card, ID card, or document, perform OCR/information extraction and execute the appropriate action (defaulting to ADD_WORKER with details like name, dailyRate, etc.)."
       });
     }
 
-    // Add current user message with transcript
-    messages.push({
-      role: "user",
-      content: `User transcript: "${transcriptText}"\n\nAnalyze the intent and return the structured JSON object.`,
-    });
+    // 3. Add audio or text inputs
+    if (req.body.text) {
+      console.log("[Voice] Processing text input directly with Gemini:", req.body.text);
+      parts.push({
+        text: `User text prompt: "${req.body.text}"\n\nAnalyze the intent and return the structured JSON object, setting the 'transcript' property to the user's text prompt.`
+      });
+    } else {
+      let audioBuffer: Buffer;
+      let mimeType: string;
 
-    console.log("[Voice] Calling openai/gpt-oss-120b model on Groq for command parsing...");
-    const completion = await groq.chat.completions.create({
-      model: "openai/gpt-oss-120b",
-      messages,
-      temperature: 1,
-      max_completion_tokens: 1024,
-      top_p: 1,
-      reasoning_effort: "medium",
-    } as any);
+      if (req.file) {
+        audioBuffer = req.file.buffer;
+        mimeType = req.file.mimetype;
+      } else if (req.body.audio && req.body.mimeType) {
+        audioBuffer = Buffer.from(req.body.audio, "base64");
+        mimeType = req.body.mimeType;
+      } else {
+        return res.status(400).json({ error: "No audio file, base64 audio payload, or text input provided" });
+      }
 
-    const completionText = completion.choices[0]?.message?.content || "{}";
-    console.log("[Voice] Groq parser output:", completionText);
+      if (audioBuffer.length === 0) {
+        return res.status(400).json({ error: "Audio file is empty" });
+      }
+
+      console.log("[Voice] Processing audio input with Gemini. MimeType:", mimeType);
+      parts.push({
+        inlineData: {
+          mimeType: mimeType,
+          data: audioBuffer.toString("base64")
+        }
+      });
+      parts.push({
+        text: "Listen to the attached audio file. First, transcribe it accurately in its spoken language, and populate the 'transcript' field of the output JSON. Then, analyze the spoken command's intent and execute the appropriate action."
+      });
+    }
+
+    // Call Gemini API
+    console.log("[Voice] Calling Gemini API (gemini-1.5-flash)...");
+    const result = await model.generateContent(parts);
+    const completionText = result.response.text() || "{}";
+    console.log("[Voice] Gemini parser output:", completionText);
 
     try {
       let jsonResponseText = completionText.trim();
@@ -217,8 +286,9 @@ You must respond with a JSON object in this exact format:
       const commandAction = parsedResult.action || "UNKNOWN";
       const commandData = parsedResult.data || {};
       const commandResponse = parsedResult.response || "I processed your request.";
+      const transcriptText = parsedResult.transcript || req.body.text || "[Audio Transcribed]";
 
-      // Inject transcript and return dual-compatible format
+      // Return dual-compatible format
       return res.json({
         success: true,
         transcript: transcriptText,
@@ -234,17 +304,16 @@ You must respond with a JSON object in this exact format:
         },
       });
     } catch (parseError) {
-      console.error("[Voice] Failed to parse Groq response as JSON:", completionText, parseError);
+      console.error("[Voice] Failed to parse Gemini response as JSON:", completionText, parseError);
       return res.status(500).json({
         error: "AI failed to produce a structured action",
         raw: completionText,
       });
     }
   } catch (error: any) {
-    console.error("[Voice] Error processing voice command:", error);
+    console.error("[Voice] Error processing voice command via Gemini:", error);
     return res.status(500).json({ error: error.message });
   }
 };
 
-// Keep processVoiceCommand alias for backward compatibility
 export const processVoiceCommand = processVoice;

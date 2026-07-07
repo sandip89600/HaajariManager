@@ -141,6 +141,7 @@ export interface User {
   companyName?: string;
   plan?: "free" | "professional" | "business";
   planExpiresAt?: string;
+  username?: string;
 }
 
 export interface Project {
@@ -1160,6 +1161,8 @@ export function calculateWorkerSummary(
   customDays: number;
   customAmount: number;
   totalAmount: number;
+  totalAdvanceAmount: number;
+  totalOvertimeAmount: number;
 } {
   const workerAttendance = attendance.filter((a) => a.workerId === workerId);
 
@@ -1170,6 +1173,8 @@ export function calculateWorkerSummary(
   let customDays = 0;
   let customAmount = 0;
   let totalAmount = 0;
+  let totalAdvanceAmount = 0;
+  let totalOvertimeAmount = 0;
 
   workerAttendance.forEach((record) => {
     // 1. Calculate pay for this day
@@ -1177,16 +1182,20 @@ export function calculateWorkerSummary(
       record.dailyRate !== undefined && record.dailyRate !== null
         ? record.dailyRate
         : dailyRate;
-    const extra =
+    const advance =
       record.customWage !== undefined && record.customWage !== null
         ? record.customWage
+        : 0;
+    const overtime =
+      record.overtimeWage !== undefined && record.overtimeWage !== null
+        ? record.overtimeWage
         : 0;
     let recordPay = 0;
 
     if (record.value === "P" || record.value === "OT") {
-      recordPay = rate;
+      recordPay = rate + advance + overtime;
     } else if (record.value === "H") {
-      recordPay = rate / 2;
+      recordPay = rate / 2 + advance + overtime;
     } else if (record.value === "A") {
       recordPay = 0;
     } else if (typeof record.value === "number") {
@@ -1213,6 +1222,11 @@ export function calculateWorkerSummary(
     if (record.customWage !== undefined && record.customWage !== null) {
       customDays++;
       customAmount += record.customWage;
+      totalAdvanceAmount += record.customWage;
+    }
+
+    if (record.overtimeWage !== undefined && record.overtimeWage !== null) {
+      totalOvertimeAmount += record.overtimeWage;
     }
   });
 
@@ -1224,5 +1238,7 @@ export function calculateWorkerSummary(
     customDays,
     customAmount,
     totalAmount,
+    totalAdvanceAmount,
+    totalOvertimeAmount,
   };
 }

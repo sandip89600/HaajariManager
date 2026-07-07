@@ -25,7 +25,7 @@ export type RootNavigatorParamList = {
 const Stack = createNativeStackNavigator<RootNavigatorParamList>();
 
 export default function RootNavigator() {
-  const { isLoggedIn, isGuest, isLoading } = useAuth();
+  const { isLoggedIn, isGuest, isLoading, userType } = useAuth();
   const { theme, isDark } = useTheme();
 
   if (isLoading) {
@@ -45,7 +45,9 @@ export default function RootNavigator() {
         headerShown: false,
       }}
     >
-      {hasAccess ? (
+      {isLoggedIn && userType === "admin" ? (
+        <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+      ) : hasAccess ? (
         <Stack.Screen name="Main" component={MainTabNavigator} />
       ) : (
         <>
@@ -59,7 +61,9 @@ export default function RootNavigator() {
       />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
       <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
-      <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+      {(!isLoggedIn || userType !== "admin") && (
+        <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+      )}
     </Stack.Navigator>
   );
 }

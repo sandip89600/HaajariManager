@@ -34,6 +34,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
+import { translateWorkerName } from "@/utils/transliteration";
 import {
   storage,
   Worker,
@@ -74,16 +75,20 @@ function AttendanceCell({
 
   const value = record?.value ?? null;
   const customWage = record?.customWage ?? null;
+  const overtimeWage = record?.overtimeWage ?? null;
+
+  const hasExtra = (customWage !== null && customWage !== undefined && customWage > 0) ||
+                    (overtimeWage !== null && overtimeWage !== undefined && overtimeWage > 0);
 
   const getCellStyle = () => {
+    if (value === "P") return { backgroundColor: "#22C55E" }; // Present Green
+    if (value === "A") return { backgroundColor: "#EF4444" }; // Absent Red
+    if (value === "H") return { backgroundColor: "#F59E0B" }; // Half Day Amber
+    if (value === "OT") return { backgroundColor: "#A855F7" }; // Overtime Purple
     if (customWage !== null && customWage !== undefined) {
-      return { backgroundColor: "#FF6B35" }; // Orange for custom wage override
+      return { backgroundColor: "#3B82F6" }; // Advance Blue
     }
-    if (value === "P") return { backgroundColor: "#10B981" }; // Emerald
-    if (value === "A") return { backgroundColor: "#EF4444" }; // Rose
-    if (value === "H") return { backgroundColor: "#F59E0B" }; // Amber
-    if (value === "OT") return { backgroundColor: "#3B82F6" }; // Sky Blue
-    if (typeof value === "number") return { backgroundColor: "#FF6B35" }; // Orange for custom wage fallback
+    if (typeof value === "number") return { backgroundColor: "#3B82F6" }; // Advance Blue
     return {
       backgroundColor: isDark
         ? "rgba(255, 255, 255, 0.03)"
@@ -94,24 +99,24 @@ function AttendanceCell({
   };
 
   const getCellText = () => {
-    if (customWage !== null && customWage !== undefined) {
-      return `₹${customWage}`;
-    }
     if (value === "P") return "P";
     if (value === "A") return "A";
     if (value === "H") return "½";
     if (value === "OT") return "OT";
+    if (customWage !== null && customWage !== undefined) {
+      return `₹${customWage}`;
+    }
     if (typeof value === "number") return `₹${value}`;
     return "";
   };
 
   const getTextColor = () => {
     if (
-      customWage !== null ||
       value === "P" ||
       value === "A" ||
       value === "H" ||
       value === "OT" ||
+      customWage !== null ||
       typeof value === "number"
     ) {
       return "#FFFFFF";
@@ -143,6 +148,19 @@ function AttendanceCell({
         >
           {getCellText()}
         </ThemedText>
+        {hasExtra && (
+          <View
+            style={{
+              position: "absolute",
+              top: 2,
+              right: 2,
+              width: 5,
+              height: 5,
+              borderRadius: 2.5,
+              backgroundColor: "#FF8C35",
+            }}
+          />
+        )}
       </AnimatedPressable>
     </View>
   );
@@ -230,7 +248,7 @@ function GlassModal({
 // ─── MAIN ATTENDANCE SCREEN ──────────────────────────────────────────────────
 export default function AttendanceScreen() {
   const { theme, isDark } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = insets.bottom + 60;
@@ -253,6 +271,9 @@ export default function AttendanceScreen() {
   } | null>(null);
   const [tempStatus, setTempStatus] = useState<AttendanceValue | null>(null);
   const [tempCustomWage, setTempCustomWage] = useState("");
+  const [showOvertimeModal, setShowOvertimeModal] = useState(false);
+  const [tempOvertimeType, setTempOvertimeType] = useState<"1x" | "2x" | "custom" | "none">("none");
+  const [tempOvertimeCustomAmount, setTempOvertimeCustomAmount] = useState("");
   const [capturedLocation, setCapturedLocation] = useState<GPSLocation | null>(
     null,
   );
@@ -375,9 +396,26 @@ export default function AttendanceScreen() {
           ? record.customWage.toString()
           : "",
       );
+      if (record.overtimeWage !== undefined && record.overtimeWage !== null) {
+        if (record.overtimeHours === 1) {
+          setTempOvertimeType("1x");
+          setTempOvertimeCustomAmount("");
+        } else if (record.overtimeHours === 2) {
+          setTempOvertimeType("2x");
+          setTempOvertimeCustomAmount("");
+        } else {
+          setTempOvertimeType("custom");
+          setTempOvertimeCustomAmount(record.overtimeWage.toString());
+        }
+      } else {
+        setTempOvertimeType("none");
+        setTempOvertimeCustomAmount("");
+      }
     } else {
       setTempStatus(null);
       setTempCustomWage("");
+      setTempOvertimeType("none");
+      setTempOvertimeCustomAmount("");
     }
     setShowInputModal(true);
     setCapturedLocation(null);
@@ -439,6 +477,8 @@ export default function AttendanceScreen() {
     setCapturedLocation(null);
     setTempStatus(null);
     setTempCustomWage("");
+    setTempOvertimeType("none");
+    setTempOvertimeCustomAmount("");
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -448,15 +488,13 @@ export default function AttendanceScreen() {
     const worker = workers.find((w) => w.id === selectedCell.workerId);
     const dailyRate = worker ? worker.dailyRate : 0;
 
-    let customWage: number | undefined = undefined;
+    let customWage: number | undefined = undefined; // Advance
+    let overtimeWage: number | undefined = undefined;
+    let overtimeHours: number | undefined = undefined;
     let finalPay = 0;
 
-    if (
-      tempStatus === "P" ||
-      tempStatus === "H" ||
-      tempStatus === "OT" ||
-      tempStatus === "A"
-    ) {
+    // Resolve Advance (customWage)
+    if (tempStatus === "P" || tempStatus === "H" || tempStatus === "OT") {
       if (tempCustomWage.trim() !== "") {
         const amount = parseInt(tempCustomWage, 10);
         if (!isNaN(amount) && amount >= 0) {
@@ -469,15 +507,39 @@ export default function AttendanceScreen() {
       }
     }
 
-    const extra = customWage ?? 0;
+    // Resolve Overtime
+    if (tempStatus === "P" || tempStatus === "H" || tempStatus === "OT") {
+      if (tempOvertimeType === "1x") {
+        overtimeWage = dailyRate;
+        overtimeHours = 1;
+      } else if (tempOvertimeType === "2x") {
+        overtimeWage = dailyRate * 2;
+        overtimeHours = 2;
+      } else if (tempOvertimeType === "custom") {
+        const amount = parseInt(tempOvertimeCustomAmount, 10);
+        if (!isNaN(amount) && amount >= 0) {
+          overtimeWage = amount;
+          overtimeHours = 0;
+        } else {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert(t.common.error, t.attendance.invalidAmount);
+          return;
+        }
+      }
+    }
+
+    const advanceAmount = customWage ?? 0;
+    const otAmount = overtimeWage ?? 0;
+
     if (tempStatus === "P" || tempStatus === "OT") {
-      finalPay = dailyRate;
+      finalPay = dailyRate + advanceAmount + otAmount;
     } else if (tempStatus === "H") {
-      finalPay = dailyRate / 2;
+      finalPay = (dailyRate / 2) + advanceAmount + otAmount;
     } else if (tempStatus === "A") {
-      finalPay = 0;
-    } else {
-      finalPay = 0;
+      finalPay = 0; // strictly 0 for Absent
+      customWage = undefined; // reset fields for A status
+      overtimeWage = undefined;
+      overtimeHours = undefined;
     }
 
     const record: AttendanceRecord = {
@@ -489,6 +551,8 @@ export default function AttendanceScreen() {
       dailyRate: dailyRate,
       customWage: customWage,
       finalPay: finalPay,
+      overtimeHours: overtimeHours,
+      overtimeWage: overtimeWage,
       location: capturedLocation ?? undefined,
       timestamp: Date.now(),
     };
@@ -500,6 +564,8 @@ export default function AttendanceScreen() {
     setCapturedLocation(null);
     setTempStatus(null);
     setTempCustomWage("");
+    setTempOvertimeType("none");
+    setTempOvertimeCustomAmount("");
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -590,8 +656,8 @@ export default function AttendanceScreen() {
   }
 
   const cellsHeight = gridHeight > 0 ? gridHeight - CELL_SIZE : undefined;
-  const ORANGE = "#FF6B35";
-  const EMERALD = "#10B981";
+  const ORANGE = "#F97316";
+  const EMERALD = "#22C55E";
   const AMBER = "#F59E0B";
   const RED = "#EF4444";
 
@@ -688,7 +754,7 @@ export default function AttendanceScreen() {
                       style={styles.workerAvatarPlaceholder}
                     >
                       <ThemedText style={styles.workerAvatarInitial}>
-                        {(worker.name || "?").charAt(0).toUpperCase()}
+                        {(translateWorkerName(worker.name, language) || "?").charAt(0).toUpperCase()}
                       </ThemedText>
                     </LinearGradient>
                   )}
@@ -697,7 +763,7 @@ export default function AttendanceScreen() {
                     style={[styles.workerNameText, { color: theme.text }]}
                     numberOfLines={2}
                   >
-                    {worker.name}
+                    {translateWorkerName(worker.name, language)}
                   </ThemedText>
                 </View>
               ))}
@@ -978,17 +1044,20 @@ export default function AttendanceScreen() {
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setTempStatus("OT");
+              setTempOvertimeType("1x"); // Default to 1x
+              setTempOvertimeCustomAmount("");
+              setShowOvertimeModal(true); // Open overtime dialog immediately
             }}
             style={[
               styles.quickOption,
               {
                 backgroundColor:
                   tempStatus === "OT"
-                    ? "#3B82F6"
+                    ? "#A855F7"
                     : isDark
                       ? "rgba(255,255,255,0.05)"
                       : "rgba(0,0,0,0.03)",
-                borderColor: tempStatus === "OT" ? "#3B82F6" : theme.border,
+                borderColor: tempStatus === "OT" ? "#A855F7" : theme.border,
                 borderWidth: 1,
               },
             ]}
@@ -1012,8 +1081,7 @@ export default function AttendanceScreen() {
 
         {(tempStatus === "P" ||
           tempStatus === "H" ||
-          tempStatus === "OT" ||
-          tempStatus === "A") && (
+          tempStatus === "OT") && (
           <View
             style={[styles.customAmountContainer, { marginTop: Spacing.md }]}
           >
@@ -1048,6 +1116,50 @@ export default function AttendanceScreen() {
               />
             </View>
           </View>
+        )}
+
+        {(tempStatus === "P" ||
+          tempStatus === "H" ||
+          tempStatus === "OT") && (
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowOvertimeModal(true);
+            }}
+            style={[
+              styles.customAmountContainer,
+              {
+                marginTop: Spacing.md,
+                padding: Spacing.md,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: theme.border,
+                backgroundColor: theme.backgroundSecondary,
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              },
+            ]}
+          >
+            <View>
+              <ThemedText
+                type="small"
+                style={{ color: theme.textSecondary, marginBottom: 2 }}
+              >
+                Overtime (Optional)
+              </ThemedText>
+              <ThemedText type="body" style={{ fontWeight: "700" }}>
+                {tempOvertimeType === "none"
+                  ? "No Overtime"
+                  : tempOvertimeType === "1x"
+                    ? `1× (₹${selectedWorker?.dailyRate})`
+                    : tempOvertimeType === "2x"
+                      ? `2× (₹${(selectedWorker?.dailyRate ?? 0) * 2})`
+                      : `Custom (₹${tempOvertimeCustomAmount})`}
+              </ThemedText>
+            </View>
+            <Feather name="edit-2" size={14} color="#FF6B35" />
+          </Pressable>
         )}
 
         {tempStatus && (
@@ -1085,16 +1197,16 @@ export default function AttendanceScreen() {
                         ? AMBER
                         : tempStatus === "A"
                           ? RED
-                          : "#3B82F6",
+                          : "#A855F7",
                 }}
               >
                 {tempStatus === "P"
-                  ? "Present"
+                  ? (t.summary.present || "Present")
                   : tempStatus === "H"
-                    ? "Half Day"
+                    ? (t.summary.halfDay || "Half Day")
                     : tempStatus === "A"
-                      ? "Absent"
-                      : "Overtime"}
+                      ? (t.summary.absent || "Absent")
+                      : (t.summary.overtime || "Overtime")}
               </ThemedText>
             </View>
 
@@ -1153,6 +1265,35 @@ export default function AttendanceScreen() {
               </ThemedText>
             </View>
 
+            {tempOvertimeType !== "none" && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 6,
+                }}
+              >
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  Overtime Amount:
+                </ThemedText>
+                <ThemedText
+                  type="small"
+                  style={{
+                    fontWeight: "800",
+                    color: "#A855F7",
+                  }}
+                >
+                  ₹
+                  {tempOvertimeType === "1x"
+                    ? (selectedWorker?.dailyRate ?? 0)
+                    : tempOvertimeType === "2x"
+                      ? (selectedWorker?.dailyRate ?? 0) * 2
+                      : tempOvertimeCustomAmount || "0"}
+                </ThemedText>
+              </View>
+            )}
+
             <View
               style={{
                 height: 1,
@@ -1181,23 +1322,35 @@ export default function AttendanceScreen() {
                 ₹
                 {(() => {
                   const baseRate = selectedWorker?.dailyRate ?? 0;
-                  let amt = 0;
+                  let advance = 0;
                   if (tempCustomWage.trim() !== "") {
                     const parsed = parseInt(tempCustomWage, 10);
                     if (!isNaN(parsed) && parsed >= 0) {
-                      amt = parsed;
+                      advance = parsed;
                     }
                   }
+                  let overtime = 0;
+                  if (tempOvertimeType === "1x") {
+                    overtime = baseRate;
+                  } else if (tempOvertimeType === "2x") {
+                    overtime = baseRate * 2;
+                  } else if (tempOvertimeType === "custom") {
+                    const parsed = parseInt(tempOvertimeCustomAmount, 10);
+                    if (!isNaN(parsed) && parsed >= 0) {
+                      overtime = parsed;
+                    }
+                  }
+
                   if (tempStatus === "P" || tempStatus === "OT") {
-                    return baseRate + amt;
+                    return baseRate + advance + overtime;
                   }
                   if (tempStatus === "H") {
-                    return baseRate / 2 + amt;
+                    return (baseRate / 2) + advance + overtime;
                   }
                   if (tempStatus === "A") {
-                    return amt;
+                    return 0; // strictly 0 for Absent
                   }
-                  return amt;
+                  return advance + overtime;
                 })()}
               </ThemedText>
             </View>
@@ -1310,6 +1463,186 @@ export default function AttendanceScreen() {
           </Pressable>
         )}
       </GlassModal>
+
+      {/* ── OVERTIME DIALOG MODAL ── */}
+      <Modal
+        visible={showOvertimeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowOvertimeModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowOvertimeModal(false)}
+        >
+          <Pressable
+            style={[
+              styles.modalContentCard,
+              {
+                backgroundColor: isDark ? "#1E1E2A" : "#FFFFFF",
+                borderColor: theme.border,
+                borderWidth: 1,
+                width: 320,
+                padding: Spacing.xl,
+                borderRadius: 16,
+              },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <ThemedText type="h3" style={{ marginBottom: Spacing.md, textAlign: "center", fontWeight: "700" }}>
+              Select Overtime Option
+            </ThemedText>
+
+            {/* Option 1: 1x Overtime */}
+            <Pressable
+              onPress={() => {
+                setTempOvertimeType("1x");
+                setTempOvertimeCustomAmount("");
+              }}
+              style={[
+                styles.overtimeOptionBtn,
+                {
+                  borderColor: tempOvertimeType === "1x" ? "#FF6B35" : theme.border,
+                  backgroundColor: tempOvertimeType === "1x" ? "rgba(255, 107, 53, 0.1)" : "transparent",
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: Spacing.md,
+                  marginBottom: Spacing.sm,
+                },
+              ]}
+            >
+              <ThemedText type="body" style={{ fontWeight: "700" }}>
+                1× Overtime
+              </ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                Amount: ₹{selectedWorker?.dailyRate ?? 0}
+              </ThemedText>
+            </Pressable>
+
+            {/* Option 2: 2x Overtime */}
+            <Pressable
+              onPress={() => {
+                setTempOvertimeType("2x");
+                setTempOvertimeCustomAmount("");
+              }}
+              style={[
+                styles.overtimeOptionBtn,
+                {
+                  borderColor: tempOvertimeType === "2x" ? "#FF6B35" : theme.border,
+                  backgroundColor: tempOvertimeType === "2x" ? "rgba(255, 107, 53, 0.1)" : "transparent",
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: Spacing.md,
+                  marginBottom: Spacing.sm,
+                },
+              ]}
+            >
+              <ThemedText type="body" style={{ fontWeight: "700" }}>
+                2× Overtime
+              </ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                Amount: ₹{(selectedWorker?.dailyRate ?? 0) * 2}
+              </ThemedText>
+            </Pressable>
+
+            {/* Option 3: Custom Overtime */}
+            <Pressable
+              onPress={() => {
+                setTempOvertimeType("custom");
+              }}
+              style={[
+                styles.overtimeOptionBtn,
+                {
+                  borderColor: tempOvertimeType === "custom" ? "#FF6B35" : theme.border,
+                  backgroundColor: tempOvertimeType === "custom" ? "rgba(255, 107, 53, 0.1)" : "transparent",
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: Spacing.md,
+                  marginBottom: Spacing.sm,
+                },
+              ]}
+            >
+              <ThemedText type="body" style={{ fontWeight: "700", marginBottom: 4 }}>
+                Custom Overtime
+              </ThemedText>
+              {tempOvertimeType === "custom" ? (
+                <View style={{ flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "#FF6B35", marginTop: 4 }}>
+                  <ThemedText type="body" style={{ marginRight: 4, color: theme.text }}>₹</ThemedText>
+                  <TextInput
+                    style={{ flex: 1, height: 36, paddingHorizontal: 4, fontSize: 14, color: theme.text }}
+                    placeholder="Enter manual amount"
+                    placeholderTextColor={theme.textSecondary}
+                    value={tempOvertimeCustomAmount}
+                    onChangeText={setTempOvertimeCustomAmount}
+                    keyboardType="numeric"
+                    autoFocus
+                  />
+                </View>
+              ) : (
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  Enter custom amount
+                </ThemedText>
+              )}
+            </Pressable>
+
+            {/* Option 4: None */}
+            <Pressable
+              onPress={() => {
+                setTempOvertimeType("none");
+                setTempOvertimeCustomAmount("");
+              }}
+              style={[
+                styles.overtimeOptionBtn,
+                {
+                  borderColor: theme.border,
+                  backgroundColor: tempOvertimeType === "none" ? "rgba(0, 0, 0, 0.05)" : "transparent",
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: Spacing.md,
+                  marginBottom: Spacing.sm,
+                  marginTop: Spacing.sm,
+                },
+              ]}
+            >
+              <ThemedText type="body" style={{ color: theme.textSecondary }}>
+                No Overtime
+              </ThemedText>
+            </Pressable>
+
+            {/* Actions */}
+            <View style={{ flexDirection: "row", gap: Spacing.md, marginTop: Spacing.lg }}>
+              <Pressable
+                onPress={() => {
+                  setShowOvertimeModal(false);
+                  if (tempStatus === "OT" && tempOvertimeType === "none") {
+                    setTempStatus("P");
+                  }
+                }}
+                style={[styles.paymentCancelBtn, { flex: 1, height: 44, justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.border }]}
+              >
+                <ThemedText type="body">Cancel</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (tempOvertimeType === "custom") {
+                    const amt = parseFloat(tempOvertimeCustomAmount);
+                    if (isNaN(amt) || amt < 0) {
+                      Alert.alert("Error", "Please enter a valid amount");
+                      return;
+                    }
+                  }
+                  setShowOvertimeModal(false);
+                }}
+                style={[{ flex: 1, backgroundColor: "#FF6B35", height: 44, justifyContent: "center", alignItems: "center", borderRadius: 10 }]}
+              >
+                <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                  Confirm
+                </ThemedText>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* ── UPGRADE PRICING MODAL ── */}
       <Modal
@@ -1985,4 +2318,10 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: "800",
   },
+  overtimeOptionBtn: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  paymentCancelBtn: {},
 });

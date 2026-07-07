@@ -205,7 +205,7 @@ export default function LoginScreen() {
     }
 
     const trimmedPhone = phone.trim();
-    const isAdminUsername = trimmedPhone === "haajari896";
+    const isAdminUsername = trimmedPhone === "haajari896" || trimmedPhone.toLowerCase() === "admin";
     const isEmail = trimmedPhone.includes("@");
     const isPhone = /^\d{10}$/.test(trimmedPhone);
     const isUsername = trimmedPhone.length >= 3;
@@ -472,83 +472,48 @@ export default function LoginScreen() {
                 </View>
               </View>
 
-              {loginMode === "password" ? (
-                <View style={styles.inputContainer}>
-                  <View
-                    style={[
-                      styles.inputWrapper,
-                      {
-                        backgroundColor: theme.backgroundDefault,
-                        borderColor: theme.border,
-                      },
-                    ]}
+              <View style={styles.inputContainer}>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    {
+                      backgroundColor: theme.backgroundDefault,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
+                  <Feather
+                    name="lock"
+                    size={20}
+                    color={theme.textSecondary}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={[styles.input, { color: theme.text }]}
+                    placeholder={t.auth.password}
+                    placeholderTextColor={theme.textSecondary}
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      setError(null);
+                    }}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Pressable
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeButton}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <Feather
-                      name="lock"
+                      name={showPassword ? "eye-off" : "eye"}
                       size={20}
                       color={theme.textSecondary}
-                      style={styles.inputIcon}
                     />
-                    <TextInput
-                      style={[styles.input, { color: theme.text }]}
-                      placeholder={t.auth.password}
-                      placeholderTextColor={theme.textSecondary}
-                      value={password}
-                      onChangeText={(text) => {
-                        setPassword(text);
-                        setError(null);
-                      }}
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                    <Pressable
-                      onPress={() => setShowPassword(!showPassword)}
-                      style={styles.eyeButton}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Feather
-                        name={showPassword ? "eye-off" : "eye"}
-                        size={20}
-                        color={theme.textSecondary}
-                      />
-                    </Pressable>
-                  </View>
+                  </Pressable>
                 </View>
-              ) : (
-                <View style={styles.inputContainer}>
-                  <View
-                    style={[
-                      styles.inputWrapper,
-                      {
-                        backgroundColor: theme.backgroundDefault,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name="shield"
-                      size={20}
-                      color={theme.textSecondary}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={[styles.input, { color: theme.text }]}
-                      placeholder="Enter 6-digit OTP (use 123456)"
-                      placeholderTextColor={theme.textSecondary}
-                      value={otp}
-                      onChangeText={(text) => {
-                        setOtp(text);
-                        setError(null);
-                      }}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </View>
-                </View>
-              )}
+              </View>
 
               <View style={styles.optionsRow}>
                 <Pressable
@@ -572,23 +537,6 @@ export default function LoginScreen() {
                   </View>
                   <ThemedText type="body" style={styles.rememberMeText}>
                     {t.auth.rememberMe}
-                  </ThemedText>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => {
-                    setLoginMode(loginMode === "password" ? "otp" : "password");
-                    setError(null);
-                  }}
-                  style={styles.toggleModeButton}
-                >
-                  <ThemedText
-                    type="body"
-                    style={{ color: theme.primary, fontWeight: "600" }}
-                  >
-                    {loginMode === "password"
-                      ? "Login with OTP"
-                      : "Login with Password"}
                   </ThemedText>
                 </Pressable>
               </View>

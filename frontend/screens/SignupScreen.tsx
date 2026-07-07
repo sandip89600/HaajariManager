@@ -54,9 +54,7 @@ export default function SignupScreen() {
   const [phone, setPhone] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
@@ -131,6 +129,22 @@ export default function SignupScreen() {
       Alert.alert("Error", "Please enter your full name");
       return;
     }
+    if (!username.trim()) {
+      Alert.alert("Error", "Please enter a username");
+      return;
+    }
+    if (username.trim().length < 3) {
+      Alert.alert("Error", "Username must be at least 3 characters");
+      return;
+    }
+    if (!email.trim()) {
+      Alert.alert("Error", "Please enter your email address");
+      return;
+    }
+    if (!email.trim().includes("@")) {
+      Alert.alert("Error", "Please enter a valid email address");
+      return;
+    }
     if (!phone.trim()) {
       Alert.alert("Error", "Please enter your mobile number");
       return;
@@ -147,20 +161,11 @@ export default function SignupScreen() {
       Alert.alert("Error", "Password must be at least 6 characters");
       return;
     }
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
-      return;
-    }
     if (!agreedToTerms) {
       Alert.alert(
         "Error",
         "You must agree to the Terms and Conditions to proceed",
       );
-      return;
-    }
-
-    if (email.trim() && !email.trim().includes("@")) {
-      Alert.alert("Error", "Please enter a valid email address");
       return;
     }
 
@@ -396,6 +401,9 @@ export default function SignupScreen() {
           <View style={styles.stepContent}>
             {/* Full Name */}
             <View style={styles.inputContainer}>
+              <ThemedText style={styles.inputLabel}>
+                {t.auth.fullName || "Full Name"} <ThemedText style={{ color: "red" }}>*</ThemedText>
+              </ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -413,7 +421,7 @@ export default function SignupScreen() {
                 />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Full Name"
+                  placeholder={t.auth.fullName || "Full Name"}
                   placeholderTextColor={theme.textSecondary}
                   value={name}
                   onChangeText={setName}
@@ -424,6 +432,9 @@ export default function SignupScreen() {
 
             {/* Username */}
             <View style={styles.inputContainer}>
+              <ThemedText style={styles.inputLabel}>
+                Username <ThemedText style={{ color: "red" }}>*</ThemedText>
+              </ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -441,7 +452,7 @@ export default function SignupScreen() {
                 />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Username (optional)"
+                  placeholder="Username"
                   placeholderTextColor={theme.textSecondary}
                   value={username}
                   onChangeText={setUsername}
@@ -453,6 +464,9 @@ export default function SignupScreen() {
 
             {/* Email Address */}
             <View style={styles.inputContainer}>
+              <ThemedText style={styles.inputLabel}>
+                Email Address <ThemedText style={{ color: "red" }}>*</ThemedText>
+              </ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -470,7 +484,7 @@ export default function SignupScreen() {
                 />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Email Address (optional)"
+                  placeholder="Email Address"
                   placeholderTextColor={theme.textSecondary}
                   value={email}
                   onChangeText={setEmail}
@@ -483,6 +497,9 @@ export default function SignupScreen() {
 
             {/* Mobile Number & Send OTP */}
             <View style={styles.inputContainer}>
+              <ThemedText style={styles.inputLabel}>
+                Mobile Number <ThemedText style={{ color: "red" }}>*</ThemedText>
+              </ThemedText>
               <View style={styles.phoneInputRow}>
                 <View
                   style={[
@@ -539,6 +556,9 @@ export default function SignupScreen() {
             {/* OTP Code Verification */}
             {otpSent && !otpVerified && (
               <View style={styles.inputContainer}>
+                <ThemedText style={styles.inputLabel}>
+                  Verification Code <ThemedText style={{ color: "red" }}>*</ThemedText>
+                </ThemedText>
                 <View style={styles.phoneInputRow}>
                   <View
                     style={[
@@ -597,6 +617,9 @@ export default function SignupScreen() {
 
             {/* Company Name */}
             <View style={styles.inputContainer}>
+              <ThemedText style={styles.inputLabel}>
+                {t.auth.companyName || "Company Name"} <ThemedText style={{ color: "red" }}>*</ThemedText>
+              </ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -614,7 +637,7 @@ export default function SignupScreen() {
                 />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Company Name"
+                  placeholder={t.auth.companyName || "Company Name"}
                   placeholderTextColor={theme.textSecondary}
                   value={companyName}
                   onChangeText={setCompanyName}
@@ -625,6 +648,9 @@ export default function SignupScreen() {
 
             {/* Password */}
             <View style={styles.inputContainer}>
+              <ThemedText style={styles.inputLabel}>
+                {t.auth.password} <ThemedText style={{ color: "red" }}>*</ThemedText>
+              </ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -664,47 +690,6 @@ export default function SignupScreen() {
               </View>
             </View>
 
-            {/* Confirm Password */}
-            <View style={styles.inputContainer}>
-              <View
-                style={[
-                  styles.inputWrapper,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <Feather
-                  name="lock"
-                  size={20}
-                  color={theme.textSecondary}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={[styles.input, { color: theme.text }]}
-                  placeholder={t.auth.confirmPassword}
-                  placeholderTextColor={theme.textSecondary}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirmPassword}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <Pressable
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  style={styles.eyeButton}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Feather
-                    name={showConfirmPassword ? "eye-off" : "eye"}
-                    size={20}
-                    color={theme.textSecondary}
-                  />
-                </Pressable>
-              </View>
-            </View>
-
             {/* Terms and Conditions */}
             <Pressable
               onPress={() => setAgreedToTerms(!agreedToTerms)}
@@ -726,8 +711,7 @@ export default function SignupScreen() {
                 )}
               </View>
               <ThemedText type="body" style={styles.termsText}>
-                I agree to the [Terms &
-                Conditions](file:///frontend/screens/TermsAndConditionsScreen.tsx)
+                I agree to the Terms & Conditions
               </ThemedText>
             </Pressable>
 
@@ -872,6 +856,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   inputContainer: { marginBottom: Spacing.lg },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: Spacing.xs,
+    marginLeft: 4,
+  },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",

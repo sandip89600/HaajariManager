@@ -22,7 +22,7 @@ import { Colors, Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { api } from "@/services/api";
 import { useLanguage } from "@/hooks/useLanguage";
 
-const ACCENT_ORANGE = "#FF6B35";
+const ACCENT_ORANGE = "#F97316";
 const DARK_BG = "#121212";
 const CARD_BG = "#1E1E1E";
 const INPUT_BG = "#292929";
@@ -115,7 +115,7 @@ export default function AdminLoginScreen() {
   return (
     <ThemedView style={[styles.container, { backgroundColor: DARK_BG }]}>
       <LinearGradient
-        colors={["rgba(255, 107, 53, 0.15)", "transparent"]}
+        colors={["rgba(249, 115, 22, 0.15)", "transparent"]}
         style={styles.gradientHeader}
       />
       <KeyboardAvoidingView
@@ -281,11 +281,11 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: BorderRadius.full,
-    backgroundColor: "rgba(255, 107, 53, 0.1)",
+    backgroundColor: "rgba(249, 115, 22, 0.1)",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 107, 53, 0.2)",
+    borderColor: "rgba(249, 115, 22, 0.2)",
     marginBottom: Spacing.md,
   },
   title: {

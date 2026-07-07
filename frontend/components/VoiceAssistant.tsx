@@ -13,11 +13,12 @@ import {
 } from "react-native";
 import { appContextTracker } from "@/utils/appContextTracker";
 import { BlurView } from "expo-blur";
-import { Feather } from "@expo/vector-icons";
-import { Audio } from "expo-av";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import { useAudioRecorder, AudioModule, RecordingPresets, setAudioModeAsync } from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Speech from "expo-speech";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -41,6 +42,7 @@ import {
   Worker,
   AttendanceRecord,
   PaymentRecord,
+  authenticatedFetch,
 } from "@/utils/storage";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { navigationRef } from "@/navigation/navigationRef";
@@ -190,8 +192,8 @@ const LAUNCHER_CARDS = [
     icon: "mic" as const,
     title: "Voice Command",
     subtitle: "Say what you need done",
-    color: "#FF6B35",
-    bg: "rgba(255,107,53,0.12)",
+    color: "#F97316",
+    bg: "rgba(249,115,22,0.12)",
   },
   {
     id: "chat",
@@ -214,8 +216,8 @@ const LAUNCHER_CARDS = [
     icon: "bar-chart-2" as const,
     title: "Today's Summary",
     subtitle: "Quick overview of site status",
-    color: "#10B981",
-    bg: "rgba(16,185,129,0.12)",
+    color: "#22C55E",
+    bg: "rgba(34,197,94,0.12)",
   },
   {
     id: "add_worker",
@@ -231,6 +233,8 @@ const LAUNCHER_CARDS = [
 export default function VoiceAssistant() {
   const { theme, isDark, setThemeMode } = useTheme();
   const { language } = useLanguage();
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const isRecordingActiveRef = useRef(false);
 
   // Mode
   const [mode, setMode] = useState<CopilotMode>("none");
@@ -255,6 +259,7 @@ export default function VoiceAssistant() {
   const [chatInput, setChatInput] = useState("");
   const [liveTextCommand, setLiveTextCommand] = useState("");
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [hasProactiveHint, setHasProactiveHint] = useState(false);
 
   // Toast
@@ -264,7 +269,6 @@ export default function VoiceAssistant() {
   } | null>(null);
 
   // Refs
-  const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const liveActiveRef = useRef(false);
   const liveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -353,24 +357,7 @@ export default function VoiceAssistant() {
 
   // ─── TTS ─────────────────────────────────────────────────────────────────────
   const speakResponse = (text: string, onDone?: () => void) => {
-    Speech.stop();
-    const hasDevanagari = /[\u0900-\u097F]/.test(text);
-    const hindiKeywords = ["kijiye", "karo", "hai", "laga", "dena", "aap", "mera"];
-    const hasHindiKeyword = hindiKeywords.some((k) => text.toLowerCase().includes(k));
-    const lang = hasDevanagari || hasHindiKeyword ? "hi-IN" : "en-IN";
-    setIsSpeaking(true);
-    Speech.speak(text, {
-      language: lang,
-      rate: 0.95,
-      onDone: () => {
-        setIsSpeaking(false);
-        if (onDone) onDone();
-        if (liveActiveRef.current && !isRecording && !isProcessing && !pendingConfirmation) {
-          setTimeout(() => { if (liveActiveRef.current) runLiveLoop(); }, 400);
-        }
-      },
-      onError: () => { setIsSpeaking(false); if (onDone) onDone(); },
-    });
+    if (onDone) onDone();
   };
 
   // ─── FUZZY WORKER MATCH ───────────────────────────────────────────────────────
@@ -428,9 +415,9 @@ export default function VoiceAssistant() {
       clearTimeout(liveTimeoutRef.current);
       liveTimeoutRef.current = null;
     }
-    if (recordingRef.current) {
-      try { await recordingRef.current.stopAndUnloadAsync(); } catch {}
-      recordingRef.current = null;
+    if (isRecordingActiveRef.current) {
+      try { await audioRecorder.stop(); } catch {}
+      isRecordingActiveRef.current = false;
     }
     setIsRecording(false);
     setIsProcessing(false);
@@ -443,16 +430,16 @@ export default function VoiceAssistant() {
     setMode("none");
   };
 
-  const closeAssistant = () => {
+  const closeAssistant = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setMode("none");
     if (voiceTimeoutRef.current) {
       clearTimeout(voiceTimeoutRef.current);
       voiceTimeoutRef.current = null;
     }
-    if (recordingRef.current) {
-      try { recordingRef.current.stopAndUnloadAsync(); } catch {}
-      recordingRef.current = null;
+    if (isRecordingActiveRef.current) {
+      try { await audioRecorder.stop(); } catch {}
+      isRecordingActiveRef.current = false;
     }
     setIsRecording(false);
     setIsProcessing(false);
@@ -463,31 +450,21 @@ export default function VoiceAssistant() {
   const runLiveLoop = async () => {
     if (!liveActiveRef.current) return;
     if (isSpeaking || pendingConfirmation) return;
-    if (recordingRef.current || isPreparingRecordingRef.current) return;
+    if (isRecordingActiveRef.current || isPreparingRecordingRef.current) return;
 
     try {
       isPreparingRecordingRef.current = true;
       setIsRecording(true);
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const recordingOptions = {
-        android: {
-          extension: ".m4a",
-          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-          audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 44100, numberOfChannels: 1, bitRate: 128000,
-        },
-        ios: {
-          extension: ".m4a",
-          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-          audioQuality: Audio.IOSAudioQuality.HIGH,
-          sampleRate: 44100, numberOfChannels: 1, bitRate: 128000,
-          linearPCMBitDepth: 16 as const, linearPCMIsBigEndian: false, linearPCMIsFloat: false,
-        },
-        web: { mimeType: "audio/webm", bitsPerSecond: 128000 },
-      };
-      const { recording } = await Audio.Recording.createAsync(recordingOptions);
-      recordingRef.current = recording;
+      const { status } = await AudioModule.requestRecordingPermissionsAsync();
+      if (status !== "granted") {
+        showToast("Microphone permission required.", "error");
+        stopLiveMode();
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      isRecordingActiveRef.current = true;
       isPreparingRecordingRef.current = false;
 
       liveTimeoutRef.current = setTimeout(async () => {
@@ -495,9 +472,9 @@ export default function VoiceAssistant() {
         try {
           setIsRecording(false);
           setIsProcessing(true);
-          await recording.stopAndUnloadAsync();
-          const uri = recording.getURI();
-          recordingRef.current = null;
+          await audioRecorder.stop();
+          const uri = audioRecorder.uri;
+          isRecordingActiveRef.current = false;
 
           if (liveActiveRef.current && !isSpeaking && !pendingConfirmation) {
             setTimeout(() => {
@@ -530,12 +507,8 @@ export default function VoiceAssistant() {
       const token = auth?.token;
       const ctx = appContextTracker.getContext();
 
-      const response = await fetch(`${API_URL}/voice/process`, {
+      const response = await authenticatedFetch(`${API_URL}/voice/process`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           audio: base64Audio,
           mimeType: Platform.OS === "ios" ? "audio/x-m4a" : "audio/mp4",
@@ -543,6 +516,7 @@ export default function VoiceAssistant() {
           language,
           currentScreen: ctx.currentScreen,
           screenContext: ctx,
+          mode: "live",
         }),
       });
 
@@ -566,9 +540,10 @@ export default function VoiceAssistant() {
           }
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Live audio processing failed:", err);
-      showToast("Offline — check connection", "error");
+      const isTokenError = err.message && (err.message.includes("token") || err.message.includes("Unauthorized"));
+      showToast(isTokenError ? "Session expired. Please log in again." : "Connection error — check network", "error");
     }
   };
 
@@ -593,26 +568,15 @@ export default function VoiceAssistant() {
   const startRecording = async () => {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const recordingOptions = {
-        android: {
-          extension: ".m4a",
-          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-          audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 44100, numberOfChannels: 1, bitRate: 128000,
-        },
-        ios: {
-          extension: ".m4a",
-          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-          audioQuality: Audio.IOSAudioQuality.HIGH,
-          sampleRate: 44100, numberOfChannels: 1, bitRate: 128000,
-          linearPCMBitDepth: 16 as const, linearPCMIsBigEndian: false, linearPCMIsFloat: false,
-        },
-        web: { mimeType: "audio/webm", bitsPerSecond: 128000 },
-      };
-      const { recording } = await Audio.Recording.createAsync(recordingOptions);
-      recordingRef.current = recording;
+      const { status } = await AudioModule.requestRecordingPermissionsAsync();
+      if (status !== "granted") {
+        setTranscript("Microphone permission required.");
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      isRecordingActiveRef.current = true;
       setIsRecording(true);
       Speech.stop();
       if (mode === "voice") {
@@ -626,14 +590,14 @@ export default function VoiceAssistant() {
 
   const stopRecording = async () => {
     if (voiceTimeoutRef.current) { clearTimeout(voiceTimeoutRef.current); voiceTimeoutRef.current = null; }
-    if (!recordingRef.current) return;
+    if (!isRecordingActiveRef.current) return;
     setIsRecording(false);
     setIsProcessing(true);
 
     try {
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
+      isRecordingActiveRef.current = false;
       if (uri) {
         const base64Audio = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
         await processAudio(base64Audio);
@@ -650,9 +614,8 @@ export default function VoiceAssistant() {
       const token = auth?.token;
       const ctx = appContextTracker.getContext();
 
-      const response = await fetch(`${API_URL}/voice/process`, {
+      const response = await authenticatedFetch(`${API_URL}/voice/process`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           audio: base64Audio,
           mimeType: Platform.OS === "ios" ? "audio/x-m4a" : "audio/mp4",
@@ -662,6 +625,7 @@ export default function VoiceAssistant() {
           language,
           currentScreen: ctx.currentScreen,
           screenContext: ctx,
+          mode: mode,
         }),
       });
 
@@ -722,11 +686,56 @@ export default function VoiceAssistant() {
           }
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Audio processing failed:", err);
-      showToast("Offline — check connection", "error");
+      const isTokenError = err.message && (err.message.includes("token") || err.message.includes("Unauthorized"));
+      showToast(isTokenError ? "Session expired. Please log in again." : "Connection error — check network", "error");
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handlePickAttachment = async (label: string) => {
+    setAttachMenuOpen(false);
+    try {
+      if (label === "Camera") {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== "granted") {
+          showToast("Camera permission is required to take photos", "error");
+          return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ["images"],
+          allowsEditing: false,
+          base64: true,
+          quality: 0.5,
+        });
+        if (!result.canceled && result.assets && result.assets[0].base64) {
+          setAttachedImage(result.assets[0].base64);
+          showToast("Photo attached successfully", "success");
+        }
+      } else if (label === "Image" || label === "Document") {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+          showToast("Photo library permission is required to select photos", "error");
+          return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          allowsEditing: false,
+          base64: true,
+          quality: 0.5,
+        });
+        if (!result.canceled && result.assets && result.assets[0].base64) {
+          setAttachedImage(result.assets[0].base64);
+          showToast("Image attached successfully", "success");
+        }
+      } else {
+        showToast(`${label} integration is coming soon`, "info");
+      }
+    } catch (err) {
+      console.error("Failed to pick attachment:", err);
+      showToast("Error picking attachment", "error");
     }
   };
 
@@ -757,15 +766,16 @@ export default function VoiceAssistant() {
       const token = auth?.token;
       const ctx = appContextTracker.getContext();
 
-      const response = await fetch(`${API_URL}/voice/process`, {
+      const response = await authenticatedFetch(`${API_URL}/voice/process`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           text: text.trim(),
+          image: attachedImage || undefined,
           history: chatHistory.map((ch) => ({ role: ch.role, parts: [{ text: ch.text }] })),
           language,
           currentScreen: ctx.currentScreen,
           screenContext: ctx,
+          mode: "chat",
         }),
       });
 
@@ -788,6 +798,7 @@ export default function VoiceAssistant() {
         { role: "model", text: "Connection error. Check your internet and try again.", timestamp: Date.now() },
       ]);
     } finally {
+      setAttachedImage(null);
       setIsProcessing(false);
     }
   };
@@ -1109,317 +1120,20 @@ export default function VoiceAssistant() {
       )}
 
       {/* ── FLOATING AI BUTTON ────────────────────────────────────────────── */}
-      {(mode === "none" || mode === "launcher") && (
+      {mode !== "chat" && (
         <Pressable
-          onPress={mode === "none" ? openLauncher : closeLauncher}
+          onPress={openLauncher}
           onPressIn={() => { buttonScale.value = withSpring(0.88, { mass: 0.5, damping: 15 }); }}
           onPressOut={() => { buttonScale.value = withSpring(1, { mass: 0.5, damping: 15 }); }}
           style={styles.fab}
         >
           <Animated.View style={[styles.fabGlowRing, animatedRing]} />
           <Animated.View style={animatedButton}>
-            <LinearGradient colors={["#FF6B35", "#FF8C35"]} style={styles.fabGradient}>
-              <Feather name={mode === "launcher" ? "x" : "cpu"} size={26} color="#FFF" />
+            <LinearGradient colors={["#F97316", "#FB923C"]} style={styles.fabGradient}>
+              <Ionicons name="sparkles" size={26} color="#FFF" />
             </LinearGradient>
           </Animated.View>
         </Pressable>
-      )}
-
-      {/* ── QUICK LAUNCHER ────────────────────────────────────────────────── */}
-      {mode === "launcher" && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          <Pressable style={styles.launcherBackdrop} onPress={closeLauncher} />
-          <Animated.View
-            entering={SlideInDown.springify().mass(0.7).damping(18).stiffness(180)}
-            exiting={SlideOutDown.duration(220)}
-            style={[
-              styles.launcherSheet,
-              {
-                backgroundColor: isDark ? "rgba(14,14,22,0.97)" : "rgba(255,255,255,0.98)",
-                borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-              },
-            ]}
-          >
-            <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)" }]} />
-
-            {/* Header */}
-            <View style={styles.launcherHeaderRow}>
-              <LinearGradient colors={["#FF6B35", "#FF8C35"]} style={styles.launcherHeaderIcon}>
-                <Feather name="cpu" size={14} color="#FFF" />
-              </LinearGradient>
-              <View>
-                <ThemedText style={styles.launcherTitle}>HAI Assistant</ThemedText>
-                <ThemedText style={[styles.launcherSubtitle, { color: theme.textSecondary }]}>
-                  What do you need?
-                </ThemedText>
-              </View>
-            </View>
-
-            {/* Cards */}
-            {LAUNCHER_CARDS.map((card) => (
-              <Pressable
-                key={card.id}
-                style={({ pressed }) => [
-                  styles.launcherCard,
-                  {
-                    backgroundColor: pressed ? card.bg : isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.025)",
-                    borderColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
-                  },
-                ]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  if (card.id === "voice") { setMode("none"); setTimeout(() => startVoiceMode(), 50); }
-                  else if (card.id === "chat") { setMode("none"); setTimeout(() => startChatMode(), 50); }
-                  else if (card.id === "live") { setMode("none"); setTimeout(() => startLiveMode(), 50); }
-                  else if (card.id === "summary") {
-                    setMode("none");
-                    if (navigationRef.isReady()) navigationRef.navigate("MainTabs", { screen: "SummaryTab" });
-                  } else if (card.id === "add_worker") {
-                    setMode("none");
-                    if (navigationRef.isReady()) navigationRef.navigate("AddWorker", undefined);
-                  }
-                }}
-              >
-                <View style={[styles.launcherCardIcon, { backgroundColor: card.bg }]}>
-                  <Feather name={card.icon} size={20} color={card.color} />
-                </View>
-                <View style={styles.launcherCardText}>
-                  <ThemedText style={styles.launcherCardTitle}>{card.title}</ThemedText>
-                  <ThemedText style={[styles.launcherCardSub, { color: theme.textSecondary }]}>
-                    {card.subtitle}
-                  </ThemedText>
-                </View>
-                <Feather name="chevron-right" size={16} color={theme.textSecondary} />
-              </Pressable>
-            ))}
-          </Animated.View>
-        </View>
-      )}
-
-      {/* ── VOICE OVERLAY ─────────────────────────────────────────────────── */}
-      {mode === "voice" && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          <Pressable style={styles.darkBackdrop} onPress={closeAssistant} />
-          <Animated.View
-            entering={SlideInDown.springify().mass(0.6).damping(18)}
-            exiting={SlideOutDown.duration(200)}
-            style={[
-              styles.voiceSheet,
-              {
-                backgroundColor: isDark ? "rgba(10,10,18,0.97)" : "rgba(255,255,255,0.98)",
-                borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-              },
-            ]}
-          >
-            <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)" }]} />
-
-            <ThemedText style={[styles.voiceLabel, { color: theme.textSecondary }]}>
-              {isProcessing ? "Processing…" : isRecording ? "Listening" : voiceTranscriptPreview ? "Review & Send" : "Ready"}
-            </ThemedText>
-
-            {/* Waveform / icon */}
-            <View style={styles.voiceWaveRow}>
-              {isRecording ? (
-                <>
-                  <Animated.View style={[styles.voiceBar, { backgroundColor: "#FF6B35" }, animatedWave1]} />
-                  <Animated.View style={[styles.voiceBar, { backgroundColor: "#FF7A35" }, animatedWave2]} />
-                  <Animated.View style={[styles.voiceBar, { backgroundColor: "#FF8C35" }, animatedWave3]} />
-                  <Animated.View style={[styles.voiceBar, { backgroundColor: "#FF7A35" }, animatedWave4]} />
-                  <Animated.View style={[styles.voiceBar, { backgroundColor: "#FF6B35" }, animatedWave5]} />
-                </>
-              ) : isProcessing ? (
-                <ActivityIndicator size="large" color="#FF6B35" />
-              ) : (
-                <Feather name="mic" size={42} color={theme.primary} />
-              )}
-            </View>
-
-            {/* Preview / edit */}
-            {voiceTranscriptPreview ? (
-              <View style={[styles.previewBox, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)", borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)" }]}>
-                <Feather name="mic" size={14} color={theme.primary} style={{ marginRight: 8 }} />
-                <TextInput
-                  style={[styles.previewInput, { color: theme.text }]}
-                  value={voiceTranscriptPreview}
-                  onChangeText={setVoiceTranscriptPreview}
-                  multiline
-                  placeholder="Edit before sending..."
-                  placeholderTextColor={theme.textSecondary}
-                />
-              </View>
-            ) : null}
-
-            {/* Controls */}
-            <View style={styles.voiceControls}>
-              <Pressable
-                style={[styles.voiceCtrlBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]}
-                onPress={closeAssistant}
-              >
-                <Feather name="x" size={22} color={theme.textSecondary} />
-              </Pressable>
-
-              <Pressable
-                style={[styles.voiceRecordBtn, { backgroundColor: isRecording ? "#EF4444" : theme.primary }]}
-                onPress={isRecording ? stopRecording : startRecording}
-              >
-                <Feather name={isRecording ? "square" : "mic"} size={28} color="#FFF" />
-              </Pressable>
-
-              {voiceTranscriptPreview ? (
-                <Pressable
-                  style={[styles.voiceCtrlBtn, { backgroundColor: theme.primary }]}
-                  onPress={async () => {
-                    if (voiceTranscriptPreview.trim()) {
-                      await handleTextCommand(voiceTranscriptPreview);
-                      setVoiceTranscriptPreview("");
-                      closeAssistant();
-                    }
-                  }}
-                >
-                  <Feather name="send" size={22} color="#FFF" />
-                </Pressable>
-              ) : (
-                <View style={styles.voiceCtrlBtnPlaceholder} />
-              )}
-            </View>
-
-            <ThemedText style={[styles.voiceHint, { color: theme.textSecondary }]}>
-              Say "Add worker Rajesh", "mark present", "show summary"…
-            </ThemedText>
-          </Animated.View>
-        </View>
-      )}
-
-      {/* ── LIVE MODE ─────────────────────────────────────────────────────── */}
-      {mode === "live" && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          <Animated.View
-            entering={SlideInDown.springify().damping(18)}
-            exiting={SlideOutDown.duration(200)}
-            style={[
-              styles.livePanel,
-              {
-                backgroundColor: isDark ? "rgba(8,8,16,0.96)" : "rgba(255,255,255,0.96)",
-                borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-              },
-            ]}
-          >
-            <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)" }]} />
-
-            <Pressable style={styles.liveCloseBtn} onPress={stopLiveMode}>
-              <Feather name="x" size={18} color={theme.textSecondary} />
-            </Pressable>
-
-            {/* Pending confirmation */}
-            {pendingConfirmation && (
-              <Animated.View
-                entering={FadeIn.duration(220)}
-                exiting={FadeOut.duration(180)}
-                style={[styles.confirmBox, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)", borderColor: theme.border }]}
-              >
-                <Feather name="alert-triangle" size={16} color={theme.primary} style={{ marginRight: 8 }} />
-                <ThemedText style={{ flex: 1, fontSize: 13, fontWeight: "600" }}>
-                  {pendingConfirmation.message}
-                </ThemedText>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    style={[styles.confirmBtn, { borderColor: theme.border, borderWidth: 1 }]}
-                    onPress={() => { setPendingConfirmation(null); if (liveActiveRef.current) runLiveLoop(); }}
-                  >
-                    <ThemedText style={{ fontSize: 12, fontWeight: "600" }}>Cancel</ThemedText>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.confirmBtn, { backgroundColor: theme.primary }]}
-                    onPress={async () => {
-                      const { action, data } = pendingConfirmation;
-                      setPendingConfirmation(null);
-                      await executeActionDirect(action, data);
-                      showToast("Done", "success");
-                      if (liveActiveRef.current) runLiveLoop();
-                    }}
-                  >
-                    <ThemedText style={{ fontSize: 12, fontWeight: "700", color: "#FFF" }}>Confirm</ThemedText>
-                  </Pressable>
-                </View>
-              </Animated.View>
-            )}
-
-            {/* Status dot */}
-            <View style={styles.liveStatusRow}>
-              <View style={[styles.liveStatusDot, {
-                backgroundColor: isProcessing ? "#F59E0B" : isSpeaking ? "#3B82F6" : isRecording ? "#10B981" : "#6B7280",
-              }]} />
-              <ThemedText style={[styles.liveStatusText, { color: theme.textSecondary }]}>
-                {isProcessing ? "Processing…" : isSpeaking ? "Speaking…" : isRecording ? "Listening…" : "Tap mic to start"}
-              </ThemedText>
-            </View>
-
-            {/* Waveform — only when recording */}
-            {isRecording && (
-              <View style={styles.liveWaveRow}>
-                <Animated.View style={[styles.liveBar, { backgroundColor: "#FF6B35" }, animatedWave1]} />
-                <Animated.View style={[styles.liveBar, { backgroundColor: "#FF7A35" }, animatedWave2]} />
-                <Animated.View style={[styles.liveBar, { backgroundColor: "#FF8C35" }, animatedWave3]} />
-                <Animated.View style={[styles.liveBar, { backgroundColor: "#FF7A35" }, animatedWave4]} />
-                <Animated.View style={[styles.liveBar, { backgroundColor: "#FF6B35" }, animatedWave5]} />
-              </View>
-            )}
-
-            {/* Transcript */}
-            <View style={styles.liveDialogue}>
-              {transcript ? (
-                <ThemedText style={[styles.liveTranscriptText, { color: theme.primary }]} numberOfLines={2}>
-                  🎙 {transcript}
-                </ThemedText>
-              ) : null}
-              {aiResponse ? (
-                <ThemedText style={[styles.liveAiText, { color: theme.text }]} numberOfLines={3}>
-                  HAI: {aiResponse}
-                </ThemedText>
-              ) : null}
-            </View>
-
-            {/* Mic button */}
-            <Pressable
-              style={[styles.liveMicBtn, { backgroundColor: isRecording ? "#EF4444" : theme.primary }]}
-              onPress={async () => {
-                if (isRecording) {
-                  setIsRecording(false);
-                  if (recordingRef.current) {
-                    try { await recordingRef.current.stopAndUnloadAsync(); } catch {}
-                    recordingRef.current = null;
-                  }
-                } else {
-                  runLiveLoop();
-                }
-              }}
-            >
-              <Feather name={isRecording ? "mic-off" : "mic"} size={26} color="#FFF" />
-            </Pressable>
-
-            {/* Text fallback */}
-            <View style={[styles.liveInputRow, { borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)", backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)" }]}>
-              <TextInput
-                style={[styles.liveTextInput, { color: theme.text }]}
-                placeholder='Type: "Add worker Rajesh", "read it"…'
-                placeholderTextColor={theme.textSecondary}
-                value={liveTextCommand}
-                onChangeText={setLiveTextCommand}
-                onSubmitEditing={() => {
-                  if (liveTextCommand.trim()) { handleTextCommand(liveTextCommand); setLiveTextCommand(""); }
-                }}
-              />
-              <Pressable
-                style={[styles.liveSendBtn, { backgroundColor: theme.primary }]}
-                onPress={() => {
-                  if (liveTextCommand.trim()) { handleTextCommand(liveTextCommand); setLiveTextCommand(""); }
-                }}
-              >
-                <Feather name="send" size={14} color="#FFF" />
-              </Pressable>
-            </View>
-          </Animated.View>
-        </View>
       )}
 
       {/* ── CHAT PANEL ────────────────────────────────────────────────────── */}
@@ -1449,8 +1163,8 @@ export default function VoiceAssistant() {
               {/* Header */}
               <View style={styles.chatHeader}>
                 <View style={styles.chatHeaderLeft}>
-                  <LinearGradient colors={["#FF6B35", "#FF8C35"]} style={styles.chatAvatar}>
-                    <Feather name="cpu" size={14} color="#FFF" />
+                  <LinearGradient colors={["#F97316", "#FB923C"]} style={styles.chatAvatar}>
+                    <Ionicons name="sparkles" size={14} color="#FFF" />
                   </LinearGradient>
                   <View>
                     <ThemedText style={styles.chatHeaderTitle}>HAI</ThemedText>
@@ -1491,8 +1205,8 @@ export default function VoiceAssistant() {
                 {/* Empty state */}
                 {chatHistory.length === 0 && (
                   <View style={styles.emptyState}>
-                    <LinearGradient colors={["#FF6B35", "#FF8C35"]} style={styles.emptyAvatar}>
-                      <Feather name="cpu" size={28} color="#FFF" />
+                    <LinearGradient colors={["#F97316", "#FB923C"]} style={styles.emptyAvatar}>
+                      <Ionicons name="sparkles" size={28} color="#FFF" />
                     </LinearGradient>
                     <ThemedText style={styles.emptyTitle}>HAI Assistant</ThemedText>
                     <ThemedText style={[styles.emptySub, { color: theme.textSecondary }]}>
@@ -1517,8 +1231,8 @@ export default function VoiceAssistant() {
                   return (
                     <View key={idx} style={[styles.bubbleRow, isUser ? styles.bubbleRowUser : styles.bubbleRowAI]}>
                       {!isUser && (
-                        <LinearGradient colors={["#FF6B35", "#FF8C35"]} style={styles.bubbleAvatar}>
-                          <Feather name="cpu" size={10} color="#FFF" />
+                        <LinearGradient colors={["#F97316", "#FB923C"]} style={styles.bubbleAvatar}>
+                          <Ionicons name="sparkles" size={10} color="#FFF" />
                         </LinearGradient>
                       )}
                       <View style={[styles.bubble, isUser
@@ -1537,8 +1251,8 @@ export default function VoiceAssistant() {
                 {/* Typing indicator */}
                 {isProcessing && (
                   <Animated.View entering={FadeIn.duration(200)} style={styles.bubbleRow}>
-                    <LinearGradient colors={["#FF6B35", "#FF8C35"]} style={styles.bubbleAvatar}>
-                      <Feather name="cpu" size={10} color="#FFF" />
+                    <LinearGradient colors={["#F97316", "#FB923C"]} style={styles.bubbleAvatar}>
+                      <Ionicons name="sparkles" size={10} color="#FFF" />
                     </LinearGradient>
                     <View style={[styles.bubble, styles.aiBubble, {
                       backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
@@ -1562,6 +1276,52 @@ export default function VoiceAssistant() {
                   </View>
                 )}
               </ScrollView>
+
+              {/* Attached Image Preview */}
+              {attachedImage && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderTopWidth: 1,
+                    borderTopColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
+                    backgroundColor: isDark ? "rgba(10,10,20,0.98)" : "rgba(255,255,255,0.99)",
+                  }}
+                >
+                  <View style={{ position: "relative" }}>
+                    <Animated.Image
+                      source={{ uri: `data:image/jpeg;base64,${attachedImage}` }}
+                      style={{ width: 50, height: 50, borderRadius: 8, borderWidth: 1, borderColor: theme.border }}
+                    />
+                    <Pressable
+                      onPress={() => setAttachedImage(null)}
+                      style={{
+                        position: "absolute",
+                        top: -6,
+                        right: -6,
+                        backgroundColor: "#EF4444",
+                        borderRadius: 10,
+                        width: 18,
+                        height: 18,
+                        justifyContent: "center",
+                        alignItems: "center",
+                        elevation: 2,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 1,
+                      }}
+                    >
+                      <Feather name="x" size={10} color="#FFF" />
+                    </Pressable>
+                  </View>
+                  <ThemedText style={{ fontSize: 11, color: theme.textSecondary, marginLeft: 12 }}>
+                    Image attached (Ready to analyze)
+                  </ThemedText>
+                </View>
+              )}
 
               {/* ── INPUT BAR ── */}
               <View style={[styles.inputBar, {
@@ -1592,10 +1352,10 @@ export default function VoiceAssistant() {
                       <Pressable
                         key={item.label}
                         style={styles.attachItem}
-                        onPress={() => { setAttachMenuOpen(false); showToast(`${item.label} coming soon`, "info"); }}
+                        onPress={() => handlePickAttachment(item.label)}
                       >
-                        <View style={[styles.attachItemIcon, { backgroundColor: "rgba(255,107,53,0.1)" }]}>
-                          <Feather name={item.icon} size={16} color="#FF6B35" />
+                        <View style={[styles.attachItemIcon, { backgroundColor: "rgba(249,115,22,0.1)" }]}>
+                          <Feather name={item.icon} size={16} color="#F97316" />
                         </View>
                         <ThemedText style={{ fontSize: 11, marginTop: 4 }}>{item.label}</ThemedText>
                       </Pressable>
@@ -1617,22 +1377,296 @@ export default function VoiceAssistant() {
                   blurOnSubmit={false}
                 />
 
-                {/* Adaptive mic/send */}
-                {chatInput.trim() ? (
+                {/* Send Button */}
+                {(chatInput.trim().length > 0 || attachedImage !== null) && (
                   <Pressable style={[styles.inputIconBtn, { backgroundColor: theme.primary }]} onPress={() => submitChatText(chatInput)}>
                     <Feather name="send" size={18} color="#FFF" />
-                  </Pressable>
-                ) : (
-                  <Pressable
-                    style={[styles.inputIconBtn, { backgroundColor: isRecording ? "#EF4444" : isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]}
-                    onPress={isRecording ? stopRecording : startRecording}
-                  >
-                    <Feather name={isRecording ? "square" : "mic"} size={18} color={isRecording ? "#FFF" : theme.textSecondary} />
                   </Pressable>
                 )}
               </View>
             </Animated.View>
           </KeyboardAvoidingView>
+        </View>
+      )}
+
+      {/* ── LAUNCHER SHEET ────────────────────────────────────────────────── */}
+      {mode === "launcher" && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <Pressable style={styles.launcherBackdrop} onPress={closeAssistant} />
+          <Animated.View
+            entering={SlideInDown.springify().mass(0.7).damping(18).stiffness(180)}
+            exiting={SlideOutDown.duration(220)}
+            style={[
+              styles.launcherSheet,
+              {
+                backgroundColor: isDark ? "rgba(15, 23, 42, 0.98)" : "rgba(255, 255, 255, 0.99)",
+                borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)",
+              },
+            ]}
+          >
+            <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.12)" }]} />
+            
+            <View style={styles.launcherHeaderRow}>
+              <LinearGradient colors={["#F97316", "#FB923C"]} style={styles.launcherHeaderIcon}>
+                <Ionicons name="sparkles" size={18} color="#FFF" />
+              </LinearGradient>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.launcherTitle}>Ask HAI Live</ThemedText>
+                <ThemedText style={[styles.launcherSubtitle, { color: theme.textSecondary }]}>
+                  Select a tool to manage your site
+                </ThemedText>
+              </View>
+              <Pressable
+                style={[styles.chatCloseBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]}
+                onPress={closeAssistant}
+              >
+                <Feather name="x" size={18} color={theme.textSecondary} />
+              </Pressable>
+            </View>
+
+            {LAUNCHER_CARDS.map((card) => {
+              const bgOverride = isDark ? "rgba(255, 255, 255, 0.03)" : "rgba(0,0,0,0.02)";
+              return (
+                <Pressable
+                  key={card.id}
+                  style={({ pressed }) => [
+                    styles.launcherCard,
+                    {
+                      backgroundColor: pressed ? (isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)") : bgOverride,
+                      borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)",
+                    }
+                  ]}
+                  onPress={async () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    if (card.id === "voice") {
+                      await startVoiceMode();
+                    } else if (card.id === "chat") {
+                      startChatMode();
+                    } else if (card.id === "live") {
+                      await startLiveMode();
+                    } else if (card.id === "summary") {
+                      setMode("none");
+                      await executeAction("SHOW_SUMMARY", {});
+                    } else if (card.id === "add_worker") {
+                      setMode("none");
+                      await executeAction("OPEN_SCREEN", { screen: "Workers" });
+                    }
+                  }}
+                >
+                  <View style={[styles.launcherCardIcon, { backgroundColor: card.bg }]}>
+                    <Feather name={card.icon} size={20} color={card.color} />
+                  </View>
+                  <View style={styles.launcherCardText}>
+                    <ThemedText style={styles.launcherCardTitle}>{card.title}</ThemedText>
+                    <ThemedText style={[styles.launcherCardSub, { color: theme.textSecondary }]}>
+                      {card.subtitle}
+                    </ThemedText>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={theme.textSecondary} />
+                </Pressable>
+              );
+            })}
+          </Animated.View>
+        </View>
+      )}
+
+      {/* ── VOICE COMMAND SHEET ───────────────────────────────────────────── */}
+      {mode === "voice" && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <Pressable style={styles.launcherBackdrop} onPress={closeAssistant} />
+          <Animated.View
+            entering={SlideInDown.springify().mass(0.7).damping(18).stiffness(180)}
+            exiting={SlideOutDown.duration(220)}
+            style={[
+              styles.voiceSheet,
+              {
+                backgroundColor: isDark ? "rgba(15, 23, 42, 0.98)" : "rgba(255, 255, 255, 0.99)",
+                borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)",
+              },
+            ]}
+          >
+            <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.12)" }]} />
+            
+            <ThemedText style={[styles.voiceLabel, { color: theme.primary }]}>
+              {isProcessing ? "Processing command…" : isRecording ? "Listening…" : "Voice Command"}
+            </ThemedText>
+
+            {/* Waveform bars */}
+            <View style={styles.voiceWaveRow}>
+              <Animated.View style={[styles.voiceBar, { backgroundColor: theme.primary }, animatedWave1]} />
+              <Animated.View style={[styles.voiceBar, { backgroundColor: theme.primary }, animatedWave2]} />
+              <Animated.View style={[styles.voiceBar, { backgroundColor: theme.primary }, animatedWave3]} />
+              <Animated.View style={[styles.voiceBar, { backgroundColor: theme.primary }, animatedWave4]} />
+              <Animated.View style={[styles.voiceBar, { backgroundColor: theme.primary }, animatedWave5]} />
+            </View>
+
+            {/* Preview text */}
+            <View style={[styles.previewBox, { backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)", borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]}>
+              <ThemedText style={[styles.previewInput, { color: theme.text }]} numberOfLines={3}>
+                {voiceTranscriptPreview || transcript || "Speak your command clearly (e.g. 'Add worker Rahul')"}
+              </ThemedText>
+            </View>
+
+            {/* Controls */}
+            <View style={styles.voiceControls}>
+              <Pressable
+                style={[styles.voiceCtrlBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)" }]}
+                onPress={closeAssistant}
+              >
+                <Feather name="x" size={20} color={theme.text} />
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.voiceRecordBtn,
+                  {
+                    backgroundColor: isRecording ? "#EF4444" : theme.primary,
+                  }
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  if (isRecording) {
+                    stopRecording();
+                  } else {
+                    startRecording();
+                  }
+                }}
+              >
+                <Feather name={isRecording ? "square" : "mic"} size={26} color="#FFF" />
+              </Pressable>
+
+              <Pressable
+                style={[styles.voiceCtrlBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)" }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  startChatMode();
+                }}
+              >
+                <Feather name="message-square" size={20} color={theme.text} />
+              </Pressable>
+            </View>
+
+            <ThemedText style={[styles.voiceHint, { color: theme.textSecondary }]}>
+              Support for English, Hindi, Hinglish, Marathi, and regional languages.
+            </ThemedText>
+          </Animated.View>
+        </View>
+      )}
+
+      {/* ── LIVE COPILOT PANEL ────────────────────────────────────────────── */}
+      {mode === "live" && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <Animated.View
+            entering={SlideInDown.springify().mass(0.7).damping(18).stiffness(180)}
+            exiting={SlideOutDown.duration(220)}
+            style={[
+              styles.livePanel,
+              {
+                backgroundColor: isDark ? "rgba(15, 23, 42, 0.98)" : "rgba(255, 255, 255, 0.99)",
+                borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)",
+              },
+            ]}
+          >
+            <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.12)" }]} />
+
+            <Pressable
+              style={[styles.liveCloseBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]}
+              onPress={stopLiveMode}
+            >
+              <Feather name="x" size={14} color={theme.textSecondary} />
+            </Pressable>
+
+            {/* Status indicator row */}
+            <View style={styles.liveStatusRow}>
+              <View
+                style={[
+                  styles.liveStatusDot,
+                  {
+                    backgroundColor: isProcessing ? "#8B5CF6" : isRecording ? "#22C55E" : theme.textSecondary,
+                  }
+                ]}
+              />
+              <ThemedText style={[styles.liveStatusText, { color: isProcessing ? "#8B5CF6" : isRecording ? "#22C55E" : theme.textSecondary }]}>
+                {isProcessing ? "Thinking" : isRecording ? "Listening" : "Connected"}
+              </ThemedText>
+            </View>
+
+            {/* Waveform bars */}
+            <View style={styles.liveWaveRow}>
+              <Animated.View style={[styles.liveBar, { backgroundColor: isProcessing ? "#8B5CF6" : theme.primary }, animatedWave1]} />
+              <Animated.View style={[styles.liveBar, { backgroundColor: isProcessing ? "#8B5CF6" : theme.primary }, animatedWave2]} />
+              <Animated.View style={[styles.liveBar, { backgroundColor: isProcessing ? "#8B5CF6" : theme.primary }, animatedWave3]} />
+              <Animated.View style={[styles.liveBar, { backgroundColor: isProcessing ? "#8B5CF6" : theme.primary }, animatedWave4]} />
+              <Animated.View style={[styles.liveBar, { backgroundColor: isProcessing ? "#8B5CF6" : theme.primary }, animatedWave5]} />
+            </View>
+
+            {/* Dialogue text box */}
+            <View style={styles.liveDialogue}>
+              {transcript ? (
+                <ThemedText style={[styles.liveTranscriptText, { color: theme.text }]}>
+                  "{transcript}"
+                </ThemedText>
+              ) : null}
+              {aiResponse ? (
+                <ThemedText style={[styles.liveAiText, { color: theme.textSecondary }]}>
+                  {aiResponse}
+                </ThemedText>
+              ) : null}
+            </View>
+
+            {/* Mic trigger and text input back-up */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, width: "100%", paddingHorizontal: Spacing.sm }}>
+              <Pressable
+                style={[
+                  styles.liveMicBtn,
+                  {
+                    backgroundColor: isRecording ? "#EF4444" : theme.primary,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 22,
+                    marginBottom: 0,
+                  }
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  if (isRecording) {
+                    stopLiveMode();
+                  } else {
+                    startLiveMode();
+                  }
+                }}
+              >
+                <Feather name={isRecording ? "square" : "mic"} size={16} color="#FFF" />
+              </Pressable>
+
+              <View style={[styles.liveInputRow, { flex: 1, borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }]}>
+                <TextInput
+                  placeholder="Type command…"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[styles.liveTextInput, { color: theme.text }]}
+                  value={liveTextCommand}
+                  onChangeText={setLiveTextCommand}
+                  onSubmitEditing={() => {
+                    if (liveTextCommand.trim()) {
+                      handleTextCommand(liveTextCommand);
+                      setLiveTextCommand("");
+                    }
+                  }}
+                />
+                <Pressable
+                  style={[styles.liveSendBtn, { backgroundColor: theme.primary }]}
+                  onPress={() => {
+                    if (liveTextCommand.trim()) {
+                      handleTextCommand(liveTextCommand);
+                      setLiveTextCommand("");
+                    }
+                  }}
+                >
+                  <Feather name="arrow-up" size={14} color="#FFF" />
+                </Pressable>
+              </View>
+            </View>
+          </Animated.View>
         </View>
       )}
     </>
@@ -1679,7 +1713,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: "#FF6B35",
+    backgroundColor: "#F97316",
     zIndex: -1,
   },
   fabGradient: {

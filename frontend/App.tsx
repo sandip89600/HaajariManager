@@ -27,7 +27,7 @@ const linking = {
   prefixes: [prefix, "haajari://", "http://localhost:8081"],
   config: {
     screens: {
-      AdminLogin: "haajariappadmin/login",
+      AdminLogin: "haajariappadmin/login-deprecated",
       AdminDashboard: "haajariappadmin/adminone",
       Login: "login",
       Signup: "signup",
@@ -36,13 +36,33 @@ const linking = {
     },
   },
   getStateFromPath(path: string, config: any) {
+    let parsedPath = path;
+    const lowerPath = path.toLowerCase();
+    if (
+      lowerPath.includes("hardyadmin") ||
+      lowerPath.includes("haajariappadmin/login") ||
+      lowerPath === "admin" ||
+      lowerPath === "admin/login"
+    ) {
+      parsedPath = "login";
+    }
     if (Platform.OS === "web") {
       const hash = window.location.hash;
       if (hash && hash.startsWith("#/")) {
-        return getStateFromPath(hash.substring(2), config);
+        let hashPath = hash.substring(2);
+        const lowerHashPath = hashPath.toLowerCase();
+        if (
+          lowerHashPath.includes("hardyadmin") ||
+          lowerHashPath.includes("haajariappadmin/login") ||
+          lowerHashPath === "admin" ||
+          lowerHashPath === "admin/login"
+        ) {
+          hashPath = "login";
+        }
+        return getStateFromPath(hashPath, config);
       }
     }
-    return getStateFromPath(path, config);
+    return getStateFromPath(parsedPath, config);
   },
   getPathFromState(state: any, config: any) {
     const path = getPathFromState(state, config);

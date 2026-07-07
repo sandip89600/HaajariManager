@@ -37,6 +37,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
+import { translateWorkerName } from "@/utils/transliteration";
 import { appContextTracker } from "@/utils/appContextTracker";
 import { useAuth } from "@/hooks/useAuth";
 import { Language, languageNames } from "@/constants/i18n";
@@ -921,7 +922,7 @@ export default function SettingsScreen() {
     return theme.primary;
   };
 
-  const initials = (currentUser?.name || "?").charAt(0).toUpperCase();
+  const initials = (translateWorkerName(currentUser?.name || "", language) || "?").charAt(0).toUpperCase();
 
   return (
     <ThemedView style={styles.container}>
@@ -968,7 +969,7 @@ export default function SettingsScreen() {
 
             <View style={styles.heroInfo}>
               <ThemedText type="h2" style={styles.heroName}>
-                {isGuest ? "Guest Mode" : currentUser?.name}
+                {isGuest ? "Guest Mode" : translateWorkerName(currentUser?.name || "", language)}
               </ThemedText>
 
               {!isGuest && currentUser ? (
@@ -1057,7 +1058,7 @@ export default function SettingsScreen() {
         {!isGuest && currentUser && (
           <>
             <ThemedText type="small" style={styles.sectionLabel}>
-              Business Management
+              {t.settings.businessManagement}
             </ThemedText>
             <SettingCard theme={theme} isDark={isDark}>
               {currentUser.role === "contractor" && (
@@ -1065,24 +1066,24 @@ export default function SettingsScreen() {
                   <SettingRow
                     icon="users"
                     iconColor="#00BCD4"
-                    label="Manage Workers"
-                    sublabel="Quick directory of workers and wages"
+                    label={t.settings.manageWorkers}
+                    sublabel={t.settings.manageWorkersDesc}
                     onPress={() => navigation.navigate("WorkersTab")}
                     theme={theme}
                   />
                   <SettingRow
                     icon="map"
                     iconColor="#FF9800"
-                    label="Manage Projects"
-                    sublabel="Configure construction sites and structures"
+                    label={t.settings.manageProjects}
+                    sublabel={t.settings.manageProjectsDesc}
                     onPress={() => navigation.navigate("ProjectManagement")}
                     theme={theme}
                   />
                   <SettingRow
                     icon="shield"
                     iconColor="#7C3AED"
-                    label="Supervisor Management"
-                    sublabel="Create and assign site supervisor accounts"
+                    label={t.settings.supervisorManagement}
+                    sublabel={t.settings.supervisorManagementDesc}
                     onPress={() => navigation.navigate("SupervisorManagement")}
                     theme={theme}
                   />
@@ -1103,24 +1104,24 @@ export default function SettingsScreen() {
                   <SettingRow
                     icon="briefcase"
                     iconColor="#9C27B0"
-                    label="Company Management"
-                    sublabel="Edit company name and tenant details"
+                    label={t.settings.companyManagement}
+                    sublabel={t.settings.companyManagementDesc}
                     onPress={handleOpenCompanyModal}
                     theme={theme}
                   />
                   <SettingRow
                     icon="users"
                     iconColor="#4CAF50"
-                    label="Contractor Management"
-                    sublabel="Oversee active contractors under company"
+                    label={t.settings.contractorManagement}
+                    sublabel={t.settings.contractorManagementDesc}
                     onPress={() => setShowContractorsModal(true)}
                     theme={theme}
                   />
                   <SettingRow
                     icon="bar-chart-2"
                     iconColor="#03A9F4"
-                    label="Business Analytics"
-                    sublabel="View attendance rates, salaries, and reports"
+                    label={t.settings.businessAnalytics}
+                    sublabel={t.settings.businessAnalyticsDesc}
                     onPress={() => navigation.navigate("SummaryTab")}
                     theme={theme}
                   />
@@ -1141,16 +1142,16 @@ export default function SettingsScreen() {
                   <SettingRow
                     icon="map-pin"
                     iconColor="#E91E63"
-                    label="Assigned Projects"
-                    sublabel="View active projects assigned to your account"
+                    label={t.settings.assignedProjects}
+                    sublabel={t.settings.assignedProjectsDesc}
                     onPress={() => setShowProjectsModal(true)}
                     theme={theme}
                   />
                   <SettingRow
                     icon="users"
                     iconColor="#00BCD4"
-                    label="Assigned Workers"
-                    sublabel="View active workforce assigned to your project sites"
+                    label={t.settings.assignedWorkers}
+                    sublabel={t.settings.assignedWorkersDesc}
                     onPress={() => setShowWorkersModal(true)}
                     theme={theme}
                   />
@@ -1173,28 +1174,28 @@ export default function SettingsScreen() {
         {!isGuest && (
           <>
             <ThemedText type="small" style={styles.sectionLabel}>
-              Subscription & Billing
+              {t.settings.subscriptionBilling}
             </ThemedText>
             <SettingCard theme={theme} isDark={isDark}>
               <SettingRow
                 icon="credit-card"
                 iconColor="#3F51B5"
-                label="Current Plan"
+                label={t.settings.currentPlan}
                 value={getPlanLabel(currentPlan)}
                 theme={theme}
               />
               <SettingRow
                 icon="calendar"
                 iconColor="#607D8B"
-                label="Plan Expiry Date"
-                value="Auto-renews Monthly"
+                label={t.settings.planExpiryDate}
+                value={t.settings.autoRenews}
                 theme={theme}
               />
               <SettingRow
                 icon="trending-up"
                 iconColor="#E040FB"
-                label="Upgrade Plan"
-                sublabel="Select Pro or Business plan features"
+                label={t.settings.upgradePlan}
+                sublabel={t.settings.upgradePlanDesc}
                 onPress={() => setShowUpgradeModal(true)}
                 isLast
                 theme={theme}
@@ -1205,14 +1206,14 @@ export default function SettingsScreen() {
 
         {/* ─── 5. NOTIFICATIONS SECTION ─── */}
         <ThemedText type="small" style={styles.sectionLabel}>
-          Notifications
+          {t.settings.notifications}
         </ThemedText>
         <SettingCard theme={theme} isDark={isDark}>
           <SettingRow
             icon="bell"
             iconColor="#9C27B0"
-            label="Attendance Reminder"
-            sublabel="Daily push notification reminder"
+            label={t.settings.attendanceReminderShort}
+            sublabel={t.settings.attendanceReminderShortDesc}
             right={
               <Switch
                 value={notifSettings.attendanceReminderEnabled}
@@ -1226,8 +1227,8 @@ export default function SettingsScreen() {
           <SettingRow
             icon="dollar-sign"
             iconColor="#4CAF50"
-            label="Salary Reminder"
-            sublabel="Get monthly wage calculation notifications"
+            label={t.settings.salaryReminderShort}
+            sublabel={t.settings.salaryReminderShortDesc}
             right={
               <Switch
                 value={notifSettings.salaryReminderEnabled}
@@ -1241,8 +1242,8 @@ export default function SettingsScreen() {
           <SettingRow
             icon="credit-card"
             iconColor="#FF9800"
-            label="Subscription Reminder"
-            sublabel="Alerts before plan expiration dates"
+            label={t.settings.subscriptionReminder}
+            sublabel={t.settings.subscriptionReminderDesc}
             right={
               <Switch
                 value={true}
@@ -1256,8 +1257,8 @@ export default function SettingsScreen() {
           <SettingRow
             icon="message-square"
             iconColor="#03A9F4"
-            label="App Notifications"
-            sublabel="Announcements and updates notifications"
+            label={t.settings.appNotifications}
+            sublabel={t.settings.appNotificationsDesc}
             right={
               <Switch
                 value={true}
@@ -1272,13 +1273,13 @@ export default function SettingsScreen() {
 
         {/* ─── 6. APPEARANCE SECTION ─── */}
         <ThemedText type="small" style={styles.sectionLabel}>
-          Appearance
+          {t.settings.appearance}
         </ThemedText>
         <SettingCard theme={theme} isDark={isDark}>
           <SettingRow
             icon="sun"
             iconColor="#FFC107"
-            label="Theme Settings"
+            label={t.settings.themeSettings}
             value={themeMode.toUpperCase()}
             onPress={() => setShowThemeModal(true)}
             isLast
@@ -1288,13 +1289,13 @@ export default function SettingsScreen() {
 
         {/* ─── 7. LANGUAGE SECTION ─── */}
         <ThemedText type="small" style={styles.sectionLabel}>
-          Language
+          {t.settings.language}
         </ThemedText>
         <SettingCard theme={theme} isDark={isDark}>
           <SettingRow
             icon="globe"
             iconColor="#009688"
-            label="App Language"
+            label={t.settings.appLanguage}
             value={languageNames[language]}
             onPress={() => setShowLangModal(true)}
             isLast
@@ -1306,14 +1307,14 @@ export default function SettingsScreen() {
         {!isGuest && (
           <>
             <ThemedText type="small" style={styles.sectionLabel}>
-              Security
+              {t.settings.security}
             </ThemedText>
             <SettingCard theme={theme} isDark={isDark}>
               <SettingRow
                 icon="shield"
                 iconColor="#3F51B5"
-                label="OTP Verification"
-                sublabel="Always log in securely using simulated SMS OTP"
+                label={t.settings.otpVerification}
+                sublabel={t.settings.otpVerificationDesc}
                 right={
                   <Switch
                     value={otpVerification}
@@ -1327,8 +1328,8 @@ export default function SettingsScreen() {
               <SettingRow
                 icon="cpu"
                 iconColor="#607D8B"
-                label="Biometric Login"
-                sublabel="Fingerprint / Face ID credentials authentication"
+                label={t.settings.biometricLogin}
+                sublabel={t.settings.biometricLoginDesc}
                 right={
                   <Switch
                     value={biometricLogin}
@@ -1342,16 +1343,16 @@ export default function SettingsScreen() {
               <SettingRow
                 icon="eye-off"
                 iconColor="#7C3AED"
-                label="Privacy Settings"
-                sublabel="Manage profile visibility and metrics data"
+                label={t.settings.privacySettings}
+                sublabel={t.settings.privacySettingsDesc}
                 onPress={() => navigation.navigate("PrivacySettings")}
                 theme={theme}
               />
               <SettingRow
                 icon="hard-drive"
                 iconColor="#E91E63"
-                label="Device & Session Management"
-                sublabel="View active login sessions and trusted devices"
+                label={t.settings.deviceSessionManagement}
+                sublabel={t.settings.deviceSessionManagementDesc}
                 onPress={() => navigation.navigate("DeviceManagement")}
                 isLast
                 theme={theme}
@@ -1362,7 +1363,7 @@ export default function SettingsScreen() {
 
         {/* ─── 9. SUPPORT & HELP SECTION ─── */}
         <ThemedText type="small" style={styles.sectionLabel}>
-          Support & Help
+          {t.settings.supportHelp}
         </ThemedText>
         {/* Support Information Info Card */}
         <View
@@ -1375,13 +1376,13 @@ export default function SettingsScreen() {
           ]}
         >
           <ThemedText style={{ fontWeight: "700", marginBottom: Spacing.sm }}>
-            Need assistance?
+            {t.settings.needAssistance}
           </ThemedText>
           <Pressable
             onPress={handleEmailSupport}
             style={styles.supportContactRow}
           >
-            <Feather name="mail" size={14} color={theme.primary} />
+            <Feather name="mail" size={14} color={theme.primary} style={{ marginRight: 6 }} />
             <ThemedText
               style={[styles.supportContactLink, { color: theme.primary }]}
             >
@@ -1392,7 +1393,7 @@ export default function SettingsScreen() {
             onPress={handleWhatsAppSupport}
             style={styles.supportContactRow}
           >
-            <Feather name="message-circle" size={14} color={theme.primary} />
+            <Feather name="message-circle" size={14} color={theme.primary} style={{ marginRight: 6 }} />
             <ThemedText
               style={[styles.supportContactLink, { color: theme.primary }]}
             >
@@ -1403,7 +1404,7 @@ export default function SettingsScreen() {
           <Pressable onPress={handleWhatsAppSupport} style={styles.whatsappBtn}>
             <Feather name="message-circle" size={16} color="#FFFFFF" />
             <ThemedText style={styles.whatsappBtnText}>
-              WhatsApp Support
+              {t.settings.whatsAppSupport}
             </ThemedText>
           </Pressable>
         </View>
@@ -1412,24 +1413,24 @@ export default function SettingsScreen() {
           <SettingRow
             icon="help-circle"
             iconColor="#4CAF50"
-            label="Help Center"
-            sublabel="Read app manuals and setup guidelines"
+            label={t.settings.helpCenter}
+            sublabel={t.settings.helpCenterDesc}
             onPress={() => navigation.navigate("Support")}
             theme={theme}
           />
           <SettingRow
             icon="alert-triangle"
             iconColor="#FF5722"
-            label="Report a Problem"
-            sublabel="Send logs regarding application crashes or bugs"
+            label={t.settings.reportProblem}
+            sublabel={t.settings.reportProblemDesc}
             onPress={() => setShowReportModal(true)}
             theme={theme}
           />
           <SettingRow
             icon="thumbs-up"
             iconColor="#00BCD4"
-            label="Submit Feedback"
-            sublabel="Rate us and suggest platform improvements"
+            label={t.settings.submitFeedback}
+            sublabel={t.settings.submitFeedbackDesc}
             onPress={() => setShowFeedbackModal(true)}
             isLast
             theme={theme}
@@ -1491,15 +1492,15 @@ export default function SettingsScreen() {
 
         {/* ─── 10. ABOUT HAI ─── */}
         <ThemedText type="small" style={styles.sectionLabel}>
-          About HAI
+          {t.settings.aboutHai}
         </ThemedText>
         <SettingCard theme={theme} isDark={isDark}>
           <View style={{ padding: Spacing.md, gap: Spacing.xs }}>
             <ThemedText style={{ fontWeight: "800", color: theme.primary }}>
-              HAI (Haajari Artificial Intelligence)
+              {t.settings.haiTitle}
             </ThemedText>
             <ThemedText type="small" style={{ color: theme.textSecondary }}>
-              Version 1.0.2 (Production Build)
+              {t.settings.versionText}
             </ThemedText>
             <ThemedText
               type="small"
@@ -1509,23 +1510,21 @@ export default function SettingsScreen() {
                 lineHeight: 18,
               }}
             >
-              {
-                "HAI (Haajari Artificial Intelligence) is the intelligent assistant powering the Haajari App. It helps contractors, builders, and supervisors manage workers, attendance, payments, advances, reports, and navigation using AI."
-              }
+              {t.settings.haiDesc}
             </ThemedText>
           </View>
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
           <SettingRow
             icon="shield"
             iconColor="#607D8B"
-            label="Privacy Policy"
+            label={t.settings.privacyPolicy}
             onPress={() => navigation.navigate("PrivacyPolicy" as any)}
             theme={theme}
           />
           <SettingRow
             icon="file-text"
             iconColor="#FF9800"
-            label="Terms & Conditions"
+            label={t.settings.termsConditions}
             onPress={() => navigation.navigate("TermsAndConditions" as any)}
             isLast
             theme={theme}
@@ -1539,7 +1538,7 @@ export default function SettingsScreen() {
         >
           <Feather name="log-out" size={16} color={theme.error} />
           <ThemedText style={{ color: theme.error, fontWeight: "700" }}>
-            Logout Account
+            {t.settings.logout}
           </ThemedText>
         </Pressable>
       </ScrollView>
@@ -1936,7 +1935,7 @@ export default function SettingsScreen() {
             ]}
           >
             <View style={styles.formHeader}>
-              <ThemedText type="h2">Company Name</ThemedText>
+              <ThemedText type="h2">{t.auth.companyName || "Company Name"}</ThemedText>
               <Pressable
                 onPress={() => setShowCompanyModal(false)}
                 style={styles.formCloseIcon}
@@ -1946,7 +1945,7 @@ export default function SettingsScreen() {
             </View>
             <ScrollView contentContainerStyle={styles.formScroll}>
               <ThemedText type="small" style={styles.label}>
-                Company/Organization Name
+                {t.auth.companyName || "Company Name"}
               </ThemedText>
               <TextInput
                 style={[
@@ -1959,7 +1958,7 @@ export default function SettingsScreen() {
                 ]}
                 value={companyNameInput}
                 onChangeText={setCompanyNameInput}
-                placeholder="Enter company name"
+                placeholder={t.auth.companyName || "Company Name"}
                 placeholderTextColor={theme.textSecondary}
               />
               {isSyncing ? (

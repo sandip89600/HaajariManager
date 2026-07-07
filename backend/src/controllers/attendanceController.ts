@@ -60,18 +60,23 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
 
     const dailyRateResolved = req.body.dailyRate !== undefined ? req.body.dailyRate : workerDailyRate;
     let customWageResolved = req.body.customWage;
+    let overtimeWageResolved = overtimeWage;
+    let overtimeHoursResolved = overtimeHours;
     let finalPayResolved = 0;
 
-    const extraWage = (customWageResolved !== undefined && customWageResolved !== null) ? customWageResolved : 0;
+    const advanceAmount = (customWageResolved !== undefined && customWageResolved !== null) ? customWageResolved : 0;
+    const otAmount = (overtimeWageResolved !== undefined && overtimeWageResolved !== null) ? overtimeWageResolved : 0;
 
     if (value === "P" || value === "OT") {
-      finalPayResolved = dailyRateResolved;
+      finalPayResolved = dailyRateResolved + advanceAmount + otAmount;
     } else if (value === "H") {
-      finalPayResolved = (dailyRateResolved / 2);
+      finalPayResolved = (dailyRateResolved / 2) + advanceAmount + otAmount;
     } else if (value === "A") {
       finalPayResolved = 0;
+      customWageResolved = undefined;
+      overtimeWageResolved = undefined;
+      overtimeHoursResolved = undefined;
     } else if (typeof value === "number") {
-      customWageResolved = value;
       finalPayResolved = value;
     } else {
       finalPayResolved = 0;
@@ -89,8 +94,8 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
       dailyRate: dailyRateResolved,
       customWage: customWageResolved,
       finalPay: finalPayResolved,
-      overtimeHours,
-      overtimeWage,
+      overtimeHours: overtimeHoursResolved,
+      overtimeWage: overtimeWageResolved,
       location,
       timestamp: new Date(),
     };
@@ -152,18 +157,23 @@ export const syncAttendance = async (req: AuthenticatedRequest, res: Response) =
 
       const dailyRateResolved = dailyRate !== undefined ? dailyRate : workerDailyRate;
       let customWageResolved = customWage;
+      let overtimeWageResolved = overtimeWage;
+      let overtimeHoursResolved = overtimeHours;
       let finalPayResolved = 0;
 
-      const extraWage = (customWageResolved !== undefined && customWageResolved !== null) ? customWageResolved : 0;
+      const advanceAmount = (customWageResolved !== undefined && customWageResolved !== null) ? customWageResolved : 0;
+      const otAmount = (overtimeWageResolved !== undefined && overtimeWageResolved !== null) ? overtimeWageResolved : 0;
 
       if (value === "P" || value === "OT") {
-        finalPayResolved = dailyRateResolved;
+        finalPayResolved = dailyRateResolved + advanceAmount + otAmount;
       } else if (value === "H") {
-        finalPayResolved = (dailyRateResolved / 2);
+        finalPayResolved = (dailyRateResolved / 2) + advanceAmount + otAmount;
       } else if (value === "A") {
         finalPayResolved = 0;
+        customWageResolved = undefined;
+        overtimeWageResolved = undefined;
+        overtimeHoursResolved = undefined;
       } else if (typeof value === "number") {
-        customWageResolved = value;
         finalPayResolved = value;
       } else {
         finalPayResolved = 0;
@@ -181,8 +191,8 @@ export const syncAttendance = async (req: AuthenticatedRequest, res: Response) =
         dailyRate: dailyRateResolved,
         customWage: customWageResolved,
         finalPay: finalPayResolved,
-        overtimeHours,
-        overtimeWage,
+        overtimeHours: overtimeHoursResolved,
+        overtimeWage: overtimeWageResolved,
         location,
         timestamp: timestamp ? new Date(timestamp) : new Date(),
       };

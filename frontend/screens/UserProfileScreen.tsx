@@ -27,6 +27,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { storage, User, authenticatedFetch, API_URL } from "@/utils/storage";
 import { appContextTracker } from "@/utils/appContextTracker";
 import { useLanguage } from "@/hooks/useLanguage";
+import { translateWorkerName } from "@/utils/transliteration";
 import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
 
 const AVATAR_COLORS = [
@@ -40,7 +41,7 @@ const AVATAR_COLORS = [
 
 export default function UserProfileScreen() {
   const { theme, isDark } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user: authUser, logout } = useAuth();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -65,6 +66,12 @@ export default function UserProfileScreen() {
 
   const [showImageModal, setShowImageModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerTitle: t.profile.title || "User Profile",
+    });
+  }, [navigation, t.profile.title]);
 
   useEffect(() => {
     if (authUser) {
@@ -459,7 +466,7 @@ export default function UserProfileScreen() {
     );
   }
 
-  const initials = (user.name || "?").charAt(0).toUpperCase();
+  const initials = (translateWorkerName(user.name, language) || "?").charAt(0).toUpperCase();
 
   return (
     <ThemedView style={styles.container}>
@@ -518,7 +525,7 @@ export default function UserProfileScreen() {
 
             {/* User Details */}
             <ThemedText type="h2" style={styles.userName}>
-              {user.name}
+              {translateWorkerName(user.name, language)}
             </ThemedText>
 
             {/* User Role Badge */}

@@ -28,28 +28,28 @@ function getAttendanceDisplayValue(
   t: any,
 ): string {
   if (!record) return "-";
+  const value = record.value;
+  if (value === "P") return t.attendance.present || "P";
+  if (value === "A") return t.attendance.absent || "A";
+  if (value === "H") return t.attendance.halfDay || "½";
+  if (value === "OT") return t.attendance.overtime || "OT";
   if (record.customWage !== undefined && record.customWage !== null) {
     return `₹${record.customWage}`;
   }
-  const value = record.value;
-  if (value === "P") return t.attendance.present;
-  if (value === "A") return t.attendance.absent;
-  if (value === "H") return t.attendance.halfDay;
-  if (value === "OT") return t.attendance.overtime || "OT";
   if (typeof value === "number") return `₹${value}`;
   return "-";
 }
 
 function getAttendanceCellColor(record: AttendanceRecord | null): string {
   if (!record) return "#FFFFFF";
-  if (record.customWage !== undefined && record.customWage !== null) {
-    return "#FF6B35"; // Orange
-  }
   const value = record.value;
   if (value === "P") return "#4CAF50"; // Green
   if (value === "A") return "#F44336"; // Red
   if (value === "H") return "#FFC107"; // Yellow
   if (value === "OT") return "#3B82F6"; // Blue
+  if (record.customWage !== undefined && record.customWage !== null) {
+    return "#FF6B35"; // Orange for custom wage/advance fallback
+  }
   if (typeof value === "number") return "#FF6B35"; // Old custom wage - Orange
   return "#FFFFFF";
 }

@@ -10,6 +10,7 @@ import {
   ScrollView,
 } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import Animated, {
@@ -45,6 +46,16 @@ const CATEGORIES: WorkerCategory[] = [
   "sutar",
 ];
 
+const CATEGORY_DETAILS: Record<WorkerCategory, { emoji: string; color: string }> = {
+  labour: { emoji: "👷‍♂️", color: "#10B981" },
+  bai: { emoji: "👩", color: "#EC4899" },
+  mistri: { emoji: "📐", color: "#6366F1" },
+  bandkam: { emoji: "🧱", color: "#8B5CF6" },
+  plaster: { emoji: "🌫️", color: "#06B6D4" },
+  tiles: { emoji: "🔲", color: "#3B82F6" },
+  sutar: { emoji: "🪚", color: "#F59E0B" },
+};
+
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 function SectionHeader({ title }: { title: string }) {
@@ -68,6 +79,7 @@ function SectionHeader({ title }: { title: string }) {
 export default function AddWorkerScreen() {
   const { theme } = useTheme();
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "AddWorker">>();
@@ -102,40 +114,6 @@ export default function AddWorkerScreen() {
       loadWorker();
     }
   }, [workerId]);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerTitle: isEditing ? t.workers.editWorker : t.workers.addWorker,
-      headerLeft: () => (
-        <Pressable
-          onPress={() => navigation.goBack()}
-          style={styles.headerButton}
-        >
-          <ThemedText style={{ color: theme.primary }}>
-            {t.common.cancel}
-          </ThemedText>
-        </Pressable>
-      ),
-      headerRight: () => (
-        <Pressable onPress={handleSave} style={styles.headerButton}>
-          <ThemedText style={{ color: theme.primary, fontWeight: "600" }}>
-            {t.common.save}
-          </ThemedText>
-        </Pressable>
-      ),
-    });
-  }, [
-    navigation,
-    name,
-    category,
-    dailyRate,
-    phone,
-    address,
-    notes,
-    photoUri,
-    selectedProjectId,
-    isEditing,
-  ]);
 
   const loadProjects = async () => {
     try {
@@ -330,19 +308,52 @@ export default function AddWorkerScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      {/* Custom Header Bar */}
+      <View
+        style={[
+          styles.customHeader,
+          {
+            paddingTop: insets.top > 0 ? insets.top + Spacing.sm : Spacing.md,
+            borderBottomColor: theme.border,
+            borderBottomWidth: 1.8,
+            backgroundColor: theme.backgroundDefault,
+          },
+        ]}
+      >
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.customHeaderBtnLeft}
+        >
+          <ThemedText style={{ color: theme.primary, fontSize: 16, fontWeight: "600" }}>
+            {t.common.cancel}
+          </ThemedText>
+        </Pressable>
+        <ThemedText type="h3" style={{ fontWeight: "700" }}>
+          {isEditing ? t.workers.editWorker : t.workers.addWorker}
+        </ThemedText>
+        {/* Placeholder to keep title centered */}
+        <View style={styles.customHeaderBtnRight} />
+      </View>
+
       <ScreenKeyboardAwareScrollView
         contentContainerStyle={styles.scrollContent}
       >
         {/* Photo Avatar */}
         <View style={styles.avatarSection}>
-          <Pressable onPress={handlePickPhoto} style={styles.avatarWrapper}>
+          <Pressable
+            onPress={handlePickPhoto}
+            style={[
+              styles.avatarWrapper,
+              { borderColor: CATEGORY_DETAILS[category]?.color || theme.primary }
+            ]}
+          >
             {photoUri ? (
               <Image source={{ uri: photoUri }} style={styles.avatar} />
             ) : (
               <View
                 style={[
                   styles.avatarPlaceholder,
-                  { backgroundColor: getCategoryColor(category) },
+                  { backgroundColor: CATEGORY_DETAILS[category]?.color || theme.primary },
                 ]}
               >
                 <ThemedText style={styles.avatarInitials}>
@@ -351,14 +362,20 @@ export default function AddWorkerScreen() {
               </View>
             )}
             <View
-              style={[styles.cameraIcon, { backgroundColor: theme.primary }]}
+              style={[
+                styles.cameraIcon,
+                {
+                  backgroundColor: CATEGORY_DETAILS[category]?.color || theme.primary,
+                  borderColor: theme.backgroundDefault,
+                }
+              ]}
             >
               <Feather name="camera" size={14} color="#FFFFFF" />
             </View>
           </Pressable>
           <ThemedText
             type="small"
-            style={{ color: theme.textSecondary, marginTop: Spacing.sm }}
+            style={{ color: theme.textSecondary, marginTop: Spacing.sm, fontWeight: "700" }}
           >
             {photoUri ? t.workers.changePhoto : t.workers.addPhoto}
           </ThemedText>
@@ -386,42 +403,51 @@ export default function AddWorkerScreen() {
           />
         </View>
 
-        {/* Category */}
+        {/* Category Selection Grid */}
         <View style={styles.formGroup}>
           <ThemedText type="h4" style={styles.label}>
             {t.workers.category}
           </ThemedText>
           <View style={styles.categoryGrid}>
-            {CATEGORIES.map((cat) => (
-              <Pressable
-                key={cat}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setCategory(cat);
-                }}
-                style={[
-                  styles.categoryItem,
-                  {
-                    backgroundColor:
-                      category === cat
-                        ? getCategoryColor(cat)
-                        : theme.backgroundDefault,
-                    borderColor:
-                      category === cat ? getCategoryColor(cat) : theme.border,
-                  },
-                ]}
-              >
-                <ThemedText
-                  type="small"
-                  style={{
-                    color: category === cat ? "#FFFFFF" : theme.text,
-                    fontWeight: category === cat ? "600" : "400",
+            {CATEGORIES.map((cat) => {
+              const details = CATEGORY_DETAILS[cat];
+              const isSelected = category === cat;
+              const activeColor = details ? details.color : theme.primary;
+              return (
+                <Pressable
+                  key={cat}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setCategory(cat);
                   }}
+                  style={[
+                    styles.categoryItem,
+                    {
+                      backgroundColor: isSelected
+                        ? activeColor + "12"
+                        : theme.backgroundDefault,
+                      borderColor: isSelected
+                        ? activeColor
+                        : theme.border,
+                    },
+                  ]}
                 >
-                  {t.categories[cat]}
-                </ThemedText>
-              </Pressable>
-            ))}
+                  <ThemedText style={{ fontSize: 20 }}>
+                    {details ? details.emoji : "🛠️"}
+                  </ThemedText>
+                  <ThemedText
+                    type="body"
+                    style={{
+                      color: isSelected ? activeColor : theme.text,
+                      fontWeight: "700",
+                      fontSize: 14,
+                    }}
+                  >
+                    {t.categories[cat]}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
@@ -482,7 +508,7 @@ export default function AddWorkerScreen() {
                     style={{
                       color: !selectedProjectId ? "#FFFFFF" : theme.text,
                       fontSize: 13,
-                      fontWeight: "600",
+                      fontWeight: "700",
                     }}
                   >
                     Unassigned
@@ -510,7 +536,7 @@ export default function AddWorkerScreen() {
                         style={{
                           color: isSelected ? "#FFFFFF" : theme.text,
                           fontSize: 13,
-                          fontWeight: "600",
+                          fontWeight: "700",
                         }}
                       >
                         {proj.name}
@@ -620,9 +646,25 @@ export default function AddWorkerScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  customHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.md,
+  },
+  customHeaderBtnLeft: {
+    paddingVertical: Spacing.xs,
+    minWidth: 60,
+    alignItems: "flex-start",
+  },
+  customHeaderBtnRight: {
+    paddingVertical: Spacing.xs,
+    minWidth: 60,
+    alignItems: "flex-end",
+  },
   scrollContent: {
     paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.xl,
     paddingBottom: 48,
   },
   headerButton: {
@@ -631,63 +673,72 @@ const styles = StyleSheet.create({
   },
   avatarSection: {
     alignItems: "center",
-    marginBottom: Spacing["2xl"],
+    marginBottom: Spacing.xl,
+    marginTop: Spacing.lg,
   },
   avatarWrapper: {
     position: "relative",
+    padding: 4,
+    borderRadius: 9999,
+    borderWidth: 2.2,
   },
   avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 92,
+    height: 92,
+    borderRadius: 9999,
   },
   avatarPlaceholder: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 92,
+    height: 92,
+    borderRadius: 9999,
     justifyContent: "center",
     alignItems: "center",
   },
   avatarInitials: {
     fontSize: 32,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#FFFFFF",
   },
   cameraIcon: {
     position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    bottom: 2,
+    right: 2,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
+    borderWidth: 2.5,
   },
   formGroup: {
     marginBottom: Spacing.xl,
   },
   label: {
     marginBottom: Spacing.sm,
+    fontWeight: "700",
   },
   input: {
-    height: 48,
-    borderRadius: BorderRadius.xs,
-    borderWidth: 1,
+    height: 52,
+    borderRadius: 12,
+    borderWidth: 1.8,
     paddingHorizontal: Spacing.md,
     fontSize: 16,
   },
   categoryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.sm,
+    justifyContent: "space-between",
+    rowGap: Spacing.md,
   },
   categoryItem: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md - 2,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 14,
+    borderWidth: 1.8,
+    flexBasis: "48%",
+    gap: Spacing.sm,
   },
   projectListSelect: {
     marginTop: Spacing.xs,
@@ -697,11 +748,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: 1.8,
   },
   card: {
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderRadius: 14,
+    borderWidth: 1.8,
     marginBottom: Spacing.sm,
     overflow: "hidden",
   },
@@ -722,7 +773,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   cardDivider: {
-    height: 1,
+    height: 1.5,
     marginLeft: Spacing.md + 28,
   },
   notesInput: {
@@ -732,7 +783,7 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     height: 52,
-    borderRadius: BorderRadius.xs,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
     marginTop: Spacing.xl,
@@ -740,7 +791,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: "#FFFFFF",
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 16,
   },
 });

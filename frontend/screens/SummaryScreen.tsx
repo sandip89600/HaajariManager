@@ -11,6 +11,7 @@ import {
   RefreshControl,
   Platform,
   Dimensions,
+  ScrollView,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -25,6 +26,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
+import { translateWorkerName } from "@/utils/transliteration";
 import {
   storage,
   Worker,
@@ -64,6 +66,9 @@ interface WorkerSummary {
   totalPaid: number;
   balance: number;
   payments: PaymentRecord[];
+  records: AttendanceRecord[];
+  totalAdvanceAmount: number;
+  totalOvertimeAmount: number;
 }
 
 interface SummaryCardProps {
@@ -74,6 +79,7 @@ interface SummaryCardProps {
   index: number;
   onMarkPaid: (summary: WorkerSummary) => void;
   onDeletePayment: (paymentId: string) => void;
+  onViewCalculation: (summary: WorkerSummary) => void;
 }
 
 // ─── REUSABLE MODERN DIALOG ──────────────────────────────────────────────────
@@ -155,6 +161,63 @@ function GlassModal({
   );
 }
 
+interface RecordBreakdown {
+  day: number;
+  statusText: string;
+  basePay: number;
+  advance: number;
+  overtime: number;
+  total: number;
+  overtimeText?: string;
+}
+
+const getRecordBreakdown = (record: AttendanceRecord, dailyRate: number): RecordBreakdown => {
+  const rate = record.dailyRate !== undefined && record.dailyRate !== null ? record.dailyRate : dailyRate;
+  const advance = record.customWage !== undefined && record.customWage !== null ? record.customWage : 0;
+  const overtime = record.overtimeWage !== undefined && record.overtimeWage !== null ? record.overtimeWage : 0;
+
+  let basePay = 0;
+  let statusText = "";
+  if (record.value === "P") {
+    basePay = rate;
+    statusText = "Present";
+  } else if (record.value === "OT") {
+    basePay = rate;
+    statusText = "Present with Overtime";
+  } else if (record.value === "H") {
+    basePay = rate / 2;
+    statusText = "Half Day";
+  } else if (record.value === "A") {
+    basePay = 0;
+    statusText = "Absent";
+  } else if (typeof record.value === "number") {
+    basePay = record.value;
+    statusText = "Custom";
+  } else {
+    basePay = 0;
+    statusText = "Unknown";
+  }
+
+  let overtimeText = "";
+  if (record.overtimeWage && record.overtimeWage > 0) {
+    if (record.overtimeHours === 1) overtimeText = "1× OT";
+    else if (record.overtimeHours === 2) overtimeText = "2× OT";
+    else overtimeText = "Custom OT";
+  }
+
+  const total = record.value === "A" ? 0 : basePay + advance + overtime; // strictly 0 for Absent
+
+  return {
+    day: record.day,
+    statusText,
+    basePay,
+    advance,
+    overtime,
+    total,
+    overtimeText,
+  };
+};
+
 // ─── REUSABLE SUMMARY CARD ──────────────────────────────────────────────────
 const SummaryCard = memo(function SummaryCard({
   summary,
@@ -164,8 +227,10 @@ const SummaryCard = memo(function SummaryCard({
   index,
   onMarkPaid,
   onDeletePayment,
+  onViewCalculation,
 }: SummaryCardProps) {
   const [showPayments, setShowPayments] = useState(false);
+  const { language } = useLanguage();
   const isPaid = summary.balance <= 0;
 
   const emerald = "#10B981";
@@ -192,7 +257,7 @@ const SummaryCard = memo(function SummaryCard({
       <View style={styles.cardHeader}>
         <View style={{ flex: 1, marginRight: Spacing.sm }}>
           <ThemedText type="h3" style={{ fontWeight: "700" }}>
-            {summary.worker.name}
+            {translateWorkerName(summary.worker.name, language)}
           </ThemedText>
           <View
             style={{
@@ -491,7 +556,7 @@ const SummaryCard = memo(function SummaryCard({
       {/* Expanded Section */}
       {showPayments && (
         <View style={styles.expandedContainer}>
-          {/* 1. Payment Summary Grid */}
+          {/* 1. Payment Summary Grid (8 Stats Grid) */}
           <View
             style={[
               styles.expandedSummaryGrid,
@@ -500,82 +565,84 @@ const SummaryCard = memo(function SummaryCard({
                   ? "rgba(255, 255, 255, 0.02)"
                   : "rgba(0, 0, 0, 0.01)",
                 borderColor: theme.border,
+                flexDirection: "row",
+                flexWrap: "wrap",
+                padding: Spacing.sm,
               },
             ]}
           >
-            <View style={styles.expandedSummaryCell}>
-              <ThemedText
-                type="small"
-                style={[
-                  styles.expandedSummaryLabel,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                Total Salary
-              </ThemedText>
-              <ThemedText
-                type="body"
-                style={[styles.expandedSummaryVal, { color: theme.text }]}
-              >
-                {t.common.currency} {summary.totalAmount.toFixed(0)}
-              </ThemedText>
+            {/* Row 1: Present, Half, Absent */}
+            <View style={{ width: "33.3%", padding: 4 }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.totalPresent}</ThemedText>
+              <ThemedText type="body" style={{ fontWeight: "700", color: "#10B981" }}>{summary.presentDays} {t.summary.days}</ThemedText>
             </View>
-            <View style={styles.expandedSummaryCell}>
-              <ThemedText
-                type="small"
-                style={[
-                  styles.expandedSummaryLabel,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                Total Paid
-              </ThemedText>
-              <ThemedText
-                type="body"
-                style={[styles.expandedSummaryVal, { color: emerald }]}
-              >
-                {t.common.currency} {summary.totalPaid.toFixed(0)}
-              </ThemedText>
+            <View style={{ width: "33.3%", padding: 4 }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.halfDay}</ThemedText>
+              <ThemedText type="body" style={{ fontWeight: "700", color: "#F59E0B" }}>{summary.halfDays} {t.summary.days}</ThemedText>
             </View>
-            <View style={styles.expandedSummaryCell}>
-              <ThemedText
-                type="small"
-                style={[
-                  styles.expandedSummaryLabel,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                Remaining Due
-              </ThemedText>
-              <ThemedText
-                type="body"
-                style={[
-                  styles.expandedSummaryVal,
-                  { color: summary.balance > 0 ? red : emerald },
-                ]}
-              >
-                {t.common.currency} {summary.balance.toFixed(0)}
-              </ThemedText>
+            <View style={{ width: "33.3%", padding: 4 }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.totalAbsent}</ThemedText>
+              <ThemedText type="body" style={{ fontWeight: "700", color: "#EF4444" }}>{summary.absentDays} {t.summary.days}</ThemedText>
             </View>
-            <View style={styles.expandedSummaryCell}>
-              <ThemedText
-                type="small"
-                style={[
-                  styles.expandedSummaryLabel,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                Payments
-              </ThemedText>
-              <ThemedText
-                type="body"
-                style={[styles.expandedSummaryVal, { color: theme.text }]}
-              >
-                {summary.payments.length}{" "}
-                {summary.payments.length === 1 ? "Payment" : "Payments"}
-              </ThemedText>
+
+            {/* Row 2: Advance, Overtime, Payments */}
+            <View style={{ width: "33.3%", padding: 4, marginTop: 8 }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.totalAdvance}</ThemedText>
+              <ThemedText type="body" style={{ fontWeight: "700", color: "#FF6B35" }}>₹{summary.totalAdvanceAmount}</ThemedText>
+            </View>
+            <View style={{ width: "33.3%", padding: 4, marginTop: 8 }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.overtime}</ThemedText>
+              <ThemedText type="body" style={{ fontWeight: "700", color: "#3B82F6" }}>₹{summary.totalOvertimeAmount}</ThemedText>
+            </View>
+            <View style={{ width: "33.3%", padding: 4, marginTop: 8 }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.txns}</ThemedText>
+              <ThemedText type="body" style={{ fontWeight: "700", color: theme.text }}>{summary.payments.length}</ThemedText>
+            </View>
+
+            {/* Row 3: Gross, Paid, Due */}
+            <View style={{ width: "33.3%", padding: 4, marginTop: 8 }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.grossPay}</ThemedText>
+              <ThemedText type="body" style={{ fontWeight: "700", color: "#10B981" }}>₹{summary.totalAmount.toFixed(0)}</ThemedText>
+            </View>
+            <View style={{ width: "33.3%", padding: 4, marginTop: 8 }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.totalPaid}</ThemedText>
+              <ThemedText type="body" style={{ fontWeight: "700", color: theme.primary }}>₹{summary.totalPaid.toFixed(0)}</ThemedText>
+            </View>
+            <View style={{ width: "33.3%", padding: 4, marginTop: 8 }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.dueBalance}</ThemedText>
+              <ThemedText type="body" style={{ fontWeight: "700", color: summary.balance > 0 ? "#EF4444" : "#10B981" }}>₹{summary.balance.toFixed(0)}</ThemedText>
             </View>
           </View>
+
+          {/* View Calculation Breakdown Button */}
+          <Pressable
+            onPress={() => onViewCalculation(summary)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              paddingVertical: Spacing.sm,
+              paddingHorizontal: Spacing.md,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: theme.primary,
+              backgroundColor: isDark ? "rgba(79, 70, 229, 0.05)" : "rgba(30, 58, 95, 0.03)",
+              marginTop: Spacing.md,
+              marginBottom: Spacing.md,
+            }}
+          >
+            <Feather name="list" size={14} color={theme.primary} />
+            <ThemedText
+              type="small"
+              style={{
+                color: theme.primary,
+                fontWeight: "700",
+                marginLeft: 6,
+              }}
+            >
+              {t.summary.viewCalculation}
+            </ThemedText>
+          </Pressable>
 
           {/* 2. Chronological Timeline List */}
           {summary.payments.length > 0 ? (
@@ -786,7 +853,7 @@ const SummaryCard = memo(function SummaryCard({
 // ─── MAIN SCREEN COMPONENT ───────────────────────────────────────────────────
 export default function SummaryScreen() {
   const { theme, isDark } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = insets.bottom + 60;
@@ -802,8 +869,16 @@ export default function SummaryScreen() {
   const [grandTotal, setGrandTotal] = useState(0);
   const [grandTotalPaid, setGrandTotalPaid] = useState(0);
   const [grandTotalAdvance, setGrandTotalAdvance] = useState(0);
+  const [calculationWorker, setCalculationWorker] = useState<WorkerSummary | null>(null);
+  const [showCalculationModal, setShowCalculationModal] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
+
+  const handleViewCalculation = (summary: WorkerSummary) => {
+    setCalculationWorker(summary);
+    setShowCalculationModal(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentWorker, setPaymentWorker] = useState<WorkerSummary | null>(
     null,
@@ -882,15 +957,19 @@ export default function SummaryScreen() {
           (p) => p.workerId === worker.id,
         );
         const totalPaid = workerPayments.reduce((sum, p) => sum + p.amount, 0);
+        const workerRecords = loadedAttendance.filter(
+          (a) => a.workerId === worker.id,
+        );
         return {
           worker,
           ...summary,
           totalPaid,
           balance: Math.max(
             0,
-            summary.totalAmount - totalPaid - summary.customAmount,
+            summary.totalAmount - totalPaid,
           ),
           payments: workerPayments,
+          records: workerRecords,
         };
       });
 
@@ -1048,11 +1127,12 @@ export default function SummaryScreen() {
       index={index}
       onMarkPaid={handleMarkPaid}
       onDeletePayment={handleDeletePayment}
+      onViewCalculation={handleViewCalculation}
     />
   );
 
   const renderHeader = () => {
-    const grandBalance = grandTotal - grandTotalPaid - grandTotalAdvance;
+    const grandBalance = grandTotal - grandTotalPaid;
     return (
       <View style={styles.headerContent}>
         {/* Floating Month & Export Controls */}
@@ -1291,7 +1371,7 @@ export default function SummaryScreen() {
               fontSize: 14,
             }}
           >
-            {paymentWorker.worker.name} — {t.payment.balance}:{" "}
+            {translateWorkerName(paymentWorker.worker.name, language)} — {t.payment.balance}:{" "}
             {t.common.currency} {paymentWorker.balance.toFixed(0)}
           </ThemedText>
         ) : null}
@@ -1446,6 +1526,145 @@ export default function SummaryScreen() {
             </LinearGradient>
           </Pressable>
         </View>
+      </GlassModal>
+
+      {/* ── SALARY CALCULATION BREAKDOWN DIALOG ── */}
+      <GlassModal
+        visible={showCalculationModal}
+        onClose={() => setShowCalculationModal(false)}
+        title="Salary Calculation Breakdown"
+        theme={theme}
+        isDark={isDark}
+      >
+        {calculationWorker && (
+          <View style={{ width: "100%" }}>
+            <ThemedText
+              type="small"
+              style={{
+                color: theme.textSecondary,
+                textAlign: "center",
+                marginBottom: Spacing.md,
+                marginTop: -Spacing.xs,
+              }}
+            >
+              {translateWorkerName(calculationWorker.worker.name, language)} • {monthNames[selectedMonth]} {selectedYear}
+            </ThemedText>
+
+            <ScrollView
+              style={{ maxHeight: 300, width: "100%" }}
+              showsVerticalScrollIndicator={true}
+            >
+              {(() => {
+                const sortedRecords = [...calculationWorker.records].sort((a, b) => a.day - b.day);
+                if (sortedRecords.length === 0) {
+                  return (
+                    <ThemedText
+                      type="body"
+                      style={{
+                        color: theme.textSecondary,
+                        fontStyle: "italic",
+                        textAlign: "center",
+                        paddingVertical: Spacing.xl,
+                      }}
+                    >
+                      No attendance records found for this month.
+                    </ThemedText>
+                  );
+                }
+
+                return sortedRecords.map((record) => {
+                  const breakdown = getRecordBreakdown(record, calculationWorker.worker.dailyRate);
+                  return (
+                    <View
+                      key={record.day}
+                      style={{
+                        paddingVertical: Spacing.sm,
+                        borderBottomWidth: 1,
+                        borderBottomColor: theme.border,
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <ThemedText type="body" style={{ fontWeight: "700" }}>
+                          Day {record.day}
+                        </ThemedText>
+                        <ThemedText
+                          type="body"
+                          style={{
+                            fontWeight: "800",
+                            color: record.value === "A" ? theme.error : "#10B981",
+                          }}
+                        >
+                          ₹{breakdown.total}
+                        </ThemedText>
+                      </View>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          marginTop: 2,
+                        }}
+                      >
+                        <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                          {t.summary.status || "Status"}: {
+                            breakdown.statusText === "Present" ? t.summary.present :
+                            breakdown.statusText === "Present with Overtime" ? t.summary.presentWithOvertime :
+                            breakdown.statusText === "Half Day" ? t.summary.halfDay :
+                            breakdown.statusText === "Absent" ? t.summary.absent :
+                            breakdown.statusText === "Custom" ? t.summary.custom :
+                            t.summary.unknown
+                          }
+                        </ThemedText>
+                        <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                          {t.summary.base || "Base"}: ₹{breakdown.basePay}
+                          {breakdown.advance > 0 && ` + ${t.summary.advance || "Adv"}: ₹${breakdown.advance}`}
+                          {breakdown.overtime > 0 && ` + ${t.summary.overtime || "OT"}: ₹${breakdown.overtime} (${breakdown.overtimeText})`}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  );
+                });
+              })()}
+            </ScrollView>
+
+            <View
+              style={{
+                marginTop: Spacing.lg,
+                paddingTop: Spacing.md,
+                borderTopWidth: 2,
+                borderTopColor: theme.border,
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                width: "100%",
+              }}
+            >
+              <ThemedText type="body" style={{ fontWeight: "800" }}>
+                Monthly Total Earnings
+              </ThemedText>
+              <ThemedText type="h2" style={{ fontWeight: "900", color: "#10B981" }}>
+                ₹{calculationWorker.totalAmount.toFixed(0)}
+              </ThemedText>
+            </View>
+          </View>
+        )}
+
+        <Pressable
+          onPress={() => setShowCalculationModal(false)}
+          style={[
+            styles.paymentCancelBtn,
+            { width: "100%", marginTop: Spacing.xl, height: 44, justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.border },
+          ]}
+        >
+          <ThemedText type="body" style={{ color: theme.textSecondary, fontWeight: "700" }}>
+            Close
+          </ThemedText>
+        </Pressable>
       </GlassModal>
 
       {/* ── EXPORT OPTIONS DIALOG ── */}

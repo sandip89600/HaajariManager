@@ -154,8 +154,7 @@ export default function MainTabNavigator() {
         name="AddWorker"
         component={AddWorkerScreen}
         options={{
-          presentation: "modal",
-          headerTitle: t.workers.addWorker,
+          headerShown: false,
         }}
       />
       <Stack.Screen

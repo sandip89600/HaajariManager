@@ -22,7 +22,7 @@ export const authenticateJWT = (
     jwt.verify(token, process.env.JWT_SECRET || "supersecretkey", (err, user: any) => {
       if (err) {
         console.warn("[Auth Middleware] JWT Verification failed:", err.message, "Token:", token ? token.substring(0, 15) + "..." : "none");
-        return res.status(403).json({ error: "Invalid token" });
+        return res.status(401).json({ error: "Invalid token" });
       }
 
       req.user = {
