@@ -856,27 +856,35 @@ export default function VoiceAssistant() {
         }),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.response) {
-          const aiMsg: ChatMessage = { role: "model", text: result.response, timestamp: Date.now() };
-          setChatHistory((prev) => [...prev, aiMsg]);
-          setAiResponse(result.response);
-          const hasAction = result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE";
-          if (!hasAction) {
-            speakResponse(result.response);
-          }
-        }
-        if (result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE") {
-          await executeAction(result.action, result.data);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Voice server error: ${errorText}`);
+      }
+
+      const result = await response.json();
+      if (result.response) {
+        const aiMsg: ChatMessage = { role: "model", text: result.response, timestamp: Date.now() };
+        setChatHistory((prev) => [...prev, aiMsg]);
+        setAiResponse(result.response);
+        const hasAction = result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE";
+        if (!hasAction) {
+          speakResponse(result.response);
         }
       }
-    } catch (err) {
+      if (result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE") {
+        await executeAction(result.action, result.data);
+      }
+    } catch (err: any) {
       console.error("Chat text submit failed:", err);
+      const isTokenError = err.message && (err.message.includes("token") || err.message.includes("Unauthorized"));
+      const errMsg = isTokenError 
+        ? "Session expired. Please log in again." 
+        : "Connection error. Check your internet and try again.";
       setChatHistory((prev) => [
         ...prev,
-        { role: "model", text: "Connection error. Check your internet and try again.", timestamp: Date.now() },
+        { role: "model", text: errMsg, timestamp: Date.now() },
       ]);
+      showToast(errMsg, "error");
     } finally {
       setAttachedImage(null);
       setIsProcessing(false);

@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Platform } from "react-native";
+import { Platform, DeviceEventEmitter } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
 import { Language } from "@/constants/i18n";
@@ -1140,34 +1140,43 @@ export async function authenticatedFetch(
 
   let res = await fetch(url, options);
 
-  if (res.status === 401 && auth?.token && auth?.refreshToken) {
-    console.log("Token expired (401), attempting to refresh token...");
-    try {
-      const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken: auth.refreshToken }),
-      });
+  if (res.status === 401) {
+    if (auth?.token && auth?.refreshToken) {
+      console.log("Token expired (401), attempting to refresh token...");
+      try {
+        const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken: auth.refreshToken }),
+        });
 
-      if (refreshRes.ok) {
-        const refreshData = await refreshRes.json();
-        const updatedAuth = {
-          ...auth,
-          token: refreshData.token,
-          refreshToken: refreshData.refreshToken,
-        };
-        await storage.setAuth(updatedAuth);
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          const updatedAuth = {
+            ...auth,
+            token: refreshData.token,
+            refreshToken: refreshData.refreshToken,
+          };
+          await storage.setAuth(updatedAuth);
 
-        // Update headers and retry request
-        headers["Authorization"] = `Bearer ${refreshData.token}`;
-        options.headers = headers;
-        res = await fetch(url, options);
-      } else {
-        console.warn("Failed to refresh token: status", refreshRes.status);
+          // Update headers and retry request
+          headers["Authorization"] = `Bearer ${refreshData.token}`;
+          options.headers = headers;
+          res = await fetch(url, options);
+        } else {
+          console.warn("Failed to refresh token: status", refreshRes.status);
+          await storage.clearAuth();
+          DeviceEventEmitter.emit("unauthorized");
+        }
+      } catch (err) {
+        console.error("Error during token refresh:", err);
         await storage.clearAuth();
+        DeviceEventEmitter.emit("unauthorized");
       }
-    } catch (err) {
-      console.error("Error during token refresh:", err);
+    } else {
+      console.log("No token or refresh token, triggering unauthorized...");
+      await storage.clearAuth();
+      DeviceEventEmitter.emit("unauthorized");
     }
   }
 

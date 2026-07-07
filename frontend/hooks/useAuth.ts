@@ -6,6 +6,7 @@ import {
   useContext,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { DeviceEventEmitter } from "react-native";
 import { storage, AuthData, User, generateId, API_URL } from "@/utils/storage";
 
 interface AuthContextType {
@@ -464,9 +465,16 @@ export function useAuthProvider() {
     setIsGuest(false);
     setUserId("");
     setUserType("user");
-    setEmail("");
     setUser(null);
   }, []);
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("unauthorized", () => {
+      console.warn("[Auth hook] Received unauthorized event, logging out...");
+      logout();
+    });
+    return () => sub.remove();
+  }, [logout]);
 
   return {
     isLoggedIn,
