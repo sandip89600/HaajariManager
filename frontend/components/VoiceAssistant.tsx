@@ -544,7 +544,11 @@ export default function VoiceAssistant() {
         return;
       }
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      await audioRecorder.prepareToRecordAsync();
+      try {
+        await audioRecorder.prepareToRecordAsync();
+      } catch (prepErr) {
+        // Safe to ignore if already prepared
+      }
       audioRecorder.record();
       isRecordingActiveRef.current = true;
       isPreparingRecordingRef.current = false;
@@ -680,7 +684,11 @@ export default function VoiceAssistant() {
         return;
       }
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      await audioRecorder.prepareToRecordAsync();
+      try {
+        await audioRecorder.prepareToRecordAsync();
+      } catch (prepErr) {
+        // Safe to ignore if already prepared
+      }
       audioRecorder.record();
       isRecordingActiveRef.current = true;
       setIsRecording(true);
