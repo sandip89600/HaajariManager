@@ -555,8 +555,13 @@ export default function VoiceAssistant() {
           }
 
           if (uri && liveActiveRef.current) {
-            const base64Audio = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
-            await processLiveAudio(base64Audio);
+            const fileInfo = await FileSystem.getInfoAsync(uri);
+            if (fileInfo.exists) {
+              const base64Audio = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
+              await processLiveAudio(base64Audio);
+            } else {
+              console.log("[Live Mode] Audio file not found (chunk too short).");
+            }
           }
         } catch (e) {
           console.error("Live loop stop error:", e);
@@ -669,8 +674,14 @@ export default function VoiceAssistant() {
       const uri = audioRecorder.uri;
       isRecordingActiveRef.current = false;
       if (uri) {
-        const base64Audio = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
-        await processAudio(base64Audio);
+        const fileInfo = await FileSystem.getInfoAsync(uri);
+        if (fileInfo.exists) {
+          const base64Audio = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
+          await processAudio(base64Audio);
+        } else {
+          console.warn("Audio file does not exist (recording was probably too short).");
+          showToast("Hold the button longer to speak.", "info");
+        }
       }
     } catch (err) {
       console.error("Failed to stop recording", err);
