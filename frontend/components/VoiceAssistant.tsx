@@ -1026,11 +1026,37 @@ export default function VoiceAssistant() {
         }
         case "MARK_ATTENDANCE": {
           if (worker) {
-            const dateObj = data.date ? new Date(data.date) : new Date();
+            let dateObj = new Date();
+            if (data.date) {
+              const match = String(data.date).match(/^(\d{4})-(\d{2})-(\d{2})/);
+              if (match) {
+                const year = parseInt(match[1], 10);
+                const month = parseInt(match[2], 10) - 1; // 0-indexed
+                const day = parseInt(match[3], 10);
+                const parsed = new Date(year, month, day);
+                if (!isNaN(parsed.getTime())) {
+                  dateObj = parsed;
+                }
+              } else {
+                const parsed = new Date(data.date);
+                if (!isNaN(parsed.getTime())) {
+                  dateObj = parsed;
+                }
+              }
+            }
+
             let val: AttendanceRecord["value"] = "P";
-            if (data.status === "Absent") val = "A";
-            else if (data.status === "Half Day") val = "H";
-            else if (data.status === "Overtime") val = "OT";
+            const statusStr = String(data.status || "").trim().toLowerCase();
+            if (statusStr === "absent" || statusStr === "a" || statusStr === "anupasthit") {
+              val = "A";
+            } else if (statusStr === "half day" || statusStr === "h" || statusStr === "half") {
+              val = "H";
+            } else if (statusStr === "overtime" || statusStr === "ot") {
+              val = "OT";
+            } else {
+              val = "P";
+            }
+
             const record: AttendanceRecord = {
               workerId: worker.id,
               year: dateObj.getFullYear(),
@@ -1044,7 +1070,7 @@ export default function VoiceAssistant() {
             };
             await storage.setAttendanceRecord(record);
             setExecutedAction("MARK_ATTENDANCE");
-            let details = `${worker.name} — ${data.status}`;
+            let details = `${worker.name} — ${val === "P" ? "Present" : val === "A" ? "Absent" : val === "H" ? "Half Day" : "Overtime"}`;
             if (data.advance) details += ` (Advance: Rs.${data.advance})`;
             setActionDetail(details);
           }

@@ -9,6 +9,8 @@ export const processVoice = async (req: AuthenticatedRequest, res: Response) => 
     const userLanguage = req.body.language || "en";
     const currentScreen = req.body.currentScreen || "Unknown";
     const screenContext = req.body.screenContext || {};
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const history = req.body.history
       ? typeof req.body.history === "string"
         ? JSON.parse(req.body.history)
@@ -59,6 +61,7 @@ You are the Voice Action Engine (HAI Voice) for "HAI" (a worker attendance and p
 Your sole purpose is to parse quick voice commands into structured JSON actions.
 The user is a contractor, builder, or supervisor.
 The user's currently selected app language is "${userLanguage}".
+Today's Date is "${todayStr}". (Use this to resolve "today", "yesterday", or date queries).
 
 IMPORTANT CRITICAL RULES (HAI VOICE):
 1. Optimize for extremely low latency. Never generate long text or conversational chat.
@@ -110,6 +113,7 @@ You must respond ONLY with a JSON object in this exact format:
 You are the Real-time AI Copilot (HAI Live) for the "HAI" app.
 You continuously understand the app state and help the user navigate and execute commands on-the-fly.
 The user's currently selected app language is "${userLanguage}".
+Today's Date is "${todayStr}". (Use this to resolve "today", "yesterday", or date queries).
 
 IMPORTANT CRITICAL RULES (HAI LIVE):
 1. No chat bubbles are displayed. You must act as a seamless real-time assistant.
