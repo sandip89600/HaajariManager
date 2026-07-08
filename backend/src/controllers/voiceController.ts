@@ -18,6 +18,7 @@ export const processVoice = async (req: AuthenticatedRequest, res: Response) => 
       : [];
 
     const mode = req.body.mode || "chat"; // voice | chat | live
+    const liveContext = req.body.liveContext || "";
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -47,7 +48,7 @@ export const processVoice = async (req: AuthenticatedRequest, res: Response) => 
     // Initialize Gemini SDK
     const ai = new GoogleGenerativeAI(apiKey);
     const model = ai.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
       },
@@ -68,6 +69,7 @@ IMPORTANT CRITICAL RULES (HAI VOICE):
 2. In the "response" property, write ONLY a short confirmation of the action performed (maximum 4 words) in the user's spoken language (e.g. "Rahul added." or "Attendance marked." or "Opening summary.").
 3. Do not ask conversational follow-up questions. If details are missing, return action "INCOMPLETE" and ask for the missing field in 4 words or less.
 4. Support English, Hindi, Hinglish, Marathi, and regional languages.
+5. If the transcript is cut off or the sentence is incomplete (e.g. the user paused or is still speaking), return action "INCOMPLETE" and set the "response" property to an empty string ("").
 
 ---
 ## LIVE APPLICATION STATE CONTEXT
@@ -119,6 +121,7 @@ IMPORTANT CRITICAL RULES (HAI LIVE):
 1. No chat bubbles are displayed. You must act as a seamless real-time assistant.
 2. Keep responses brief, direct, and action-oriented.
 3. Automatically resolve worker names, dates, or screen details from context.
+4. If the transcript is cut off or the sentence is incomplete, return action "INCOMPLETE" and set the "response" property to an empty string ("").
 
 ---
 ## LIVE APPLICATION STATE CONTEXT
@@ -219,6 +222,12 @@ You must respond ONLY with a JSON object in this exact format:
     }
     parts.push({ text: instructionContext });
 
+    if (liveContext) {
+      parts.push({
+        text: `Previous incomplete speech context: "${liveContext}"\nCombine this previous context with the new transcribed audio/text command to understand the full user sentence.`
+      });
+    }
+
     // 2. Add image part if present
     if (req.body.image) {
       console.log("[Voice] Adding image attachment to Gemini prompt...");
@@ -271,7 +280,7 @@ You must respond ONLY with a JSON object in this exact format:
     }
 
     // Call Gemini API
-    console.log("[Voice] Calling Gemini API (gemini-2.5-flash)...");
+    console.log("[Voice] Calling Gemini API (gemini-3.5-flash)...");
     const result = await model.generateContent(parts);
     const completionText = result.response.text() || "{}";
     console.log("[Voice] Gemini parser output:", completionText);

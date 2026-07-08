@@ -300,6 +300,7 @@ export default function VoiceAssistant() {
   const voiceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isPreparingRecordingRef = useRef(false);
   const chatInputRef = useRef<TextInput>(null);
+  const liveAccumulatedTextRef = useRef("");
 
   // Waveform shared values
   const pulse1 = useSharedValue(1);
@@ -484,12 +485,14 @@ export default function VoiceAssistant() {
     Speech.stop();
     setMode("live");
     liveActiveRef.current = true;
+    liveAccumulatedTextRef.current = "";
     showToast("Live Mode Active", "info");
     runLiveLoop();
   };
 
   const stopLiveMode = async () => {
     liveActiveRef.current = false;
+    liveAccumulatedTextRef.current = "";
     if (liveTimeoutRef.current) {
       clearTimeout(liveTimeoutRef.current);
       liveTimeoutRef.current = null;
@@ -601,6 +604,7 @@ export default function VoiceAssistant() {
           currentScreen: ctx.currentScreen,
           screenContext: ctx,
           mode: "live",
+          liveContext: liveAccumulatedTextRef.current || undefined,
         }),
       });
 
@@ -614,12 +618,22 @@ export default function VoiceAssistant() {
             setAiResponse(localParsed.response);
             await executeAction(localParsed.action, localParsed.data, localParsed.response);
             showToast(`Done: ${localParsed.action}`, "success");
+            liveAccumulatedTextRef.current = "";
             return;
           }
           if (result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE") {
             if (result.response) { setAiResponse(result.response); }
             await executeAction(result.action, result.data, result.response);
             showToast(`Done: ${result.action}`, "success");
+            liveAccumulatedTextRef.current = "";
+          } else if (result.action === "INCOMPLETE") {
+            liveAccumulatedTextRef.current = (liveAccumulatedTextRef.current + " " + transcriptText).trim();
+            if (result.response && result.response.trim() !== "") {
+              showToast(result.response, "info");
+              speakResponse(result.response);
+            }
+          } else {
+            liveAccumulatedTextRef.current = "";
           }
         }
       }
