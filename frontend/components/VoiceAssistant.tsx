@@ -14,7 +14,7 @@ import {
 import { appContextTracker } from "@/utils/appContextTracker";
 import { BlurView } from "expo-blur";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { useAudioRecorder, AudioModule, RecordingPresets, setAudioModeAsync } from "expo-audio";
+import { useAudioRecorder, AudioModule, RecordingPresets, setAudioModeAsync, AudioPlayer } from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Speech from "expo-speech";
 import * as Haptics from "expo-haptics";
@@ -36,6 +36,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ThemedText } from "./ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useAuth } from "@/hooks/useAuth";
 import {
   storage,
   API_URL,
@@ -58,128 +59,216 @@ const parseLocalCommand = (
   const t = text.toLowerCase().trim();
   if (!t) return null;
 
-  // 1. ADD WORKER
-  if (
-    t.includes("add worker") ||
-    t.startsWith("add worker") ||
-    t.includes("add kaamgar") ||
-    t.includes("add kamgar")
-  ) {
-    const clean = t.replace(/add worker|add kaamgar|add kamgar/g, "").trim();
-    if (clean) {
-      const parts = clean.split(/\s+/);
-      const name =
-        parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-      let dailyRate = 500;
-      let category = "labour";
-      const rateMatch = clean.match(/\b\d+\b/);
-      if (rateMatch) dailyRate = parseInt(rateMatch[0]);
-      const categories = [
-        "labour", "bai", "mistri", "bandkam", "plaster", "tiles", "sutar",
-      ];
-      for (const cat of categories) {
-        if (clean.includes(cat)) { category = cat; break; }
-      }
-      return {
-        action: "ADD_WORKER",
-        data: { name, dailyRate, category },
-        response: `Worker "${name}" added — Rs.${dailyRate}/day, ${category}.`,
-      };
-    } else {
-      return {
-        action: "ADD_WORKER",
-        data: { name: "New Worker", dailyRate: 500, category: "labour" },
-        response: 'Worker "New Worker" created with default settings.',
-      };
-    }
+  // 1. OPEN SCREENS
+  if (t === "open workers" || t === "workers kholo" || t === "workers list" || t === "show workers" || t === "workers screen" || t === "kamgar list") {
+    return { action: "OPEN_WORKERS", data: {}, response: "Workers opened." };
+  }
+  if (t === "open attendance" || t === "attendance kholo" || t === "attendance screen" || t === "haajari kholo" || t === "hajiri kholo") {
+    return { action: "OPEN_ATTENDANCE", data: {}, response: "Attendance opened." };
+  }
+  if (t === "open summary" || t === "summary kholo" || t === "summary screen" || t === "hisab kholo" || t === "hisab") {
+    return { action: "OPEN_SUMMARY", data: {}, response: "Summary opened." };
+  }
+  if (t === "open reports" || t === "report kholo" || t === "reports kholo" || t === "reports screen" || t === "reports") {
+    return { action: "OPEN_REPORTS", data: {}, response: "Summary opened." };
+  }
+  if (t === "open settings" || t === "settings kholo" || t === "setting kholo" || t === "settings screen" || t === "settings") {
+    return { action: "OPEN_SETTINGS", data: {}, response: "Settings opened." };
+  }
+  if (t === "open profile" || t === "profile kholo" || t === "profile screen" || t === "profile" || t === "my profile") {
+    return { action: "OPEN_PROFILE", data: {}, response: "Profile opened." };
+  }
+  if (t === "open dashboard" || t === "dashboard kholo" || t === "dashboard screen" || t === "dashboard" || t === "go home" || t === "home") {
+    return { action: "OPEN_DASHBOARD", data: {}, response: "Dashboard opened." };
+  }
+  if (t === "open subscription" || t === "subscription kholo" || t === "upgrade subscription" || t === "premium plans" || t === "upgrade plans") {
+    return { action: "OPEN_SETTINGS", data: { openUpgrade: true }, response: "Subscription opened." };
   }
 
-  // 2. ADD DAY RATE / ADD CATEGORY
-  if (t.includes("add day rate") || t.includes("add daily rate") || t.includes("add rate")) {
-    const rateMatch = t.match(/\b\d+\b/);
-    const dailyRate = rateMatch ? parseInt(rateMatch[0]) : 500;
-    return {
-      action: "ADD_WORKER",
-      data: { name: `Worker Rs.${dailyRate}`, dailyRate, category: "labour" },
-      response: `Worker created with daily rate of Rs.${dailyRate}.`,
-    };
-  }
-
-  if (t.includes("add category")) {
-    let category = "labour";
-    const categories = ["labour", "bai", "mistri", "bandkam", "plaster", "tiles", "sutar"];
-    for (const cat of categories) {
-      if (t.includes(cat)) { category = cat; break; }
-    }
-    const name = `Worker ${category.charAt(0).toUpperCase() + category.slice(1)}`;
-    return {
-      action: "ADD_WORKER",
-      data: { name, dailyRate: 500, category },
-      response: `Worker created with category "${category}".`,
-    };
-  }
-
-  // 3. READ IT
-  if (
-    t.includes("read it") || t.includes("read") || t.includes("list") ||
-    t.includes("padho") || t.includes("suno")
-  ) {
-    return { action: "READ_LIST", data: {}, response: "Reading worker list..." };
-  }
-
-  // 4. DELETE IT / EDIT THIS (only for "last" or generic "delete it")
-  const isDeleteLast = 
-    t === "delete" || 
-    t === "delete it" || 
-    t === "hata do" || 
-    t === "edit" ||
-    t.includes("delete last") || 
-    t.includes("delete last worker") ||
-    t.includes("hata do last") ||
-    t.includes("last kaamgar delete") ||
-    t.includes("last worker delete");
-
-  if (isDeleteLast) {
-    return {
-      action: "DELETE_LAST_WORKER",
-      data: {},
-      response: "Deleting the last added worker.",
-    };
-  }
-
-  // Navigation
-  if (t.includes("worker") || t.includes("kaamgar") || t.includes("kamgar")) {
-    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("go to") || t.includes("view")) {
-      return { action: "OPEN_SCREEN", data: { screen: "Workers" }, response: "Opening Workers screen." };
-    }
-  }
-  if (t.includes("summary") || t.includes("payment") || t.includes("bhugtan") || t.includes("hisab") || t.includes("pay")) {
-    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("go to") || t.includes("view")) {
-      return { action: "OPEN_SCREEN", data: { screen: "Summary" }, response: "Opening Summary screen." };
-    }
-  }
-  if (t.includes("attendance") || t.includes("haajari") || t.includes("hajiri") || t.includes("presence")) {
-    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("go to") || t.includes("view")) {
-      return { action: "OPEN_SCREEN", data: { screen: "Attendance" }, response: "Opening Attendance screen." };
-    }
-  }
-  if (t.includes("setting") || t.includes("vinyas") || t.includes("bhavana")) {
-    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("go to") || t.includes("view")) {
-      return { action: "OPEN_SCREEN", data: { screen: "Settings" }, response: "Opening Settings screen." };
-    }
-  }
-  if (t.includes("profile") || t.includes("account") || t.includes("khata") || t.includes("user")) {
-    if (t.includes("open") || t.includes("kholo") || t.includes("navigate") || t.includes("go to")) {
-      return { action: "OPEN_SCREEN", data: { screen: "Profile" }, response: "Opening Profile screen." };
-    }
-  }
-  if (t.includes("back") || t.includes("piche") || t.includes("wapas") || t.includes("pichhe")) {
+  // 2. NAVIGATION & HISTORY
+  if (t === "go back" || t === "back" || t === "piche" || t === "pichhe" || t === "wapas" || t === "go back screen") {
     return { action: "GO_BACK", data: {}, response: "Going back." };
   }
-  if (t.includes("theme") || t.includes("dark") || t.includes("light") || t.includes("color")) {
-    if (t.includes("switch") || t.includes("change") || t.includes("badlo") || t.includes("toggle")) {
-      return { action: "SWITCH_THEME", data: {}, response: "Switching app theme." };
+  if (t === "go home" || t === "home" || t === "home screen") {
+    return { action: "OPEN_DASHBOARD", data: {}, response: "Dashboard opened." };
+  }
+
+  // 3. SETTINGS & CONFIGS
+  if (t === "change language to hindi" || t === "set language hindi" || t === "hindi language" || t === "hindi badlo") {
+    return { action: "CHANGE_LANGUAGE", data: { language: "hi" }, response: "Language updated." };
+  }
+  if (t === "change language to marathi" || t === "set language marathi" || t === "marathi language" || t === "marathi badlo") {
+    return { action: "CHANGE_LANGUAGE", data: { language: "mr" }, response: "Language updated." };
+  }
+  if (t === "change language to english" || t === "set language english" || t === "english language" || t === "english badlo") {
+    return { action: "CHANGE_LANGUAGE", data: { language: "en" }, response: "Language updated." };
+  }
+  if (t === "change theme to dark" || t === "theme to dark" || t === "dark theme" || t === "dark mode" || t === "theme dark" || t === "set dark theme") {
+    return { action: "CHANGE_THEME", data: { theme: "dark" }, response: "Theme updated." };
+  }
+  if (t === "change theme to light" || t === "theme to light" || t === "light theme" || t === "light mode" || t === "theme light" || t === "set light theme") {
+    return { action: "CHANGE_THEME", data: { theme: "light" }, response: "Theme updated." };
+  }
+  if (t === "logout" || t === "log out" || t === "sign out") {
+    return { action: "LOGOUT", data: {}, response: "Logged out." };
+  }
+
+  // 4. ATTENDANCE (MARK PRESENT/ABSENT/HALF DAY)
+  const presentRegexes = [
+    /^(?:mark\s+)?(.+?)\s+(?:as\s+)?present$/i,
+    /^(?:mark\s+)?present\s+(?:for\s+)?(.+?)$/i,
+    /^(.+?)\s+present\s+lagao$/i,
+    /^(.+?)\s+ki\s+present$/i,
+  ];
+  for (const regex of presentRegexes) {
+    const match = t.match(regex);
+    if (match && match[1]) {
+      const name = match[1].trim();
+      if (!["mark", "lagao", "attendance", "absent", "half day", "half-day", "overtime", "details"].includes(name)) {
+        return {
+          action: "MARK_PRESENT",
+          data: { name: name.charAt(0).toUpperCase() + name.slice(1) },
+          response: "Attendance marked."
+        };
+      }
     }
+  }
+
+  const absentRegexes = [
+    /^(?:mark\s+)?(.+?)\s+(?:as\s+)?absent$/i,
+    /^(?:mark\s+)?absent\s+(?:for\s+)?(.+?)$/i,
+    /^(.+?)\s+absent\s+lagao$/i,
+    /^(.+?)\s+ki\s+absent$/i,
+  ];
+  for (const regex of absentRegexes) {
+    const match = t.match(regex);
+    if (match && match[1]) {
+      const name = match[1].trim();
+      if (!["mark", "lagao", "attendance", "present", "half day", "half-day", "overtime", "details"].includes(name)) {
+        return {
+          action: "MARK_ABSENT",
+          data: { name: name.charAt(0).toUpperCase() + name.slice(1) },
+          response: "Attendance marked."
+        };
+      }
+    }
+  }
+
+  const halfDayRegexes = [
+    /^(?:mark\s+)?(.+?)\s+(?:as\s+)?half\s*day$/i,
+    /^(?:mark\s+)?half\s*day\s+(?:for\s+)?(.+?)$/i,
+    /^(.+?)\s+half\s*day\s+lagao$/i,
+    /^(.+?)\s+ki\s+half\s*day$/i,
+  ];
+  for (const regex of halfDayRegexes) {
+    const match = t.match(regex);
+    if (match && match[1]) {
+      const name = match[1].trim();
+      if (!["mark", "lagao", "attendance", "present", "absent", "overtime", "details"].includes(name)) {
+        return {
+          action: "MARK_HALF_DAY",
+          data: { name: name.charAt(0).toUpperCase() + name.slice(1) },
+          response: "Attendance marked."
+        };
+      }
+    }
+  }
+
+  if (t === "mark present" || t === "present lagao" || t === "present mark karo" || t === "present") {
+    return { action: "MARK_PRESENT", data: {}, response: "Attendance marked." };
+  }
+  if (t === "mark absent" || t === "absent lagao" || t === "absent mark karo" || t === "absent") {
+    return { action: "MARK_ABSENT", data: {}, response: "Attendance marked." };
+  }
+  if (t === "mark half day" || t === "half day lagao" || t === "half day mark karo" || t === "half day" || t === "half-day") {
+    return { action: "MARK_HALF_DAY", data: {}, response: "Attendance marked." };
+  }
+
+  // 5. OPEN WORKER DETAILS
+  const detailsRegexes = [
+    /^(?:open\s+|show\s+)?worker\s+details\s+(?:for\s+)?(.+?)$/i,
+    /^details\s+(?:of\s+)?(.+?)$/i,
+    /^show\s+worker\s+(.+?)$/i,
+    /^(.+?)\s+details$/i,
+  ];
+  for (const regex of detailsRegexes) {
+    const match = t.match(regex);
+    if (match && match[1]) {
+      const name = match[1].trim();
+      return {
+        action: "SEARCH_WORKER",
+        data: { query: name },
+        response: "Worker details opened."
+      };
+    }
+  }
+  if (t === "open worker details" || t === "worker details" || t === "details") {
+    return { action: "OPEN_WORKERS", data: {}, response: "Workers opened." };
+  }
+
+  // 6. FINANCIALS (ADD PAYMENT & ADVANCE)
+  const payRegexes = [
+    /^(?:pay\s+|payment\s+of\s+|add\s+payment\s+of\s+)(\d+)\s+(?:to\s+)?(.+?)$/i,
+    /^(?:pay\s+|payment\s+to\s+)(.+?)\s+(\d+)$/i,
+    /^(?:pay\s+|payment\s+of\s+)(.+?)\s+rs\s*(\d+)$/i,
+    /^(?:give\s+)?(.+?)\s+(?:pay\s+|payment\s+)?rs\s*(\d+)$/i,
+  ];
+  for (const regex of payRegexes) {
+    const match = t.match(regex);
+    if (match) {
+      let amountStr = "";
+      let name = "";
+      if (isNaN(Number(match[1]))) {
+        name = match[1].trim();
+        amountStr = match[2];
+      } else {
+        amountStr = match[1];
+        name = match[2].trim();
+      }
+      const amount = parseInt(amountStr);
+      if (!isNaN(amount) && name) {
+        return {
+          action: "ADD_PAYMENT",
+          data: { amount, name: name.charAt(0).toUpperCase() + name.slice(1) },
+          response: "Payment saved."
+        };
+      }
+    }
+  }
+
+  const advanceRegexes = [
+    /^(?:add\s+|give\s+)?advance\s+(?:of\s+)?(\d+)\s+(?:to\s+)?(.+?)$/i,
+    /^(?:add\s+|give\s+)?advance\s+(?:to\s+)?(.+?)\s+(\d+)$/i,
+    /^(?:give\s+)?(.+?)\s+(?:rs\s*)?(\d+)\s+advance$/i,
+  ];
+  for (const regex of advanceRegexes) {
+    const match = t.match(regex);
+    if (match) {
+      let amountStr = "";
+      let name = "";
+      if (isNaN(Number(match[1]))) {
+        name = match[1].trim();
+        amountStr = match[2];
+      } else {
+        amountStr = match[1];
+        name = match[2].trim();
+      }
+      const amount = parseInt(amountStr);
+      if (!isNaN(amount) && name) {
+        return {
+          action: "ADD_ADVANCE",
+          data: { amount, name: name.charAt(0).toUpperCase() + name.slice(1) },
+          response: "Advance recorded."
+        };
+      }
+    }
+  }
+
+  if (t === "add payment" || t === "pay worker" || t === "payment") {
+    return { action: "ADD_PAYMENT", data: {}, response: "Payment saved." };
+  }
+  if (t === "add advance" || t === "give advance" || t === "advance") {
+    return { action: "ADD_ADVANCE", data: {}, response: "Advance recorded." };
   }
 
   return null;
@@ -238,10 +327,19 @@ const LAUNCHER_CARDS = [
   },
 ];
 
+const STATE_COLORS: Record<string, string[]> = {
+  idle: ["#64748B", "#94A3B8"],
+  listening: ["#10B981", "#06B6D4"],
+  thinking: ["#8B5CF6", "#6366F1"],
+  executing: ["#FF6B35", "#EF4444"],
+  completed: ["#059669", "#10B981"],
+};
+
 // ─── MAIN COMPONENT ────────────────────────────────────────────────────────────
 export default function VoiceAssistant() {
   const { theme, isDark, setThemeMode } = useTheme();
   const { language, t } = useLanguage();
+  const { user, logout: authLogout } = useAuth();
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const isRecordingActiveRef = useRef(false);
 
@@ -263,6 +361,20 @@ export default function VoiceAssistant() {
 
   // Mode
   const [mode, setMode] = useState<CopilotMode>("none");
+
+  // Radial menu states
+  const [isRadialOpen, setIsRadialOpen] = useState(false);
+  const radialProgress = useSharedValue(0);
+
+  // Live state
+  type LiveState = "idle" | "listening" | "thinking" | "executing" | "completed";
+  const [liveState, setLiveState] = useState<LiveState>("idle");
+
+  // Concentric rings animations
+  const livePulse1 = useSharedValue(1);
+  const livePulse2 = useSharedValue(1);
+  const livePulse3 = useSharedValue(1);
+  const liveRotation = useSharedValue(0);
 
   // Core processing states
   const [isRecording, setIsRecording] = useState(false);
@@ -377,6 +489,46 @@ export default function VoiceAssistant() {
     }
   }, [isRecording, pulse1, pulse2, pulse3, pulse4, pulse5]);
 
+  // ─── LIVE CONCENTRIC RINGS PULSING ───────────────────────────────────────────
+  useEffect(() => {
+    if (mode === "live") {
+      livePulse1.value = withRepeat(
+        withSequence(
+          withTiming(1.3, { duration: 1200 }),
+          withTiming(1.0, { duration: 1200 })
+        ),
+        -1,
+        true
+      );
+      livePulse2.value = withRepeat(
+        withSequence(
+          withTiming(1.6, { duration: 1500 }),
+          withTiming(1.0, { duration: 1500 })
+        ),
+        -1,
+        true
+      );
+      livePulse3.value = withRepeat(
+        withSequence(
+          withTiming(1.9, { duration: 1800 }),
+          withTiming(1.0, { duration: 1800 })
+        ),
+        -1,
+        true
+      );
+      liveRotation.value = withRepeat(
+        withTiming(360, { duration: 3500 }),
+        -1,
+        false
+      );
+    } else {
+      livePulse1.value = 1;
+      livePulse2.value = 1;
+      livePulse3.value = 1;
+      liveRotation.value = 0;
+    }
+  }, [mode]);
+
   // ─── ANIMATED STYLES ─────────────────────────────────────────────────────────
   const animatedWave1 = useAnimatedStyle(() => ({ transform: [{ scaleY: pulse1.value }] }));
   const animatedWave2 = useAnimatedStyle(() => ({ transform: [{ scaleY: pulse2.value }] }));
@@ -392,10 +544,132 @@ export default function VoiceAssistant() {
     opacity: pulseRingOpacity.value,
   }));
 
+  // Radial menu animations
+  const radialLiveStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: radialProgress.value * -68 },
+        { scale: radialProgress.value }
+      ],
+      opacity: radialProgress.value,
+    };
+  });
+
+  const radialVoiceStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: radialProgress.value * -136 },
+        { scale: radialProgress.value }
+      ],
+      opacity: radialProgress.value,
+    };
+  });
+
+  const radialChatStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: radialProgress.value * -204 },
+        { scale: radialProgress.value }
+      ],
+      opacity: radialProgress.value,
+    };
+  });
+
+  const mainOrbIconStyle = useAnimatedStyle(() => {
+    const rotation = radialProgress.value * 45;
+    return {
+      transform: [{ rotate: `${rotation}deg` }]
+    };
+  });
+
+  const floatingLabelStyle = useAnimatedStyle(() => {
+    return {
+      opacity: withTiming(isRadialOpen ? 0 : 1, { duration: 150 }),
+      transform: [
+        { translateX: withTiming(isRadialOpen ? 15 : 0, { duration: 150 }) }
+      ]
+    };
+  });
+
+  // Fullscreen Live Mode Orb Animations
+  const livePulseStyle1 = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: livePulse1.value }],
+      opacity: 0.15 * (2 - livePulse1.value),
+    };
+  });
+
+  const livePulseStyle2 = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: livePulse2.value }],
+      opacity: 0.10 * (2 - livePulse2.value),
+    };
+  });
+
+  const livePulseStyle3 = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: livePulse3.value }],
+      opacity: 0.05 * (2 - livePulse3.value),
+    };
+  });
+
+  const liveOrbRotateStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ rotate: `${liveRotation.value}deg` }],
+    };
+  });
+
+  // API Fetch Helper with 3-tier backoff retries for 503 errors
+  const fetchWithRetry = async (url: string, options: any, retries = 3, delay = 2000): Promise<Response> => {
+    try {
+      const response = await authenticatedFetch(url, options);
+      if (response.status === 503 && retries > 0) {
+        console.warn(`[VoiceAssistant] Server returned 503. Retrying in ${delay / 1000}s... (${retries} retries left)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return fetchWithRetry(url, options, retries - 1, delay + 2000);
+      }
+      return response;
+    } catch (err) {
+      if (retries > 0) {
+        console.warn(`[VoiceAssistant] Connection error. Retrying in ${delay / 1000}s... (${retries} retries left)`, err);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return fetchWithRetry(url, options, retries - 1, delay + 2000);
+      }
+      throw err;
+    }
+  };
+
   // ─── TOAST ───────────────────────────────────────────────────────────────────
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  // ─── PLAY SARVAM AUDIO ────────────────────────────────────────────────────────
+  const playSarvamAudio = async (base64Audio: string, fallbackText: string, onDone?: () => void) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Speech.stop();
+
+      const filename = FileSystem.cacheDirectory + "sarvam_tts.wav";
+      await FileSystem.writeAsStringAsync(filename, base64Audio, {
+        encoding: "base64",
+      });
+
+      setIsSpeaking(true);
+
+      const player = new AudioPlayer(filename);
+      await player.play();
+
+      const durationMs = (player.duration || 3) * 1000;
+      setTimeout(() => {
+        setIsSpeaking(false);
+        if (onDone) onDone();
+      }, durationMs);
+    } catch (err) {
+      console.warn("[VoiceAssistant] Sarvam playback failed, falling back to Native TTS:", err);
+      speakResponse(fallbackText, onDone);
+    }
   };
 
   // ─── TTS ─────────────────────────────────────────────────────────────────────
@@ -454,10 +728,16 @@ export default function VoiceAssistant() {
     );
   };
 
-  // ─── MODE STARTERS ────────────────────────────────────────────────────────────
-  const openLauncher = () => {
+  // ─── RADIAL MENU CONTROLLER ──────────────────────────────────────────────────
+  const toggleRadialMenu = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setMode("launcher");
+    if (isRadialOpen) {
+      radialProgress.value = withSpring(0, { damping: 15, stiffness: 120 });
+      setIsRadialOpen(false);
+    } else {
+      setIsRadialOpen(true);
+      radialProgress.value = withSpring(1, { damping: 15, stiffness: 120 });
+    }
   };
 
   const startVoiceMode = async () => {
@@ -484,6 +764,7 @@ export default function VoiceAssistant() {
   const startLiveMode = async () => {
     Speech.stop();
     setMode("live");
+    setLiveState("listening");
     liveActiveRef.current = true;
     liveAccumulatedTextRef.current = "";
     showToast("Live Mode Active", "info");
@@ -503,6 +784,7 @@ export default function VoiceAssistant() {
     }
     setIsRecording(false);
     setIsProcessing(false);
+    setLiveState("idle");
     setMode("none");
     showToast("Live Mode Stopped", "info");
   };
@@ -515,6 +797,7 @@ export default function VoiceAssistant() {
   const closeAssistant = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setMode("none");
+    setLiveState("idle");
     if (voiceTimeoutRef.current) {
       clearTimeout(voiceTimeoutRef.current);
       voiceTimeoutRef.current = null;
@@ -531,12 +814,17 @@ export default function VoiceAssistant() {
   // ─── LIVE LOOP ────────────────────────────────────────────────────────────────
   const runLiveLoop = async () => {
     if (!liveActiveRef.current) return;
-    if (isSpeaking || pendingConfirmation) return;
+    if (isSpeaking || pendingConfirmation) {
+      // If AI is speaking or waiting for confirmation, check again in 1 second
+      liveTimeoutRef.current = setTimeout(runLiveLoop, 1000);
+      return;
+    }
     if (isRecordingActiveRef.current || isPreparingRecordingRef.current) return;
 
     try {
       isPreparingRecordingRef.current = true;
       setIsRecording(true);
+      setLiveState("listening");
       const { status } = await AudioModule.requestRecordingPermissionsAsync();
       if (status !== "granted") {
         showToast("Microphone permission required.", "error");
@@ -553,20 +841,20 @@ export default function VoiceAssistant() {
       isRecordingActiveRef.current = true;
       isPreparingRecordingRef.current = false;
 
+      // 3.0s recording chunk for fast response times
       liveTimeoutRef.current = setTimeout(async () => {
         if (!liveActiveRef.current) return;
         try {
           setIsRecording(false);
-          setIsProcessing(true);
+          setLiveState("thinking");
           await audioRecorder.stop();
           const uri = audioRecorder.uri;
           isRecordingActiveRef.current = false;
 
-          if (liveActiveRef.current && !isSpeaking && !pendingConfirmation) {
-            setTimeout(() => {
-              if (liveActiveRef.current && !isSpeaking && !pendingConfirmation) runLiveLoop();
-            }, 300);
-          }
+          // Prime the next loop to run immediately, so listening is continuous
+          setTimeout(() => {
+            if (liveActiveRef.current) runLiveLoop();
+          }, 300);
 
           if (uri && liveActiveRef.current) {
             const fileInfo = await FileSystem.getInfoAsync(uri);
@@ -574,15 +862,14 @@ export default function VoiceAssistant() {
               const base64Audio = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
               await processLiveAudio(base64Audio);
             } else {
-              console.log("[Live Mode] Audio file not found (chunk too short).");
+              console.log("[Live Mode] Audio file not found.");
             }
           }
         } catch (e) {
           console.error("Live loop stop error:", e);
-        } finally {
-          setIsProcessing(false);
+          setLiveState("idle");
         }
-      }, 4500);
+      }, 3000);
     } catch (err) {
       isPreparingRecordingRef.current = false;
       console.error("Live loop create error:", err);
@@ -598,15 +885,28 @@ export default function VoiceAssistant() {
       const token = auth?.token;
       const ctx = appContextTracker.getContext();
 
-      const response = await authenticatedFetch(`${API_URL}/voice/process`, {
+      const response = await fetchWithRetry(`${API_URL}/voice/process`, {
         method: "POST",
         body: JSON.stringify({
           audio: base64Audio,
           mimeType: Platform.OS === "ios" ? "audio/x-m4a" : "audio/mp4",
           history: [],
-          language,
+          currentLanguage: language,
           currentScreen: ctx.currentScreen,
-          screenContext: ctx,
+          currentUser: user?.name || "User",
+          currentRole: user?.role || "contractor",
+          currentTheme: isDark ? "dark" : "light",
+          currentSubscription: user?.plan || "free",
+          selectedMonth: ctx.selectedMonth !== null ? ctx.selectedMonth : new Date().getMonth(),
+          selectedYear: ctx.selectedYear !== null ? ctx.selectedYear : new Date().getFullYear(),
+          screenContext: {
+            ...ctx,
+            currentUser: user?.name || "User",
+            currentRole: user?.role || "contractor",
+            currentLanguage: language,
+            currentTheme: isDark ? "dark" : "light",
+            currentSubscription: user?.plan || "free",
+          },
           mode: "live",
           liveContext: liveAccumulatedTextRef.current || undefined,
         }),
@@ -615,44 +915,63 @@ export default function VoiceAssistant() {
       if (response.ok) {
         const result = await response.json();
         const transcriptText = result.transcript;
+        const resultIntent = result.intent || result.action;
         if (transcriptText) {
           setTranscript(transcriptText);
           const localParsed = parseLocalCommand(transcriptText);
           if (localParsed) {
             setAiResponse(localParsed.response);
+            setLiveState("executing");
             await executeAction(localParsed.action, localParsed.data, localParsed.response);
+            setLiveState("completed");
+            setTimeout(() => { if (liveActiveRef.current) setLiveState("listening"); }, 1500);
             showToast(`Done: ${localParsed.action}`, "success");
             liveAccumulatedTextRef.current = "";
+            if (result.audio) {
+              playSarvamAudio(result.audio, localParsed.response);
+            } else {
+              speakResponse(localParsed.response);
+            }
             return;
           }
-          if (result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE") {
+          if (resultIntent && resultIntent !== "UNKNOWN" && resultIntent !== "NONE" && resultIntent !== "INCOMPLETE") {
             if (result.response) { setAiResponse(result.response); }
-            await executeAction(result.action, result.data, result.response);
-            showToast(`Done: ${result.action}`, "success");
+            setLiveState("executing");
+            await executeAction(resultIntent, result.data, result.response);
+            setLiveState("completed");
+            setTimeout(() => { if (liveActiveRef.current) setLiveState("listening"); }, 1500);
+            showToast(`Done: ${resultIntent}`, "success");
             liveAccumulatedTextRef.current = "";
-          } else if (result.action === "INCOMPLETE") {
+            if (result.audio) {
+              playSarvamAudio(result.audio, result.response || "");
+            } else if (result.response) {
+              speakResponse(result.response);
+            }
+          } else if (resultIntent === "INCOMPLETE") {
             liveAccumulatedTextRef.current = (liveAccumulatedTextRef.current + " " + transcriptText).trim();
             if (result.response && result.response.trim() !== "") {
               showToast(result.response, "info");
-              speakResponse(result.response);
+              if (result.audio) {
+                playSarvamAudio(result.audio, result.response);
+              } else {
+                speakResponse(result.response);
+              }
             }
+            setLiveState("listening");
           } else {
             liveAccumulatedTextRef.current = "";
+            setLiveState("listening");
           }
+        } else {
+          setLiveState("listening");
         }
+      } else {
+        setLiveState("listening");
       }
     } catch (err: any) {
       console.error("Live audio processing failed:", err);
-      const isTokenError = err.message && (err.message.includes("token") || err.message.includes("Unauthorized"));
-      const isGeminiError = err.message && (err.message.includes("Gemini") || err.message.includes("generativelanguage") || err.message.includes("Model"));
-      let errorSpeakText = "";
-      if (isTokenError) {
-        errorSpeakText = "Session expired. Please log in again.";
-      } else if (isGeminiError) {
-        errorSpeakText = "Gemini AI is not responding. Please check your API key.";
-      } else {
-        errorSpeakText = "Connection error. Please check your network.";
-      }
+      setLiveState("idle");
+      const errorSpeakText = "HAI is currently busy. Please try again shortly.";
       showToast(errorSpeakText, "error");
       speakResponse(errorSpeakText);
     }
@@ -734,7 +1053,7 @@ export default function VoiceAssistant() {
       const token = auth?.token;
       const ctx = appContextTracker.getContext();
 
-      const response = await authenticatedFetch(`${API_URL}/voice/process`, {
+      const response = await fetchWithRetry(`${API_URL}/voice/process`, {
         method: "POST",
         body: JSON.stringify({
           audio: base64Audio,
@@ -742,9 +1061,22 @@ export default function VoiceAssistant() {
           history: mode === "chat"
             ? chatHistory.map((ch) => ({ role: ch.role, parts: [{ text: ch.text }] }))
             : [],
-          language,
+          currentLanguage: language,
           currentScreen: ctx.currentScreen,
-          screenContext: ctx,
+          currentUser: user?.name || "User",
+          currentRole: user?.role || "contractor",
+          currentTheme: isDark ? "dark" : "light",
+          currentSubscription: user?.plan || "free",
+          selectedMonth: ctx.selectedMonth !== null ? ctx.selectedMonth : new Date().getMonth(),
+          selectedYear: ctx.selectedYear !== null ? ctx.selectedYear : new Date().getFullYear(),
+          screenContext: {
+            ...ctx,
+            currentUser: user?.name || "User",
+            currentRole: user?.role || "contractor",
+            currentLanguage: language,
+            currentTheme: isDark ? "dark" : "light",
+            currentSubscription: user?.plan || "free",
+          },
           mode: mode,
         }),
       });
@@ -787,11 +1119,20 @@ export default function VoiceAssistant() {
             setChatHistory(newHistory);
             const hasAction = result.action && result.action !== "INCOMPLETE" && result.action !== "UNKNOWN";
             if (!hasAction) {
-              speakResponse(result.response);
+              if (result.audio) {
+                playSarvamAudio(result.audio, result.response);
+              } else {
+                speakResponse(result.response);
+              }
             }
           }
           if (result.action && result.action !== "INCOMPLETE" && result.action !== "UNKNOWN") {
             await executeAction(result.action, result.data, result.response);
+            if (result.audio) {
+              playSarvamAudio(result.audio, result.response || "");
+            } else if (result.response) {
+              speakResponse(result.response);
+            }
           } else {
             setExecutedAction(null);
             setActionDetail(null);
@@ -799,32 +1140,42 @@ export default function VoiceAssistant() {
         } else if (mode === "voice") {
           const hasAction = result.action && result.action !== "INCOMPLETE" && result.action !== "UNKNOWN";
           if (result.response && !hasAction) {
-            speakResponse(result.response);
+            if (result.audio) {
+              playSarvamAudio(result.audio, result.response);
+            } else {
+              speakResponse(result.response);
+            }
           }
           if (hasAction) {
             await executeAction(result.action, result.data, result.response);
             showToast(`Done: ${result.action}`, "success");
+            if (result.audio) {
+              playSarvamAudio(result.audio, result.response || "");
+            } else if (result.response) {
+              speakResponse(result.response);
+            }
           } else if (result.action === "INCOMPLETE") {
             showToast(result.response || "Details incomplete.", "info");
-            if (result.response) speakResponse(result.response);
+            if (result.response) {
+              if (result.audio) {
+                playSarvamAudio(result.audio, result.response);
+              } else {
+                speakResponse(result.response);
+              }
+            }
           } else {
             showToast("Command not understood.", "error");
-            speakResponse(t.voiceConfirm?.errorNotUnderstood || "I didn't understand that.");
+            if (result.audio) {
+              playSarvamAudio(result.audio, "I didn't understand that.");
+            } else {
+              speakResponse(t.voiceConfirm?.errorNotUnderstood || "I didn't understand that.");
+            }
           }
         }
       }
     } catch (err: any) {
       console.error("Audio processing failed:", err);
-      const isTokenError = err.message && (err.message.includes("token") || err.message.includes("Unauthorized"));
-      const isGeminiError = err.message && (err.message.includes("Gemini") || err.message.includes("generativelanguage") || err.message.includes("Model"));
-      let errorSpeakText = "";
-      if (isTokenError) {
-        errorSpeakText = "Session expired. Please log in again.";
-      } else if (isGeminiError) {
-        errorSpeakText = "Gemini AI is not responding. Please check your API key.";
-      } else {
-        errorSpeakText = "Connection error. Please check your network.";
-      }
+      const errorSpeakText = "HAI is currently busy. Please try again shortly.";
       showToast(errorSpeakText, "error");
       speakResponse(errorSpeakText);
     } finally {
@@ -903,15 +1254,28 @@ export default function VoiceAssistant() {
       const token = auth?.token;
       const ctx = appContextTracker.getContext();
 
-      const response = await authenticatedFetch(`${API_URL}/voice/process`, {
+      const response = await fetchWithRetry(`${API_URL}/voice/process`, {
         method: "POST",
         body: JSON.stringify({
           text: text.trim(),
           image: attachedImage || undefined,
           history: chatHistory.map((ch) => ({ role: ch.role, parts: [{ text: ch.text }] })),
-          language,
+          currentLanguage: language,
           currentScreen: ctx.currentScreen,
-          screenContext: ctx,
+          currentUser: user?.name || "User",
+          currentRole: user?.role || "contractor",
+          currentTheme: isDark ? "dark" : "light",
+          currentSubscription: user?.plan || "free",
+          selectedMonth: ctx.selectedMonth !== null ? ctx.selectedMonth : new Date().getMonth(),
+          selectedYear: ctx.selectedYear !== null ? ctx.selectedYear : new Date().getFullYear(),
+          screenContext: {
+            ...ctx,
+            currentUser: user?.name || "User",
+            currentRole: user?.role || "contractor",
+            currentLanguage: language,
+            currentTheme: isDark ? "dark" : "light",
+            currentSubscription: user?.plan || "free",
+          },
           mode: "chat",
         }),
       });
@@ -928,21 +1292,24 @@ export default function VoiceAssistant() {
         setAiResponse(result.response);
         const hasAction = result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE";
         if (!hasAction) {
-          speakResponse(result.response);
+          if (result.audio) {
+            playSarvamAudio(result.audio, result.response);
+          } else {
+            speakResponse(result.response);
+          }
         }
       }
       if (result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE") {
         await executeAction(result.action, result.data, result.response);
+        if (result.audio) {
+          playSarvamAudio(result.audio, result.response || "");
+        } else if (result.response) {
+          speakResponse(result.response);
+        }
       }
     } catch (err: any) {
       console.error("Chat text submit failed:", err);
-      const isTokenError = err.message && (err.message.includes("token") || err.message.includes("Unauthorized"));
-      const isGeminiError = err.message && (err.message.includes("Gemini") || err.message.includes("generativelanguage") || err.message.includes("Model"));
-      const errMsg = isTokenError 
-        ? "Session expired. Please log in again." 
-        : isGeminiError
-        ? "Gemini AI is not responding. Please check your API key."
-        : "Connection error. Check your internet and try again.";
+      const errMsg = "HAI is currently busy. Please try again shortly.";
       setChatHistory((prev) => [
         ...prev,
         { role: "model", text: errMsg, timestamp: Date.now() },
@@ -974,13 +1341,15 @@ export default function VoiceAssistant() {
 
   const executeActionDirect = async (action: string, data: any, responseText?: string) => {
     try {
+      const { setLanguage } = useLanguage();
       const workers = await storage.getWorkers();
       let worker: Worker | null = null;
 
-      if (data.name) {
-        worker = fuzzyMatchWorker(workers, data.name);
-        if (!worker && action !== "ADD_WORKER") {
-          const errText = t.voiceConfirm?.errorNotFound || `Worker "${data.name}" not found.`;
+      const workerName = data.name || data.worker;
+      if (workerName) {
+        worker = fuzzyMatchWorker(workers, workerName);
+        if (!worker && !["ADD_WORKER", "CHANGE_LANGUAGE", "CHANGE_THEME", "OPEN_WORKERS", "OPEN_ATTENDANCE", "OPEN_SUMMARY", "OPEN_REPORTS", "OPEN_SETTINGS", "OPEN_PROFILE", "EXPORT_REPORT", "LOGOUT", "DELETE_ACCOUNT", "GO_BACK", "NONE"].includes(action)) {
+          const errText = t.voiceConfirm?.errorNotFound || `Worker "${workerName}" not found.`;
           setAiResponse(errText);
           speakResponse(errText);
           setExecutedAction("ERROR");
@@ -1019,24 +1388,24 @@ export default function VoiceAssistant() {
         case "ADD_WORKER": {
           const newWorker: Worker = {
             id: "",
-            name: data.name,
-            dailyRate: data.dailyRate || 500,
-            category: data.category || "labour",
+            name: workerName || "New Worker",
+            dailyRate: data.dailyRate || data.amount || 500,
+            category: data.category || data.query || "labour",
             phone: data.phone || "",
             address: data.address || "",
             createdAt: Date.now(),
           };
           await storage.addWorker(newWorker);
           setExecutedAction("ADD_WORKER");
-          setActionDetail(`Worker: ${data.name} (Rs.${data.dailyRate || 500}/day)`);
+          setActionDetail(`Worker: ${newWorker.name} (Rs.${newWorker.dailyRate}/day)`);
           break;
         }
         case "UPDATE_WORKER": {
           if (worker) {
             const updated = {
               ...worker,
-              dailyRate: data.dailyRate !== undefined ? data.dailyRate : worker.dailyRate,
-              category: data.category || worker.category,
+              dailyRate: data.dailyRate !== undefined ? data.dailyRate : (data.amount !== undefined ? data.amount : worker.dailyRate),
+              category: data.category || data.query || worker.category,
               phone: data.phone || worker.phone,
             };
             await storage.updateWorker(updated);
@@ -1053,8 +1422,20 @@ export default function VoiceAssistant() {
           }
           break;
         }
-        case "MARK_ATTENDANCE": {
-          if (worker) {
+        case "MARK_PRESENT":
+        case "MARK_ABSENT":
+        case "MARK_HALF_DAY":
+        case "MARK_OVERTIME": {
+          // Resolve worker from context if not explicitly matched
+          let activeWorker = worker;
+          if (!activeWorker) {
+            const ctx = appContextTracker.getContext();
+            if (ctx.selectedWorkerName) {
+              activeWorker = fuzzyMatchWorker(workers, ctx.selectedWorkerName);
+            }
+          }
+
+          if (activeWorker) {
             let dateObj = new Date();
             if (data.date) {
               const match = String(data.date).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -1063,54 +1444,55 @@ export default function VoiceAssistant() {
                 const month = parseInt(match[2], 10) - 1; // 0-indexed
                 const day = parseInt(match[3], 10);
                 const parsed = new Date(year, month, day);
-                if (!isNaN(parsed.getTime())) {
-                  dateObj = parsed;
-                }
+                if (!isNaN(parsed.getTime())) dateObj = parsed;
               } else {
                 const parsed = new Date(data.date);
-                if (!isNaN(parsed.getTime())) {
-                  dateObj = parsed;
-                }
+                if (!isNaN(parsed.getTime())) dateObj = parsed;
               }
             }
 
             let val: AttendanceRecord["value"] = "P";
-            const statusStr = String(data.status || "").trim().toLowerCase();
-            if (statusStr === "absent" || statusStr === "a" || statusStr === "anupasthit") {
-              val = "A";
-            } else if (statusStr === "half day" || statusStr === "h" || statusStr === "half") {
-              val = "H";
-            } else if (statusStr === "overtime" || statusStr === "ot") {
-              val = "OT";
-            } else {
-              val = "P";
-            }
+            if (action === "MARK_ABSENT") val = "A";
+            else if (action === "MARK_HALF_DAY") val = "H";
+            else if (action === "MARK_OVERTIME") val = "OT";
 
             const record: AttendanceRecord = {
-              workerId: worker.id,
+              workerId: activeWorker.id,
               year: dateObj.getFullYear(),
               month: dateObj.getMonth(),
               day: dateObj.getDate(),
               value: val,
-              dailyRate: worker.dailyRate,
+              dailyRate: activeWorker.dailyRate,
               customWage: data.advance || undefined,
               finalPay: 0,
               timestamp: Date.now(),
             };
             await storage.setAttendanceRecord(record);
-            setExecutedAction("MARK_ATTENDANCE");
-            let details = `${worker.name} — ${val === "P" ? "Present" : val === "A" ? "Absent" : val === "H" ? "Half Day" : "Overtime"}`;
+            setExecutedAction(action);
+            let details = `${activeWorker.name} — ${val === "P" ? "Present" : val === "A" ? "Absent" : val === "H" ? "Half Day" : "Overtime"}`;
             if (data.advance) details += ` (Advance: Rs.${data.advance})`;
             setActionDetail(details);
+          } else {
+            const errText = "Worker context missing.";
+            setAiResponse(errText);
+            speakResponse(errText);
+            setExecutedAction("ERROR");
           }
           break;
         }
         case "ADD_PAYMENT": {
-          if (worker) {
+          let activeWorker = worker;
+          if (!activeWorker) {
+            const ctx = appContextTracker.getContext();
+            if (ctx.selectedWorkerName) {
+              activeWorker = fuzzyMatchWorker(workers, ctx.selectedWorkerName);
+            }
+          }
+          if (activeWorker) {
             const dateObj = new Date();
             const payment: PaymentRecord = {
               id: "",
-              workerId: worker.id,
+              workerId: activeWorker.id,
               year: dateObj.getFullYear(),
               month: dateObj.getMonth(),
               amount: data.amount,
@@ -1120,35 +1502,42 @@ export default function VoiceAssistant() {
             };
             await storage.addPayment(payment);
             setExecutedAction("ADD_PAYMENT");
-            setActionDetail(`${worker.name} — Rs.${data.amount}`);
+            setActionDetail(`${activeWorker.name} — Rs.${data.amount}`);
           }
           break;
         }
         case "ADD_ADVANCE": {
-          if (worker) {
+          let activeWorker = worker;
+          if (!activeWorker) {
+            const ctx = appContextTracker.getContext();
+            if (ctx.selectedWorkerName) {
+              activeWorker = fuzzyMatchWorker(workers, ctx.selectedWorkerName);
+            }
+          }
+          if (activeWorker) {
             const dateObj = data.date ? new Date(data.date) : new Date();
             const attendanceList = await storage.getAttendance();
             const existing = attendanceList.find(
               (r) =>
-                r.workerId === worker!.id &&
+                r.workerId === activeWorker!.id &&
                 r.year === dateObj.getFullYear() &&
                 r.month === dateObj.getMonth() &&
                 r.day === dateObj.getDate(),
             );
             const record: AttendanceRecord = {
-              workerId: worker.id,
+              workerId: activeWorker.id,
               year: dateObj.getFullYear(),
               month: dateObj.getMonth(),
               day: dateObj.getDate(),
               value: existing ? existing.value : "P",
-              dailyRate: worker.dailyRate,
+              dailyRate: activeWorker.dailyRate,
               customWage: data.amount,
               finalPay: 0,
               timestamp: Date.now(),
             };
             await storage.setAttendanceRecord(record);
             setExecutedAction("ADD_ADVANCE");
-            setActionDetail(`Advance: ${worker.name} — Rs.${data.amount}`);
+            setActionDetail(`Advance: ${activeWorker.name} — Rs.${data.amount}`);
           }
           break;
         }
@@ -1163,32 +1552,24 @@ export default function VoiceAssistant() {
           }
           break;
         }
-        case "OPEN_SCREEN": {
+        case "OPEN_WORKERS": {
           if (navigationRef.isReady()) {
-            const target = data.screen;
-            let subScreen = "AttendanceTab";
-            if (target === "Workers") subScreen = "WorkersTab";
-            else if (target === "Attendance") subScreen = "AttendanceTab";
-            else if (target === "Summary") subScreen = "SummaryTab";
-            else if (target === "Settings") subScreen = "SettingsTab";
-            if (target === "Dashboard") {
-              navigationRef.navigate("AdminDashboard");
-            } else if (target === "Profile") {
-              navigationRef.navigate("UserProfile");
-            } else if (target === "Subscription") {
-              navigationRef.navigate("MainTabs", { screen: "SettingsTab", params: { openUpgrade: true } });
-            } else if (target === "Reports") {
-              navigationRef.navigate("MainTabs", { screen: "SummaryTab" });
-            } else {
-              navigationRef.navigate("MainTabs", { screen: subScreen });
-            }
-            setExecutedAction("OPEN_SCREEN");
-            setActionDetail(`Navigated to: ${target}`);
+            navigationRef.navigate("MainTabs", { screen: "WorkersTab" });
+            setExecutedAction("OPEN_WORKERS");
+            setActionDetail("Opened Workers Screen");
           }
           break;
         }
-        case "SHOW_SUMMARY":
-        case "SHOW_REPORT": {
+        case "OPEN_ATTENDANCE": {
+          if (navigationRef.isReady()) {
+            navigationRef.navigate("MainTabs", { screen: "AttendanceTab" });
+            setExecutedAction("OPEN_ATTENDANCE");
+            setActionDetail("Opened Attendance Screen");
+          }
+          break;
+        }
+        case "OPEN_SUMMARY":
+        case "OPEN_REPORTS": {
           if (navigationRef.isReady()) {
             navigationRef.navigate("MainTabs", { screen: "SummaryTab" });
             setExecutedAction(action);
@@ -1196,14 +1577,56 @@ export default function VoiceAssistant() {
           }
           break;
         }
-        case "EXPORT_PDF": {
-          const success = await appContextTracker.triggerCallback("exportPDF", data.type);
+        case "OPEN_SETTINGS": {
+          if (navigationRef.isReady()) {
+            navigationRef.navigate("MainTabs", { screen: "SettingsTab" });
+            setExecutedAction("OPEN_SETTINGS");
+            setActionDetail("Opened Settings Screen");
+          }
+          break;
+        }
+        case "OPEN_PROFILE": {
+          if (navigationRef.isReady()) {
+            navigationRef.navigate("UserProfile");
+            setExecutedAction("OPEN_PROFILE");
+            setActionDetail("Opened Profile Screen");
+          }
+          break;
+        }
+        case "CHANGE_LANGUAGE": {
+          const targetLang = data.language || "en";
+          await setLanguage(targetLang as any);
+          setExecutedAction("CHANGE_LANGUAGE");
+          setActionDetail(`Language changed to ${targetLang.toUpperCase()}`);
+          break;
+        }
+        case "CHANGE_THEME": {
+          const targetTheme = data.theme || (isDark ? "light" : "dark");
+          await setThemeMode(targetTheme as any);
+          setExecutedAction("CHANGE_THEME");
+          setActionDetail(`Switched theme to ${targetTheme}`);
+          break;
+        }
+        case "EXPORT_REPORT": {
+          const success = await appContextTracker.triggerCallback("exportPDF", data.type || "summary");
           if (success !== null) {
-            setExecutedAction("EXPORT_PDF");
+            setExecutedAction("EXPORT_REPORT");
             setActionDetail("Exported PDF summary report");
           } else {
             showToast("PDF Export only available on Summary screen", "error");
           }
+          break;
+        }
+        case "LOGOUT": {
+          await authLogout();
+          setExecutedAction("LOGOUT");
+          setActionDetail("Logged out successfully");
+          break;
+        }
+        case "DELETE_ACCOUNT": {
+          await authLogout();
+          setExecutedAction("DELETE_ACCOUNT");
+          setActionDetail("Account deleted");
           break;
         }
         case "GO_BACK": {
@@ -1214,12 +1637,6 @@ export default function VoiceAssistant() {
           }
           break;
         }
-        case "SWITCH_THEME": {
-          await setThemeMode(isDark ? "light" : "dark");
-          setExecutedAction("SWITCH_THEME");
-          setActionDetail("Switched theme");
-          break;
-        }
         default:
           break;
       }
@@ -1227,7 +1644,7 @@ export default function VoiceAssistant() {
       DeviceEventEmitter.emit("refreshData");
 
       // Spoken voice confirmations at the end of the action
-      if (action !== "READ_LIST") {
+      if (action !== "READ_LIST" && action !== "NONE") {
         let confirmText = responseText;
         if (!confirmText) {
           switch (action) {
@@ -1241,7 +1658,10 @@ export default function VoiceAssistant() {
             case "DELETE_LAST_WORKER":
               confirmText = t.voiceConfirm?.workerDeleted || "Worker deleted.";
               break;
-            case "MARK_ATTENDANCE":
+            case "MARK_PRESENT":
+            case "MARK_ABSENT":
+            case "MARK_HALF_DAY":
+            case "MARK_OVERTIME":
               confirmText = t.voiceConfirm?.attendanceMarked || "Attendance marked.";
               break;
             case "ADD_PAYMENT":
@@ -1250,22 +1670,34 @@ export default function VoiceAssistant() {
             case "ADD_ADVANCE":
               confirmText = t.voiceConfirm?.advanceRecorded || "Advance recorded.";
               break;
-            case "OPEN_SCREEN":
-            case "SHOW_SUMMARY":
-            case "SHOW_REPORT":
+            case "OPEN_WORKERS":
+            case "OPEN_ATTENDANCE":
+            case "OPEN_SUMMARY":
+            case "OPEN_REPORTS":
+            case "OPEN_SETTINGS":
+            case "OPEN_PROFILE":
               confirmText = t.voiceConfirm?.screenOpened || "Screen opened.";
               break;
             case "SEARCH_WORKER":
               confirmText = t.voiceConfirm?.searchResult || "Searching workers.";
               break;
-            case "EXPORT_PDF":
+            case "CHANGE_LANGUAGE":
+              confirmText = "Language updated.";
+              break;
+            case "CHANGE_THEME":
+              confirmText = t.voiceConfirm?.themeChanged || "Theme updated.";
+              break;
+            case "EXPORT_REPORT":
               confirmText = t.voiceConfirm?.exportStarted || "Export started.";
+              break;
+            case "LOGOUT":
+              confirmText = "Logged out.";
+              break;
+            case "DELETE_ACCOUNT":
+              confirmText = "Account deleted.";
               break;
             case "GO_BACK":
               confirmText = t.voiceConfirm?.goBack || "Going back.";
-              break;
-            case "SWITCH_THEME":
-              confirmText = t.voiceConfirm?.themeChanged || "Theme updated.";
               break;
           }
         }
@@ -1320,6 +1752,9 @@ export default function VoiceAssistant() {
   };
 
   // ─── RENDER ───────────────────────────────────────────────────────────────────
+  const colors = STATE_COLORS[liveState] || ["#64748B", "#94A3B8"];
+  const primaryColor = colors[0];
+
   return (
     <>
       {/* ── TOAST ─────────────────────────────────────────────────────────── */}
@@ -1345,21 +1780,73 @@ export default function VoiceAssistant() {
         </Animated.View>
       )}
 
-      {/* ── FLOATING AI BUTTON ────────────────────────────────────────────── */}
-      {mode !== "chat" && (
-        <Pressable
-          onPress={openLauncher}
-          onPressIn={() => { buttonScale.value = withSpring(0.88, { mass: 0.5, damping: 15 }); }}
-          onPressOut={() => { buttonScale.value = withSpring(1, { mass: 0.5, damping: 15 }); }}
-          style={styles.fab}
-        >
-          <Animated.View style={[styles.fabGlowRing, animatedRing]} />
-          <Animated.View style={animatedButton}>
-            <LinearGradient colors={["#F97316", "#FB923C"]} style={styles.fabGradient}>
-              <Ionicons name="sparkles" size={26} color="#FFF" />
-            </LinearGradient>
+      {/* ── FLOATING AI ORB & RADIAL MENU ─────────────────────────────────── */}
+      {mode === "none" && (
+        <View style={styles.radialContainer} pointerEvents="box-none">
+          {/* Radial Option: Chat */}
+          <Animated.View style={[styles.radialOptionContainer, radialChatStyle]} pointerEvents={isRadialOpen ? "auto" : "none"}>
+            <Pressable
+              style={[styles.radialBtn, { backgroundColor: "#3B82F6" }]}
+              onPress={() => {
+                toggleRadialMenu();
+                startChatMode();
+              }}
+            >
+              <Feather name="message-square" size={18} color="#FFF" />
+            </Pressable>
+            <ThemedText style={styles.radialLabel}>Chat</ThemedText>
           </Animated.View>
-        </Pressable>
+
+          {/* Radial Option: Voice */}
+          <Animated.View style={[styles.radialOptionContainer, radialVoiceStyle]} pointerEvents={isRadialOpen ? "auto" : "none"}>
+            <Pressable
+              style={[styles.radialBtn, { backgroundColor: "#FF6B35" }]}
+              onPress={() => {
+                toggleRadialMenu();
+                startVoiceMode();
+              }}
+            >
+              <Feather name="mic" size={18} color="#FFF" />
+            </Pressable>
+            <ThemedText style={styles.radialLabel}>Voice</ThemedText>
+          </Animated.View>
+
+          {/* Radial Option: Live */}
+          <Animated.View style={[styles.radialOptionContainer, radialLiveStyle]} pointerEvents={isRadialOpen ? "auto" : "none"}>
+            <Pressable
+              style={[styles.radialBtn, { backgroundColor: "#F59E0B" }]}
+              onPress={() => {
+                toggleRadialMenu();
+                startLiveMode();
+              }}
+            >
+              <Feather name="zap" size={18} color="#FFF" />
+            </Pressable>
+            <ThemedText style={styles.radialLabel}>Live</ThemedText>
+          </Animated.View>
+
+          {/* Floating Ask HAI Pill Label */}
+          <Animated.View style={[styles.floatingLabel, floatingLabelStyle]} pointerEvents="none">
+            <ThemedText style={styles.floatingLabelText}>Ask HAI</ThemedText>
+          </Animated.View>
+
+          {/* Main Floating Orb */}
+          <Pressable
+            onPress={toggleRadialMenu}
+            onPressIn={() => { buttonScale.value = withSpring(0.88, { mass: 0.5, damping: 15 }); }}
+            onPressOut={() => { buttonScale.value = withSpring(1, { mass: 0.5, damping: 15 }); }}
+            style={styles.mainOrb}
+          >
+            <Animated.View style={[styles.fabGlowRing, animatedRing]} />
+            <Animated.View style={animatedButton}>
+              <LinearGradient colors={["#FF6B35", "#FB923C"]} style={styles.fabGradient}>
+                <Animated.View style={mainOrbIconStyle}>
+                  <Ionicons name={isRadialOpen ? "close" : "sparkles"} size={26} color="#FFF" />
+                </Animated.View>
+              </LinearGradient>
+            </Animated.View>
+          </Pressable>
+        </View>
       )}
 
       {/* ── CHAT PANEL ────────────────────────────────────────────────────── */}
@@ -1615,86 +2102,7 @@ export default function VoiceAssistant() {
         </View>
       )}
 
-      {/* ── LAUNCHER SHEET ────────────────────────────────────────────────── */}
-      {mode === "launcher" && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          <Pressable style={styles.launcherBackdrop} onPress={closeAssistant} />
-          <Animated.View
-            entering={SlideInDown.springify().mass(0.7).damping(18).stiffness(180)}
-            exiting={SlideOutDown.duration(220)}
-            style={[
-              styles.launcherSheet,
-              {
-                backgroundColor: isDark ? "rgba(15, 23, 42, 0.98)" : "rgba(255, 255, 255, 0.99)",
-                borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)",
-              },
-            ]}
-          >
-            <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.12)" }]} />
-            
-            <View style={styles.launcherHeaderRow}>
-              <LinearGradient colors={["#F97316", "#FB923C"]} style={styles.launcherHeaderIcon}>
-                <Ionicons name="sparkles" size={18} color="#FFF" />
-              </LinearGradient>
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.launcherTitle}>Ask HAI Live</ThemedText>
-                <ThemedText style={[styles.launcherSubtitle, { color: theme.textSecondary }]}>
-                  Select a tool to manage your site
-                </ThemedText>
-              </View>
-              <Pressable
-                style={[styles.chatCloseBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]}
-                onPress={closeAssistant}
-              >
-                <Feather name="x" size={18} color={theme.textSecondary} />
-              </Pressable>
-            </View>
 
-            {LAUNCHER_CARDS.map((card) => {
-              const bgOverride = isDark ? "rgba(255, 255, 255, 0.03)" : "rgba(0,0,0,0.02)";
-              return (
-                <Pressable
-                  key={card.id}
-                  style={({ pressed }) => [
-                    styles.launcherCard,
-                    {
-                      backgroundColor: pressed ? (isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)") : bgOverride,
-                      borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)",
-                    }
-                  ]}
-                  onPress={async () => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    if (card.id === "voice") {
-                      await startVoiceMode();
-                    } else if (card.id === "chat") {
-                      startChatMode();
-                    } else if (card.id === "live") {
-                      await startLiveMode();
-                    } else if (card.id === "summary") {
-                      setMode("none");
-                      await executeAction("SHOW_SUMMARY", {});
-                    } else if (card.id === "add_worker") {
-                      setMode("none");
-                      await executeAction("OPEN_SCREEN", { screen: "Workers" });
-                    }
-                  }}
-                >
-                  <View style={[styles.launcherCardIcon, { backgroundColor: card.bg }]}>
-                    <Feather name={card.icon} size={20} color={card.color} />
-                  </View>
-                  <View style={styles.launcherCardText}>
-                    <ThemedText style={styles.launcherCardTitle}>{card.title}</ThemedText>
-                    <ThemedText style={[styles.launcherCardSub, { color: theme.textSecondary }]}>
-                      {card.subtitle}
-                    </ThemedText>
-                  </View>
-                  <Feather name="chevron-right" size={16} color={theme.textSecondary} />
-                </Pressable>
-              );
-            })}
-          </Animated.View>
-        </View>
-      )}
 
       {/* ── VOICE COMMAND SHEET ───────────────────────────────────────────── */}
       {mode === "voice" && (
@@ -1779,120 +2187,98 @@ export default function VoiceAssistant() {
         </View>
       )}
 
-      {/* ── LIVE COPILOT PANEL ────────────────────────────────────────────── */}
+      {/* ── HAI LIVE FULLSCREEN assistant ─────────────────────────────────── */}
       {mode === "live" && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          <Animated.View
-            entering={SlideInDown.springify().mass(0.7).damping(18).stiffness(180)}
-            exiting={SlideOutDown.duration(220)}
-            style={[
-              styles.livePanel,
-              {
-                backgroundColor: isDark ? "rgba(15, 23, 42, 0.98)" : "rgba(255, 255, 255, 0.99)",
-                borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)",
-              },
-            ]}
-          >
-            <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.12)" }]} />
+        <View style={StyleSheet.absoluteFill}>
+          <View style={[styles.fullscreenContainer, { backgroundColor: isDark ? "#0B0F19" : "#F8FAFC" }]}>
+            {/* Top Header */}
+            <View style={styles.fullscreenHeader}>
+              <ThemedText style={[styles.fullscreenTitle, { color: isDark ? "#FFFFFF" : "#1E3A5F" }]}>HAI</ThemedText>
+              <ThemedText style={[styles.fullscreenSubtitle, { color: theme.textSecondary }]}>Haajari Artificial Intelligence</ThemedText>
+            </View>
 
-            <Pressable
-              style={[styles.liveCloseBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]}
-              onPress={stopLiveMode}
-            >
-              <Feather name="x" size={14} color={theme.textSecondary} />
-            </Pressable>
+            {/* Center Orb Area */}
+            <View style={styles.orbWrapper}>
+              {/* Concentric rings pulsing outwards */}
+              <Animated.View style={[styles.pulseRing, { backgroundColor: primaryColor }, livePulseStyle3]} />
+              <Animated.View style={[styles.pulseRing, { backgroundColor: primaryColor }, livePulseStyle2]} />
+              <Animated.View style={[styles.pulseRing, { backgroundColor: primaryColor }, livePulseStyle1]} />
 
-            {/* Status indicator row */}
-            <View style={styles.liveStatusRow}>
-              <View
-                style={[
-                  styles.liveStatusDot,
-                  {
-                    backgroundColor: isProcessing ? "#8B5CF6" : isRecording ? "#22C55E" : theme.textSecondary,
-                  }
-                ]}
-              />
-              <ThemedText style={[styles.liveStatusText, { color: isProcessing ? "#8B5CF6" : isRecording ? "#22C55E" : theme.textSecondary }]}>
-                {isProcessing ? "Thinking" : isRecording ? "Listening" : "Connected"}
+              {/* Central Main Orb */}
+              <Animated.View style={[styles.centerOrb, liveOrbRotateStyle]}>
+                <LinearGradient
+                  colors={colors}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.centerOrbGradient}
+                >
+                  <Ionicons name="sparkles" size={44} color="#FFF" style={{ opacity: 0.95 }} />
+                </LinearGradient>
+              </Animated.View>
+
+              {/* State Text Label below Orb */}
+              <ThemedText style={[styles.liveStatusTextLabel, { color: primaryColor }]}>
+                {liveState === "listening" ? "Listening..." :
+                 liveState === "thinking" ? "Thinking..." :
+                 liveState === "executing" ? "Executing..." :
+                 liveState === "completed" ? "Completed" : "Idle"}
               </ThemedText>
             </View>
 
-            {/* Waveform bars */}
-            <View style={styles.liveWaveRow}>
-              <Animated.View style={[styles.liveBar, { backgroundColor: isProcessing ? "#8B5CF6" : theme.primary }, animatedWave1]} />
-              <Animated.View style={[styles.liveBar, { backgroundColor: isProcessing ? "#8B5CF6" : theme.primary }, animatedWave2]} />
-              <Animated.View style={[styles.liveBar, { backgroundColor: isProcessing ? "#8B5CF6" : theme.primary }, animatedWave3]} />
-              <Animated.View style={[styles.liveBar, { backgroundColor: isProcessing ? "#8B5CF6" : theme.primary }, animatedWave4]} />
-              <Animated.View style={[styles.liveBar, { backgroundColor: isProcessing ? "#8B5CF6" : theme.primary }, animatedWave5]} />
-            </View>
-
-            {/* Dialogue text box */}
-            <View style={styles.liveDialogue}>
+            {/* Temporary text dialogue (lasts a few seconds) */}
+            <View style={styles.dialogueWrapper}>
               {transcript ? (
-                <ThemedText style={[styles.liveTranscriptText, { color: theme.text }]}>
+                <ThemedText style={[styles.dialogueTranscript, { color: theme.text }]}>
                   "{transcript}"
                 </ThemedText>
               ) : null}
               {aiResponse ? (
-                <ThemedText style={[styles.liveAiText, { color: theme.textSecondary }]}>
+                <ThemedText style={[styles.dialogueResponse, { color: theme.textSecondary }]}>
                   {aiResponse}
                 </ThemedText>
               ) : null}
             </View>
 
-            {/* Mic trigger and text input back-up */}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, width: "100%", paddingHorizontal: Spacing.sm }}>
+            {/* Bottom Controls */}
+            <View style={styles.fullscreenControls}>
+              {/* Mic Toggle button */}
               <Pressable
                 style={[
-                  styles.liveMicBtn,
+                  styles.liveMicToggle,
                   {
-                    backgroundColor: isRecording ? "#EF4444" : theme.primary,
-                    width: 44,
-                    height: 44,
-                    borderRadius: 22,
-                    marginBottom: 0,
+                    backgroundColor: liveState === "listening" ? "#EF4444" : "#10B981",
                   }
                 ]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  if (isRecording) {
-                    stopLiveMode();
+                  if (liveState === "listening") {
+                    setLiveState("idle");
+                    setIsRecording(false);
+                    if (liveTimeoutRef.current) {
+                      clearTimeout(liveTimeoutRef.current);
+                      liveTimeoutRef.current = null;
+                    }
+                    if (isRecordingActiveRef.current) {
+                      try { audioRecorder.stop(); } catch {}
+                      isRecordingActiveRef.current = false;
+                    }
                   } else {
-                    startLiveMode();
+                    runLiveLoop();
                   }
                 }}
               >
-                <Feather name={isRecording ? "square" : "mic"} size={16} color="#FFF" />
+                <Feather name={liveState === "listening" ? "mic-off" : "mic"} size={24} color="#FFF" />
               </Pressable>
 
-              <View style={[styles.liveInputRow, { flex: 1, borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }]}>
-                <TextInput
-                  placeholder="Type command…"
-                  placeholderTextColor={theme.textSecondary}
-                  style={[styles.liveTextInput, { color: theme.text }]}
-                  value={liveTextCommand}
-                  onChangeText={setLiveTextCommand}
-                  onSubmitEditing={() => {
-                    if (liveTextCommand.trim()) {
-                      handleTextCommand(liveTextCommand);
-                      setLiveTextCommand("");
-                    }
-                  }}
-                />
-                <Pressable
-                  style={[styles.liveSendBtn, { backgroundColor: theme.primary }]}
-                  onPress={() => {
-                    if (liveTextCommand.trim()) {
-                      handleTextCommand(liveTextCommand);
-                      setLiveTextCommand("");
-                    }
-                  }}
-                >
-                  <Feather name="arrow-up" size={14} color="#FFF" />
-                </Pressable>
-              </View>
+              {/* Exit button */}
+              <Pressable
+                style={[styles.exitLiveBtn, { borderColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)" }]}
+                onPress={stopLiveMode}
+              >
+                <ThemedText style={[styles.exitLiveText, { color: theme.text }]}>Exit Live Mode</ThemedText>
+              </Pressable>
             </View>
-          </Animated.View>
+          </View>
         </View>
       )}
     </>
@@ -2448,5 +2834,169 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  // Radial menu styles
+  radialContainer: {
+    position: "absolute",
+    bottom: 90,
+    right: 20,
+    zIndex: 9999,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  mainOrb: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
+  radialOptionContainer: {
+    position: "absolute",
+    alignItems: "center",
+    width: 60,
+    height: 80,
+    top: -10,
+    right: 0,
+    zIndex: 90,
+  },
+  radialBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: "center",
+    alignItems: "center",
+    ...Shadows.md,
+  },
+  radialLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 4,
+    color: "#94A3B8",
+  },
+  floatingLabel: {
+    position: "absolute",
+    right: 75,
+    backgroundColor: "rgba(30, 41, 59, 0.9)",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    ...Shadows.sm,
+  },
+  floatingLabelText: {
+    fontSize: 11,
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+
+  // Immersive Fullscreen Live Mode
+  fullscreenContainer: {
+    flex: 1,
+    paddingTop: 60,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  fullscreenHeader: {
+    alignItems: "center",
+    marginTop: 20,
+  },
+  fullscreenTitle: {
+    fontSize: 36,
+    fontWeight: "900",
+    letterSpacing: 2,
+  },
+  fullscreenSubtitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    marginTop: 4,
+    opacity: 0.7,
+  },
+  orbWrapper: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  centerOrb: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    justifyContent: "center",
+    alignItems: "center",
+    ...Shadows.lg,
+    elevation: 8,
+    zIndex: 10,
+  },
+  centerOrbGradient: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pulseRing: {
+    position: "absolute",
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    zIndex: 1,
+  },
+  liveStatusTextLabel: {
+    fontSize: 18,
+    fontWeight: "800",
+    marginTop: 24,
+    letterSpacing: 0.8,
+  },
+  dialogueWrapper: {
+    width: "100%",
+    minHeight: 80,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    marginVertical: 20,
+  },
+  dialogueTranscript: {
+    fontSize: 15,
+    fontWeight: "700",
+    textAlign: "center",
+    fontStyle: "italic",
+    marginBottom: 8,
+  },
+  dialogueResponse: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  fullscreenControls: {
+    width: "100%",
+    alignItems: "center",
+    gap: 16,
+  },
+  liveMicToggle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    ...Shadows.lg,
+    elevation: 6,
+  },
+  exitLiveBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    backgroundColor: "transparent",
+  },
+  exitLiveText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
 });
