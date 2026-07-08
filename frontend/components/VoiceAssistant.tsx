@@ -127,12 +127,19 @@ const parseLocalCommand = (
     return { action: "READ_LIST", data: {}, response: "Reading worker list..." };
   }
 
-  // 4. DELETE IT / EDIT THIS
-  if (
-    t.includes("delete it") || t.includes("delete") ||
-    t.includes("hata do") || t.includes("edit this") ||
-    t.includes("edit") || t.includes("badlo")
-  ) {
+  // 4. DELETE IT / EDIT THIS (only for "last" or generic "delete it")
+  const isDeleteLast = 
+    t === "delete" || 
+    t === "delete it" || 
+    t === "hata do" || 
+    t === "edit" ||
+    t.includes("delete last") || 
+    t.includes("delete last worker") ||
+    t.includes("hata do last") ||
+    t.includes("last kaamgar delete") ||
+    t.includes("last worker delete");
+
+  if (isDeleteLast) {
     return {
       action: "DELETE_LAST_WORKER",
       data: {},
