@@ -605,13 +605,13 @@ export default function VoiceAssistant() {
           const localParsed = parseLocalCommand(transcriptText);
           if (localParsed) {
             setAiResponse(localParsed.response);
-            await executeAction(localParsed.action, localParsed.data);
+            await executeAction(localParsed.action, localParsed.data, localParsed.response);
             showToast(`Done: ${localParsed.action}`, "success");
             return;
           }
           if (result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE") {
             if (result.response) { setAiResponse(result.response); }
-            await executeAction(result.action, result.data);
+            await executeAction(result.action, result.data, result.response);
             showToast(`Done: ${result.action}`, "success");
           }
         }
@@ -619,7 +619,17 @@ export default function VoiceAssistant() {
     } catch (err: any) {
       console.error("Live audio processing failed:", err);
       const isTokenError = err.message && (err.message.includes("token") || err.message.includes("Unauthorized"));
-      showToast(isTokenError ? "Session expired. Please log in again." : "Connection error — check network", "error");
+      const isGeminiError = err.message && (err.message.includes("Gemini") || err.message.includes("generativelanguage") || err.message.includes("Model"));
+      let errorSpeakText = "";
+      if (isTokenError) {
+        errorSpeakText = "Session expired. Please log in again.";
+      } else if (isGeminiError) {
+        errorSpeakText = "Gemini AI is not responding. Please check your API key.";
+      } else {
+        errorSpeakText = "Connection error. Please check your network.";
+      }
+      showToast(errorSpeakText, "error");
+      speakResponse(errorSpeakText);
     }
   };
 
@@ -629,7 +639,7 @@ export default function VoiceAssistant() {
     const localParsed = parseLocalCommand(text);
     if (localParsed) {
       setAiResponse(localParsed.response);
-      await executeAction(localParsed.action, localParsed.data);
+      await executeAction(localParsed.action, localParsed.data, localParsed.response);
       showToast(`Done: ${localParsed.action}`, "success");
     } else {
       const resp = `"${text}" not recognized. Try "Add worker Rajesh" or "read it".`;
@@ -724,7 +734,7 @@ export default function VoiceAssistant() {
         const localParsed = parseLocalCommand(result.transcript);
         if (localParsed) {
           setAiResponse(localParsed.response);
-          await executeAction(localParsed.action, localParsed.data);
+          await executeAction(localParsed.action, localParsed.data, localParsed.response);
           showToast(`Done: ${localParsed.action}`, "success");
           if (mode === "chat") {
             setChatHistory((prev) => [
@@ -752,7 +762,7 @@ export default function VoiceAssistant() {
             }
           }
           if (result.action && result.action !== "INCOMPLETE" && result.action !== "UNKNOWN") {
-            await executeAction(result.action, result.data);
+            await executeAction(result.action, result.data, result.response);
           } else {
             setExecutedAction(null);
             setActionDetail(null);
@@ -763,7 +773,7 @@ export default function VoiceAssistant() {
             speakResponse(result.response);
           }
           if (hasAction) {
-            await executeAction(result.action, result.data);
+            await executeAction(result.action, result.data, result.response);
             showToast(`Done: ${result.action}`, "success");
           } else if (result.action === "INCOMPLETE") {
             showToast(result.response || "Details incomplete.", "info");
@@ -777,7 +787,17 @@ export default function VoiceAssistant() {
     } catch (err: any) {
       console.error("Audio processing failed:", err);
       const isTokenError = err.message && (err.message.includes("token") || err.message.includes("Unauthorized"));
-      showToast(isTokenError ? "Session expired. Please log in again." : "Connection error — check network", "error");
+      const isGeminiError = err.message && (err.message.includes("Gemini") || err.message.includes("generativelanguage") || err.message.includes("Model"));
+      let errorSpeakText = "";
+      if (isTokenError) {
+        errorSpeakText = "Session expired. Please log in again.";
+      } else if (isGeminiError) {
+        errorSpeakText = "Gemini AI is not responding. Please check your API key.";
+      } else {
+        errorSpeakText = "Connection error. Please check your network.";
+      }
+      showToast(errorSpeakText, "error");
+      speakResponse(errorSpeakText);
     } finally {
       setIsProcessing(false);
     }
@@ -883,19 +903,23 @@ export default function VoiceAssistant() {
         }
       }
       if (result.action && result.action !== "UNKNOWN" && result.action !== "INCOMPLETE") {
-        await executeAction(result.action, result.data);
+        await executeAction(result.action, result.data, result.response);
       }
     } catch (err: any) {
       console.error("Chat text submit failed:", err);
       const isTokenError = err.message && (err.message.includes("token") || err.message.includes("Unauthorized"));
+      const isGeminiError = err.message && (err.message.includes("Gemini") || err.message.includes("generativelanguage") || err.message.includes("Model"));
       const errMsg = isTokenError 
         ? "Session expired. Please log in again." 
+        : isGeminiError
+        ? "Gemini AI is not responding. Please check your API key."
         : "Connection error. Check your internet and try again.";
       setChatHistory((prev) => [
         ...prev,
         { role: "model", text: errMsg, timestamp: Date.now() },
       ]);
       showToast(errMsg, "error");
+      speakResponse(errMsg);
     } finally {
       setAttachedImage(null);
       setIsProcessing(false);
@@ -903,7 +927,7 @@ export default function VoiceAssistant() {
   };
 
   // ─── EXECUTE ACTION ───────────────────────────────────────────────────────────
-  const executeAction = async (action: string, data: any) => {
+  const executeAction = async (action: string, data: any, responseText?: string) => {
     if (["DELETE_WORKER", "DELETE_PAYMENT", "DELETE_ATTENDANCE", "DELETE_ACCOUNT"].includes(action)) {
       let message = "Are you sure you want to delete this?";
       if (action === "DELETE_WORKER" && data.name) message = `Delete worker "${data.name}"?`;
@@ -916,10 +940,10 @@ export default function VoiceAssistant() {
       speakResponse(message);
       return;
     }
-    await executeActionDirect(action, data);
+    await executeActionDirect(action, data, responseText);
   };
 
-  const executeActionDirect = async (action: string, data: any) => {
+  const executeActionDirect = async (action: string, data: any, responseText?: string) => {
     try {
       const workers = await storage.getWorkers();
       let worker: Worker | null = null;
@@ -1149,44 +1173,46 @@ export default function VoiceAssistant() {
 
       // Spoken voice confirmations at the end of the action
       if (action !== "READ_LIST") {
-        let confirmText = "";
-        switch (action) {
-          case "ADD_WORKER":
-            confirmText = t.voiceConfirm?.workerAdded || "Worker added.";
-            break;
-          case "UPDATE_WORKER":
-            confirmText = t.voiceConfirm?.workerUpdated || "Worker updated.";
-            break;
-          case "DELETE_WORKER":
-          case "DELETE_LAST_WORKER":
-            confirmText = t.voiceConfirm?.workerDeleted || "Worker deleted.";
-            break;
-          case "MARK_ATTENDANCE":
-            confirmText = t.voiceConfirm?.attendanceMarked || "Attendance marked.";
-            break;
-          case "ADD_PAYMENT":
-            confirmText = t.voiceConfirm?.paymentSaved || "Payment saved.";
-            break;
-          case "ADD_ADVANCE":
-            confirmText = t.voiceConfirm?.advanceRecorded || "Advance recorded.";
-            break;
-          case "OPEN_SCREEN":
-          case "SHOW_SUMMARY":
-          case "SHOW_REPORT":
-            confirmText = t.voiceConfirm?.screenOpened || "Screen opened.";
-            break;
-          case "SEARCH_WORKER":
-            confirmText = t.voiceConfirm?.searchResult || "Searching workers.";
-            break;
-          case "EXPORT_PDF":
-            confirmText = t.voiceConfirm?.exportStarted || "Export started.";
-            break;
-          case "GO_BACK":
-            confirmText = t.voiceConfirm?.goBack || "Going back.";
-            break;
-          case "SWITCH_THEME":
-            confirmText = t.voiceConfirm?.themeChanged || "Theme updated.";
-            break;
+        let confirmText = responseText;
+        if (!confirmText) {
+          switch (action) {
+            case "ADD_WORKER":
+              confirmText = t.voiceConfirm?.workerAdded || "Worker added.";
+              break;
+            case "UPDATE_WORKER":
+              confirmText = t.voiceConfirm?.workerUpdated || "Worker updated.";
+              break;
+            case "DELETE_WORKER":
+            case "DELETE_LAST_WORKER":
+              confirmText = t.voiceConfirm?.workerDeleted || "Worker deleted.";
+              break;
+            case "MARK_ATTENDANCE":
+              confirmText = t.voiceConfirm?.attendanceMarked || "Attendance marked.";
+              break;
+            case "ADD_PAYMENT":
+              confirmText = t.voiceConfirm?.paymentSaved || "Payment saved.";
+              break;
+            case "ADD_ADVANCE":
+              confirmText = t.voiceConfirm?.advanceRecorded || "Advance recorded.";
+              break;
+            case "OPEN_SCREEN":
+            case "SHOW_SUMMARY":
+            case "SHOW_REPORT":
+              confirmText = t.voiceConfirm?.screenOpened || "Screen opened.";
+              break;
+            case "SEARCH_WORKER":
+              confirmText = t.voiceConfirm?.searchResult || "Searching workers.";
+              break;
+            case "EXPORT_PDF":
+              confirmText = t.voiceConfirm?.exportStarted || "Export started.";
+              break;
+            case "GO_BACK":
+              confirmText = t.voiceConfirm?.goBack || "Going back.";
+              break;
+            case "SWITCH_THEME":
+              confirmText = t.voiceConfirm?.themeChanged || "Theme updated.";
+              break;
+          }
         }
         if (confirmText) {
           setAiResponse(confirmText);
