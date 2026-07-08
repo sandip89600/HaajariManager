@@ -3,6 +3,42 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Worker } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 
+function extractBalancedJson(str: string): string {
+  const firstBrace = str.indexOf("{");
+  if (firstBrace === -1) return str;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = firstBrace; i < str.length; i++) {
+    const char = str[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (char === "\\") {
+      escape = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString) {
+      if (char === "{") {
+        depth++;
+      } else if (char === "}") {
+        depth--;
+        if (depth === 0) {
+          return str.substring(firstBrace, i + 1);
+        }
+      }
+    }
+  }
+  return str;
+}
+
 export const processVoice = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
@@ -294,6 +330,9 @@ You must respond ONLY with a JSON object in this exact format:
           jsonResponseText = match[1].trim();
         }
       }
+
+      // Balance braces to exclude any duplicate closing brackets or trailing text
+      jsonResponseText = extractBalancedJson(jsonResponseText);
 
       const parsedResult = JSON.parse(jsonResponseText);
       const commandAction = parsedResult.action || "UNKNOWN";
