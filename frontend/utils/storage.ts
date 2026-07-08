@@ -5,15 +5,6 @@ import Constants from "expo-constants";
 import { Language } from "@/constants/i18n";
 
 const getApiUrl = () => {
-  if (__DEV__) {
-    // In development mode, check if we can resolve the local computer's IP address
-    const hostUri = Constants.expoConfig?.hostUri;
-    if (hostUri) {
-      const ip = hostUri.split(":")[0];
-      return `http://${ip}:5000/api`;
-    }
-    return "http://localhost:5000/api";
-  }
   // Point to the active, public production Railway server:
   return "https://haajarimanager-production.up.railway.app/api";
 };
