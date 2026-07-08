@@ -16,18 +16,21 @@ async function testGemini() {
 
   try {
     const ai = new GoogleGenerativeAI(apiKey);
-    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
-    
-    console.log("Calling model.generateContent with text prompt...");
-    const result = await model.generateContent("Hello, are you online? Respond with 'YES'.");
-    console.log("Response text:", result.response.text());
-    console.log("Success!");
-  } catch (error: any) {
-    console.error("Gemini API call failed!");
-    console.error("Error Code/Message:", error.message);
-    if (error.stack) {
-      console.error(error.stack);
+    const models = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.5-flash"];
+    for (const m of models) {
+      try {
+        console.log(`Trying model: ${m}...`);
+        const model = ai.getGenerativeModel({ model: m });
+        const result = await model.generateContent("Hello, are you online? Respond with 'YES'.");
+        console.log(`SUCCESS with model: ${m}! Response: ${result.response.text().trim()}`);
+        return;
+      } catch (err: any) {
+        console.log(`Failed for ${m}: ${err.message}`);
+      }
     }
+  } catch (error: any) {
+    console.error("General failure:");
+    console.error("Error Code/Message:", error.message);
   }
 }
 

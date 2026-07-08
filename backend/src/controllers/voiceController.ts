@@ -45,7 +45,7 @@ export const processVoice = async (req: AuthenticatedRequest, res: Response) => 
     // Initialize Gemini SDK
     const ai = new GoogleGenerativeAI(apiKey);
     const model = ai.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
       },
@@ -267,7 +267,7 @@ You must respond ONLY with a JSON object in this exact format:
     }
 
     // Call Gemini API
-    console.log("[Voice] Calling Gemini API (gemini-1.5-flash)...");
+    console.log("[Voice] Calling Gemini API (gemini-2.5-flash)...");
     const result = await model.generateContent(parts);
     const completionText = result.response.text() || "{}";
     console.log("[Voice] Gemini parser output:", completionText);
