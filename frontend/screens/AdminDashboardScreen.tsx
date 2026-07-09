@@ -1175,6 +1175,10 @@ export default function AdminDashboardScreen() {
     disconnectSocket();
     await AsyncStorage.removeItem("@haajari/admin_session");
     await logout();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "Login" }],
+    });
   };
 
   // Search filtering

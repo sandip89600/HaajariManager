@@ -5,15 +5,8 @@ import Constants from "expo-constants";
 import { Language } from "@/constants/i18n";
 
 const getApiUrl = () => {
-  // If in development mode, connect to the developer's computer IP or Android emulator loopback:
-  if (__DEV__) {
-    const hostUri = Constants.expoConfig?.hostUri;
-    const localhost = hostUri ? hostUri.split(":")[0] : "10.0.2.2";
-    return `http://${localhost}:5000/api`;
-  }
-  return "https://haajarimanager-production.up.railway.app/api";
+  return "https://haajarimanager-production.up.railway.app";
 };
-
 export const API_URL = getApiUrl();
 
 async function getHeaders(): Promise<HeadersInit> {
