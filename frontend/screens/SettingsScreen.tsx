@@ -1155,39 +1155,7 @@ export default function SettingsScreen() {
           </>
         )}
 
-        {/* ─── 3. SUBSCRIPTION & BILLING SECTION ─── */}
-        {!isGuest && (
-          <>
-            <ThemedText type="small" style={styles.sectionLabel}>
-              {t.settings.subscriptionBilling}
-            </ThemedText>
-            <SettingCard theme={theme} isDark={isDark}>
-              <SettingRow
-                icon="credit-card"
-                iconColor="#3F51B5"
-                label={t.settings.currentPlan}
-                value={getPlanLabel(currentPlan)}
-                theme={theme}
-              />
-              <SettingRow
-                icon="calendar"
-                iconColor="#607D8B"
-                label={t.settings.planExpiryDate}
-                value={t.settings.autoRenews}
-                theme={theme}
-              />
-              <SettingRow
-                icon="trending-up"
-                iconColor="#E040FB"
-                label={t.settings.upgradePlan}
-                sublabel={t.settings.upgradePlanDesc}
-                onPress={() => setShowUpgradeModal(true)}
-                isLast
-                theme={theme}
-              />
-            </SettingCard>
-          </>
-        )}
+
 
         {/* ─── 5. NOTIFICATIONS SECTION ─── */}
         <ThemedText type="small" style={styles.sectionLabel}>
@@ -1272,102 +1240,7 @@ export default function SettingsScreen() {
           />
         </SettingCard>
 
-        {/* ─── VOICE SETTINGS SECTION ─── */}
-        <ThemedText type="small" style={styles.sectionLabel}>
-          {t.voiceSettings?.title || "Voice Response"}
-        </ThemedText>
-        <SettingCard theme={theme} isDark={isDark}>
-          <SettingRow
-            icon="volume-2"
-            iconColor="#E91E63"
-            label="Voice Response"
-            sublabel="Ask HAI speaks after completing actions"
-            right={
-              <Switch
-                value={voiceSettings.enabled}
-                onValueChange={handleVoiceToggle}
-                trackColor={{ false: theme.border, true: "#2563EB" }}
-                thumbColor="#FFFFFF"
-              />
-            }
-            theme={theme}
-          />
-          <SettingRow
-            icon="activity"
-            iconColor="#3F51B5"
-            label="Voice Speed"
-            value={
-              voiceSettings.speed <= 0.8
-                ? "Slow"
-                : voiceSettings.speed >= 1.2
-                ? "Fast"
-                : "Normal"
-            }
-            onPress={() => setShowSpeedModal(true)}
-            theme={theme}
-          />
-          <SettingRow
-            icon="zap"
-            iconColor="#F59E0B"
-            label="Enable Live Mode"
-            sublabel="Continuous hands-free conversation"
-            right={
-              <Switch
-                value={liveModeEnabled}
-                onValueChange={handleToggleLiveMode}
-                trackColor={{ false: theme.border, true: "#2563EB" }}
-                thumbColor="#FFFFFF"
-              />
-            }
-            theme={theme}
-          />
-          <SettingRow
-            icon="check-circle"
-            iconColor="#22C55E"
-            label="Voice Confirmation"
-            sublabel="Speak short task summaries"
-            right={
-              <Switch
-                value={voiceConfirmationEnabled}
-                onValueChange={handleToggleVoiceConf}
-                trackColor={{ false: theme.border, true: "#2563EB" }}
-                thumbColor="#FFFFFF"
-              />
-            }
-            theme={theme}
-          />
-          <SettingRow
-            icon="message-square"
-            iconColor="#EF4444"
-            label="Wake Word"
-            sublabel="Listen for 'Hey HAI' trigger word"
-            right={
-              <Switch
-                value={wakeWordEnabled}
-                onValueChange={handleToggleWakeWord}
-                trackColor={{ false: theme.border, true: "#2563EB" }}
-                thumbColor="#FFFFFF"
-              />
-            }
-            theme={theme}
-          />
-          <SettingRow
-            icon="sliders"
-            iconColor="#9C27B0"
-            label="Microphone Sensitivity"
-            sublabel="Increase mic audio range"
-            right={
-              <Switch
-                value={highSensitivityEnabled}
-                onValueChange={handleToggleMicSens}
-                trackColor={{ false: theme.border, true: "#2563EB" }}
-                thumbColor="#FFFFFF"
-              />
-            }
-            isLast
-            theme={theme}
-          />
-        </SettingCard>
+
 
         {/* ─── 7. LANGUAGE SECTION ─── */}
         <ThemedText type="small" style={styles.sectionLabel}>
