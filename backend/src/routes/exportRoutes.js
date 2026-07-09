@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var express_1 = require("express");
+var exportController_1 = require("../controllers/exportController");
+var auth_1 = require("../middleware/auth");
+var router = (0, express_1.Router)();
+router.use(auth_1.authenticateJWT);
+router.get("/attendance-pdf", exportController_1.getAttendancePDF);
+router.get("/payment-summary", exportController_1.getPaymentSummaryPDF);
+router.get("/csv", exportController_1.getCSV);
+router.get("/print", exportController_1.getPrintHTML);
+exports.default = router;

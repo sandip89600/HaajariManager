@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var express_1 = require("express");
+var attendanceController_1 = require("../controllers/attendanceController");
+var auth_1 = require("../middleware/auth");
+var router = (0, express_1.Router)();
+router.use(auth_1.authenticateJWT);
+router.get("/month", attendanceController_1.getAttendanceForMonth);
+router.post("/record", attendanceController_1.setAttendanceRecord);
+router.post("/sync", attendanceController_1.syncAttendance);
+router.delete("/:id", attendanceController_1.deleteAttendanceRecord);
+exports.default = router;

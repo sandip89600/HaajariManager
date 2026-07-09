@@ -258,6 +258,75 @@ function parseLocalCommand(text: string): { intent: string; data: any; response:
   return null;
 }
 
+// Helper to perform Gemini API call with 3-tier backoff retries for 503 Service Unavailable
+async function callGeminiWithRetry(model: any, parts: any[], retries = 3, delay = 2000): Promise<any> {
+  while (retries >= 0) {
+    try {
+      return await model.generateContent(parts);
+    } catch (err: any) {
+      const isRetryable = err.status === 503 || err.status === 429 || (err.message && (err.message.includes("503") || err.message.includes("429") || err.message.includes("Service Unavailable") || err.message.includes("Too Many Requests")));
+      if (isRetryable && retries > 0) {
+        console.warn(`[Voice] Gemini retryable error encountered. Retrying in ${delay / 1000}s... (${retries} retries left)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retries--;
+        delay += 2000;
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
+async function generateSarvamTTS(text: string, userLanguage: string): Promise<string> {
+  const sarvamKey = process.env.SARVAM_API_KEY || "";
+  if (!sarvamKey || !text || text.trim() === "") return "";
+  try {
+    const languageMap: Record<string, string> = {
+      hi: "hi-IN",
+      mr: "mr-IN",
+      en: "en-IN",
+      gu: "gu-IN",
+      ta: "ta-IN",
+      te: "te-IN",
+      kn: "kn-IN",
+      bn: "bn-IN",
+      pa: "pa-IN"
+    };
+    const targetLang = languageMap[userLanguage] || "en-IN";
+
+    const ttsResponse = await fetch("https://api.sarvam.ai/text-to-speech", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-subscription-key": sarvamKey
+      },
+      body: JSON.stringify({
+        text: text,
+        speaker: "anushka",
+        model: "bulbul:v3",
+        target_language_code: targetLang,
+        properties: {
+          pace: 1.0,
+          temperature: 0.6
+        }
+      })
+    });
+
+    if (ttsResponse.ok) {
+      const ttsResult = await ttsResponse.json() as any;
+      if (ttsResult.audios && ttsResult.audios[0]) {
+        return ttsResult.audios[0];
+      }
+    } else {
+      const errTxt = await ttsResponse.text();
+      console.error(`[Voice] Sarvam TTS helper failed with status ${ttsResponse.status}:`, errTxt);
+    }
+  } catch (ttsErr) {
+    console.error("[Voice] Failed to generate Sarvam TTS in helper:", ttsErr);
+  }
+  return "";
+}
+
 export const processVoice = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
@@ -543,74 +612,7 @@ ${JSON.stringify(workerDetails)}
 `;
     }
 
-// Helper to perform Gemini API call with 3-tier backoff retries for 503 Service Unavailable
-async function callGeminiWithRetry(model: any, parts: any[], retries = 3, delay = 2000): Promise<any> {
-  while (retries >= 0) {
-    try {
-      return await model.generateContent(parts);
-    } catch (err: any) {
-      const isRetryable = err.status === 503 || err.status === 429 || (err.message && (err.message.includes("503") || err.message.includes("429") || err.message.includes("Service Unavailable") || err.message.includes("Too Many Requests")));
-      if (isRetryable && retries > 0) {
-        console.warn(`[Voice] Gemini retryable error encountered. Retrying in ${delay / 1000}s... (${retries} retries left)`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        retries--;
-        delay += 2000;
-      } else {
-        throw err;
-      }
-    }
-  }
-}
 
-async function generateSarvamTTS(text: string, userLanguage: string): Promise<string> {
-  const sarvamKey = process.env.SARVAM_API_KEY || "";
-  if (!sarvamKey || !text || text.trim() === "") return "";
-  try {
-    const languageMap: Record<string, string> = {
-      hi: "hi-IN",
-      mr: "mr-IN",
-      en: "en-IN",
-      gu: "gu-IN",
-      ta: "ta-IN",
-      te: "te-IN",
-      kn: "kn-IN",
-      bn: "bn-IN",
-      pa: "pa-IN"
-    };
-    const targetLang = languageMap[userLanguage] || "en-IN";
-
-    const ttsResponse = await fetch("https://api.sarvam.ai/text-to-speech", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "api-subscription-key": sarvamKey
-      },
-      body: JSON.stringify({
-        text: text,
-        speaker: "anushka",
-        model: "bulbul:v3",
-        target_language_code: targetLang,
-        properties: {
-          pace: 1.0,
-          temperature: 0.6
-        }
-      })
-    });
-
-    if (ttsResponse.ok) {
-      const ttsResult = await ttsResponse.json() as any;
-      if (ttsResult.audios && ttsResult.audios[0]) {
-        return ttsResult.audios[0];
-      }
-    } else {
-      const errTxt = await ttsResponse.text();
-      console.error(`[Voice] Sarvam TTS helper failed with status ${ttsResponse.status}:`, errTxt);
-    }
-  } catch (ttsErr) {
-    console.error("[Voice] Failed to generate Sarvam TTS in helper:", ttsErr);
-  }
-  return "";
-}
 
     // Resolve inputs and transcribe audio first
     let transcriptText = "";

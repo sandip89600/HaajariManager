@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var express_1 = require("express");
+var workerController_1 = require("../controllers/workerController");
+var auth_1 = require("../middleware/auth");
+var subscription_1 = require("../middleware/subscription");
+var router = (0, express_1.Router)();
+router.use(auth_1.authenticateJWT);
+router.get("/", workerController_1.getWorkers);
+router.post("/", (0, subscription_1.checkPlanLimit)("workers"), workerController_1.addWorker);
+router.put("/:id", workerController_1.updateWorker);
+router.delete("/:id", workerController_1.deleteWorker);
+exports.default = router;

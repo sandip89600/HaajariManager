@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var express_1 = require("express");
+var voiceController_1 = require("../controllers/voiceController");
+var auth_1 = require("../middleware/auth");
+var upload_1 = require("../middleware/upload");
+var router = (0, express_1.Router)();
+router.use(auth_1.authenticateJWT);
+router.post("/process", upload_1.uploadAudio.single("audio"), voiceController_1.processVoice);
+exports.default = router;
