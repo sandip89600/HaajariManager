@@ -24,13 +24,19 @@ import SupportScreen from "@/screens/SupportScreen";
 import PrivacySettingsScreen from "@/screens/PrivacySettingsScreen";
 import DeviceManagementScreen from "@/screens/DeviceManagementScreen";
 import SiteManagementScreen from "@/screens/SiteManagementScreen";
+import DashboardScreen from "@/screens/DashboardScreen";
 
 export type MainTabParamList = {
   AttendanceTab: undefined;
-  WorkersTab: undefined;
-  SummaryTab: undefined;
+  SiteManagementTab: undefined;
   SettingsTab: undefined;
-  UserProfileTab: undefined;
+};
+
+export type AttendanceStackParamList = {
+  Dashboard: undefined;
+  AttendanceDetail: undefined;
+  Workers: undefined;
+  Summary: undefined;
 };
 
 export type RootStackParamList = {
@@ -43,17 +49,63 @@ export type RootStackParamList = {
   PrivacySettings: undefined;
   DeviceManagement: undefined;
   SiteManagement: undefined;
+
+  // Root stack fallbacks
+  AttendanceDetail: undefined;
+  Workers: undefined;
+  Summary: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const AttendanceStack = createNativeStackNavigator<AttendanceStackParamList>();
+
+function AttendanceNavigator() {
+  const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
+
+  return (
+    <AttendanceStack.Navigator
+      initialRouteName="Dashboard"
+      screenOptions={{
+        ...getCommonScreenOptions({ theme, isDark }),
+      }}
+    >
+      <AttendanceStack.Screen
+        name="Dashboard"
+        component={DashboardScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <AttendanceStack.Screen
+        name="AttendanceDetail"
+        component={AttendanceScreen}
+        options={{
+          headerTitle: t.attendance.title,
+        }}
+      />
+      <AttendanceStack.Screen
+        name="Workers"
+        component={WorkersScreen}
+        options={{
+          headerTitle: t.workers.title,
+        }}
+      />
+      <AttendanceStack.Screen
+        name="Summary"
+        component={SummaryScreen}
+        options={{
+          headerTitle: t.summary.title,
+        }}
+      />
+    </AttendanceStack.Navigator>
+  );
+}
 
 function MainTabs() {
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
-  const { user } = useAuth();
-
-  const role = user?.role; // contractor, builder, supervisor
 
   const tabBarStyle = {
     position: "absolute" as const,
@@ -87,39 +139,26 @@ function MainTabs() {
     >
       <Tab.Screen
         name="AttendanceTab"
-        component={AttendanceScreen}
+        component={AttendanceNavigator}
         options={{
           title: t.tabs.attendance,
-          headerTitle: () => <HeaderTitle title={t.app.name} />,
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Feather name="calendar" size={size} color={color} />
           ),
         }}
       />
       <Tab.Screen
-        name="WorkersTab"
-        component={WorkersScreen}
+        name="SiteManagementTab"
+        component={SiteManagementScreen}
         options={{
-          title: t.tabs.workers,
-          headerTitle: t.workers.title,
+          title: "Site Management",
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
-            <Feather name="users" size={size} color={color} />
+            <Feather name="layers" size={size} color={color} />
           ),
         }}
       />
-      {role !== "supervisor" && (
-        <Tab.Screen
-          name="SummaryTab"
-          component={SummaryScreen}
-          options={{
-            title: t.tabs.summary,
-            headerTitle: t.summary.title,
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="bar-chart-2" size={size} color={color} />
-            ),
-          }}
-        />
-      )}
       <Tab.Screen
         name="SettingsTab"
         component={SettingsScreen}
@@ -206,6 +245,30 @@ export default function MainTabNavigator() {
           headerShown: false,
         }}
       />
+      
+      {/* Fallback stack screen mappings */}
+      <Stack.Screen
+        name="AttendanceDetail"
+        component={AttendanceScreen}
+        options={{
+          headerTitle: t.attendance.title,
+        }}
+      />
+      <Stack.Screen
+        name="Workers"
+        component={WorkersScreen}
+        options={{
+          headerTitle: t.workers.title,
+        }}
+      />
+      <Stack.Screen
+        name="Summary"
+        component={SummaryScreen}
+        options={{
+          headerTitle: t.summary.title,
+        }}
+      />
     </Stack.Navigator>
   );
 }
+

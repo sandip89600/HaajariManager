@@ -197,6 +197,10 @@ export default function SettingsScreen() {
   const [voiceSettings, setVoiceSettingsState] = useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS);
   const [showSpeedModal, setShowSpeedModal] = useState(false);
   const [showPitchModal, setShowPitchModal] = useState(false);
+  const [liveModeEnabled, setLiveModeEnabled] = useState(true);
+  const [voiceConfirmationEnabled, setVoiceConfirmationEnabled] = useState(true);
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
+  const [highSensitivityEnabled, setHighSensitivityEnabled] = useState(true);
 
   useEffect(() => {
     if (route.params?.openUpgrade) {
@@ -387,6 +391,21 @@ export default function SettingsScreen() {
   const loadVoiceSettings = async () => {
     const saved = await storage.getVoiceSettings();
     setVoiceSettingsState(saved);
+    try {
+      const liveModeSaved = await AsyncStorage.getItem("voice_live_mode");
+      if (liveModeSaved !== null) setLiveModeEnabled(JSON.parse(liveModeSaved));
+      
+      const voiceConfSaved = await AsyncStorage.getItem("voice_confirmation");
+      if (voiceConfSaved !== null) setVoiceConfirmationEnabled(JSON.parse(voiceConfSaved));
+      
+      const wakeWordSaved = await AsyncStorage.getItem("voice_wake_word");
+      if (wakeWordSaved !== null) setWakeWordEnabled(JSON.parse(wakeWordSaved));
+      
+      const micSensSaved = await AsyncStorage.getItem("voice_mic_sensitivity");
+      if (micSensSaved !== null) setHighSensitivityEnabled(JSON.parse(micSensSaved));
+    } catch (err) {
+      console.warn("Failed to load local voice toggles:", err);
+    }
   };
 
   const handleVoiceToggle = async (val: boolean) => {
@@ -394,6 +413,30 @@ export default function SettingsScreen() {
     setVoiceSettingsState(updated);
     await storage.setVoiceSettings(updated);
     DeviceEventEmitter.emit("voiceSettingsChanged", updated);
+  };
+
+  const handleToggleLiveMode = async (val: boolean) => {
+    setLiveModeEnabled(val);
+    await AsyncStorage.setItem("voice_live_mode", JSON.stringify(val));
+    DeviceEventEmitter.emit("voiceLiveModeChanged", val);
+  };
+
+  const handleToggleVoiceConf = async (val: boolean) => {
+    setVoiceConfirmationEnabled(val);
+    await AsyncStorage.setItem("voice_confirmation", JSON.stringify(val));
+    DeviceEventEmitter.emit("voiceConfirmationChanged", val);
+  };
+
+  const handleToggleWakeWord = async (val: boolean) => {
+    setWakeWordEnabled(val);
+    await AsyncStorage.setItem("voice_wake_word", JSON.stringify(val));
+    DeviceEventEmitter.emit("voiceWakeWordChanged", val);
+  };
+
+  const handleToggleMicSens = async (val: boolean) => {
+    setHighSensitivityEnabled(val);
+    await AsyncStorage.setItem("voice_mic_sensitivity", JSON.stringify(val));
+    DeviceEventEmitter.emit("voiceMicSensitivityChanged", val);
   };
 
   const handleVoiceSpeedSelect = async (speed: number) => {
@@ -971,102 +1014,7 @@ export default function SettingsScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ─── DYNAMIC ACCOUNT / PROFILE HERO CARD ───────────────────────────── */}
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            if (!isGuest) navigation.navigate("UserProfile");
-          }}
-          style={styles.heroCard}
-        >
-          <LinearGradient
-            colors={isDark ? ["#1E1E38", "#0F172A"] : ["#E3F2FD", "#FFFFFF"]}
-            style={[
-              styles.heroGradient,
-              { borderColor: theme.border, borderWidth: 1 },
-            ]}
-          >
-            {currentUser?.profileImage ? (
-              <Image
-                source={{ uri: currentUser.profileImage }}
-                style={styles.heroAvatar}
-              />
-            ) : (
-              <View
-                style={[
-                  styles.heroAvatarPlaceholder,
-                  { backgroundColor: currentUser?.avatarColor || "#FF6B35" },
-                ]}
-              >
-                <ThemedText style={styles.heroAvatarInitials}>
-                  {initials}
-                </ThemedText>
-              </View>
-            )}
 
-            <View style={styles.heroInfo}>
-              <ThemedText type="h2" style={styles.heroName}>
-                {isGuest ? "Guest Mode" : translateWorkerName(currentUser?.name || "", language)}
-              </ThemedText>
-
-              {!isGuest && currentUser ? (
-                <>
-                  <View style={styles.heroBadgeRow}>
-                    <View
-                      style={[
-                        styles.roleBadge,
-                        {
-                          backgroundColor:
-                            getRoleColor(currentUser.role) + "15",
-                          borderColor: getRoleColor(currentUser.role),
-                        },
-                      ]}
-                    >
-                      <ThemedText
-                        style={[
-                          styles.roleBadgeText,
-                          { color: getRoleColor(currentUser.role) },
-                        ]}
-                      >
-                        {getRoleLabel(currentUser.role)}
-                      </ThemedText>
-                    </View>
-                    <View
-                      style={[
-                        styles.planBadge,
-                        { backgroundColor: getPlanColor(currentPlan) },
-                      ]}
-                    >
-                      <ThemedText style={styles.planBadgeText}>
-                        {getPlanLabel(currentPlan)}
-                      </ThemedText>
-                    </View>
-                  </View>
-                  {currentUser.companyName ? (
-                    <ThemedText
-                      type="small"
-                      style={{ color: theme.textSecondary, fontWeight: "600" }}
-                    >
-                      🏢 {currentUser.companyName}
-                    </ThemedText>
-                  ) : null}
-                </>
-              ) : (
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  Tap Sign In below to access full features.
-                </ThemedText>
-              )}
-            </View>
-            {!isGuest && (
-              <Feather
-                name="chevron-right"
-                size={20}
-                color={theme.textSecondary}
-                style={{ marginLeft: "auto" }}
-              />
-            )}
-          </LinearGradient>
-        </Pressable>
 
         {/* ─── GUEST BANNER ─── */}
         {isGuest && (
@@ -1105,7 +1053,7 @@ export default function SettingsScreen() {
                     iconColor="#00BCD4"
                     label={t.settings.manageWorkers}
                     sublabel={t.settings.manageWorkersDesc}
-                    onPress={() => navigation.navigate("WorkersTab")}
+                    onPress={() => navigation.navigate("AttendanceTab", { screen: "Workers" })}
                     theme={theme}
                   />
                   <SettingRow
@@ -1159,7 +1107,7 @@ export default function SettingsScreen() {
                     iconColor="#03A9F4"
                     label={t.settings.businessAnalytics}
                     sublabel={t.settings.businessAnalyticsDesc}
-                    onPress={() => navigation.navigate("SummaryTab")}
+                    onPress={() => navigation.navigate("AttendanceTab", { screen: "Summary" })}
                     theme={theme}
                   />
                   <SettingRow
@@ -1332,52 +1280,93 @@ export default function SettingsScreen() {
           <SettingRow
             icon="volume-2"
             iconColor="#E91E63"
-            label={t.voiceSettings?.enable || "Enable Voice Response"}
-            sublabel={t.voiceSettings?.enableDesc || "Ask HAI speaks after completing actions"}
+            label="Voice Response"
+            sublabel="Ask HAI speaks after completing actions"
             right={
               <Switch
                 value={voiceSettings.enabled}
                 onValueChange={handleVoiceToggle}
-                trackColor={{ false: theme.border, true: "#4CAF50" }}
+                trackColor={{ false: theme.border, true: "#2563EB" }}
                 thumbColor="#FFFFFF"
               />
             }
-            isLast={!voiceSettings.enabled}
             theme={theme}
           />
-          {voiceSettings.enabled && (
-            <>
-              <SettingRow
-                icon="activity"
-                iconColor="#3F51B5"
-                label={t.voiceSettings?.speed || "Speech Speed"}
-                value={
-                  voiceSettings.speed <= 0.8
-                    ? t.voiceSettings?.speedSlow || "Slow"
-                    : voiceSettings.speed >= 1.2
-                    ? t.voiceSettings?.speedFast || "Fast"
-                    : t.voiceSettings?.speedNormal || "Normal"
-                }
-                onPress={() => setShowSpeedModal(true)}
-                theme={theme}
+          <SettingRow
+            icon="activity"
+            iconColor="#3F51B5"
+            label="Voice Speed"
+            value={
+              voiceSettings.speed <= 0.8
+                ? "Slow"
+                : voiceSettings.speed >= 1.2
+                ? "Fast"
+                : "Normal"
+            }
+            onPress={() => setShowSpeedModal(true)}
+            theme={theme}
+          />
+          <SettingRow
+            icon="zap"
+            iconColor="#F59E0B"
+            label="Enable Live Mode"
+            sublabel="Continuous hands-free conversation"
+            right={
+              <Switch
+                value={liveModeEnabled}
+                onValueChange={handleToggleLiveMode}
+                trackColor={{ false: theme.border, true: "#2563EB" }}
+                thumbColor="#FFFFFF"
               />
-              <SettingRow
-                icon="music"
-                iconColor="#9C27B0"
-                label={t.voiceSettings?.pitch || "Voice Pitch"}
-                value={
-                  voiceSettings.pitch <= 0.8
-                    ? t.voiceSettings?.pitchLow || "Low"
-                    : voiceSettings.pitch >= 1.2
-                    ? t.voiceSettings?.pitchHigh || "High"
-                    : t.voiceSettings?.pitchNormal || "Normal"
-                }
-                onPress={() => setShowPitchModal(true)}
-                isLast
-                theme={theme}
+            }
+            theme={theme}
+          />
+          <SettingRow
+            icon="check-circle"
+            iconColor="#22C55E"
+            label="Voice Confirmation"
+            sublabel="Speak short task summaries"
+            right={
+              <Switch
+                value={voiceConfirmationEnabled}
+                onValueChange={handleToggleVoiceConf}
+                trackColor={{ false: theme.border, true: "#2563EB" }}
+                thumbColor="#FFFFFF"
               />
-            </>
-          )}
+            }
+            theme={theme}
+          />
+          <SettingRow
+            icon="message-square"
+            iconColor="#EF4444"
+            label="Wake Word"
+            sublabel="Listen for 'Hey HAI' trigger word"
+            right={
+              <Switch
+                value={wakeWordEnabled}
+                onValueChange={handleToggleWakeWord}
+                trackColor={{ false: theme.border, true: "#2563EB" }}
+                thumbColor="#FFFFFF"
+              />
+            }
+            theme={theme}
+          />
+          <SettingRow
+            icon="sliders"
+            iconColor="#9C27B0"
+            label="Microphone Sensitivity"
+            sublabel="Increase mic audio range"
+            right={
+              <Switch
+                value={highSensitivityEnabled}
+                onValueChange={handleToggleMicSens}
+                trackColor={{ false: theme.border, true: "#2563EB" }}
+                thumbColor="#FFFFFF"
+              />
+            }
+            isLast
+            theme={theme}
+          />
         </SettingCard>
 
         {/* ─── 7. LANGUAGE SECTION ─── */}

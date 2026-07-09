@@ -705,9 +705,11 @@ export default function SiteManagementScreen() {
     <ThemedView style={styles.container}>
       {/* ─── CUSTOM HEADER ────────────────────────────────────────────────────── */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backArrow}>
-          <Feather name="arrow-left" size={24} color={theme.text} />
-        </Pressable>
+        {navigation.canGoBack() && (
+          <Pressable onPress={() => navigation.goBack()} style={styles.backArrow}>
+            <Feather name="arrow-left" size={24} color={theme.text} />
+          </Pressable>
+        )}
         <View style={styles.headerInfo}>
           <ThemedText type="h1" style={styles.headerTitle}>
             Haajari Command Center

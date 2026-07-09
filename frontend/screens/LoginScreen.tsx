@@ -166,7 +166,7 @@ export default function LoginScreen() {
   };
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     if (otpCountdown > 0) {
       timer = setTimeout(() => {
         setOtpCountdown(otpCountdown - 1);

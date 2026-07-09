@@ -549,9 +549,9 @@ async function callGeminiWithRetry(model: any, parts: any[], retries = 3, delay 
     try {
       return await model.generateContent(parts);
     } catch (err: any) {
-      const is503 = err.status === 503 || (err.message && err.message.includes("503")) || (err.message && err.message.includes("Service Unavailable"));
-      if (is503 && retries > 0) {
-        console.warn(`[Voice] Gemini 503 encountered. Retrying in ${delay / 1000}s... (${retries} retries left)`);
+      const isRetryable = err.status === 503 || err.status === 429 || (err.message && (err.message.includes("503") || err.message.includes("429") || err.message.includes("Service Unavailable") || err.message.includes("Too Many Requests")));
+      if (isRetryable && retries > 0) {
+        console.warn(`[Voice] Gemini retryable error encountered. Retrying in ${delay / 1000}s... (${retries} retries left)`);
         await new Promise(resolve => setTimeout(resolve, delay));
         retries--;
         delay += 2000;

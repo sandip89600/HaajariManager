@@ -18,7 +18,7 @@ import { AuthContext, useAuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { Colors } from "@/constants/theme";
 import { SocketProvider } from "@/context/SocketContext";
-import VoiceAssistant from "@/components/VoiceAssistant";
+// VoiceAssistant removed — will be re-added in a future release
 import { navigationRef } from "@/navigation/navigationRef";
 
 const prefix = Linking.createURL("/");
@@ -89,7 +89,7 @@ function AppInner() {
         <NavigationContainer ref={navigationRef} linking={linking}>
           <RootNavigator />
         </NavigationContainer>
-        {authContext.isLoggedIn && <VoiceAssistant />}
+        {/* VoiceAssistant disabled — will be re-enabled in a future release */}
         <StatusBar style={isDark ? "light" : "dark"} />
       </AuthContext.Provider>
     </LanguageContext.Provider>

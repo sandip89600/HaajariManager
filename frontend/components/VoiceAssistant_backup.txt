@@ -14,7 +14,7 @@ import {
 import { appContextTracker } from "@/utils/appContextTracker";
 import { BlurView } from "expo-blur";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { useAudioRecorder, AudioModule, RecordingPresets, setAudioModeAsync, AudioPlayer } from "expo-audio";
+import { useAudioRecorder, AudioModule, RecordingPresets, setAudioModeAsync, createAudioPlayer, useAudioRecorderState } from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Speech from "expo-speech";
 import * as Haptics from "expo-haptics";
@@ -52,7 +52,7 @@ import { navigationRef } from "@/navigation/navigationRef";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-// ─── LOCAL COMMAND PARSER ──────────────────────────────────────────────────────
+// â”€â”€â”€ LOCAL COMMAND PARSER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const parseLocalCommand = (
   text: string,
 ): { action: string; data: any; response: string } | null => {
@@ -274,7 +274,7 @@ const parseLocalCommand = (
   return null;
 };
 
-// ─── TYPES ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ TYPES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface ChatMessage {
   role: "user" | "model";
   text: string;
@@ -283,7 +283,7 @@ interface ChatMessage {
 
 type CopilotMode = "none" | "launcher" | "voice" | "chat" | "live";
 
-// ─── QUICK LAUNCHER CARDS ──────────────────────────────────────────────────────
+// â”€â”€â”€ QUICK LAUNCHER CARDS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const LAUNCHER_CARDS = [
   {
     id: "voice",
@@ -328,22 +328,26 @@ const LAUNCHER_CARDS = [
 ];
 
 const STATE_COLORS: Record<string, string[]> = {
-  idle: ["#64748B", "#94A3B8"],
-  listening: ["#10B981", "#06B6D4"],
-  thinking: ["#8B5CF6", "#6366F1"],
-  executing: ["#FF6B35", "#EF4444"],
-  completed: ["#059669", "#10B981"],
+  idle: ["#2563EB", "#3B82F6"],
+  listening: ["#06B6D4", "#22D3EE"],
+  thinking: ["#8B5CF6", "#A78BFA"],
+  executing: ["#F97316", "#FDBA74"],
+  completed: ["#22C55E", "#4ADE80"],
 };
 
-// ─── MAIN COMPONENT ────────────────────────────────────────────────────────────
+// â”€â”€â”€ MAIN COMPONENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function VoiceAssistant() {
   const { theme, isDark, setThemeMode } = useTheme();
   const { language, t } = useLanguage();
   const { user, logout: authLogout } = useAuth();
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const audioRecorder = useAudioRecorder({
+    ...RecordingPresets.HIGH_QUALITY,
+    isMeteringEnabled: true,
+  });
+  const recorderState = useAudioRecorderState(audioRecorder, 100);
   const isRecordingActiveRef = useRef(false);
 
-  // Language → BCP-47 locale map for Speech engine
+  // Language â†’ BCP-47 locale map for Speech engine
   const LANG_TO_LOCALE: Record<string, string> = {
     en: "en-IN",
     hi: "hi-IN",
@@ -379,6 +383,7 @@ export default function VoiceAssistant() {
   // Core processing states
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isExecuting, setIsExecuting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [voiceTranscriptPreview, setVoiceTranscriptPreview] = useState("");
@@ -408,8 +413,8 @@ export default function VoiceAssistant() {
   // Refs
   const scrollViewRef = useRef<ScrollView>(null);
   const liveActiveRef = useRef(false);
-  const liveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const voiceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const liveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const voiceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPreparingRecordingRef = useRef(false);
   const chatInputRef = useRef<TextInput>(null);
   const liveAccumulatedTextRef = useRef("");
@@ -426,7 +431,7 @@ export default function VoiceAssistant() {
   const pulseRingScale = useSharedValue(1);
   const pulseRingOpacity = useSharedValue(0);
 
-  // ─── LOAD VOICE SETTINGS ────────────────────────────────────────────────────
+  // â”€â”€â”€ LOAD VOICE SETTINGS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     storage.getVoiceSettings().then((vs) => {
       setVoiceSettingsState(vs);
@@ -443,13 +448,13 @@ export default function VoiceAssistant() {
     return () => sub.remove();
   }, []);
 
-  // ─── PROACTIVE HINT ─────────────────────────────────────────────────────────
+  // â”€â”€â”€ PROACTIVE HINT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const ctx = appContextTracker.getContext();
     setHasProactiveHint(ctx.currentScreen === "AttendanceTab");
   }, []);
 
-  // ─── PROACTIVE GLOW ANIMATION ────────────────────────────────────────────────
+  // â”€â”€â”€ PROACTIVE GLOW ANIMATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (hasProactiveHint && mode === "none") {
       pulseRingScale.value = withRepeat(
@@ -472,7 +477,7 @@ export default function VoiceAssistant() {
     }
   }, [hasProactiveHint, mode, pulseRingOpacity, pulseRingScale]);
 
-  // ─── WAVEFORM ANIMATIONS ─────────────────────────────────────────────────────
+  // â”€â”€â”€ WAVEFORM ANIMATIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (isRecording) {
       pulse1.value = withRepeat(withSequence(withTiming(2.5, { duration: 300 }), withTiming(1, { duration: 300 })), -1, true);
@@ -489,7 +494,7 @@ export default function VoiceAssistant() {
     }
   }, [isRecording, pulse1, pulse2, pulse3, pulse4, pulse5]);
 
-  // ─── LIVE CONCENTRIC RINGS PULSING ───────────────────────────────────────────
+  // â”€â”€â”€ LIVE CONCENTRIC RINGS PULSING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (mode === "live") {
       livePulse1.value = withRepeat(
@@ -529,7 +534,7 @@ export default function VoiceAssistant() {
     }
   }, [mode]);
 
-  // ─── ANIMATED STYLES ─────────────────────────────────────────────────────────
+  // â”€â”€â”€ ANIMATED STYLES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const animatedWave1 = useAnimatedStyle(() => ({ transform: [{ scaleY: pulse1.value }] }));
   const animatedWave2 = useAnimatedStyle(() => ({ transform: [{ scaleY: pulse2.value }] }));
   const animatedWave3 = useAnimatedStyle(() => ({ transform: [{ scaleY: pulse3.value }] }));
@@ -623,8 +628,8 @@ export default function VoiceAssistant() {
   const fetchWithRetry = async (url: string, options: any, retries = 3, delay = 2000): Promise<Response> => {
     try {
       const response = await authenticatedFetch(url, options);
-      if (response.status === 503 && retries > 0) {
-        console.warn(`[VoiceAssistant] Server returned 503. Retrying in ${delay / 1000}s... (${retries} retries left)`);
+      if ((response.status === 503 || response.status === 429) && retries > 0) {
+        console.warn(`[VoiceAssistant] Server returned ${response.status}. Retrying in ${delay / 1000}s... (${retries} retries left)`);
         await new Promise(resolve => setTimeout(resolve, delay));
         return fetchWithRetry(url, options, retries - 1, delay + 2000);
       }
@@ -639,13 +644,13 @@ export default function VoiceAssistant() {
     }
   };
 
-  // ─── TOAST ───────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ TOAST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ─── PLAY SARVAM AUDIO ────────────────────────────────────────────────────────
+  // â”€â”€â”€ PLAY SARVAM AUDIO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const playSarvamAudio = async (base64Audio: string, fallbackText: string, onDone?: () => void) => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -658,8 +663,8 @@ export default function VoiceAssistant() {
 
       setIsSpeaking(true);
 
-      const player = new AudioPlayer(filename);
-      await player.play();
+      const player = createAudioPlayer(filename);
+      player.play();
 
       const durationMs = (player.duration || 3) * 1000;
       setTimeout(() => {
@@ -672,7 +677,7 @@ export default function VoiceAssistant() {
     }
   };
 
-  // ─── TTS ─────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ TTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const speakResponse = (text: string, onDone?: () => void) => {
     const vs = voiceSettingsRef.current;
 
@@ -688,7 +693,7 @@ export default function VoiceAssistant() {
     // Determine the locale based on current app language
     const locale = LANG_TO_LOCALE[language] || "en-IN";
 
-    // Truncate long text (keep spoken confirmations short — under 3 seconds)
+    // Truncate long text (keep spoken confirmations short â€” under 3 seconds)
     const maxLen = 120;
     const spokenText = text.length > maxLen ? text.substring(0, maxLen) + "..." : text;
 
@@ -714,7 +719,7 @@ export default function VoiceAssistant() {
     });
   };
 
-  // ─── FUZZY WORKER MATCH ───────────────────────────────────────────────────────
+  // â”€â”€â”€ FUZZY WORKER MATCH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const fuzzyMatchWorker = (workers: Worker[], name: string): Worker | null => {
     const normalized = name.toLowerCase().trim();
     return (
@@ -728,7 +733,7 @@ export default function VoiceAssistant() {
     );
   };
 
-  // ─── RADIAL MENU CONTROLLER ──────────────────────────────────────────────────
+  // â”€â”€â”€ RADIAL MENU CONTROLLER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const toggleRadialMenu = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (isRadialOpen) {
@@ -759,6 +764,20 @@ export default function VoiceAssistant() {
       );
     }
     setTimeout(() => chatInputRef.current?.focus(), 400);
+  };
+
+  const handleQuickAction = (action: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (action === "Add Worker") {
+      setChatInput("Add worker ");
+      setTimeout(() => chatInputRef.current?.focus(), 150);
+    } else if (action === "Open Attendance") {
+      submitChatText("Open Attendance");
+    } else if (action === "Open Summary") {
+      submitChatText("Open Summary");
+    } else if (action === "Open Settings") {
+      submitChatText("Open Settings");
+    }
   };
 
   const startLiveMode = async () => {
@@ -811,7 +830,57 @@ export default function VoiceAssistant() {
     Speech.stop();
   };
 
-  // ─── LIVE LOOP ────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ LIVE LOOP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const lastActiveTimeRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (mode === "live" && liveState === "listening" && recorderState.isRecording) {
+      const db = recorderState.metering ?? -120;
+      if (db > -42) {
+        lastActiveTimeRef.current = Date.now();
+      } else {
+        const silentDuration = Date.now() - lastActiveTimeRef.current;
+        if (silentDuration > 1400) {
+          console.log("[Live Mode] Silence detected for 1.4 seconds. Stop and process.");
+          stopLiveAndProcess();
+        }
+      }
+    }
+  }, [recorderState.metering, recorderState.isRecording, liveState, mode]);
+
+  const stopLiveAndProcess = async () => {
+    if (!liveActiveRef.current || !isRecordingActiveRef.current) return;
+    if (liveTimeoutRef.current) {
+      clearTimeout(liveTimeoutRef.current);
+      liveTimeoutRef.current = null;
+    }
+    try {
+      setIsRecording(false);
+      setLiveState("thinking");
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
+      isRecordingActiveRef.current = false;
+
+      // Prime the next loop to run after a short gap
+      setTimeout(() => {
+        if (liveActiveRef.current) runLiveLoop();
+      }, 400);
+
+      if (uri && liveActiveRef.current) {
+        const fileInfo = await FileSystem.getInfoAsync(uri);
+        if (fileInfo.exists) {
+          const base64Audio = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
+          await processLiveAudio(base64Audio);
+        } else {
+          console.log("[Live Mode] Audio file not found.");
+        }
+      }
+    } catch (e) {
+      console.error("Live loop stop error:", e);
+      setLiveState("idle");
+    }
+  };
+
   const runLiveLoop = async () => {
     if (!liveActiveRef.current) return;
     if (isSpeaking || pendingConfirmation) {
@@ -837,39 +906,17 @@ export default function VoiceAssistant() {
       } catch (prepErr) {
         // Safe to ignore if already prepared
       }
+      lastActiveTimeRef.current = Date.now();
       audioRecorder.record();
       isRecordingActiveRef.current = true;
       isPreparingRecordingRef.current = false;
 
-      // 3.0s recording chunk for fast response times
+      // Fallback max limit of 15 seconds to prevent runaway recording
       liveTimeoutRef.current = setTimeout(async () => {
         if (!liveActiveRef.current) return;
-        try {
-          setIsRecording(false);
-          setLiveState("thinking");
-          await audioRecorder.stop();
-          const uri = audioRecorder.uri;
-          isRecordingActiveRef.current = false;
-
-          // Prime the next loop to run immediately, so listening is continuous
-          setTimeout(() => {
-            if (liveActiveRef.current) runLiveLoop();
-          }, 300);
-
-          if (uri && liveActiveRef.current) {
-            const fileInfo = await FileSystem.getInfoAsync(uri);
-            if (fileInfo.exists) {
-              const base64Audio = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
-              await processLiveAudio(base64Audio);
-            } else {
-              console.log("[Live Mode] Audio file not found.");
-            }
-          }
-        } catch (e) {
-          console.error("Live loop stop error:", e);
-          setLiveState("idle");
-        }
-      }, 3000);
+        console.log("[Live Mode] Max chunk duration reached. Stopping...");
+        await stopLiveAndProcess();
+      }, 15000);
     } catch (err) {
       isPreparingRecordingRef.current = false;
       console.error("Live loop create error:", err);
@@ -878,7 +925,7 @@ export default function VoiceAssistant() {
     }
   };
 
-  // ─── PROCESS LIVE AUDIO ───────────────────────────────────────────────────────
+  // â”€â”€â”€ PROCESS LIVE AUDIO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const processLiveAudio = async (base64Audio: string) => {
     try {
       const auth = await storage.getAuth();
@@ -977,7 +1024,7 @@ export default function VoiceAssistant() {
     }
   };
 
-  // ─── TEXT COMMAND ─────────────────────────────────────────────────────────────
+  // â”€â”€â”€ TEXT COMMAND â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleTextCommand = async (text: string) => {
     setTranscript(text);
     const localParsed = parseLocalCommand(text);
@@ -993,7 +1040,7 @@ export default function VoiceAssistant() {
     }
   };
 
-  // ─── RECORDING ───────────────────────────────────────────────────────────────
+  // â”€â”€â”€ RECORDING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const startRecording = async () => {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1227,7 +1274,7 @@ export default function VoiceAssistant() {
     }
   };
 
-  // ─── CHAT TEXT SUBMIT ─────────────────────────────────────────────────────────
+  // â”€â”€â”€ CHAT TEXT SUBMIT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const submitChatText = async (text: string) => {
     if (!text.trim()) return;
     const userMsg: ChatMessage = { role: "user", text: text.trim(), timestamp: Date.now() };
@@ -1322,7 +1369,7 @@ export default function VoiceAssistant() {
     }
   };
 
-  // ─── EXECUTE ACTION ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ EXECUTE ACTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const executeAction = async (action: string, data: any, responseText?: string) => {
     if (["DELETE_WORKER", "DELETE_PAYMENT", "DELETE_ATTENDANCE", "DELETE_ACCOUNT"].includes(action)) {
       let message = "Are you sure you want to delete this?";
@@ -1340,6 +1387,7 @@ export default function VoiceAssistant() {
   };
 
   const executeActionDirect = async (action: string, data: any, responseText?: string) => {
+    setIsExecuting(true);
     try {
       const { setLanguage } = useLanguage();
       const workers = await storage.getWorkers();
@@ -1469,7 +1517,7 @@ export default function VoiceAssistant() {
             };
             await storage.setAttendanceRecord(record);
             setExecutedAction(action);
-            let details = `${activeWorker.name} — ${val === "P" ? "Present" : val === "A" ? "Absent" : val === "H" ? "Half Day" : "Overtime"}`;
+            let details = `${activeWorker.name} â€” ${val === "P" ? "Present" : val === "A" ? "Absent" : val === "H" ? "Half Day" : "Overtime"}`;
             if (data.advance) details += ` (Advance: Rs.${data.advance})`;
             setActionDetail(details);
           } else {
@@ -1502,7 +1550,7 @@ export default function VoiceAssistant() {
             };
             await storage.addPayment(payment);
             setExecutedAction("ADD_PAYMENT");
-            setActionDetail(`${activeWorker.name} — Rs.${data.amount}`);
+            setActionDetail(`${activeWorker.name} â€” Rs.${data.amount}`);
           }
           break;
         }
@@ -1537,7 +1585,7 @@ export default function VoiceAssistant() {
             };
             await storage.setAttendanceRecord(record);
             setExecutedAction("ADD_ADVANCE");
-            setActionDetail(`Advance: ${activeWorker.name} — Rs.${data.amount}`);
+            setActionDetail(`Advance: ${activeWorker.name} â€” Rs.${data.amount}`);
           }
           break;
         }
@@ -1710,28 +1758,30 @@ export default function VoiceAssistant() {
       console.error("Action execution error:", err);
       setExecutedAction("ERROR");
       setActionDetail("Execution failed.");
+    } finally {
+      setIsExecuting(false);
     }
   };
 
-  // ─── AUTO-SCROLL CHAT ─────────────────────────────────────────────────────────
+  // â”€â”€â”€ AUTO-SCROLL CHAT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (scrollViewRef.current) {
       setTimeout(() => { scrollViewRef.current?.scrollToEnd({ animated: true }); }, 100);
     }
   }, [chatHistory, isProcessing]);
 
-  // ─── CONTEXT BANNER ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ CONTEXT BANNER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const ctx = appContextTracker.getContext();
   const contextBannerText = [
     ctx.currentScreen && ctx.currentScreen !== "Unknown" ? ctx.currentScreen : null,
     ctx.selectedWorkerName ? `Worker: ${ctx.selectedWorkerName}` : null,
-  ].filter(Boolean).join(" · ");
+  ].filter(Boolean).join(" Â· ");
 
-  // ─── SIMPLE MARKDOWN RENDERER (bold + bullets) ────────────────────────────────
+  // â”€â”€â”€ SIMPLE MARKDOWN RENDERER (bold + bullets) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const renderAIText = (text: string) => {
     const lines = text.split("\n");
     return lines.map((line, idx) => {
-      const isBullet = line.startsWith("- ") || line.startsWith("• ");
+      const isBullet = line.startsWith("- ") || line.startsWith("â€¢ ");
       const cleaned = isBullet ? line.slice(2) : line;
       const parts = cleaned.split(/(\*\*[^*]+\*\*)/g);
       const richParts = parts.map((part, pIdx) => {
@@ -1743,7 +1793,7 @@ export default function VoiceAssistant() {
       return (
         <View key={idx} style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: isBullet ? 3 : 0 }}>
           {isBullet && (
-            <ThemedText style={{ color: theme.primary, fontWeight: "700", marginRight: 6, fontSize: 14 }}>•</ThemedText>
+            <ThemedText style={{ color: theme.primary, fontWeight: "700", marginRight: 6, fontSize: 14 }}>â€¢</ThemedText>
           )}
           <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap" }}>{richParts}</View>
         </View>
@@ -1751,159 +1801,145 @@ export default function VoiceAssistant() {
     });
   };
 
-  // ─── RENDER ───────────────────────────────────────────────────────────────────
-  const colors = STATE_COLORS[liveState] || ["#64748B", "#94A3B8"];
+  // â”€â”€â”€ RENDER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const colors = (STATE_COLORS[liveState] || ["#64748B", "#94A3B8"]) as [string, string];
   const primaryColor = colors[0];
 
   return (
     <>
-      {/* ── TOAST ─────────────────────────────────────────────────────────── */}
+      {/* TOAST */}
       {toast && (
         <Animated.View
-          entering={SlideInDown.duration(260)}
+          entering={FadeIn.duration(250)}
           exiting={FadeOut.duration(200)}
           style={[
             styles.toastContainer,
-            {
-              backgroundColor:
-                toast.type === "success" ? "rgba(16,185,129,0.95)"
-                  : toast.type === "error" ? "rgba(239,68,68,0.95)"
-                  : "rgba(59,130,246,0.95)",
-            },
+            { backgroundColor: toast.type === "success" ? "#10B981" : toast.type === "error" ? "#EF4444" : "#3B82F6" },
           ]}
         >
-          <Feather
-            name={toast.type === "success" ? "check-circle" : toast.type === "error" ? "alert-circle" : "info"}
-            size={16} color="#FFF"
-          />
+          <Feather name={toast.type === "success" ? "check-circle" : toast.type === "error" ? "alert-circle" : "info"} size={15} color="#FFF" />
           <ThemedText style={styles.toastText}>{toast.message}</ThemedText>
         </Animated.View>
       )}
 
-      {/* ── FLOATING AI ORB & RADIAL MENU ─────────────────────────────────── */}
+      {/* ── FAB BUTTON (idle state) ── */}
       {mode === "none" && (
-        <View style={styles.radialContainer} pointerEvents="box-none">
-          {/* Radial Option: Chat */}
-          <Animated.View style={[styles.radialOptionContainer, radialChatStyle]} pointerEvents={isRadialOpen ? "auto" : "none"}>
-            <Pressable
-              style={[styles.radialBtn, { backgroundColor: "#3B82F6" }]}
-              onPress={() => {
-                toggleRadialMenu();
-                startChatMode();
-              }}
+        <>
+          {/* Backdrop to close menu */}
+          {isRadialOpen && (
+            <Pressable style={styles.launcherBackdrop} onPress={toggleRadialMenu} />
+          )}
+
+          {/* Mode chooser sheet - slides up */}
+          {isRadialOpen && (
+            <Animated.View
+              entering={SlideInDown.duration(280).springify()}
+              exiting={SlideOutDown.duration(200)}
+              style={[styles.modeSheet, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF", borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }]}
             >
-              <Feather name="message-square" size={18} color="#FFF" />
-            </Pressable>
-            <ThemedText style={styles.radialLabel}>Chat</ThemedText>
-          </Animated.View>
+              <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)" }]} />
+              <ThemedText style={[styles.modeSheetTitle, { color: theme.textSecondary }]}>Choose Mode</ThemedText>
 
-          {/* Radial Option: Voice */}
-          <Animated.View style={[styles.radialOptionContainer, radialVoiceStyle]} pointerEvents={isRadialOpen ? "auto" : "none"}>
-            <Pressable
-              style={[styles.radialBtn, { backgroundColor: "#FF6B35" }]}
-              onPress={() => {
-                toggleRadialMenu();
-                startVoiceMode();
-              }}
-            >
-              <Feather name="mic" size={18} color="#FFF" />
-            </Pressable>
-            <ThemedText style={styles.radialLabel}>Voice</ThemedText>
-          </Animated.View>
+              <View style={styles.modeRow}>
+                {/* Voice Chat */}
+                <Pressable
+                  style={[styles.modeCard, { backgroundColor: isDark ? "#131B2E" : "#F1F5F9", borderColor: isDark ? "rgba(139,92,246,0.25)" : "rgba(139,92,246,0.2)" }]}
+                  onPress={() => { toggleRadialMenu(); startChatMode(); }}
+                >
+                  <LinearGradient colors={["#8B5CF6", "#6D28D9"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.modeCardIcon}>
+                    <Feather name="message-circle" size={22} color="#FFF" />
+                  </LinearGradient>
+                  <ThemedText style={styles.modeCardTitle}>Voice Chat</ThemedText>
+                  <ThemedText style={[styles.modeCardSub, { color: theme.textSecondary }]}>Type or speak</ThemedText>
+                </Pressable>
 
-          {/* Radial Option: Live */}
-          <Animated.View style={[styles.radialOptionContainer, radialLiveStyle]} pointerEvents={isRadialOpen ? "auto" : "none"}>
-            <Pressable
-              style={[styles.radialBtn, { backgroundColor: "#F59E0B" }]}
-              onPress={() => {
-                toggleRadialMenu();
-                startLiveMode();
-              }}
-            >
-              <Feather name="zap" size={18} color="#FFF" />
-            </Pressable>
-            <ThemedText style={styles.radialLabel}>Live</ThemedText>
-          </Animated.View>
+                {/* Live Mode */}
+                <Pressable
+                  style={[styles.modeCard, { backgroundColor: isDark ? "#131B2E" : "#F1F5F9", borderColor: isDark ? "rgba(6,182,212,0.25)" : "rgba(6,182,212,0.2)" }]}
+                  onPress={() => { toggleRadialMenu(); startLiveMode(); }}
+                >
+                  <LinearGradient colors={["#06B6D4", "#0891B2"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.modeCardIcon}>
+                    <Feather name="zap" size={22} color="#FFF" />
+                  </LinearGradient>
+                  <ThemedText style={styles.modeCardTitle}>HAI Live</ThemedText>
+                  <ThemedText style={[styles.modeCardSub, { color: theme.textSecondary }]}>Real-time voice</ThemedText>
+                </Pressable>
+              </View>
+            </Animated.View>
+          )}
 
-          {/* Floating Ask HAI Pill Label */}
-          <Animated.View style={[styles.floatingLabel, floatingLabelStyle]} pointerEvents="none">
-            <ThemedText style={styles.floatingLabelText}>Ask HAI</ThemedText>
-          </Animated.View>
-
-          {/* Main Floating Orb */}
+          {/* Floating Orb Button */}
           <Pressable
             onPress={toggleRadialMenu}
-            onPressIn={() => { buttonScale.value = withSpring(0.88, { mass: 0.5, damping: 15 }); }}
-            onPressOut={() => { buttonScale.value = withSpring(1, { mass: 0.5, damping: 15 }); }}
-            style={styles.mainOrb}
+            onPressIn={() => { buttonScale.value = withSpring(0.9, { damping: 20, stiffness: 200 }); }}
+            onPressOut={() => { buttonScale.value = withSpring(1, { damping: 20, stiffness: 200 }); }}
+            style={styles.fab}
           >
             <Animated.View style={[styles.fabGlowRing, animatedRing]} />
             <Animated.View style={animatedButton}>
-              <LinearGradient colors={["#FF6B35", "#FB923C"]} style={styles.fabGradient}>
+              <LinearGradient colors={["#2563EB", "#7C3AED"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fabGradient}>
                 <Animated.View style={mainOrbIconStyle}>
-                  <Ionicons name={isRadialOpen ? "close" : "sparkles"} size={26} color="#FFF" />
+                  <Ionicons name={isRadialOpen ? "close" : "sparkles"} size={22} color="#FFF" />
                 </Animated.View>
               </LinearGradient>
             </Animated.View>
           </Pressable>
-        </View>
+        </>
       )}
 
-      {/* ── CHAT PANEL ────────────────────────────────────────────────────── */}
+      {/* ── CHAT PANEL ── */}
       {mode === "chat" && (
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           <Pressable style={styles.darkBackdrop} onPress={closeAssistant} />
-
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={styles.chatKAV}
-            keyboardVerticalOffset={0}
             pointerEvents="box-none"
           >
             <Animated.View
-              entering={SlideInDown.springify().mass(0.7).damping(18).stiffness(180)}
+              entering={SlideInDown.duration(300).springify()}
               exiting={SlideOutDown.duration(220)}
-              style={[
-                styles.chatPanel,
-                {
-                  backgroundColor: isDark ? "rgba(10,10,20,0.98)" : "rgba(255,255,255,0.99)",
-                  borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-                },
-              ]}
+              style={[styles.chatPanel, { backgroundColor: isDark ? "#0A0F1E" : "#FFFFFF", borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)" }]}
             >
-              <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)" }]} />
+              <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)" }]} />
 
               {/* Header */}
               <View style={styles.chatHeader}>
                 <View style={styles.chatHeaderLeft}>
-                  <LinearGradient colors={["#F97316", "#FB923C"]} style={styles.chatAvatar}>
+                  <LinearGradient colors={["#2563EB", "#7C3AED"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.chatAvatar}>
                     <Ionicons name="sparkles" size={14} color="#FFF" />
                   </LinearGradient>
-                  <View>
-                    <ThemedText style={styles.chatHeaderTitle}>HAI</ThemedText>
-                    <ThemedText style={[styles.chatHeaderSub, { color: theme.textSecondary }]}>
-                      {isSpeaking ? "Speaking…" : isProcessing ? "Thinking…" : "AI Assistant"}
-                    </ThemedText>
+                  <View style={{ marginLeft: 10 }}>
+                    <ThemedText style={styles.chatHeaderTitle}>Ask HAI</ThemedText>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 }}>
+                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isSpeaking ? "#F59E0B" : isProcessing ? "#3B82F6" : "#22C55E" }} />
+                      <ThemedText style={[styles.chatHeaderSub, { color: theme.textSecondary }]}>
+                        {isSpeaking ? "Speaking…" : isProcessing ? "Thinking…" : "Online"}
+                      </ThemedText>
+                    </View>
                   </View>
                 </View>
-                <Pressable
-                  style={[styles.chatCloseBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]}
-                  onPress={closeAssistant}
-                >
-                  <Feather name="x" size={18} color={theme.textSecondary} />
-                </Pressable>
+                <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                  <Pressable
+                    style={[styles.chatCloseBtn, { backgroundColor: isDark ? "rgba(139,92,246,0.12)" : "rgba(139,92,246,0.08)" }]}
+                    onPress={startVoiceMode}
+                  >
+                    <Feather name="mic" size={15} color="#8B5CF6" />
+                  </Pressable>
+                  <Pressable
+                    style={[styles.chatCloseBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)" }]}
+                    onPress={closeAssistant}
+                  >
+                    <Feather name="x" size={15} color={theme.textSecondary} />
+                  </Pressable>
+                </View>
               </View>
 
               {/* Context banner */}
               {contextBannerText ? (
-                <View style={[styles.contextBanner, {
-                  backgroundColor: isDark ? "rgba(255,107,53,0.1)" : "rgba(255,107,53,0.08)",
-                  borderColor: isDark ? "rgba(255,107,53,0.2)" : "rgba(255,107,53,0.15)",
-                }]}>
-                  <Feather name="map-pin" size={11} color={theme.primary} style={{ marginRight: 6 }} />
-                  <ThemedText style={[styles.contextBannerText, { color: theme.primary }]}>
-                    {contextBannerText}
-                  </ThemedText>
+                <View style={[styles.contextBanner, { backgroundColor: "rgba(37,99,235,0.07)", borderColor: "rgba(37,99,235,0.15)" }]}>
+                  <Feather name="map-pin" size={11} color="#2563EB" style={{ marginRight: 6 }} />
+                  <ThemedText style={[styles.contextBannerText, { color: "#2563EB" }]}>{contextBannerText}</ThemedText>
                 </View>
               ) : null}
 
@@ -1918,21 +1954,26 @@ export default function VoiceAssistant() {
                 {/* Empty state */}
                 {chatHistory.length === 0 && (
                   <View style={styles.emptyState}>
-                    <LinearGradient colors={["#F97316", "#FB923C"]} style={styles.emptyAvatar}>
-                      <Ionicons name="sparkles" size={28} color="#FFF" />
+                    <LinearGradient colors={["#2563EB", "#7C3AED"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.emptyAvatar}>
+                      <Ionicons name="sparkles" size={24} color="#FFF" />
                     </LinearGradient>
-                    <ThemedText style={styles.emptyTitle}>HAI Assistant</ThemedText>
+                    <ThemedText style={styles.emptyTitle}>Ask HAI</ThemedText>
                     <ThemedText style={[styles.emptySub, { color: theme.textSecondary }]}>
-                      Ask me anything about your site — workers, attendance, payments, reports.
+                      Add workers, mark attendance, view payments — just ask.
                     </ThemedText>
-                    {["Who's absent today?", "Add worker Rajesh", "Show this month's summary"].map((s) => (
+                    {([
+                      { icon: "user-plus" as const, text: "Add a new worker" },
+                      { icon: "calendar" as const, text: "Mark today's attendance" },
+                      { icon: "trending-up" as const, text: "Show payment summary" },
+                    ]).map((s) => (
                       <Pressable
-                        key={s}
-                        style={[styles.suggestion, { borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)", backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)" }]}
-                        onPress={() => submitChatText(s)}
+                        key={s.text}
+                        style={[styles.suggestion, { backgroundColor: isDark ? "#131B2E" : "#F8FAFC", borderColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)" }]}
+                        onPress={() => handleQuickAction(s.text)}
                       >
-                        <ThemedText style={{ fontSize: 13 }}>{s}</ThemedText>
-                        <Feather name="arrow-up-right" size={14} color={theme.primary} />
+                        <Feather name={s.icon} size={14} color="#2563EB" style={{ marginRight: 10 }} />
+                        <ThemedText style={{ fontSize: 13, flex: 1 }}>{s.text}</ThemedText>
+                        <Feather name="chevron-right" size={13} color={theme.textSecondary} />
                       </Pressable>
                     ))}
                   </View>
@@ -1944,16 +1985,17 @@ export default function VoiceAssistant() {
                   return (
                     <View key={idx} style={[styles.bubbleRow, isUser ? styles.bubbleRowUser : styles.bubbleRowAI]}>
                       {!isUser && (
-                        <LinearGradient colors={["#F97316", "#FB923C"]} style={styles.bubbleAvatar}>
+                        <LinearGradient colors={["#2563EB", "#7C3AED"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bubbleAvatar}>
                           <Ionicons name="sparkles" size={10} color="#FFF" />
                         </LinearGradient>
                       )}
-                      <View style={[styles.bubble, isUser
-                        ? [styles.userBubble, { backgroundColor: theme.primary }]
-                        : [styles.aiBubble, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)", borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]
+                      <View style={[styles.bubble,
+                        isUser
+                          ? [styles.userBubble, { backgroundColor: "#2563EB" }]
+                          : [styles.aiBubble, { backgroundColor: isDark ? "#131B2E" : "#F1F5F9", borderColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" }]
                       ]}>
                         {isUser
-                          ? <ThemedText style={{ fontSize: 14, color: "#FFF", lineHeight: 20 }}>{msg.text}</ThemedText>
+                          ? <ThemedText style={{ fontSize: 14, color: "#FFF", lineHeight: 21 }}>{msg.text}</ThemedText>
                           : <View>{renderAIText(msg.text)}</View>
                         }
                       </View>
@@ -1961,21 +2003,15 @@ export default function VoiceAssistant() {
                   );
                 })}
 
-                {/* Typing indicator */}
+                {/* Typing */}
                 {isProcessing && (
                   <Animated.View entering={FadeIn.duration(200)} style={styles.bubbleRow}>
-                    <LinearGradient colors={["#F97316", "#FB923C"]} style={styles.bubbleAvatar}>
+                    <LinearGradient colors={["#2563EB", "#7C3AED"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bubbleAvatar}>
                       <Ionicons name="sparkles" size={10} color="#FFF" />
                     </LinearGradient>
-                    <View style={[styles.bubble, styles.aiBubble, {
-                      backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
-                      borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-                      paddingVertical: 14,
-                    }]}>
+                    <View style={[styles.bubble, styles.aiBubble, { backgroundColor: isDark ? "#131B2E" : "#F1F5F9", borderColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", paddingVertical: 14 }]}>
                       <View style={styles.typingDots}>
-                        {[0, 1, 2].map((i) => (
-                          <View key={i} style={[styles.typingDot, { backgroundColor: theme.primary }]} />
-                        ))}
+                        {[0, 1, 2].map((i) => (<View key={i} style={[styles.typingDot, { backgroundColor: "#2563EB", opacity: 0.3 + i * 0.35 }]} />))}
                       </View>
                     </View>
                   </Animated.View>
@@ -1983,299 +2019,242 @@ export default function VoiceAssistant() {
 
                 {/* Action chip */}
                 {executedAction && executedAction !== "ERROR" && actionDetail && (
-                  <View style={[styles.actionChip, { backgroundColor: isDark ? "rgba(16,185,129,0.1)" : "rgba(16,185,129,0.08)", borderColor: isDark ? "rgba(16,185,129,0.2)" : "rgba(16,185,129,0.15)" }]}>
-                    <Feather name="check-circle" size={13} color="#10B981" />
-                    <ThemedText style={{ fontSize: 12, color: "#10B981", marginLeft: 6 }}>{actionDetail}</ThemedText>
+                  <View style={[styles.actionChip, { backgroundColor: "rgba(34,197,94,0.08)", borderColor: "rgba(34,197,94,0.2)" }]}>
+                    <Feather name="check-circle" size={13} color="#22C55E" />
+                    <ThemedText style={{ fontSize: 12, color: "#22C55E", marginLeft: 6 }}>{actionDetail}</ThemedText>
                   </View>
                 )}
               </ScrollView>
 
-              {/* Attached Image Preview */}
+              {/* Attached image */}
               {attachedImage && (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 16,
-                    paddingVertical: 8,
-                    borderTopWidth: 1,
-                    borderTopColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
-                    backgroundColor: isDark ? "rgba(10,10,20,0.98)" : "rgba(255,255,255,0.99)",
-                  }}
-                >
+                <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" }}>
                   <View style={{ position: "relative" }}>
-                    <Animated.Image
-                      source={{ uri: `data:image/jpeg;base64,${attachedImage}` }}
-                      style={{ width: 50, height: 50, borderRadius: 8, borderWidth: 1, borderColor: theme.border }}
-                    />
-                    <Pressable
-                      onPress={() => setAttachedImage(null)}
-                      style={{
-                        position: "absolute",
-                        top: -6,
-                        right: -6,
-                        backgroundColor: "#EF4444",
-                        borderRadius: 10,
-                        width: 18,
-                        height: 18,
-                        justifyContent: "center",
-                        alignItems: "center",
-                        elevation: 2,
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 1 },
-                        shadowOpacity: 0.2,
-                        shadowRadius: 1,
-                      }}
-                    >
-                      <Feather name="x" size={10} color="#FFF" />
+                    <Animated.Image source={{ uri: `data:image/jpeg;base64,${attachedImage}` }} style={{ width: 44, height: 44, borderRadius: 8, borderWidth: 1, borderColor: theme.border }} />
+                    <Pressable onPress={() => setAttachedImage(null)} style={{ position: "absolute", top: -5, right: -5, width: 16, height: 16, borderRadius: 8, backgroundColor: "#EF4444", justifyContent: "center", alignItems: "center" }}>
+                      <Feather name="x" size={9} color="#FFF" />
                     </Pressable>
                   </View>
-                  <ThemedText style={{ fontSize: 11, color: theme.textSecondary, marginLeft: 12 }}>
-                    Image attached (Ready to analyze)
-                  </ThemedText>
+                  <ThemedText style={{ fontSize: 11, color: theme.textSecondary, marginLeft: 10 }}>Image attached</ThemedText>
                 </View>
               )}
 
-              {/* ── INPUT BAR ── */}
-              <View style={[styles.inputBar, {
-                borderTopColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
-                backgroundColor: isDark ? "rgba(10,10,20,0.98)" : "rgba(255,255,255,0.99)",
-              }]}>
-                {/* Attach */}
-                <Pressable
-                  style={[styles.inputIconBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)" }]}
-                  onPress={() => setAttachMenuOpen(!attachMenuOpen)}
-                >
-                  <Feather name={attachMenuOpen ? "x" : "paperclip"} size={18} color={theme.textSecondary} />
-                </Pressable>
-
-                {/* Attach menu */}
-                {attachMenuOpen && (
-                  <Animated.View
-                    entering={FadeIn.duration(180)}
-                    style={[styles.attachMenu, { backgroundColor: isDark ? "rgba(20,20,30,0.97)" : "rgba(255,255,255,0.98)", borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }]}
+              {/* Quick chips */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 8 }} style={{ borderTopWidth: 1, borderTopColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)" }}>
+                {([
+                  { icon: "plus-circle" as const, label: "Add Worker", action: "Add Worker" },
+                  { icon: "calendar" as const, label: "Attendance", action: "Open Attendance" },
+                  { icon: "trending-up" as const, label: "Summary", action: "Open Summary" },
+                  { icon: "file-text" as const, label: "Reports", action: "Open Reports" },
+                ]).map((chip) => (
+                  <Pressable
+                    key={chip.label}
+                    style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: isDark ? "rgba(37,99,235,0.2)" : "rgba(37,99,235,0.18)", backgroundColor: isDark ? "rgba(37,99,235,0.07)" : "rgba(37,99,235,0.05)" }}
+                    onPress={() => handleQuickAction(chip.action)}
                   >
-                    {([
-                      { icon: "camera" as const, label: "Camera" },
-                      { icon: "image" as const, label: "Image" },
-                      { icon: "file" as const, label: "Document" },
-                      { icon: "user" as const, label: "Worker" },
-                      { icon: "map-pin" as const, label: "Site" },
-                    ]).map((item) => (
-                      <Pressable
-                        key={item.label}
-                        style={styles.attachItem}
-                        onPress={() => handlePickAttachment(item.label)}
-                      >
-                        <View style={[styles.attachItemIcon, { backgroundColor: "rgba(249,115,22,0.1)" }]}>
-                          <Feather name={item.icon} size={16} color="#F97316" />
-                        </View>
-                        <ThemedText style={{ fontSize: 11, marginTop: 4 }}>{item.label}</ThemedText>
-                      </Pressable>
-                    ))}
-                  </Animated.View>
-                )}
-
-                {/* Text */}
-                <TextInput
-                  ref={chatInputRef}
-                  style={[styles.chatInput, { color: theme.text, backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" }]}
-                  placeholder="Ask anything about your site…"
-                  placeholderTextColor={theme.textSecondary}
-                  value={chatInput}
-                  onChangeText={setChatInput}
-                  multiline
-                  maxLength={500}
-                  onSubmitEditing={() => { if (chatInput.trim()) submitChatText(chatInput); }}
-                  blurOnSubmit={false}
-                />
-
-                {/* Send Button */}
-                {(chatInput.trim().length > 0 || attachedImage !== null) && (
-                  <Pressable style={[styles.inputIconBtn, { backgroundColor: theme.primary }]} onPress={() => submitChatText(chatInput)}>
-                    <Feather name="send" size={18} color="#FFF" />
+                    <Feather name={chip.icon} size={12} color="#2563EB" style={{ marginRight: 5 }} />
+                    <ThemedText style={{ fontSize: 12, color: "#2563EB", fontWeight: "600" }}>{chip.label}</ThemedText>
                   </Pressable>
-                )}
+                ))}
+              </ScrollView>
+
+              {/* Input bar */}
+              <View style={[styles.inputBar, { paddingHorizontal: 12, paddingBottom: 16, borderTopColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", backgroundColor: isDark ? "#0A0F1E" : "#FFFFFF" }]}>
+                <View style={[styles.pillInputContainer, { backgroundColor: isDark ? "#131B2E" : "#F1F5F9", borderColor: isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.09)" }]}>
+                  <Pressable style={styles.pillAttachBtn} onPress={() => setAttachMenuOpen(!attachMenuOpen)}>
+                    <Feather name="paperclip" size={16} color={theme.textSecondary} />
+                  </Pressable>
+
+                  {attachMenuOpen && (
+                    <Animated.View entering={FadeIn.duration(160)} style={[styles.attachMenu, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF", borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }]}>
+                      {([
+                        { icon: "camera" as const, label: "Camera" },
+                        { icon: "image" as const, label: "Image" },
+                        { icon: "file" as const, label: "Document" },
+                      ]).map((item) => (
+                        <Pressable key={item.label} style={styles.attachItem} onPress={() => handlePickAttachment(item.label)}>
+                          <View style={[styles.attachItemIcon, { backgroundColor: "rgba(37,99,235,0.09)" }]}>
+                            <Feather name={item.icon} size={15} color="#2563EB" />
+                          </View>
+                          <ThemedText style={{ fontSize: 10, marginTop: 3, color: theme.textSecondary }}>{item.label}</ThemedText>
+                        </Pressable>
+                      ))}
+                    </Animated.View>
+                  )}
+
+                  <TextInput
+                    ref={chatInputRef}
+                    style={[styles.pillTextInput, { color: theme.text }]}
+                    placeholder="Ask anything..."
+                    placeholderTextColor={theme.textSecondary}
+                    value={chatInput}
+                    onChangeText={setChatInput}
+                    maxLength={500}
+                    multiline
+                    onSubmitEditing={() => { if (chatInput.trim()) submitChatText(chatInput); }}
+                  />
+
+                  {chatInput.trim().length > 0 || attachedImage ? (
+                    <Pressable style={[styles.pillActionBtn, { backgroundColor: "#2563EB" }]} onPress={() => submitChatText(chatInput)}>
+                      <Feather name="arrow-up" size={15} color="#FFF" />
+                    </Pressable>
+                  ) : (
+                    <Pressable style={[styles.pillActionBtn, { backgroundColor: "#8B5CF6" }]} onPress={startVoiceMode}>
+                      <Feather name="mic" size={15} color="#FFF" />
+                    </Pressable>
+                  )}
+                </View>
               </View>
             </Animated.View>
           </KeyboardAvoidingView>
         </View>
       )}
 
-
-
-      {/* ── VOICE COMMAND SHEET ───────────────────────────────────────────── */}
+      {/* ── VOICE SHEET ── */}
       {mode === "voice" && (
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           <Pressable style={styles.launcherBackdrop} onPress={closeAssistant} />
           <Animated.View
-            entering={SlideInDown.springify().mass(0.7).damping(18).stiffness(180)}
-            exiting={SlideOutDown.duration(220)}
-            style={[
-              styles.voiceSheet,
-              {
-                backgroundColor: isDark ? "rgba(15, 23, 42, 0.98)" : "rgba(255, 255, 255, 0.99)",
-                borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)",
-              },
-            ]}
+            entering={SlideInDown.duration(300).springify()}
+            exiting={SlideOutDown.duration(200)}
+            style={[styles.voiceSheet, { backgroundColor: isDark ? "#0A0F1E" : "#FFFFFF", borderColor: isDark ? "rgba(139,92,246,0.2)" : "rgba(139,92,246,0.15)" }]}
           >
-            <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.12)" }]} />
-            
-            <ThemedText style={[styles.voiceLabel, { color: theme.primary }]}>
-              {isProcessing ? "Processing command…" : isRecording ? "Listening…" : "Voice Command"}
-            </ThemedText>
+            <View style={[styles.handle, { backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)" }]} />
 
-            {/* Waveform bars */}
-            <View style={styles.voiceWaveRow}>
-              <Animated.View style={[styles.voiceBar, { backgroundColor: theme.primary }, animatedWave1]} />
-              <Animated.View style={[styles.voiceBar, { backgroundColor: theme.primary }, animatedWave2]} />
-              <Animated.View style={[styles.voiceBar, { backgroundColor: theme.primary }, animatedWave3]} />
-              <Animated.View style={[styles.voiceBar, { backgroundColor: theme.primary }, animatedWave4]} />
-              <Animated.View style={[styles.voiceBar, { backgroundColor: theme.primary }, animatedWave5]} />
-            </View>
-
-            {/* Preview text */}
-            <View style={[styles.previewBox, { backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)", borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }]}>
-              <ThemedText style={[styles.previewInput, { color: theme.text }]} numberOfLines={3}>
-                {voiceTranscriptPreview || transcript || "Speak your command clearly (e.g. 'Add worker Rahul')"}
-              </ThemedText>
-            </View>
-
-            {/* Controls */}
-            <View style={styles.voiceControls}>
-              <Pressable
-                style={[styles.voiceCtrlBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)" }]}
-                onPress={closeAssistant}
-              >
-                <Feather name="x" size={20} color={theme.text} />
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", width: "100%", marginBottom: 28 }}>
+              <View>
+                <ThemedText style={{ fontSize: 18, fontWeight: "700", color: isDark ? "#FFF" : "#0F172A" }}>Voice Command</ThemedText>
+                <ThemedText style={{ fontSize: 12, color: "#8B5CF6", marginTop: 3 }}>Powered by HAI</ThemedText>
+              </View>
+              <Pressable style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)", justifyContent: "center", alignItems: "center" }} onPress={closeAssistant}>
+                <Feather name="x" size={15} color={theme.textSecondary} />
               </Pressable>
+            </View>
 
-              <Pressable
-                style={[
-                  styles.voiceRecordBtn,
-                  {
-                    backgroundColor: isRecording ? "#EF4444" : theme.primary,
-                  }
-                ]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  if (isRecording) {
-                    stopRecording();
-                  } else {
-                    startRecording();
-                  }
-                }}
+            {/* Mic button */}
+            <Pressable
+              style={[styles.voiceMicCircle, { backgroundColor: isRecording ? "rgba(239,68,68,0.1)" : "rgba(139,92,246,0.08)", borderColor: isRecording ? "#EF4444" : "#8B5CF6" }]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); if (isRecording) { stopRecording(); } else { startRecording(); } }}
+            >
+              <LinearGradient
+                colors={isRecording ? ["#EF4444", "#DC2626"] : ["#8B5CF6", "#6D28D9"]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={{ width: 68, height: 68, borderRadius: 34, justifyContent: "center", alignItems: "center" }}
               >
                 <Feather name={isRecording ? "square" : "mic"} size={26} color="#FFF" />
-              </Pressable>
+              </LinearGradient>
+            </Pressable>
 
-              <Pressable
-                style={[styles.voiceCtrlBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)" }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  startChatMode();
-                }}
-              >
-                <Feather name="message-square" size={20} color={theme.text} />
-              </Pressable>
+            {/* Status text */}
+            <ThemedText style={{ fontSize: 15, fontWeight: "600", marginTop: 18, marginBottom: 10,
+              color: isRecording ? "#EF4444" : isProcessing ? "#8B5CF6" : theme.textSecondary }}>
+              {isExecuting ? "Executing..." : isProcessing ? "Thinking..." : isRecording ? "Listening..." : "Tap mic to speak"}
+            </ThemedText>
+
+            {/* Transcript preview */}
+            {voiceTranscriptPreview !== "" && (
+              <View style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: isDark ? "rgba(139,92,246,0.07)" : "rgba(139,92,246,0.05)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(139,92,246,0.15)", marginBottom: 14, width: "100%" }}>
+                <ThemedText style={{ fontSize: 13, color: theme.text, textAlign: "center", lineHeight: 20, fontStyle: "italic" }}>"{voiceTranscriptPreview}"</ThemedText>
+              </View>
+            )}
+
+            {/* Waveform bars */}
+            <View style={[styles.voiceWaveRow, { marginBottom: 24 }]}>
+              {[animatedWave1, animatedWave2, animatedWave3, animatedWave4, animatedWave5].map((wave, i) => (
+                <Animated.View key={i} style={[styles.voiceBar, { backgroundColor: isRecording ? "#8B5CF6" : isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.09)" }, wave]} />
+              ))}
             </View>
 
-            <ThemedText style={[styles.voiceHint, { color: theme.textSecondary }]}>
-              Support for English, Hindi, Hinglish, Marathi, and regional languages.
-            </ThemedText>
+            {/* Cancel */}
+            <Pressable style={{ paddingVertical: 11, paddingHorizontal: 32, borderRadius: 20, backgroundColor: isDark ? "rgba(239,68,68,0.08)" : "rgba(239,68,68,0.06)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }} onPress={closeAssistant}>
+              <ThemedText style={{ fontSize: 14, color: "#EF4444", fontWeight: "600" }}>Cancel</ThemedText>
+            </Pressable>
           </Animated.View>
         </View>
       )}
 
-      {/* ── HAI LIVE FULLSCREEN assistant ─────────────────────────────────── */}
+      {/* ── HAI LIVE FULLSCREEN ── */}
       {mode === "live" && (
         <View style={StyleSheet.absoluteFill}>
-          <View style={[styles.fullscreenContainer, { backgroundColor: isDark ? "#0B0F19" : "#F8FAFC" }]}>
-            {/* Top Header */}
-            <View style={styles.fullscreenHeader}>
-              <ThemedText style={[styles.fullscreenTitle, { color: isDark ? "#FFFFFF" : "#1E3A5F" }]}>HAI</ThemedText>
-              <ThemedText style={[styles.fullscreenSubtitle, { color: theme.textSecondary }]}>Haajari Artificial Intelligence</ThemedText>
+          <LinearGradient
+            colors={isDark ? (["#020817", "#0A1628"] as [string, string]) : (["#EEF2FF", "#F0F7FF"] as [string, string])}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+
+          <View style={styles.fullscreenContainer}>
+            {/* Close button */}
+            <Pressable
+              style={{ position: "absolute", top: 52, right: 20, width: 34, height: 34, borderRadius: 17, backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", justifyContent: "center", alignItems: "center" }}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); stopLiveMode(); }}
+            >
+              <Feather name="x" size={17} color={theme.textSecondary} />
+            </Pressable>
+
+            {/* Header */}
+            <View style={{ alignItems: "center", marginTop: 20 }}>
+              <View style={{ paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, backgroundColor: isDark ? "rgba(6,182,212,0.15)" : "rgba(6,182,212,0.1)", borderWidth: 1, borderColor: "rgba(6,182,212,0.25)" }}>
+                <ThemedText style={{ color: "#06B6D4", fontSize: 11, fontWeight: "700", letterSpacing: 1.5 }}>HAI LIVE</ThemedText>
+              </View>
+              <ThemedText style={{ fontSize: 28, fontWeight: "800", color: isDark ? "#FFF" : "#0F172A", marginTop: 10, letterSpacing: 1 }}>Haajari AI</ThemedText>
+              <ThemedText style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4 }}>Real-time Voice Assistant</ThemedText>
             </View>
 
-            {/* Center Orb Area */}
-            <View style={styles.orbWrapper}>
-              {/* Concentric rings pulsing outwards */}
-              <Animated.View style={[styles.pulseRing, { backgroundColor: primaryColor }, livePulseStyle3]} />
-              <Animated.View style={[styles.pulseRing, { backgroundColor: primaryColor }, livePulseStyle2]} />
-              <Animated.View style={[styles.pulseRing, { backgroundColor: primaryColor }, livePulseStyle1]} />
+            {/* Orb */}
+            <View style={[styles.orbWrapper]}>
+              <Animated.View style={[styles.pulseRing, { backgroundColor: primaryColor, opacity: 0.06 }, livePulseStyle3]} />
+              <Animated.View style={[styles.pulseRing, { backgroundColor: primaryColor, opacity: 0.09 }, livePulseStyle2]} />
+              <Animated.View style={[styles.pulseRing, { backgroundColor: primaryColor, opacity: 0.13 }, livePulseStyle1]} />
 
-              {/* Central Main Orb */}
-              <Animated.View style={[styles.centerOrb, liveOrbRotateStyle]}>
-                <LinearGradient
-                  colors={colors}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.centerOrbGradient}
-                >
-                  <Ionicons name="sparkles" size={44} color="#FFF" style={{ opacity: 0.95 }} />
+              <Animated.View style={styles.centerOrb}>
+                <LinearGradient colors={colors as [string, string]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.centerOrbGradient}>
+                  <Ionicons
+                    name={liveState === "listening" ? "mic" : liveState === "thinking" ? "bulb-outline" : liveState === "executing" ? "flash" : "sparkles"}
+                    size={48} color="#FFF" style={{ opacity: 0.95 }}
+                  />
                 </LinearGradient>
               </Animated.View>
 
-              {/* State Text Label below Orb */}
-              <ThemedText style={[styles.liveStatusTextLabel, { color: primaryColor }]}>
-                {liveState === "listening" ? "Listening..." :
-                 liveState === "thinking" ? "Thinking..." :
-                 liveState === "executing" ? "Executing..." :
-                 liveState === "completed" ? "Completed" : "Idle"}
+              <ThemedText style={{ fontSize: 16, fontWeight: "700", marginTop: 24, color: primaryColor }}>
+                {liveState === "listening" ? "Listening..." : liveState === "thinking" ? "Thinking..." : liveState === "executing" ? "Executing..." : liveState === "completed" ? "Done ✓" : "Ready"}
               </ThemedText>
             </View>
 
-            {/* Temporary text dialogue (lasts a few seconds) */}
-            <View style={styles.dialogueWrapper}>
+            {/* Transcript */}
+            <View style={{ width: "100%", minHeight: 60, alignItems: "center", paddingHorizontal: 24, marginVertical: 16 }}>
               {transcript ? (
-                <ThemedText style={[styles.dialogueTranscript, { color: theme.text }]}>
-                  "{transcript}"
-                </ThemedText>
+                <View style={{ backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)", borderRadius: 16, borderWidth: 1, borderColor: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)", paddingHorizontal: 18, paddingVertical: 12, width: "100%" }}>
+                  <ThemedText style={{ fontSize: 14, fontWeight: "600", textAlign: "center", fontStyle: "italic", color: theme.text }}>"{transcript}"</ThemedText>
+                </View>
               ) : null}
               {aiResponse ? (
-                <ThemedText style={[styles.dialogueResponse, { color: theme.textSecondary }]}>
-                  {aiResponse}
-                </ThemedText>
+                <ThemedText style={{ fontSize: 13, textAlign: "center", lineHeight: 20, color: theme.textSecondary, marginTop: 8 }} numberOfLines={3}>{aiResponse}</ThemedText>
               ) : null}
             </View>
 
-            {/* Bottom Controls */}
-            <View style={styles.fullscreenControls}>
-              {/* Mic Toggle button */}
+            {/* Controls */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 14, paddingBottom: 24 }}>
               <Pressable
-                style={[
-                  styles.liveMicToggle,
-                  {
-                    backgroundColor: liveState === "listening" ? "#EF4444" : "#10B981",
-                  }
-                ]}
+                style={{ width: 46, height: 46, borderRadius: 23, borderWidth: 1.5, justifyContent: "center", alignItems: "center", backgroundColor: liveState === "listening" ? "rgba(6,182,212,0.1)" : "rgba(239,68,68,0.08)", borderColor: liveState === "listening" ? "#06B6D4" : "#EF4444" }}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   if (liveState === "listening") {
-                    setLiveState("idle");
-                    setIsRecording(false);
-                    if (liveTimeoutRef.current) {
-                      clearTimeout(liveTimeoutRef.current);
-                      liveTimeoutRef.current = null;
-                    }
-                    if (isRecordingActiveRef.current) {
-                      try { audioRecorder.stop(); } catch {}
-                      isRecordingActiveRef.current = false;
-                    }
-                  } else {
-                    runLiveLoop();
-                  }
+                    setLiveState("idle"); setIsRecording(false);
+                    if (liveTimeoutRef.current) { clearTimeout(liveTimeoutRef.current); liveTimeoutRef.current = null; }
+                    if (isRecordingActiveRef.current) { try { audioRecorder.stop(); } catch {} isRecordingActiveRef.current = false; }
+                  } else { runLiveLoop(); }
                 }}
               >
-                <Feather name={liveState === "listening" ? "mic-off" : "mic"} size={24} color="#FFF" />
+                <Feather name={liveState === "listening" ? "mic" : "mic-off"} size={18} color={liveState === "listening" ? "#06B6D4" : "#EF4444"} />
               </Pressable>
 
-              {/* Exit button */}
               <Pressable
-                style={[styles.exitLiveBtn, { borderColor: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)" }]}
-                onPress={stopLiveMode}
+                style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#EF4444", paddingVertical: 13, paddingHorizontal: 28, borderRadius: 24, gap: 8 }}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); stopLiveMode(); }}
               >
-                <ThemedText style={[styles.exitLiveText, { color: theme.text }]}>Exit Live Mode</ThemedText>
+                <Feather name="square" size={16} color="#FFF" />
+                <ThemedText style={{ color: "#FFF", fontSize: 14, fontWeight: "700" }}>Stop</ThemedText>
               </Pressable>
             </View>
           </View>
@@ -2285,7 +2264,7 @@ export default function VoiceAssistant() {
   );
 }
 
-// ─── STYLES ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ STYLES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const styles = StyleSheet.create({
   // Toast
   toastContainer: {
@@ -2309,35 +2288,88 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // FAB
+  // Mode chooser bottom sheet
+  modeSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    paddingTop: 12,
+    paddingBottom: 36,
+    paddingHorizontal: 20,
+    zIndex: 9998,
+    ...Shadows.lg,
+  },
+  modeSheetTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  modeRow: {
+    flexDirection: "row",
+    gap: 14,
+  },
+  modeCard: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 18,
+    paddingHorizontal: 14,
+    alignItems: "center",
+  },
+  modeCardIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  modeCardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  modeCardSub: {
+    fontSize: 11,
+    textAlign: "center",
+  },
+
+  // FAB (Ask HAI Floating Orb) - 56px premium orb
   fab: {
     position: "absolute",
     bottom: 90,
     right: 20,
-    width: 60,
-    height: 60,
+    width: 56,
+    height: 56,
     zIndex: 9999,
     alignItems: "center",
     justifyContent: "center",
   },
   fabGlowRing: {
     position: "absolute",
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#F97316",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(37, 99, 235, 0.35)",
     zIndex: -1,
   },
   fabGradient: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: "center",
     alignItems: "center",
     ...Shadows.lg,
   },
 
-  // Shared handle
+  // Shared handle drag bar
   handle: {
     width: 36,
     height: 4,
@@ -2358,7 +2390,7 @@ const styles = StyleSheet.create({
     zIndex: 9997,
   },
 
-  // Launcher sheet
+  // Launcher sheet (legacy â€” kept for compatibility)
   launcherSheet: {
     position: "absolute",
     bottom: 0,
@@ -2368,15 +2400,15 @@ const styles = StyleSheet.create({
     borderTopRightRadius: BorderRadius["2xl"],
     borderTopWidth: 1,
     paddingTop: 12,
-    paddingBottom: 40,
-    paddingHorizontal: Spacing.lg,
+    paddingBottom: 36,
+    paddingHorizontal: 20,
     zIndex: 9998,
     ...Shadows.lg,
   },
   launcherHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: Spacing.md,
+    marginBottom: 12,
     gap: 10,
   },
   launcherHeaderIcon: {
@@ -2397,7 +2429,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 13,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: 16,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     marginBottom: 7,
@@ -2409,13 +2441,393 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: Spacing.md,
+    marginRight: 16,
   },
   launcherCardText: { flex: 1 },
   launcherCardTitle: { fontSize: 15, fontWeight: "700", marginBottom: 2 },
   launcherCardSub: { fontSize: 12 },
 
-  // Voice sheet
+  // Quick Action Sheet (bottom sheet that expands from FAB radial)
+  quickActionSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingBottom: 36,
+    paddingHorizontal: 20,
+    zIndex: 95,
+    borderTopWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  quickActionHeader: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  quickActionTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  quickActionGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  quickActionItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  quickActionIconBg: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  quickActionLabel: {
+    fontSize: 11,
+    color: "#64748B",
+    textAlign: "center",
+  },
+
+  // Radial menu container & options
+  radialContainer: {
+    position: "absolute",
+    bottom: 90,
+    right: 20,
+    width: 280,
+    height: 90,
+    zIndex: 9999,
+    justifyContent: "flex-end",
+    alignItems: "flex-end",
+  },
+  radialOptionContainer: {
+    position: "absolute",
+    alignItems: "center",
+    width: 56,
+    height: 80,
+    top: -10,
+    right: 0,
+    zIndex: 90,
+  },
+  radialBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    ...Shadows.md,
+  },
+  radialLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 4,
+    color: "#94A3B8",
+  },
+  floatingLabel: {
+    position: "absolute",
+    right: 75,
+    backgroundColor: "rgba(30, 41, 59, 0.9)",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    ...Shadows.sm,
+  },
+  floatingLabelText: {
+    fontSize: 11,
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  mainOrb: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
+
+  // CHAT PANEL
+  chatKAV: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  chatPanel: {
+    borderTopLeftRadius: BorderRadius["2xl"],
+    borderTopRightRadius: BorderRadius["2xl"],
+    borderTopWidth: 1,
+    maxHeight: "85%",
+    paddingTop: 12,
+    zIndex: 9998,
+    ...Shadows.lg,
+  },
+  chatHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  chatHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  chatAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  chatHeaderTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  chatHeaderSub: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  chatCloseBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  contextBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  contextBannerText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  chatScroll: {
+    flexGrow: 1,
+  },
+  chatScrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  emptySub: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  suggestion: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  bubbleRow: {
+    flexDirection: "row",
+    marginVertical: 6,
+    alignItems: "flex-end",
+  },
+  bubbleRowUser: {
+    justifyContent: "flex-end",
+  },
+  bubbleRowAI: {
+    justifyContent: "flex-start",
+  },
+  bubbleAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+    marginBottom: 2,
+  },
+  bubble: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    maxWidth: "80%",
+    ...Shadows.sm,
+  },
+  userBubble: {
+    borderBottomRightRadius: 4,
+  },
+  aiBubble: {
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
+  },
+  typingDots: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 6,
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  actionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  inputBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: 8,
+    borderTopWidth: 1,
+  },
+  inputIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  chatInput: {
+    flex: 1,
+    height: 38,
+    borderRadius: 19,
+    paddingHorizontal: 14,
+    fontSize: 14,
+  },
+  attachMenu: {
+    position: "absolute",
+    bottom: 50,
+    left: 0,
+    right: 0,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    zIndex: 1000,
+    ...Shadows.lg,
+  },
+  attachItem: {
+    width: 48,
+    alignItems: "center",
+  },
+  attachItemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  // Quick Action horizontal chips in Chat Mode
+  quickActionsWrapper: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  quickActionsScrollContent: {
+    gap: 8,
+  },
+  quickActionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  quickActionText: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+
+  // Chat pill input container
+  pillInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 24,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    flex: 1,
+    marginHorizontal: 16,
+    marginBottom: 12,
+  },
+  pillAttachBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pillTextInput: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+    maxHeight: 80,
+  },
+  pillActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  // VOICE MODE
   voiceSheet: {
     position: "absolute",
     bottom: 0,
@@ -2425,11 +2837,64 @@ const styles = StyleSheet.create({
     borderTopRightRadius: BorderRadius["2xl"],
     borderTopWidth: 1,
     paddingTop: 12,
-    paddingBottom: 44,
-    paddingHorizontal: Spacing.xl,
-    zIndex: 9998,
+    paddingBottom: 36,
+    paddingHorizontal: 20,
     alignItems: "center",
+    zIndex: 9998,
     ...Shadows.lg,
+  },
+  voiceCenterArea: {
+    justifyContent: "center",
+    alignItems: "center",
+    marginVertical: 40,
+  },
+  voiceMicCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 2,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  voiceStatusLabel: {
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    marginVertical: 16,
+    color: "#2563EB",
+  },
+  voiceWaveRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    height: 40,
+    marginVertical: 16,
+  },
+  voiceBar: {
+    width: 3,
+    height: 24,
+    borderRadius: 1.5,
+  },
+  voiceFooter: {
+    alignItems: "center",
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  voiceCancelBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 36,
+    borderRadius: 20,
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+  },
+  voiceCancelText: {
+    fontSize: 14,
+    color: "#EF4444",
   },
   voiceLabel: {
     fontSize: 12,
@@ -2438,26 +2903,13 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
-  voiceWaveRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 64,
-    gap: 6,
-    marginBottom: 24,
-  },
-  voiceBar: {
-    width: 6,
-    height: 28,
-    borderRadius: 3,
-  },
   previewBox: {
     flexDirection: "row",
     alignItems: "flex-start",
     width: "100%",
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    padding: Spacing.md,
+    padding: 16,
     marginBottom: 20,
   },
   previewInput: {
@@ -2499,7 +2951,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
-  // Live panel
+  // Legacy live panel styles (kept for fallback)
   livePanel: {
     position: "absolute",
     bottom: 0,
@@ -2510,7 +2962,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingTop: 12,
     paddingBottom: 40,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: 16,
     alignItems: "center",
     zIndex: 9998,
     ...Shadows.lg,
@@ -2529,10 +2981,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
-    padding: Spacing.md,
+    padding: 16,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    marginBottom: Spacing.md,
+    marginBottom: 16,
     ...Shadows.sm,
   },
   confirmBtn: {
@@ -2574,8 +3026,8 @@ const styles = StyleSheet.create({
     width: "100%",
     minHeight: 52,
     alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
+    paddingHorizontal: 16,
+    marginBottom: 16,
   },
   liveTranscriptText: {
     fontSize: 13,
@@ -2595,7 +3047,7 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: Spacing.md,
+    marginBottom: 16,
     ...Shadows.lg,
   },
   liveInputRow: {
@@ -2605,12 +3057,12 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     borderWidth: 1,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: 16,
   },
   liveTextInput: {
     flex: 1,
     fontSize: 13,
-    paddingHorizontal: Spacing.xs,
+    paddingHorizontal: 8,
   },
   liveSendBtn: {
     width: 32,
@@ -2620,280 +3072,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // Chat
-  chatKAV: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 9998,
-    justifyContent: "flex-end",
-  },
-  chatPanel: {
-    height: SCREEN_HEIGHT * 0.86,
-    borderTopLeftRadius: BorderRadius["2xl"],
-    borderTopRightRadius: BorderRadius["2xl"],
-    borderTopWidth: 1,
-    overflow: "hidden",
-    ...Shadows.lg,
-  },
-  chatHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(128,128,128,0.15)",
-  },
-  chatHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  chatAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  chatHeaderTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  chatHeaderSub: {
-    fontSize: 11,
-  },
-  chatCloseBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  contextBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.xs,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-  },
-  contextBannerText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  chatScroll: {
-    flex: 1,
-  },
-  chatScrollContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    paddingBottom: 8,
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: Spacing["2xl"],
-    paddingHorizontal: Spacing.xl,
-  },
-  emptyAvatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-    ...Shadows.md,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    marginBottom: 8,
-  },
-  emptySub: {
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: Spacing.xl,
-  },
-  suggestion: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    width: "100%",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  bubbleRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    marginBottom: 8,
-  },
-  bubbleRowUser: {
-    justifyContent: "flex-end",
-  },
-  bubbleRowAI: {
-    justifyContent: "flex-start",
-  },
-  bubbleAvatar: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 6,
-    marginBottom: 2,
-  },
-  bubble: {
-    maxWidth: "80%",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
-  },
-  userBubble: {
-    borderBottomRightRadius: 4,
-  },
-  aiBubble: {
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-  },
-  typingDots: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  typingDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    opacity: 0.7,
-  },
-  actionChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  inputBar: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    paddingBottom: Platform.OS === "ios" ? 28 : Spacing.md,
-    borderTopWidth: 1,
-    gap: 8,
-    position: "relative",
-  },
-  inputIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  chatInput: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 100,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: Platform.OS === "ios" ? 10 : 8,
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  attachMenu: {
-    position: "absolute",
-    bottom: 68,
-    left: 16,
-    flexDirection: "row",
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    padding: Spacing.md,
-    gap: Spacing.md,
-    zIndex: 1,
-    ...Shadows.lg,
-  },
-  attachItem: {
-    alignItems: "center",
-    minWidth: 44,
-  },
-  attachItemIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  // Radial menu styles
-  radialContainer: {
-    position: "absolute",
-    bottom: 90,
-    right: 20,
-    zIndex: 9999,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  mainOrb: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 100,
-  },
-  radialOptionContainer: {
-    position: "absolute",
-    alignItems: "center",
-    width: 60,
-    height: 80,
-    top: -10,
-    right: 0,
-    zIndex: 90,
-  },
-  radialBtn: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: "center",
-    alignItems: "center",
-    ...Shadows.md,
-  },
-  radialLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    marginTop: 4,
-    color: "#94A3B8",
-  },
-  floatingLabel: {
-    position: "absolute",
-    right: 75,
-    backgroundColor: "rgba(30, 41, 59, 0.9)",
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-    ...Shadows.sm,
-  },
-  floatingLabelText: {
-    fontSize: 11,
-    color: "#FFFFFF",
-    fontWeight: "700",
-  },
-
-  // Immersive Fullscreen Live Mode
+  // LIVE MODE Fullscreen
   fullscreenContainer: {
     flex: 1,
     paddingTop: 60,
@@ -2998,5 +3177,56 @@ const styles = StyleSheet.create({
   exitLiveText: {
     fontSize: 14,
     fontWeight: "700",
+  },
+
+  // Live Mode Minimal Redesign - Command Preview & Controls
+  liveCommandPreview: {
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 8,
+    fontStyle: "italic",
+    paddingHorizontal: 24,
+  },
+  liveActionStatus: {
+    fontSize: 14,
+    textAlign: "center",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  liveControlsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    width: "100%",
+    paddingBottom: 20,
+  },
+  liveMuteBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  liveStopBtn: {
+    flexDirection: "row",
+    backgroundColor: "#EF4444",
+    paddingVertical: 14,
+    paddingHorizontal: 36,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  liveStopText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });

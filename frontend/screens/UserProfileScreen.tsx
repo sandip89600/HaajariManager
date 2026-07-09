@@ -11,6 +11,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Linking,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -29,6 +30,7 @@ import { appContextTracker } from "@/utils/appContextTracker";
 import { useLanguage } from "@/hooks/useLanguage";
 import { translateWorkerName } from "@/utils/transliteration";
 import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
+import { Language, languageNames } from "@/constants/i18n";
 
 const AVATAR_COLORS = [
   "#FF6B6B",
@@ -40,8 +42,8 @@ const AVATAR_COLORS = [
 ];
 
 export default function UserProfileScreen() {
-  const { theme, isDark } = useTheme();
-  const { t, language } = useLanguage();
+  const { theme, themeMode, setThemeMode, isDark } = useTheme();
+  const { t, language, setLanguage } = useLanguage();
   const { user: authUser, logout } = useAuth();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -51,6 +53,7 @@ export default function UserProfileScreen() {
       : insets.top + Platform.select({ ios: 44, default: 56 });
   const navigation = useNavigation<any>();
 
+  const SCREEN_HEIGHT = Dimensions.get("window").height;
   const [user, setUser] = useState<User | null>(authUser || null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editName, setEditName] = useState("");
@@ -66,6 +69,23 @@ export default function UserProfileScreen() {
 
   const [showImageModal, setShowImageModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const [showThemeModal, setShowThemeModal] = useState(false);
+  const [showLangModal, setShowLangModal] = useState(false);
+  const [langSearch, setLangSearch] = useState("");
+
+  const changeTheme = async (mode: "light" | "dark" | "system") => {
+    setShowThemeModal(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await setThemeMode(mode);
+  };
+
+  const handleLangSelect = async (lang: Language) => {
+    setShowLangModal(false);
+    setLangSearch("");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await setLanguage(lang);
+  };
 
   useEffect(() => {
     navigation.setOptions({
@@ -670,6 +690,107 @@ export default function UserProfileScreen() {
           </View>
         </View>
 
+        {/* ─── SETTINGS & MANAGEMENT OPTIONS ─── */}
+        <View
+          style={[
+            styles.settingsSection,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <ThemedText type="h3" style={styles.sectionTitle}>
+            Settings & Options
+          </ThemedText>
+
+          {/* Language Selection Row */}
+          <Pressable
+            onPress={() => setShowLangModal(true)}
+            style={[styles.settingRow, { borderBottomColor: theme.border }]}
+          >
+            <View style={styles.settingRowLeft}>
+              <View style={[styles.settingIconBg, { backgroundColor: "rgba(37,99,235,0.1)" }]}>
+                <Feather name="globe" size={16} color="#2563EB" />
+              </View>
+              <View style={{ marginLeft: 12 }}>
+                <ThemedText style={styles.settingLabel}>App Language</ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  {language === "en" ? "English" : language === "hi" ? "Hindi (हिंदी)" : language === "mr" ? "Marathi (मराठी)" : languageNames[language] || language}
+                </ThemedText>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={16} color={theme.textSecondary} />
+          </Pressable>
+
+          {/* Theme Selection Row */}
+          <Pressable
+            onPress={() => setShowThemeModal(true)}
+            style={[styles.settingRow, { borderBottomColor: theme.border }]}
+          >
+            <View style={styles.settingRowLeft}>
+              <View style={[styles.settingIconBg, { backgroundColor: "rgba(245,158,11,0.1)" }]}>
+                <Feather name="sun" size={16} color="#F59E0B" />
+              </View>
+              <View style={{ marginLeft: 12 }}>
+                <ThemedText style={styles.settingLabel}>Display Theme</ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  {themeMode === "light" ? "Light Mode" : themeMode === "dark" ? "Dark Mode" : "System Default"}
+                </ThemedText>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={16} color={theme.textSecondary} />
+          </Pressable>
+
+          {/* Support Row */}
+          <Pressable
+            onPress={() => navigation.navigate("Support")}
+            style={[styles.settingRow, { borderBottomColor: theme.border }]}
+          >
+            <View style={styles.settingRowLeft}>
+              <View style={[styles.settingIconBg, { backgroundColor: "rgba(139,92,246,0.1)" }]}>
+                <Feather name="help-circle" size={16} color="#8B5CF6" />
+              </View>
+              <View style={{ marginLeft: 12 }}>
+                <ThemedText style={styles.settingLabel}>Help & Support</ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  Contact customer care & guides
+                </ThemedText>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={16} color={theme.textSecondary} />
+          </Pressable>
+
+          {/* Logout Row */}
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              Alert.alert(
+                t.settings.logout || "Logout",
+                t.settings.logoutConfirm || "Are you sure you want to log out?",
+                [
+                  { text: t.common.cancel || "Cancel", style: "cancel" },
+                  { text: t.settings.logout || "Logout", style: "destructive", onPress: () => logout() },
+                ]
+              );
+            }}
+            style={styles.settingRow}
+          >
+            <View style={styles.settingRowLeft}>
+              <View style={[styles.settingIconBg, { backgroundColor: "rgba(239,68,68,0.1)" }]}>
+                <Feather name="log-out" size={16} color="#EF4444" />
+              </View>
+              <View style={{ marginLeft: 12 }}>
+                <ThemedText style={[styles.settingLabel, { color: "#EF4444" }]}>Sign Out</ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  Log out of your account
+                </ThemedText>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={16} color={theme.textSecondary} />
+          </Pressable>
+        </View>
+
         {/* ── ACTION BUTTONS ── */}
         <View style={styles.buttonsGroup}>
           <Pressable
@@ -1065,6 +1186,154 @@ export default function UserProfileScreen() {
           </ThemedView>
         </View>
       </Modal>
+
+      {/* ── SELECT THEME MODAL ── */}
+      <Modal
+        visible={showThemeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowThemeModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowThemeModal(false)}
+        >
+          <View
+            style={[
+              styles.bottomSheet,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
+            <ThemedText type="h3" style={styles.sheetTitle}>
+              Select Appearance Mode
+            </ThemedText>
+            <Pressable
+              onPress={() => changeTheme("light")}
+              style={styles.sheetOption}
+            >
+              <Feather name="sun" size={20} color={theme.text} />
+              <ThemedText style={styles.sheetOptionText}>Light Mode</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => changeTheme("dark")}
+              style={styles.sheetOption}
+            >
+              <Feather name="moon" size={20} color={theme.text} />
+              <ThemedText style={styles.sheetOptionText}>Dark Mode</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => changeTheme("system")}
+              style={styles.sheetOption}
+            >
+              <Feather name="settings" size={20} color={theme.text} />
+              <ThemedText style={styles.sheetOptionText}>
+                System Default
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowThemeModal(false)}
+              style={[styles.sheetCloseBtn, { backgroundColor: theme.border }]}
+            >
+              <ThemedText style={{ fontWeight: "700" }}>Close</ThemedText>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* ── SELECT LANGUAGE MODAL ── */}
+      <Modal
+        visible={showLangModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowLangModal(false);
+          setLangSearch("");
+        }}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => {
+            setShowLangModal(false);
+            setLangSearch("");
+          }}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              styles.bottomSheet,
+              {
+                backgroundColor: theme.backgroundDefault,
+                height: SCREEN_HEIGHT * 0.7,
+              },
+            ]}
+          >
+            <ThemedText type="h3" style={styles.sheetTitle}>
+              Select App Language
+            </ThemedText>
+
+            {/* Search input */}
+            <View
+              style={[styles.searchInputWrapper, { borderColor: theme.border }]}
+            >
+              <Feather name="search" size={18} color={theme.textSecondary} />
+              <TextInput
+                placeholder="Search language..."
+                value={langSearch}
+                onChangeText={setLangSearch}
+                placeholderTextColor={theme.textSecondary}
+                style={[styles.searchInput, { color: theme.text }]}
+              />
+              {langSearch.length > 0 && (
+                <Pressable onPress={() => setLangSearch("")}>
+                  <Feather name="x" size={18} color={theme.textSecondary} />
+                </Pressable>
+              )}
+            </View>
+
+            <ScrollView
+              style={{ flex: 1, marginVertical: Spacing.xs }}
+              showsVerticalScrollIndicator={true}
+            >
+              {Object.entries(languageNames)
+                .filter(([_, native]) =>
+                  native.toLowerCase().includes(langSearch.toLowerCase())
+                )
+                .map(([code, native]) => (
+                  <Pressable
+                    key={code}
+                    onPress={() => handleLangSelect(code as Language)}
+                    style={styles.sheetOption}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.sheetOptionText,
+                        {
+                          fontWeight: language === code ? "bold" : "normal",
+                          color: language === code ? theme.primary : theme.text,
+                        },
+                      ]}
+                    >
+                      {native}
+                    </ThemedText>
+                    {language === code && (
+                      <Feather name="check" size={18} color={theme.primary} />
+                    )}
+                  </Pressable>
+                ))}
+            </ScrollView>
+
+            <Pressable
+              onPress={() => {
+                setShowLangModal(false);
+                setLangSearch("");
+              }}
+              style={[styles.sheetCloseBtn, { backgroundColor: theme.border }]}
+            >
+              <ThemedText style={{ fontWeight: "700" }}>Close</ThemedText>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -1326,5 +1595,50 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
+  },
+  settingsSection: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
+  },
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+  },
+  settingRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  settingIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  settingLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  searchInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    marginBottom: 10,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "600",
+    height: "100%",
   },
 });
