@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
-import multer from "multer";
-import path from "path";
-import fs from "fs";
+import multer = require("multer");
+import path = require("path");
+import fs = require("fs");
 import { isS3Configured, uploadToS3 } from "../utils/s3";
 import { AuthenticatedRequest, authenticateJWT } from "../middleware/auth";
 

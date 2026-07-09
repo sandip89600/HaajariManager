@@ -1,4 +1,4 @@
-import multer from "multer";
+import multer = require("multer");
 import * as path from "path";
 
 const storage = multer.memoryStorage();
