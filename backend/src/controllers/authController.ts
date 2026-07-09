@@ -503,19 +503,34 @@ export const refresh = async (req: AuthenticatedRequest, res: Response) => {
       process.env.JWT_REFRESH_SECRET || "supersecretrefreshkey",
       async (err: any, decoded: any) => {
         if (err || decoded.id !== user._id.toString()) {
-          // Token is expired or invalid. Remove it from user's active tokens.
-          user.refreshTokens = user.refreshTokens.filter((t) => t !== refreshToken);
-          await user.save();
+          // Token is expired or invalid. Remove it from user's active tokens atomically.
+          await User.findByIdAndUpdate(user._id, {
+            $pull: { refreshTokens: refreshToken }
+          });
           return res.status(403).json({ error: "Invalid or expired refresh token" });
         }
 
         const newAccessToken = generateAccessToken(user);
         const newRefreshToken = generateRefreshToken(user);
 
-        // Rotate refresh token
-        user.refreshTokens = user.refreshTokens.filter((t) => t !== refreshToken);
-        user.refreshTokens.push(newRefreshToken);
-        await user.save();
+        // Rotate refresh token atomically using findOneAndUpdate to prevent race conditions
+        const updatedUser = await User.findOneAndUpdate(
+          { _id: user._id, refreshTokens: refreshToken },
+          {
+            $pull: { refreshTokens: refreshToken }
+          },
+          { new: true }
+        );
+
+        if (!updatedUser) {
+          // The token has already been rotated by a concurrent request
+          return res.status(403).json({ error: "Refresh token already used" });
+        }
+
+        // Push the new refresh token atomically
+        await User.findByIdAndUpdate(user._id, {
+          $push: { refreshTokens: newRefreshToken }
+        });
 
         res.json({
           token: newAccessToken,

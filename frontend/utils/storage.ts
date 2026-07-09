@@ -5,7 +5,12 @@ import Constants from "expo-constants";
 import { Language } from "@/constants/i18n";
 
 const getApiUrl = () => {
-  // Point to the active, public production Railway server:
+  // If in development mode, connect to the developer's computer IP or Android emulator loopback:
+  if (__DEV__) {
+    const hostUri = Constants.expoConfig?.hostUri;
+    const localhost = hostUri ? hostUri.split(":")[0] : "10.0.2.2";
+    return `http://${localhost}:5000/api`;
+  }
   return "https://haajarimanager-production.up.railway.app/api";
 };
 
@@ -373,7 +378,7 @@ export const storage = {
             return serverProjects;
           }
         } catch (e) {
-          console.warn("Failed to fetch projects from backend, using cache", e);
+          console.log("Failed to fetch projects from backend, using cache", e);
         }
       }
       const data = await AsyncStorage.getItem(STORAGE_KEYS.PROJECTS);
@@ -493,7 +498,7 @@ export const storage = {
             return serverWorkers;
           }
         } catch (e) {
-          console.warn("Failed to fetch workers from backend, using cache", e);
+          console.log("Failed to fetch workers from backend, using cache", e);
         }
       }
       const data = await AsyncStorage.getItem(STORAGE_KEYS.WORKERS);
@@ -866,7 +871,7 @@ export const storage = {
             return serverPayments;
           }
         } catch (e) {
-          console.warn("Failed to fetch payments from backend, using cache", e);
+          console.log("Failed to fetch payments from backend, using cache", e);
         }
       }
     } catch (e) {
@@ -1106,7 +1111,7 @@ export const storage = {
         );
       }
     } catch (error) {
-      console.warn("Error during syncWithBackend:", error);
+      console.log("Error during syncWithBackend:", error);
     }
   },
 
@@ -1123,9 +1128,21 @@ export const storage = {
   },
 };
 
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+function subscribeTokenRefresh(cb: (token: string) => void) {
+  refreshSubscribers.push(cb);
+}
+
+function onRefreshed(token: string) {
+  refreshSubscribers.forEach((cb) => cb(token));
+  refreshSubscribers = [];
+}
+
 export async function authenticatedFetch(
   url: string,
-  options: RequestInit = {},
+  options: RequestInit & { _retry?: boolean } = {},
 ): Promise<Response> {
   const auth = await storage.getAuth();
 
@@ -1138,11 +1155,33 @@ export async function authenticatedFetch(
   }
   options.headers = headers;
 
-  let res = await fetch(url, options);
+  let res: Response;
+  try {
+    res = await fetch(url, options);
+  } catch (netError) {
+    console.log("Network request failed in authenticatedFetch:", netError);
+    throw netError;
+  }
 
-  if (res.status === 401) {
+  if (res.status === 401 && !options._retry) {
     if (auth?.token && auth?.refreshToken) {
+      if (isRefreshing) {
+        console.log("Queueing request during token refresh:", url);
+        return new Promise<Response>((resolve, reject) => {
+          subscribeTokenRefresh((newToken) => {
+            // Update auth token for request and retry
+            const updatedHeaders = (options.headers || {}) as Record<string, string>;
+            updatedHeaders["Authorization"] = `Bearer ${newToken}`;
+            options.headers = updatedHeaders;
+            options._retry = true; // Mark retry to avoid infinite loop
+            fetch(url, options).then(resolve).catch(reject);
+          });
+        });
+      }
+
+      isRefreshing = true;
       console.log("Token expired (401), attempting to refresh token...");
+
       try {
         const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
           method: "POST",
@@ -1158,20 +1197,32 @@ export async function authenticatedFetch(
             refreshToken: refreshData.refreshToken,
           };
           await storage.setAuth(updatedAuth);
+          isRefreshing = false;
 
-          // Update headers and retry request
+          // Dispatch the new token to all queued subscribers
+          onRefreshed(refreshData.token);
+
+          // Retry the original request
           headers["Authorization"] = `Bearer ${refreshData.token}`;
           options.headers = headers;
-          res = await fetch(url, options);
-        } else {
-          console.warn("Failed to refresh token: status", refreshRes.status);
+          options._retry = true;
+          return fetch(url, options);
+        } else if (refreshRes.status === 401 || refreshRes.status === 403 || refreshRes.status === 400) {
+          console.warn("Refresh token rejected by server: status", refreshRes.status);
+          isRefreshing = false;
+          refreshSubscribers = [];
           await storage.clearAuth();
           DeviceEventEmitter.emit("unauthorized");
+        } else {
+          console.warn("Temporary server error during token refresh: status", refreshRes.status);
+          isRefreshing = false;
+          // Resolve queued items with old token so they fail or recover
+          onRefreshed(auth.token);
         }
       } catch (err) {
-        console.error("Error during token refresh:", err);
-        await storage.clearAuth();
-        DeviceEventEmitter.emit("unauthorized");
+        console.warn("Network error during token refresh, keeping credentials:", err);
+        isRefreshing = false;
+        onRefreshed(auth.token);
       }
     } else {
       console.log("No token or refresh token, triggering unauthorized...");
