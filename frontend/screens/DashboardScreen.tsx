@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   ScrollView,
@@ -20,6 +20,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
+import { useSocket } from "@/hooks/useSocket";
 import { storage, Project, Worker, AttendanceRecord } from "@/utils/storage";
 import { Spacing, BorderRadius, Shadows, Colors } from "@/constants/theme";
 
@@ -30,6 +31,7 @@ export default function DashboardScreen() {
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
+  const { socket, connectSocket } = useSocket();
   const insets = useSafeAreaInsets();
 
   // Loading and database states
@@ -63,12 +65,18 @@ export default function DashboardScreen() {
     return "Good Evening";
   };
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const projects = await storage.getProjects();
       const workers = await storage.getWorkers();
-      const attendance = await storage.getAttendance();
+
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth() + 1; // JS months are 0-11
+      const todayDay = today.getDate();
+
+      // Sync and retrieve attendance records for this month from server
+      const attendance = await storage.getAttendanceForMonth(todayYear, todayMonth);
 
       setProjectsList(projects);
       setWorkersList(workers);
@@ -77,11 +85,6 @@ export default function DashboardScreen() {
       // Find first active site/project
       const active = projects.find((p) => p.status === "active") || projects[0] || null;
       setActiveSite(active);
-
-      // Calculate today's attendance stats
-      const todayYear = today.getFullYear();
-      const todayMonth = today.getMonth() + 1; // JS months are 0-11
-      const todayDay = today.getDate();
 
       const todayAttendance = attendance.filter(
         (r) => r.year === todayYear && r.month === todayMonth && r.day === todayDay
@@ -122,6 +125,25 @@ export default function DashboardScreen() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    connectSocket();
+  }, []);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      console.log("[DashboardScreen] Live socket event received, updating attendance stats in real-time...");
+      loadDashboardData(true);
+    };
+
+    socket.on("admin_dashboard_update", handleUpdate);
+    socket.on("admin_activity", handleUpdate);
+
+    return () => {
+      socket.off("admin_dashboard_update", handleUpdate);
+      socket.off("admin_activity", handleUpdate);
+    };
+  }, [socket]);
 
   useFocusEffect(
     useCallback(() => {

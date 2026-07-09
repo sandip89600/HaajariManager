@@ -32,6 +32,10 @@ function mapWorker(doc: any): Worker {
     name: doc.name,
     category: doc.category as WorkerCategory,
     dailyRate: doc.dailyRate,
+    skillCategory: doc.skillCategory || "unskilled",
+    paymentType: doc.paymentType || "daily",
+    pieceRateAmount: doc.pieceRateAmount || 0,
+    subContractorName: doc.subContractorName || "",
     phone: doc.phone || "",
     address: doc.address || "",
     notes: doc.notes || "",
@@ -64,6 +68,19 @@ function mapProject(doc: any): Project {
     name: doc.name,
     location: doc.location || "",
     status: doc.status || "active",
+    clientName: doc.clientName || "",
+    budget: doc.budget || 0,
+    startDate: doc.startDate || "",
+    endDate: doc.endDate || "",
+    retentionPercentage: doc.retentionPercentage || 0,
+    mobilizationAdvance: doc.mobilizationAdvance || 0,
+    labourLicenseNumber: doc.labourLicenseNumber || "",
+    pfEsicStatus: doc.pfEsicStatus || "not_applicable",
+    wcPolicyNumber: doc.wcPolicyNumber || "",
+    progressUnit: doc.progressUnit || "cum",
+    plannedQty: doc.plannedQty || 0,
+    completedQty: doc.completedQty || 0,
+    phases: doc.phases || [],
     createdAt: doc.createdAt ? new Date(doc.createdAt).getTime() : Date.now(),
   };
 }
@@ -147,6 +164,24 @@ export interface Project {
   name: string;
   location?: string;
   status: "active" | "inactive";
+  clientName?: string;
+  budget?: number;
+  startDate?: string;
+  endDate?: string;
+  retentionPercentage?: number;
+  mobilizationAdvance?: number;
+  labourLicenseNumber?: string;
+  pfEsicStatus?: "applicable" | "not_applicable";
+  wcPolicyNumber?: string;
+  progressUnit?: string;
+  plannedQty?: number;
+  completedQty?: number;
+  phases?: {
+    name: string;
+    weight: number;
+    status: "pending" | "in_progress" | "completed";
+    percentDone: number;
+  }[];
   createdAt: number;
 }
 
@@ -156,6 +191,10 @@ export interface Worker {
   name: string;
   category: WorkerCategory;
   dailyRate: number;
+  skillCategory?: "skilled" | "semi_skilled" | "unskilled";
+  paymentType?: "daily" | "piece_rate" | "contract";
+  pieceRateAmount?: number;
+  subContractorName?: string;
   phone?: string;
   address?: string;
   notes?: string;
@@ -408,6 +447,18 @@ export const storage = {
           body: JSON.stringify({
             name: project.name,
             location: project.location,
+            clientName: project.clientName,
+            budget: project.budget,
+            startDate: project.startDate,
+            endDate: project.endDate,
+            retentionPercentage: project.retentionPercentage,
+            mobilizationAdvance: project.mobilizationAdvance,
+            labourLicenseNumber: project.labourLicenseNumber,
+            pfEsicStatus: project.pfEsicStatus,
+            wcPolicyNumber: project.wcPolicyNumber,
+            progressUnit: project.progressUnit,
+            plannedQty: project.plannedQty,
+            phases: project.phases,
           }),
         });
         if (res.ok) {
@@ -442,6 +493,19 @@ export const storage = {
             name: updatedProject.name,
             location: updatedProject.location,
             status: updatedProject.status,
+            clientName: updatedProject.clientName,
+            budget: updatedProject.budget,
+            startDate: updatedProject.startDate,
+            endDate: updatedProject.endDate,
+            retentionPercentage: updatedProject.retentionPercentage,
+            mobilizationAdvance: updatedProject.mobilizationAdvance,
+            labourLicenseNumber: updatedProject.labourLicenseNumber,
+            pfEsicStatus: updatedProject.pfEsicStatus,
+            wcPolicyNumber: updatedProject.wcPolicyNumber,
+            progressUnit: updatedProject.progressUnit,
+            plannedQty: updatedProject.plannedQty,
+            completedQty: updatedProject.completedQty,
+            phases: updatedProject.phases,
           }),
         });
       } catch (e) {
@@ -532,6 +596,10 @@ export const storage = {
             projectId: worker.projectId,
             category: worker.category,
             dailyRate: worker.dailyRate,
+            skillCategory: worker.skillCategory,
+            paymentType: worker.paymentType,
+            pieceRateAmount: worker.pieceRateAmount,
+            subContractorName: worker.subContractorName,
             phone: worker.phone,
             address: worker.address,
             notes: worker.notes,
@@ -571,6 +639,10 @@ export const storage = {
             projectId: updatedWorker.projectId,
             category: updatedWorker.category,
             dailyRate: updatedWorker.dailyRate,
+            skillCategory: updatedWorker.skillCategory,
+            paymentType: updatedWorker.paymentType,
+            pieceRateAmount: updatedWorker.pieceRateAmount,
+            subContractorName: updatedWorker.subContractorName,
             phone: updatedWorker.phone,
             address: updatedWorker.address,
             notes: updatedWorker.notes,

@@ -90,6 +90,10 @@ export default function AddWorkerScreen() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState<WorkerCategory>("labour");
   const [dailyRate, setDailyRate] = useState("");
+  const [skillCategory, setSkillCategory] = useState<"skilled" | "semi_skilled" | "unskilled">("unskilled");
+  const [paymentType, setPaymentType] = useState<"daily" | "piece_rate" | "contract">("daily");
+  const [pieceRateAmount, setPieceRateAmount] = useState("");
+  const [subContractorName, setSubContractorName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
@@ -131,6 +135,10 @@ export default function AddWorkerScreen() {
       setName(worker.name);
       setCategory(worker.category);
       setDailyRate(worker.dailyRate.toString());
+      setSkillCategory(worker.skillCategory || "unskilled");
+      setPaymentType(worker.paymentType || "daily");
+      setPieceRateAmount((worker.pieceRateAmount || 0).toString());
+      setSubContractorName(worker.subContractorName || "");
       setPhone(worker.phone || "");
       setAddress(worker.address || "");
       setNotes(worker.notes || "");
@@ -227,6 +235,10 @@ export default function AddWorkerScreen() {
             name: name.trim(),
             category,
             dailyRate: rate,
+            skillCategory,
+            paymentType,
+            pieceRateAmount: parseFloat(pieceRateAmount) || 0,
+            subContractorName: subContractorName.trim() || undefined,
             phone: phone.trim() || undefined,
             address: address.trim() || undefined,
             notes: notes.trim() || undefined,
@@ -241,6 +253,10 @@ export default function AddWorkerScreen() {
           name: name.trim(),
           category,
           dailyRate: rate,
+          skillCategory,
+          paymentType,
+          pieceRateAmount: parseFloat(pieceRateAmount) || 0,
+          subContractorName: subContractorName.trim() || undefined,
           phone: phone.trim() || undefined,
           address: address.trim() || undefined,
           notes: notes.trim() || undefined,
@@ -470,6 +486,133 @@ export default function AddWorkerScreen() {
             placeholder="500"
             placeholderTextColor={theme.textSecondary}
             keyboardType="numeric"
+          />
+        </View>
+
+        {/* Skill Category */}
+        <View style={styles.formGroup}>
+          <ThemedText type="h4" style={styles.label}>
+            Skill Category
+          </ThemedText>
+          <View style={styles.pillRow}>
+            {(["skilled", "semi_skilled", "unskilled"] as const).map((skill) => {
+              const isSelected = skillCategory === skill;
+              const skillLabels = {
+                skilled: "Skilled (Mistri)",
+                semi_skilled: "Semi-Skilled",
+                unskilled: "Unskilled"
+              };
+              return (
+                <Pressable
+                  key={skill}
+                  onPress={() => setSkillCategory(skill)}
+                  style={[
+                    styles.pillButton,
+                    isSelected && {
+                      backgroundColor: theme.primary,
+                      borderColor: theme.primary,
+                    },
+                    { borderColor: theme.border },
+                  ]}
+                >
+                  <ThemedText
+                    style={{
+                      color: isSelected ? "#FFFFFF" : theme.text,
+                      fontWeight: "600",
+                      fontSize: 12,
+                    }}
+                  >
+                    {skillLabels[skill]}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Payment Type */}
+        <View style={styles.formGroup}>
+          <ThemedText type="h4" style={styles.label}>
+            Payment Type
+          </ThemedText>
+          <View style={styles.pillRow}>
+            {(["daily", "piece_rate", "contract"] as const).map((pay) => {
+              const isSelected = paymentType === pay;
+              const payLabels = {
+                daily: "Daily Wage",
+                piece_rate: "Piece Rate",
+                contract: "Contract"
+              };
+              return (
+                <Pressable
+                  key={pay}
+                  onPress={() => setPaymentType(pay)}
+                  style={[
+                    styles.pillButton,
+                    isSelected && {
+                      backgroundColor: theme.primary,
+                      borderColor: theme.primary,
+                    },
+                    { borderColor: theme.border },
+                  ]}
+                >
+                  <ThemedText
+                    style={{
+                      color: isSelected ? "#FFFFFF" : theme.text,
+                      fontWeight: "600",
+                      fontSize: 12,
+                    }}
+                  >
+                    {payLabels[pay]}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Piece Rate Amount (Conditional) */}
+        {paymentType === "piece_rate" && (
+          <View style={styles.formGroup}>
+            <ThemedText type="h4" style={styles.label}>
+              Piece Rate Amount ({t.common.currency})
+            </ThemedText>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+              value={pieceRateAmount}
+              onChangeText={setPieceRateAmount}
+              placeholder="e.g. 150"
+              placeholderTextColor={theme.textSecondary}
+              keyboardType="numeric"
+            />
+          </View>
+        )}
+
+        {/* Sub-contractor / Agency Name */}
+        <View style={styles.formGroup}>
+          <ThemedText type="h4" style={styles.label}>
+            Sub-contractor / Labour Contractor Name (Optional)
+          </ThemedText>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                color: theme.text,
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
+            value={subContractorName}
+            onChangeText={setSubContractorName}
+            placeholder="e.g. Verma Labour Supply"
+            placeholderTextColor={theme.textSecondary}
           />
         </View>
 
@@ -793,5 +936,16 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 16,
+  },
+  pillRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  pillButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 20,
+    borderWidth: 1.8,
   },
 });

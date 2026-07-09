@@ -9,3 +9,6 @@ export * from "./Project";
 export * from "./SupportProblem";
 export * from "./SupportFeedback";
 export * from "./OtpCode";
+export * from "./Expense";
+export * from "./MBEntry";
+export * from "./DelayLog";

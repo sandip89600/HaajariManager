@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -46,7 +46,8 @@ import { appContextTracker } from "@/utils/appContextTracker";
 import { DeviceEventEmitter } from "react-native";
 import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
 import { useAuth } from "@/hooks/useAuth";
-import { useFocusEffect } from "@react-navigation/native";
+import { useSocket } from "@/hooks/useSocket";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as WebBrowser from "expo-web-browser";
 
 const CELL_SIZE = 56;
@@ -252,12 +253,30 @@ export default function AttendanceScreen() {
   const insets = useSafeAreaInsets();
   const rawHeaderHeight = useHeaderHeight();
   const headerHeight = rawHeaderHeight > 0 ? rawHeaderHeight : insets.top + Platform.select({ ios: 44, default: 56 });
+  const navigation = useNavigation<any>();
   const tabBarHeight = insets.bottom + 60;
-
   const { user } = useAuth();
+  const { socket, connectSocket } = useSocket();
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () =>
+        user?.role !== "supervisor" ? (
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate("AddWorker");
+            }}
+            style={{ marginRight: Spacing.md, padding: 4 }}
+          >
+            <Feather name="user-plus" size={24} color={theme.primary} />
+          </Pressable>
+        ) : null,
+    });
+  }, [navigation, user?.role, theme.primary]);
   const [currentPlan, setCurrentPlan] = useState<
     "free" | "professional" | "business"
   >("free");
@@ -317,8 +336,8 @@ export default function AttendanceScreen() {
     setCurrentPlan(auth?.plan || "free");
   };
 
-  const loadData = async () => {
-    setIsLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       let loadedWorkers = await storage.getWorkers();
       const loadedAttendance = await storage.getAttendanceForMonth(
@@ -334,7 +353,7 @@ export default function AttendanceScreen() {
       setWorkers(loadedWorkers);
       setAttendance(loadedAttendance);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
@@ -353,11 +372,28 @@ export default function AttendanceScreen() {
   );
 
   useEffect(() => {
+    connectSocket();
+  }, []);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      console.log("[AttendanceScreen] Live socket update received, reloading attendance data silently...");
+      loadData(true);
+    };
+
+    socket.on("admin_dashboard_update", handleUpdate);
+    socket.on("admin_activity", handleUpdate);
+
     const sub = DeviceEventEmitter.addListener("refreshData", () => {
       loadData();
     });
-    return () => sub.remove();
-  }, []);
+
+    return () => {
+      socket.off("admin_dashboard_update", handleUpdate);
+      socket.off("admin_activity", handleUpdate);
+      sub.remove();
+    };
+  }, [socket]);
 
   const getAttendanceValue = (
     workerId: string,
