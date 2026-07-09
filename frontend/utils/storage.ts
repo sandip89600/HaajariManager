@@ -11,7 +11,7 @@ const getApiUrl = () => {
     const localhost = hostUri ? hostUri.split(":")[0] : "10.0.2.2";
     return `http://${localhost}:5000/api`;
   }
-  return "https://haajarimanager-production.up.railway.app/api";
+  return "https://haajari-manager-production.up.railway.app/api";
 };
 
 export const API_URL = getApiUrl();
