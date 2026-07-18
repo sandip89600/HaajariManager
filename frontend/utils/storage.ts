@@ -5,7 +5,7 @@ import Constants from "expo-constants";
 import { Language } from "@/constants/i18n";
 
 const getApiUrl = () => {
-  return "https://haajarimanager-production.up.railway.app/api";
+  return "https://haajarimanager.onrender.com/api";
 };
 export const API_URL = getApiUrl();
 
