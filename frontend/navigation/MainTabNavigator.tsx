@@ -23,7 +23,8 @@ import UserProfileScreen from "@/screens/UserProfileScreen";
 import SupportScreen from "@/screens/SupportScreen";
 import PrivacySettingsScreen from "@/screens/PrivacySettingsScreen";
 import DeviceManagementScreen from "@/screens/DeviceManagementScreen";
-import SiteManagementScreen from "@/screens/SiteManagementScreen";
+import SiteControlDashboardScreen from "@/screens/SiteControlDashboardScreen";
+import SiteDetailControlScreen from "@/screens/SiteDetailControlScreen";
 import DashboardScreen from "@/screens/DashboardScreen";
 
 export type MainTabParamList = {
@@ -49,6 +50,7 @@ export type RootStackParamList = {
   PrivacySettings: undefined;
   DeviceManagement: undefined;
   SiteManagement: undefined;
+  SiteDetailControl: { siteId: string };
 
   // Root stack fallbacks
   AttendanceDetail: undefined;
@@ -150,9 +152,9 @@ function MainTabs() {
       />
       <Tab.Screen
         name="SiteManagementTab"
-        component={SiteManagementScreen}
+        component={SiteControlDashboardScreen}
         options={{
-          title: "Site Management",
+          title: "Site Control",
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Feather name="layers" size={size} color={color} />
@@ -240,7 +242,14 @@ export default function MainTabNavigator() {
       />
       <Stack.Screen
         name="SiteManagement"
-        component={SiteManagementScreen}
+        component={SiteControlDashboardScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="SiteDetailControl"
+        component={SiteDetailControlScreen}
         options={{
           headerShown: false,
         }}
