@@ -29,9 +29,11 @@ const ATTENDANCE_REMINDER_ID_KEY = "@haajari/attendance_reminder_id";
 
 export async function requestNotificationPermission(): Promise<boolean> {
   if (Platform.OS === "web") return false;
-  const { status: existing } = await Notifications.getPermissionsAsync();
+  const existingRes = (await Notifications.getPermissionsAsync()) as any;
+  const existing = existingRes.status;
   if (existing === "granted") return true;
-  const { status } = await Notifications.requestPermissionsAsync();
+  const reqRes = (await Notifications.requestPermissionsAsync()) as any;
+  const status = reqRes.status;
   return status === "granted";
 }
 

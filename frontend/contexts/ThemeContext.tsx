@@ -42,8 +42,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(THEME_KEY, mode);
   };
 
-  const effectiveScheme =
-    themeMode === "system" ? (systemColorScheme ?? "light") : themeMode;
+  const effectiveScheme: "light" | "dark" =
+    themeMode === "system"
+      ? (systemColorScheme === "dark" ? "dark" : "light")
+      : themeMode === "dark" ? "dark" : "light";
   const isDark = effectiveScheme === "dark";
   const theme = Colors[effectiveScheme];
 

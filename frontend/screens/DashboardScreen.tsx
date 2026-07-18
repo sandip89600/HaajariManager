@@ -8,6 +8,8 @@ import {
   Dimensions,
   Platform,
   Modal,
+  Alert,
+  TextInput,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -41,6 +43,14 @@ export default function DashboardScreen() {
   const [workersList, setWorkersList] = useState<Worker[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [showSubModal, setShowSubModal] = useState(false);
+  const [selectedPlanOption, setSelectedPlanOption] = useState<"standard" | "pro">("standard");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [cardName, setCardName] = useState("");
+  const [cardType, setCardType] = useState<"visa" | "mastercard" | "rupay">("visa");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"card" | "upi" | "netbanking">("card");
+  const [currentPlan, setCurrentPlan] = useState<"free" | "professional" | "business">("free");
 
   // Statistics
   const [stats, setStats] = useState({
@@ -77,6 +87,13 @@ export default function DashboardScreen() {
 
       // Sync and retrieve attendance records for this month from server
       const attendance = await storage.getAttendanceForMonth(todayYear, todayMonth);
+
+      const auth = await storage.getAuth();
+      if (auth?.plan) {
+        setCurrentPlan(auth.plan);
+      } else if (user?.plan) {
+        setCurrentPlan(user.plan);
+      }
 
       setProjectsList(projects);
       setWorkersList(workers);
@@ -525,7 +542,7 @@ export default function DashboardScreen() {
         onRequestClose={() => setShowSubModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.subModalContent, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
+          <View style={[styles.subModalContent, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF", width: "95%" }]}>
             <View style={styles.subModalHeader}>
               <ThemedText style={styles.subModalTitle}>👑 PRIME Subscription</ThemedText>
               <Pressable onPress={() => setShowSubModal(false)} style={styles.closeBtn}>
@@ -534,77 +551,229 @@ export default function DashboardScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.subModalScroll}>
-              {/* Plan info */}
-              <View style={[styles.subInfoBox, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC" }]}>
-                <ThemedText style={styles.subInfoLabel}>Current Plan</ThemedText>
-                <ThemedText style={styles.subInfoValue}>
-                  {user?.plan === "professional" || user?.plan === "business" ? "Premium PRIME" : "Free Trial"}
-                </ThemedText>
-                <ThemedText style={[styles.subExpiryText, { color: theme.textSecondary }]}>
-                  Expiry Date: {new Date(Date.now() + 365 * 24 * 3600000).toLocaleDateString("en-IN")}
-                </ThemedText>
+              {/* Plan Switcher */}
+              <ThemedText style={[styles.subSectionTitle, { color: theme.textSecondary }]}>Select Subscription Plan</ThemedText>
+              <View style={styles.planSwitchRow}>
+                <Pressable
+                  onPress={() => {
+                    triggerHaptic();
+                    setSelectedPlanOption("standard");
+                  }}
+                  style={[
+                    styles.planOptionCard,
+                    {
+                      borderColor: selectedPlanOption === "standard" ? "#F59E0B" : theme.border,
+                      backgroundColor: selectedPlanOption === "standard" ? (isDark ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.05)") : "transparent",
+                    },
+                  ]}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <ThemedText style={{ fontWeight: "700", fontSize: 15 }}>PRIME Standard</ThemedText>
+                    {selectedPlanOption === "standard" && <Feather name="check-circle" size={16} color="#F59E0B" />}
+                  </View>
+                  <ThemedText style={{ fontSize: 20, fontWeight: "900", marginTop: 8, color: "#F59E0B" }}>₹299/year</ThemedText>
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>Basic cloud & limits upgrade</ThemedText>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    triggerHaptic();
+                    setSelectedPlanOption("pro");
+                  }}
+                  style={[
+                    styles.planOptionCard,
+                    {
+                      borderColor: selectedPlanOption === "pro" ? "#F59E0B" : theme.border,
+                      backgroundColor: selectedPlanOption === "pro" ? (isDark ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.05)") : "transparent",
+                    },
+                  ]}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <ThemedText style={{ fontWeight: "700", fontSize: 15 }}>PRIME Pro</ThemedText>
+                    {selectedPlanOption === "pro" && <Feather name="check-circle" size={16} color="#F59E0B" />}
+                  </View>
+                  <ThemedText style={{ fontSize: 20, fontWeight: "900", marginTop: 8, color: "#F59E0B" }}>₹499/year</ThemedText>
+                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>Advanced AI & team features</ThemedText>
+                </Pressable>
               </View>
 
-              {/* Price details */}
-              <View style={styles.priceContainer}>
-                <ThemedText style={styles.priceLabel}>Upgrade to PRIME</ThemedText>
-                <ThemedText style={styles.priceVal}>₹299/year</ThemedText>
-              </View>
-
-              {/* Benefits list */}
+              {/* Benefits list depending on selection */}
               <View style={styles.benefitsContainer}>
-                <ThemedText style={styles.benefitsTitle}>PRIME Benefits:</ThemedText>
+                <ThemedText style={[styles.subSectionTitle, { color: theme.textSecondary, marginBottom: 10 }]}>
+                  Included Benefits:
+                </ThemedText>
                 {[
-                  "Unlimited Workers",
-                  "Unlimited Sites",
-                  "Cloud Backup",
-                  "Export PDF and Excel",
-                  "Multi Device Access",
-                  "Future AI Features (Future)",
+                  { text: "Unlimited Workers", active: true },
+                  { text: "Unlimited Sites", active: true },
+                  { text: "Export PDF and Excel", active: true },
+                  { text: "Cloud Backup", active: selectedPlanOption === "pro" },
+                  { text: "Multi Device Access", active: selectedPlanOption === "pro" },
+                  { text: "Future AI Features", active: selectedPlanOption === "pro" },
                 ].map((b) => (
-                  <View key={b} style={styles.benefitRow}>
-                    <Feather name="check-circle" size={16} color="#22C55E" style={{ marginRight: 10 }} />
-                    <ThemedText style={styles.benefitText}>{b}</ThemedText>
+                  <View key={b.text} style={styles.benefitRow}>
+                    <Feather
+                      name={b.active ? "check-circle" : "x-circle"}
+                      size={16}
+                      color={b.active ? "#22C55E" : theme.textSecondary}
+                      style={{ marginRight: 10 }}
+                    />
+                    <ThemedText style={[styles.benefitText, { color: b.active ? theme.text : theme.textSecondary }]}>
+                      {b.text}
+                    </ThemedText>
                   </View>
                 ))}
               </View>
 
-              {/* Action buttons */}
+              {/* Payment Methods Section */}
+              <View style={styles.paymentMethodsSection}>
+                <ThemedText style={[styles.subSectionTitle, { color: theme.textSecondary, marginBottom: 10 }]}>
+                  Payment Method
+                </ThemedText>
+                <View style={styles.paymentMethodTabs}>
+                  {(["card", "upi"] as const).map((method) => (
+                    <Pressable
+                      key={method}
+                      onPress={() => {
+                        triggerHaptic();
+                        setSelectedPaymentMethod(method);
+                      }}
+                      style={[
+                        styles.paymentTabBtn,
+                        {
+                          backgroundColor: selectedPaymentMethod === method ? theme.primary : (isDark ? "rgba(255,255,255,0.05)" : "#F1F5F9"),
+                        },
+                      ]}
+                    >
+                      <ThemedText style={{ color: selectedPaymentMethod === method ? "#FFFFFF" : theme.text, fontWeight: "700", textTransform: "uppercase", fontSize: 12 }}>
+                        {method === "card" ? "💳 Card" : "📱 UPI"}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {selectedPaymentMethod === "card" ? (
+                  <View style={[styles.cardForm, { borderColor: theme.border }]}>
+                    {/* Card type switcher */}
+                    <View style={styles.cardTypeRow}>
+                      {(["visa", "mastercard", "rupay"] as const).map((type) => (
+                        <Pressable
+                          key={type}
+                          onPress={() => setCardType(type)}
+                          style={[
+                            styles.cardTypeBtn,
+                            {
+                              borderColor: cardType === type ? "#F59E0B" : theme.border,
+                              backgroundColor: cardType === type ? (isDark ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.05)") : "transparent",
+                            },
+                          ]}
+                        >
+                          <ThemedText style={{ fontSize: 11, fontWeight: "700", textTransform: "uppercase", color: theme.text }}>{type}</ThemedText>
+                        </Pressable>
+                      ))}
+                    </View>
+
+                    <TextInput
+                      style={[styles.paymentInput, { color: theme.text, borderColor: theme.border }]}
+                      placeholder="Cardholder Name"
+                      placeholderTextColor={theme.textSecondary}
+                      value={cardName}
+                      onChangeText={setCardName}
+                    />
+
+                    <TextInput
+                      style={[styles.paymentInput, { color: theme.text, borderColor: theme.border }]}
+                      placeholder="Card Number (e.g. 4242 4242 4242 4242)"
+                      placeholderTextColor={theme.textSecondary}
+                      keyboardType="numeric"
+                      value={cardNumber}
+                      onChangeText={setCardNumber}
+                    />
+
+                    <View style={{ flexDirection: "row", gap: 10 }}>
+                      <TextInput
+                        style={[styles.paymentInput, { color: theme.text, borderColor: theme.border, flex: 1 }]}
+                        placeholder="Expiry (MM/YY)"
+                        placeholderTextColor={theme.textSecondary}
+                        value={cardExpiry}
+                        onChangeText={setCardExpiry}
+                      />
+                      <TextInput
+                        style={[styles.paymentInput, { color: theme.text, borderColor: theme.border, flex: 1 }]}
+                        placeholder="CVV"
+                        placeholderTextColor={theme.textSecondary}
+                        keyboardType="numeric"
+                        secureTextEntry
+                        value={cardCvv}
+                        onChangeText={setCardCvv}
+                      />
+                    </View>
+                  </View>
+                ) : (
+                  <View style={[styles.cardForm, { borderColor: theme.border }]}>
+                    <TextInput
+                      style={[styles.paymentInput, { color: theme.text, borderColor: theme.border }]}
+                      placeholder="Enter UPI ID (e.g. user@upi)"
+                      placeholderTextColor={theme.textSecondary}
+                      value={cardName}
+                      onChangeText={setCardName}
+                    />
+                  </View>
+                )}
+              </View>
+
+              {/* Checkout CTA */}
               <Pressable
-                style={[styles.upgradeBtn, { backgroundColor: "#F59E0B" }]}
-                onPress={() => {
+                style={[styles.upgradeBtn, { backgroundColor: "#F59E0B", marginTop: 10 }]}
+                onPress={async () => {
                   triggerHaptic();
-                  alert("Successfully upgraded to PRIME!");
+                  if (selectedPaymentMethod === "card") {
+                    if (!cardName || !cardNumber || !cardExpiry || !cardCvv) {
+                      Alert.alert("Missing Details", "Please fill in all card details before proceeding.");
+                      return;
+                    }
+                  } else {
+                    if (!cardName) {
+                      Alert.alert("Missing Details", "Please fill in your UPI ID before proceeding.");
+                      return;
+                    }
+                  }
+
+                  const chosenPlan = selectedPlanOption === "standard" ? "professional" : "business";
+                  const price = selectedPlanOption === "standard" ? "₹299" : "₹499";
+                  
+                  // Update plan in local storage
+                  const auth = await storage.getAuth();
+                  if (auth) {
+                    await storage.setAuth({ ...auth, plan: chosenPlan });
+                  }
+                  setCurrentPlan(chosenPlan);
+
+                  Alert.alert(
+                    "Payment Successful",
+                    `Successfully upgraded to PRIME ${selectedPlanOption === "standard" ? "Standard" : "Pro"} (${price}/year)!`
+                  );
                   setShowSubModal(false);
                 }}
               >
-                <ThemedText style={styles.upgradeBtnText}>Upgrade to PRIME</ThemedText>
-              </Pressable>
-
-              <Pressable
-                style={[styles.renewBtn, { borderColor: theme.border }]}
-                onPress={() => {
-                  triggerHaptic();
-                  alert("Renew request submitted!");
-                }}
-              >
-                <ThemedText style={[styles.renewBtnText, { color: theme.text }]}>Renew Subscription</ThemedText>
-              </Pressable>
-
-              {/* Payment & History details */}
-              <View style={styles.detailSection}>
-                <ThemedText style={styles.detailSectionTitle}>Payment Method</ThemedText>
-                <ThemedText style={[styles.detailSectionText, { color: theme.textSecondary }]}>
-                  💳 Visa ending in 4242 (Default)
+                <ThemedText style={styles.upgradeBtnText}>
+                  Proceed to Checkout — {selectedPlanOption === "standard" ? "₹299" : "₹499"}
                 </ThemedText>
-              </View>
+              </Pressable>
 
-              <View style={styles.detailSection}>
-                <ThemedText style={styles.detailSectionTitle}>Billing History</ThemedText>
-                <View style={styles.historyRow}>
+              {/* Billing History Section */}
+              <View style={[styles.detailSection, { marginTop: 24 }]}>
+                <ThemedText style={[styles.subSectionTitle, { color: theme.textSecondary, marginBottom: 10 }]}>
+                  Billing History
+                </ThemedText>
+                <View style={[styles.historyRow, { borderBottomColor: theme.border }]}>
                   <ThemedText style={styles.historyDate}>09 Jul 2026</ThemedText>
-                  <ThemedText style={styles.historyDesc}>PRIME Plan Renewal</ThemedText>
-                  <ThemedText style={styles.historyAmount}>₹299</ThemedText>
+                  <ThemedText style={[styles.historyDesc, { color: theme.text }]}>PRIME Plan Renewal</ThemedText>
+                  <ThemedText style={[styles.historyAmount, { color: theme.text }]}>₹299</ThemedText>
+                </View>
+                <View style={[styles.historyRow, { borderBottomColor: theme.border }]}>
+                  <ThemedText style={styles.historyDate}>09 Jul 2025</ThemedText>
+                  <ThemedText style={[styles.historyDesc, { color: theme.text }]}>PRIME Trial Activation</ThemedText>
+                  <ThemedText style={[styles.historyAmount, { color: theme.text }]}>₹0</ThemedText>
                 </View>
               </View>
             </ScrollView>
@@ -1052,5 +1221,64 @@ const styles = StyleSheet.create({
   historyAmount: {
     fontSize: 13,
     fontWeight: "700",
+  },
+  planSwitchRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 20,
+  },
+  planOptionCard: {
+    flex: 1,
+    borderWidth: 2,
+    borderRadius: 16,
+    padding: 12,
+  },
+  subSectionTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  paymentMethodsSection: {
+    marginBottom: 20,
+  },
+  paymentMethodTabs: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  paymentTabBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardForm: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    gap: 10,
+    marginBottom: 10,
+  },
+  cardTypeRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 4,
+  },
+  cardTypeBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  paymentInput: {
+    height: 40,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    fontSize: 13,
   },
 });
