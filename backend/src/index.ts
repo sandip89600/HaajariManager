@@ -22,15 +22,46 @@ if (process.env.SENTRY_DSN) {
   });
 }
 
+// Audit environment variables for security and production readiness
+const requiredEnvVars = ["JWT_SECRET", "JWT_REFRESH_SECRET", "MONGO_URI"];
+const missingEnvVars: string[] = [];
+
+requiredEnvVars.forEach((v) => {
+  if (!process.env[v]) {
+    missingEnvVars.push(v);
+  }
+});
+
+if (missingEnvVars.length > 0) {
+  const errorMsg = `CRITICAL STARTUP ERROR: Required environment variables are missing: ${missingEnvVars.join(", ")}`;
+  console.error(errorMsg);
+  throw new Error(errorMsg);
+}
+
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/haajari";
+const MONGO_URI = process.env.MONGO_URI as string;
 
-// Middleware
+// Centralized API Error Scrubbing Middleware for Production
 app.use((req, res, next) => {
-  console.log(`[HTTP] ${req.method} ${req.url}`);
+  const originalJson = res.json;
+  res.json = function (body) {
+    if (body && typeof body === "object" && body.error && process.env.NODE_ENV === "production") {
+      console.error(`[API Error Interceptor] Path: ${req.path}, Original Error:`, body.error);
+      body.error = "An unexpected error occurred. Please check system logs.";
+    }
+    return originalJson.call(this, body);
+  };
   next();
 });
+
+// Request logging (development only)
+if (process.env.NODE_ENV !== "production") {
+  app.use((req, res, next) => {
+    console.log(`[HTTP] ${req.method} ${req.url}`);
+    next();
+  });
+}
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));

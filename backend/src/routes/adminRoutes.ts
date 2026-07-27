@@ -24,6 +24,8 @@ import {
   getActiveSessions,
   forceLogoutUser,
   disableSuspiciousDevice,
+  deleteAllUsers,
+  logoutAllUsers,
 } from "../controllers/adminController";
 import { authenticateJWT, requireAdmin } from "../middleware/auth";
 
@@ -38,6 +40,7 @@ router.get("/users", getAllUsers as any);
 router.put("/users/:id", updateUserInfo as any);
 router.put("/users/:id/status", toggleUserStatus as any);
 router.delete("/users/:id", deleteUser as any);
+router.delete("/users-wipe", deleteAllUsers as any);
 
 // Subscription / Tenant Plan Management
 router.put("/tenants/:tenantId/plan", updateTenantPlan as any);
@@ -72,5 +75,6 @@ router.get("/security/logs", getSecurityLogs as any);
 router.get("/security/sessions", getActiveSessions as any);
 router.post("/security/force-logout", forceLogoutUser as any);
 router.post("/security/disable-device", disableSuspiciousDevice as any);
+router.post("/security/logout-all", logoutAllUsers as any);
 
 export default router;

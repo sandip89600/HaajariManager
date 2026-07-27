@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   ScrollView,
@@ -10,12 +10,17 @@ import {
   Modal,
   Alert,
   TextInput,
+  Switch,
+  Animated,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { WebView } from "react-native-webview";
+import SettingsDrawer from "@/components/SettingsDrawer";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -23,10 +28,17 @@ import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
-import { storage, Project, Worker, AttendanceRecord } from "@/utils/storage";
+import { storage, Project, Worker, AttendanceRecord, AttendanceValue, authenticatedFetch, API_URL } from "@/utils/storage";
 import { Spacing, BorderRadius, Shadows, Colors } from "@/constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+interface PrimeBillingTransaction {
+  date: string;
+  planName: string;
+  amount: number;
+  paymentId: string;
+}
 
 export default function DashboardScreen() {
   const { theme, isDark } = useTheme();
@@ -35,8 +47,9 @@ export default function DashboardScreen() {
   const { user } = useAuth();
   const { socket, connectSocket } = useSocket();
   const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef<ScrollView>(null);
 
-  // Loading and database states
+  // States
   const [loading, setLoading] = useState(true);
   const [activeSite, setActiveSite] = useState<Project | null>(null);
   const [projectsList, setProjectsList] = useState<Project[]>([]);
@@ -44,13 +57,34 @@ export default function DashboardScreen() {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [showSubModal, setShowSubModal] = useState(false);
   const [selectedPlanOption, setSelectedPlanOption] = useState<"standard" | "pro">("standard");
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardExpiry, setCardExpiry] = useState("");
-  const [cardCvv, setCardCvv] = useState("");
-  const [cardName, setCardName] = useState("");
-  const [cardType, setCardType] = useState<"visa" | "mastercard" | "rupay">("visa");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"card" | "upi" | "netbanking">("card");
   const [currentPlan, setCurrentPlan] = useState<"free" | "professional" | "business">("free");
+  const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
+  const [showRazorpayModal, setShowRazorpayModal] = useState(false);
+  const [razorpayHtml, setRazorpayHtml] = useState("");
+  const [billingHistory, setBillingHistory] = useState<PrimeBillingTransaction[]>([]);
+  const [gpsCheckInActive, setGpsCheckInActive] = useState(false);
+
+  // Undo Toast state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [lastAction, setLastAction] = useState<{
+    type: "single" | "bulk";
+    workerId?: string;
+    prevValue: string; // JSON string for bulk, or string value for single
+  } | null>(null);
+  const toastFadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Gamification & insights fallbacks
+  const [streakCount, setStreakCount] = useState(5);
+  const [smartInsight, setSmartInsight] = useState("Attendance dropped 15% vs last Thursday");
+
+  // Custom interactive attendance modal states
+  const [attendanceModalVisible, setAttendanceModalVisible] = useState(false);
+  const [selectedWorkerForAttendance, setSelectedWorkerForAttendance] = useState<Worker | null>(null);
+  const [modalAttendanceValue, setModalAttendanceValue] = useState<"P" | "A" | "H" | "OT" | "">("");
+  const [modalAdvanceAmount, setModalAdvanceAmount] = useState("");
+  const [modalOvertimeWage, setModalOvertimeWage] = useState("");
+  const [modalOvertimeHours, setModalOvertimeHours] = useState("");
 
   // Statistics
   const [stats, setStats] = useState({
@@ -64,15 +98,28 @@ export default function DashboardScreen() {
 
   // Current date strings
   const today = new Date();
-  const options: Intl.DateTimeFormatOptions = { weekday: "long", day: "numeric", month: "long", year: "numeric" };
-  const formattedDate = today.toLocaleDateString("en-US", options);
+  const formattedDate = today.toLocaleDateString("en-US", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
 
-  // Time-based greeting
-  const getGreeting = () => {
-    const hrs = today.getHours();
-    if (hrs < 12) return "Good Morning";
-    if (hrs < 17) return "Good Afternoon";
-    return "Good Evening";
+  const triggerHaptic = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const loadBillingHistory = async () => {
+    try {
+      const saved = await AsyncStorage.getItem("@haajari/prime_billing_history");
+      if (saved) {
+        setBillingHistory(JSON.parse(saved));
+      } else {
+        setBillingHistory([]);
+      }
+    } catch (e) {
+      console.warn("Failed to load billing history:", e);
+    }
   };
 
   const loadDashboardData = async (silent = false) => {
@@ -82,10 +129,9 @@ export default function DashboardScreen() {
       const workers = await storage.getWorkers();
 
       const todayYear = today.getFullYear();
-      const todayMonth = today.getMonth() + 1; // JS months are 0-11
+      const todayMonth = today.getMonth();
       const todayDay = today.getDate();
 
-      // Sync and retrieve attendance records for this month from server
       const attendance = await storage.getAttendanceForMonth(todayYear, todayMonth);
 
       const auth = await storage.getAuth();
@@ -98,43 +144,61 @@ export default function DashboardScreen() {
       setProjectsList(projects);
       setWorkersList(workers);
       setAttendanceRecords(attendance);
+      await loadBillingHistory();
 
       // Find first active site/project
       const active = projects.find((p) => p.status === "active") || projects[0] || null;
       setActiveSite(active);
+
+      // Filter workers assigned to the active site (or use all workers if no active site)
+      const siteWorkers = active ? workers.filter(w => w.projectId === active.id) : workers;
+      const totalWorkers = siteWorkers.length;
 
       const todayAttendance = attendance.filter(
         (r) => r.year === todayYear && r.month === todayMonth && r.day === todayDay
       );
 
       let presentCount = 0;
-      let absentCount = 0;
       let halfDayCount = 0;
       let overtimeCount = 0;
 
       todayAttendance.forEach((rec) => {
-        if (rec.value === "P") {
-          presentCount++;
-        } else if (rec.value === "A") {
-          absentCount++;
-        } else if (rec.value === "H") {
-          halfDayCount++;
-        } else if (rec.value === "OT") {
-          overtimeCount++;
+        const belongsToScope = siteWorkers.some(sw => sw.id === rec.workerId);
+        if (belongsToScope) {
+          if (rec.value === "P") presentCount++;
+          else if (rec.value === "H") halfDayCount++;
+          else if (rec.value === "OT") overtimeCount++;
         }
       });
 
-      const totalWorkers = workers.length;
+      // MATH CONSISTENCY ENFORCEMENT:
+      // Any unmarked worker is automatically counted as Absent.
+      // Total = Present + Half Day + Overtime + Absent.
+      const absentCount = totalWorkers - presentCount - halfDayCount - overtimeCount;
+
       const rate = totalWorkers > 0 ? Math.round(((presentCount + halfDayCount + overtimeCount) / totalWorkers) * 100) : 0;
 
       setStats({
         totalWorkers,
         present: presentCount,
-        absent: absentCount,
+        absent: Math.max(0, absentCount),
         halfDay: halfDayCount,
         overtime: overtimeCount,
         rate: totalWorkers > 0 ? rate : 0,
       });
+
+      // Smart dynamic insights based on statistics
+      if (totalWorkers > 0) {
+        if (rate >= 85) {
+          setSmartInsight("Attendance is high today 🔥 Great project momentum!");
+        } else if (rate < 50) {
+          setSmartInsight("⚠️ Alert: Critical labor shortage! Less than 50% on site.");
+        } else {
+          setSmartInsight("Attendance drop: 2 workers took half-day today.");
+        }
+      } else {
+        setSmartInsight("Welcome! Register workers and sites to view live insights.");
+      }
 
     } catch (error) {
       console.warn("Failed to load dashboard statistics:", error);
@@ -149,13 +213,10 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     const handleUpdate = () => {
-      console.log("[DashboardScreen] Live socket event received, updating attendance stats in real-time...");
       loadDashboardData(true);
     };
-
     socket.on("admin_dashboard_update", handleUpdate);
     socket.on("admin_activity", handleUpdate);
-
     return () => {
       socket.off("admin_dashboard_update", handleUpdate);
       socket.off("admin_activity", handleUpdate);
@@ -165,621 +226,1181 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       loadDashboardData();
-    }, [])
+    }, [activeSite?.id])
   );
 
-  const triggerHaptic = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  // Toast animation handler
+  useEffect(() => {
+    if (showToast) {
+      Animated.timing(toastFadeAnim, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }).start();
+
+      const timer = setTimeout(() => {
+        hideToast();
+      }, 5000); // disappear after 5 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [showToast]);
+
+  const hideToast = () => {
+    Animated.timing(toastFadeAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowToast(false);
+      setLastAction(null);
+    });
   };
 
-  // Helper for quick actions
-  const handleQuickAction = (route: string) => {
+  const deleteAttendanceLocally = async (workerId: string, year: number, month: number, day: number) => {
+    const allRecords = await storage.getAttendance();
+    const filtered = allRecords.filter(
+      r => !(r.workerId === workerId && r.year === year && r.month === month && r.day === day)
+    );
+    await storage.setAttendance(filtered);
+  };
+
+  // Quick Marking actions
+  const handleMarkPresent = async (workerId: string) => {
     triggerHaptic();
-    navigation.navigate(route);
+    try {
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth();
+      const todayDay = today.getDate();
+
+      const existingIdx = attendanceRecords.findIndex(
+        (r) => r.workerId === workerId && r.year === todayYear && r.month === todayMonth && r.day === todayDay
+      );
+
+      let prevVal: AttendanceValue | "" = "";
+      let newVal = "P";
+
+      if (existingIdx !== -1) {
+        prevVal = attendanceRecords[existingIdx].value;
+        if (prevVal === "P") {
+          newVal = ""; // toggle to unmarked
+        }
+      }
+
+      setLastAction({ workerId, type: "single", prevValue: String(prevVal) });
+
+      if (newVal === "") {
+        if (existingIdx !== -1) {
+          await deleteAttendanceLocally(workerId, todayYear, todayMonth, todayDay);
+          const updated = [...attendanceRecords];
+          updated.splice(existingIdx, 1);
+          setAttendanceRecords(updated);
+        }
+      } else {
+        const newRecord: AttendanceRecord = {
+          workerId,
+          projectId: activeSite?.id || undefined,
+          year: todayYear,
+          month: todayMonth,
+          day: todayDay,
+          value: "P",
+        };
+        await storage.setAttendanceRecord(newRecord);
+        const updated = [...attendanceRecords];
+        if (existingIdx !== -1) {
+          updated[existingIdx] = newRecord;
+        } else {
+          updated.push(newRecord);
+        }
+        setAttendanceRecords(updated);
+      }
+
+      await loadDashboardData(true);
+      const workerName = workersList.find(w => w.id === workerId)?.name || "Worker";
+      setToastMessage(newVal === "" ? `Cleared attendance for ${workerName}` : `Marked ${workerName} as Present`);
+      setShowToast(true);
+
+    } catch (e) {
+      console.warn("Failed to mark attendance:", e);
+    }
   };
 
-  // User initials for avatar
-  const userName = user?.name || "Sandeep";
-  const userInitials = userName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+  const handleMarkOptions = (workerId: string) => {
+    triggerHaptic();
+    const worker = workersList.find(w => w.id === workerId);
+    if (!worker) return;
+
+    const todayDay = today.getDate();
+    const existingRecord = attendanceRecords.find(
+      (r) => r.workerId === workerId && r.day === todayDay
+    );
+
+    setSelectedWorkerForAttendance(worker);
+    setModalAttendanceValue(existingRecord ? (existingRecord.value as any) : "");
+    setModalAdvanceAmount(existingRecord && existingRecord.customWage ? String(existingRecord.customWage) : "");
+    setModalOvertimeWage(existingRecord && existingRecord.overtimeWage ? String(existingRecord.overtimeWage) : "");
+    setModalOvertimeHours(existingRecord && existingRecord.overtimeHours ? String(existingRecord.overtimeHours) : "");
+    
+    setAttendanceModalVisible(true);
+  };
+
+  const handleSaveAttendanceModal = async () => {
+    if (!selectedWorkerForAttendance) return;
+    const workerId = selectedWorkerForAttendance.id;
+    const val = modalAttendanceValue;
+    
+    try {
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth();
+      const todayDay = today.getDate();
+
+      const existingIdx = attendanceRecords.findIndex(
+        (r) => r.workerId === workerId && r.year === todayYear && r.month === todayMonth && r.day === todayDay
+      );
+
+      const prevVal = existingIdx !== -1 ? attendanceRecords[existingIdx].value : "";
+      setLastAction({ workerId, type: "single", prevValue: String(prevVal) });
+
+      if (val === "") {
+        if (existingIdx !== -1) {
+          await deleteAttendanceLocally(workerId, todayYear, todayMonth, todayDay);
+          const updated = [...attendanceRecords];
+          updated.splice(existingIdx, 1);
+          setAttendanceRecords(updated);
+        }
+      } else {
+        const adv = modalAdvanceAmount ? parseFloat(modalAdvanceAmount) : undefined;
+        const otW = modalOvertimeWage ? parseFloat(modalOvertimeWage) : undefined;
+        const otH = modalOvertimeHours ? parseFloat(modalOvertimeHours) : undefined;
+        
+        const newRecord: AttendanceRecord = {
+          workerId,
+          projectId: activeSite?.id || undefined,
+          year: todayYear,
+          month: todayMonth,
+          day: todayDay,
+          value: val as any,
+          customWage: adv,
+          overtimeWage: otW,
+          overtimeHours: otH,
+        };
+        
+        await storage.setAttendanceRecord(newRecord);
+        const updated = [...attendanceRecords];
+        if (existingIdx !== -1) {
+          updated[existingIdx] = newRecord;
+        } else {
+          updated.push(newRecord);
+        }
+        setAttendanceRecords(updated);
+      }
+
+      await loadDashboardData(true);
+      setAttendanceModalVisible(false);
+      
+      const workerName = selectedWorkerForAttendance.name;
+      let statusLabel = "Present";
+      if (val === "H") statusLabel = "Half Day";
+      else if (val === "OT") statusLabel = "Overtime";
+      else if (val === "A") statusLabel = "Absent";
+      else if (val === "") statusLabel = "Unmarked";
+
+      setToastMessage(`Marked ${workerName} as ${statusLabel}`);
+      setShowToast(true);
+    } catch (e) {
+      console.warn("Failed to save attendance:", e);
+    }
+  };
+
+  const updateAttendanceValue = async (workerId: string, val: string) => {
+    try {
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth();
+      const todayDay = today.getDate();
+
+      const existingIdx = attendanceRecords.findIndex(
+        (r) => r.workerId === workerId && r.year === todayYear && r.month === todayMonth && r.day === todayDay
+      );
+
+      const prevVal = existingIdx !== -1 ? attendanceRecords[existingIdx].value : "";
+      setLastAction({ workerId, type: "single", prevValue: String(prevVal) });
+
+      if (val === "") {
+        if (existingIdx !== -1) {
+          await deleteAttendanceLocally(workerId, todayYear, todayMonth, todayDay);
+          const updated = [...attendanceRecords];
+          updated.splice(existingIdx, 1);
+          setAttendanceRecords(updated);
+        }
+      } else {
+        const newRecord: AttendanceRecord = {
+          workerId,
+          projectId: activeSite?.id || undefined,
+          year: todayYear,
+          month: todayMonth,
+          day: todayDay,
+          value: val as any,
+        };
+        await storage.setAttendanceRecord(newRecord);
+        const updated = [...attendanceRecords];
+        if (existingIdx !== -1) {
+          updated[existingIdx] = newRecord;
+        } else {
+          updated.push(newRecord);
+        }
+        setAttendanceRecords(updated);
+      }
+
+      await loadDashboardData(true);
+      const workerName = workersList.find(w => w.id === workerId)?.name || "Worker";
+      let statusLabel = "Present";
+      if (val === "H") statusLabel = "Half Day";
+      else if (val === "OT") statusLabel = "Overtime";
+      else if (val === "A") statusLabel = "Absent";
+      else if (val === "") statusLabel = "Unmarked";
+
+      setToastMessage(`Marked ${workerName} as ${statusLabel}`);
+      setShowToast(true);
+    } catch (e) {
+      console.warn("Failed to update attendance value:", e);
+    }
+  };
+
+  const handleMarkAllPresent = async () => {
+    triggerHaptic();
+    try {
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth();
+      const todayDay = today.getDate();
+
+      const siteWorkers = activeSite
+        ? workersList.filter(w => w.projectId === activeSite.id)
+        : workersList;
+
+      if (siteWorkers.length === 0) {
+        Alert.alert("No Workers", "There are no workers registered to mark.");
+        return;
+      }
+
+      const prevRecords = [...attendanceRecords];
+      setLastAction({ type: "bulk", prevValue: JSON.stringify(prevRecords) });
+
+      const updated = [...attendanceRecords];
+
+      for (const worker of siteWorkers) {
+        const idx = updated.findIndex(
+          (r) => r.workerId === worker.id && r.year === todayYear && r.month === todayMonth && r.day === todayDay
+        );
+
+        const newRecord: AttendanceRecord = {
+          workerId: worker.id,
+          projectId: activeSite?.id || undefined,
+          year: todayYear,
+          month: todayMonth,
+          day: todayDay,
+          value: "P",
+        };
+        await storage.setAttendanceRecord(newRecord);
+
+        if (idx !== -1) {
+          updated[idx] = newRecord;
+        } else {
+          updated.push(newRecord);
+        }
+      }
+
+      setAttendanceRecords(updated);
+      await loadDashboardData(true);
+      setToastMessage("Marked all workers as Present");
+      setShowToast(true);
+    } catch (e) {
+      console.warn("Bulk mark failed:", e);
+    }
+  };
+
+  const handleUndo = async () => {
+    triggerHaptic();
+    if (!lastAction) return;
+
+    try {
+      const todayYear = today.getFullYear();
+      const todayMonth = today.getMonth();
+      const todayDay = today.getDate();
+
+      if (lastAction.type === "bulk") {
+        const prevRecords = JSON.parse(lastAction.prevValue) as AttendanceRecord[];
+
+        const siteWorkers = activeSite
+          ? workersList.filter(w => w.projectId === activeSite.id)
+          : workersList;
+
+        for (const worker of siteWorkers) {
+          await deleteAttendanceLocally(worker.id, todayYear, todayMonth, todayDay);
+        }
+
+        for (const rec of prevRecords) {
+          await storage.setAttendanceRecord(rec);
+        }
+
+        setAttendanceRecords(prevRecords);
+        setLastAction(null);
+        setShowToast(false);
+        await loadDashboardData(true);
+        Alert.alert("Undone", "Bulk action has been reverted.");
+        return;
+      }
+
+      const { workerId, prevValue } = lastAction;
+      if (!workerId) return;
+
+      const existingIdx = attendanceRecords.findIndex(
+        (r) => r.workerId === workerId && r.year === todayYear && r.month === todayMonth && r.day === todayDay
+      );
+
+      if (prevValue === "" || prevValue === "undefined") {
+        if (existingIdx !== -1) {
+          await deleteAttendanceLocally(workerId, todayYear, todayMonth, todayDay);
+          const updated = [...attendanceRecords];
+          updated.splice(existingIdx, 1);
+          setAttendanceRecords(updated);
+        }
+      } else {
+        const newRecord: AttendanceRecord = {
+          workerId,
+          projectId: activeSite?.id || undefined,
+          year: todayYear,
+          month: todayMonth,
+          day: todayDay,
+          value: prevValue as any,
+        };
+        await storage.setAttendanceRecord(newRecord);
+        const updated = [...attendanceRecords];
+        if (existingIdx !== -1) {
+          updated[existingIdx] = newRecord;
+        } else {
+          updated.push(newRecord);
+        }
+        setAttendanceRecords(updated);
+      }
+
+      setLastAction(null);
+      setShowToast(false);
+      await loadDashboardData(true);
+      Alert.alert("Undone", "Last action reverted successfully.");
+    } catch (e) {
+      console.warn("Undo failed:", e);
+    }
+  };
+
+  const handleQuickAction = (action: string) => {
+    triggerHaptic();
+    if (action === "AddWorker") {
+      navigation.navigate("AddWorker");
+    } else if (action === "ProjectManagement") {
+      navigation.navigate("ProjectManagement");
+    } else if (action === "AttendanceDetail") {
+      navigation.navigate("AttendanceDetail");
+    } else if (action === "Reports") {
+      navigation.navigate("ReportsTab");
+    }
+  };
+
+  const generateRazorpayHtml = (plan: "standard" | "pro") => {
+    const amount = plan === "standard" ? 99 : 399;
+    const planName = plan === "standard" ? "PRIME Monthly Standard" : "PRIME Monthly Pro";
+    const amountPaise = amount * 100;
+    const email = user?.email || "contractor@example.com";
+    const phone = user?.phone || "9999999999";
+    const name = user?.name || "Contractor User";
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #F8FAFC;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+          }
+          .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+          }
+          h2 { margin-top: 0; color: #1E293B; }
+          p { color: #64748B; font-size: 14px; margin-bottom: 24px; }
+          .btn {
+            background-color: #F59E0B;
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 12px;
+          }
+          .btn-secondary {
+            background-color: #E2E8F0;
+            color: #475569;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2>Razorpay Secure Checkout</h2>
+          <p>You are paying <strong>INR ${amount}</strong> for the <strong>${planName}</strong> subscription plan (Test Mode).</p>
+          <button class="btn" onclick="payNow()">Pay with Razorpay</button>
+          <button class="btn btn-secondary" onclick="cancelPay()">Cancel</button>
+        </div>
+
+        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+        <script>
+          function payNow() {
+            var options = {
+              "key": "rzp_test_mock1234567890",
+              "amount": "${amountPaise}",
+              "currency": "INR",
+              "name": "Haajari Manager",
+              "description": "PRIME Subscription - ${planName}",
+              "image": "https://haajari.com/logo.png",
+              "handler": function (response){
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  status: "success",
+                  razorpay_payment_id: response.razorpay_payment_id
+                }));
+              },
+              "modal": {
+                "ondismiss": function(){
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    status: "cancelled"
+                  }));
+                }
+              },
+              "prefill": {
+                "name": "${name}",
+                "email": "${email}",
+                "contact": "${phone}"
+              },
+              "theme": {
+                "color": "#F59E0B"
+              }
+            };
+            var rzp = new Razorpay(options);
+            rzp.open();
+          }
+          
+          function cancelPay() {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              status: "cancelled"
+            }));
+          }
+        </script>
+      </body>
+      </html>
+    `;
+  };
+
+  const handlePaymentResponse = async (dataStr: string) => {
+    try {
+      const data = JSON.parse(dataStr);
+      setShowRazorpayModal(false);
+
+      if (data.status === "success") {
+        const chosenPlan = selectedPlanOption === "standard" ? "professional" : "business";
+        const price = selectedPlanOption === "standard" ? 99 : 399;
+        
+        try {
+          await authenticatedFetch(`${API_URL}/auth/upgrade`, {
+            method: "PUT",
+            body: JSON.stringify({ plan: chosenPlan }),
+          });
+        } catch (e) {
+          console.warn("Backend sync failed, updated locally", e);
+        }
+
+        const auth = await storage.getAuth();
+        if (auth) {
+          await storage.setAuth({ ...auth, plan: chosenPlan });
+        }
+        setCurrentPlan(chosenPlan);
+
+        const newTransaction = {
+          date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+          planName: selectedPlanOption === "standard" ? "PRIME Standard (Monthly)" : "PRIME Pro (Monthly)",
+          amount: price,
+          paymentId: data.razorpay_payment_id || "pay_mock" + Math.random().toString(36).substring(7),
+        };
+
+        const updatedHistory = [newTransaction, ...billingHistory];
+        setBillingHistory(updatedHistory);
+        await AsyncStorage.setItem("@haajari/prime_billing_history", JSON.stringify(updatedHistory));
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert("Payment Successful", `Successfully upgraded to PRIME ${selectedPlanOption === "standard" ? "Standard" : "Pro"} (₹${price}/month)!`);
+        setShowSubModal(false);
+      } else if (data.status === "cancelled") {
+        Alert.alert("Payment Cancelled", "The payment process was cancelled.");
+      }
+    } catch (err) {
+      console.warn("Error parsing payment response:", err);
+    }
+  };
+
+  // Filter display workers list
+  const displayWorkers = activeSite
+    ? workersList.filter(w => w.projectId === activeSite.id)
+    : workersList;
+
+  const todayDay = today.getDate();
+
+  if (loading && workersList.length === 0) {
+    return (
+      <ThemedView style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color="#2563EB" />
+      </ThemedView>
+    );
+  }
+
+  const siteName = activeSite ? activeSite.name : "No Active Site";
+  const summaryStr = `Total: ${stats.totalWorkers} | Present: ${stats.present + stats.halfDay + stats.overtime} | Absent: ${stats.absent}`;
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingTop: insets.top > 0 ? insets.top + Spacing.md : 24,
-            paddingBottom: insets.bottom + 110,
-          }
-        ]}
-      >
-        {/* Top Header: Greeting, PRIME Badge, Profile Avatar */}
-        <View style={styles.topRow}>
-          <View style={styles.topLeft}>
-            <ThemedText style={styles.greetingText}>
-              👋 {getGreeting()}
+      {/* 1. Header Redesign (Date, Active Site Name, Worker-Count Summary) */}
+      <View style={[styles.headerContainer, { paddingTop: insets.top + Spacing.sm }]}>
+        <View style={styles.headerTopRow}>
+          <View style={[styles.headerTitleArea, { marginLeft: 0 }]}>
+            <ThemedText style={styles.headerDate}>{formattedDate.toUpperCase()}</ThemedText>
+            <ThemedText style={styles.headerSiteName} numberOfLines={1}>
+              🏢 {siteName}
             </ThemedText>
           </View>
-
-          <View style={styles.topRightActions}>
-            {/* PRIME Subscription Badge */}
-            <Pressable
-              onPress={() => {
-                triggerHaptic();
-                setShowSubModal(true);
-              }}
-              style={({ pressed }) => [
-                styles.primeBadge,
-                { opacity: pressed ? 0.9 : 1 }
-              ]}
-            >
-              <LinearGradient
-                colors={["#F59E0B", "#D97706"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.primeBadgeGradient}
-              >
-                <ThemedText style={styles.primeBadgeText}>
-                  👑 PRIME
-                </ThemedText>
-              </LinearGradient>
+          {currentPlan !== "free" ? (
+            <View style={styles.primeBadge}>
+              <ThemedText style={styles.primeBadgeText}>PRIME</ThemedText>
+            </View>
+          ) : (
+            <Pressable onPress={() => setShowSubModal(true)} style={styles.upgradeBadge}>
+              <ThemedText style={styles.upgradeBadgeText}>UPGRADE</ThemedText>
             </Pressable>
+          )}
+        </View>
 
-            {/* Profile Avatar */}
-            <Pressable
-              onPress={() => {
-                triggerHaptic();
-                navigation.navigate("UserProfile");
-              }}
-              style={({ pressed }) => [
-                styles.avatarContainer,
-                { backgroundColor: theme.primary, opacity: pressed ? 0.9 : 1 }
-              ]}
-            >
-              <ThemedText style={styles.avatarText}>{userInitials || "S"}</ThemedText>
-            </Pressable>
+        <View style={styles.headerSummaryBar}>
+          <ThemedText style={styles.summaryBarText}>
+            👷 {stats.totalWorkers} Workers  |  🟢 {stats.present + stats.halfDay + stats.overtime} Active  |  🔴 {stats.absent} Absent
+          </ThemedText>
+        </View>
+      </View>
+
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Engagement Streak & Insight Banner */}
+        <View style={styles.streakBannerRow}>
+          <View style={styles.streakCard}>
+            <ThemedText style={styles.streakText}>🔥 {streakCount}-Day Streak</ThemedText>
+          </View>
+          <View style={styles.insightCard}>
+            <Feather name="trending-down" size={14} color="#F59E0B" />
+            <ThemedText style={styles.insightText} numberOfLines={1}>{smartInsight}</ThemedText>
           </View>
         </View>
 
-        {loading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={theme.primary} />
-          </View>
+        {/* 2. Unified Card Summary (Today's Attendance + Active Site Info) */}
+        <View style={styles.cardHeaderRow}>
+          <ThemedText style={styles.cardSectionTitle}>Active Site Summary</ThemedText>
+        </View>
+
+        {!activeSite ? (
+          <Pressable
+            onPress={() => handleQuickAction("ProjectManagement")}
+            style={styles.emptyStateCard}
+          >
+            <Feather name="map" size={32} color="#94A3B8" />
+            <ThemedText style={styles.emptyStateText}>No active site — tap to set one up</ThemedText>
+            <View style={styles.emptyStateBtn}>
+              <ThemedText style={styles.emptyStateBtnText}>Create / Activate Site</ThemedText>
+            </View>
+          </Pressable>
         ) : (
-          <>
-            {/* Section 1: Today's Attendance Statistics Card */}
-            <Pressable
-              onPress={() => {
-                triggerHaptic();
-                navigation.navigate("AttendanceDetail");
-              }}
-              style={({ pressed }) => [
-                styles.heroCard,
-                {
-                  backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
-                  opacity: pressed ? 0.96 : 1,
-                  borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)",
-                },
-              ]}
+          <View style={styles.unifiedCard}>
+            <LinearGradient
+              colors={["#1E293B", "#0F172A"]}
+              style={styles.unifiedGradient}
             >
-              <LinearGradient
-                colors={["#2563EB", "#1D4ED8"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.heroGradient}
-              >
-                <View style={styles.heroHeaderRow}>
-                  <View>
-                    <ThemedText style={styles.heroTitle}>Today's Attendance</ThemedText>
-                    <ThemedText style={styles.heroSubtitle}>Live tracking statistics</ThemedText>
-                  </View>
-                  <View style={styles.rateContainer}>
-                    <ThemedText style={styles.rateValue}>{stats.totalWorkers > 0 ? `${stats.rate}%` : "83%"}</ThemedText>
-                    <ThemedText style={styles.rateLabel}>Rate</ThemedText>
-                  </View>
+              <View style={styles.unifiedHeader}>
+                <View>
+                  <ThemedText style={styles.unifiedSiteTitle}>{activeSite.name}</ThemedText>
+                  <ThemedText style={styles.unifiedSiteSub}>Location: {activeSite.location || "N/A"}</ThemedText>
                 </View>
-
-                {/* Progress bar */}
-                <View style={styles.progressBarBg}>
-                  <View
-                    style={[
-                      styles.progressBarFill,
-                      { width: `${Math.max(3, Math.min(100, stats.totalWorkers > 0 ? stats.rate : 83))}%` },
-                    ]}
-                  />
-                </View>
-
-                {/* Stats Grid */}
-                <View style={styles.statsGrid}>
-                  <View style={styles.statBox}>
-                    <ThemedText style={styles.statNumber}>{stats.totalWorkers || workersList.length || 42}</ThemedText>
-                    <ThemedText style={styles.statLabel}>👷 Total</ThemedText>
-                  </View>
-                  <View style={styles.statBox}>
-                    <ThemedText style={[styles.statNumber, { color: "#4ADE80" }]}>
-                      {stats.totalWorkers > 0 ? stats.present : 35}
-                    </ThemedText>
-                    <ThemedText style={styles.statLabel}>🟢 Present</ThemedText>
-                  </View>
-                  <View style={styles.statBox}>
-                    <ThemedText style={[styles.statNumber, { color: "#FCA5A5" }]}>
-                      {stats.totalWorkers > 0 ? stats.absent : 4}
-                    </ThemedText>
-                    <ThemedText style={styles.statLabel}>🔴 Absent</ThemedText>
-                  </View>
-                  <View style={styles.statBox}>
-                    <ThemedText style={[styles.statNumber, { color: "#FDE047" }]}>
-                      {stats.totalWorkers > 0 ? stats.halfDay : 2}
-                    </ThemedText>
-                    <ThemedText style={styles.statLabel}>🟡 Half Day</ThemedText>
-                  </View>
-                  <View style={styles.statBox}>
-                    <ThemedText style={[styles.statNumber, { color: "#C084FC" }]}>
-                      {stats.totalWorkers > 0 ? stats.overtime : 1}
-                    </ThemedText>
-                    <ThemedText style={styles.statLabel}>🟣 Overtime</ThemedText>
-                  </View>
-                </View>
-              </LinearGradient>
-            </Pressable>
-
-            {/* Section 2: Quick Operations buttons */}
-            <View style={styles.sectionHeader}>
-              <ThemedText style={styles.sectionTitle}>Quick Operations</ThemedText>
-            </View>
-
-            <View style={styles.quickActionsGrid}>
-              <Pressable
-                onPress={() => handleQuickAction("AddWorker")}
-                style={({ pressed }) => [
-                  styles.quickActionBtn,
-                  {
-                    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
-                    opacity: pressed ? 0.9 : 1,
-                  },
-                ]}
-              >
-                <View style={[styles.actionIconContainer, { backgroundColor: "rgba(37, 99, 235, 0.1)" }]}>
-                  <Feather name="user-plus" size={20} color="#2563EB" />
-                </View>
-                <ThemedText style={styles.actionBtnText}>Add Worker</ThemedText>
-              </Pressable>
-
-              <Pressable
-                onPress={() => handleQuickAction("AttendanceDetail")}
-                style={({ pressed }) => [
-                  styles.quickActionBtn,
-                  {
-                    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
-                    opacity: pressed ? 0.9 : 1,
-                  },
-                ]}
-              >
-                <View style={[styles.actionIconContainer, { backgroundColor: "rgba(34, 197, 94, 0.1)" }]}>
-                  <Feather name="calendar" size={20} color="#22C55E" />
-                </View>
-                <ThemedText style={styles.actionBtnText}>Attendance</ThemedText>
-              </Pressable>
-
-              <Pressable
-                onPress={() => handleQuickAction("ProjectManagement")}
-                style={({ pressed }) => [
-                  styles.quickActionBtn,
-                  {
-                    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
-                    opacity: pressed ? 0.9 : 1,
-                  },
-                ]}
-              >
-                <View style={[styles.actionIconContainer, { backgroundColor: "rgba(245, 158, 11, 0.1)" }]}>
-                  <Feather name="plus-circle" size={20} color="#F59E0B" />
-                </View>
-                <ThemedText style={styles.actionBtnText}>Add Site</ThemedText>
-              </Pressable>
-
-              <Pressable
-                onPress={() => handleQuickAction("Summary")}
-                style={({ pressed }) => [
-                  styles.quickActionBtn,
-                  {
-                    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
-                    opacity: pressed ? 0.9 : 1,
-                  },
-                ]}
-              >
-                <View style={[styles.actionIconContainer, { backgroundColor: "rgba(168, 85, 247, 0.1)" }]}>
-                  <Feather name="file-text" size={20} color="#A855F7" />
-                </View>
-                <ThemedText style={styles.actionBtnText}>View Reports</ThemedText>
-              </Pressable>
-            </View>
-
-            {/* Section 3: Active Site Information */}
-            <View style={styles.sectionHeader}>
-              <ThemedText style={styles.sectionTitle}>Active Site Information</ThemedText>
-            </View>
-
-            <Pressable
-              onPress={() => {
-                triggerHaptic();
-                navigation.navigate("SiteManagement");
-              }}
-              style={({ pressed }) => [
-                styles.progressCard,
-                {
-                  backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
-                  opacity: pressed ? 0.96 : 1,
-                  borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)",
-                },
-              ]}
-            >
-              <View style={styles.progressHeaderRow}>
-                <View style={{ flex: 1 }}>
-                  <ThemedText style={styles.progressSiteName}>
-                    {activeSite ? activeSite.name : "Metro Project"}
-                  </ThemedText>
-                  
-                  {/* Total Workers & Status */}
-                  <View style={styles.siteInfoRow}>
-                    <View style={[styles.infoBadge, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#F1F5F9" }]}>
-                      <ThemedText style={[styles.infoBadgeText, { color: theme.text }]}>
-                        👷 {stats.totalWorkers || workersList.length || 42} Workers
-                      </ThemedText>
-                    </View>
-                    <View style={[styles.infoBadge, { backgroundColor: "rgba(34, 197, 94, 0.1)" }]}>
-                      <ThemedText style={[styles.infoBadgeText, { color: "#22C55E", fontWeight: "700" }]}>
-                        Status: Active
-                      </ThemedText>
-                    </View>
-                  </View>
-                </View>
-                {/* Circular indicator container */}
-                <View style={styles.circularIndicator}>
-                  <ThemedText style={styles.circularPercent}>72%</ThemedText>
-                  <ThemedText style={styles.circularSub}>Done</ThemedText>
+                <View style={styles.rateCircle}>
+                  <ThemedText style={styles.ratePercent}>{stats.rate}%</ThemedText>
+                  <ThemedText style={styles.rateLabel}>Rate</ThemedText>
                 </View>
               </View>
 
-              {/* Estimation info */}
-              <View style={[styles.estimationRow, { borderBottomColor: isDark ? "rgba(255, 255, 255, 0.08)" : "#F1F5F9" }]}>
-                <Feather name="clock" size={13} color={theme.textSecondary} style={{ marginRight: 6 }} />
-                <ThemedText style={{ fontSize: 12, color: theme.textSecondary }}>
-                  Est. Completion: 24 Oct 2026
+              {/* Progress bar */}
+              <View style={styles.barBg}>
+                <View
+                  style={[
+                    styles.barFill,
+                    {
+                      width: `${stats.rate}%`,
+                      backgroundColor: stats.rate < 50 ? "#EF4444" : stats.rate < 75 ? "#F59E0B" : "#10B981",
+                    },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.statsSummaryGrid}>
+                <View style={styles.statsBox}>
+                  <ThemedText style={styles.statsNumber}>{stats.totalWorkers}</ThemedText>
+                  <ThemedText style={styles.statsLabel}>Total</ThemedText>
+                </View>
+                <View style={styles.statsBox}>
+                  <ThemedText style={[styles.statsNumber, { color: "#10B981" }]}>{stats.present}</ThemedText>
+                  <ThemedText style={styles.statsLabel}>Present</ThemedText>
+                </View>
+                <View style={styles.statsBox}>
+                  <ThemedText style={[styles.statsNumber, { color: "#F59E0B" }]}>{stats.halfDay}</ThemedText>
+                  <ThemedText style={styles.statsLabel}>Half Day</ThemedText>
+                </View>
+                <View style={styles.statsBox}>
+                  <ThemedText style={[styles.statsNumber, { color: "#A855F7" }]}>{stats.overtime}</ThemedText>
+                  <ThemedText style={styles.statsLabel}>Overtime</ThemedText>
+                </View>
+                <View style={styles.statsBox}>
+                  <ThemedText style={[styles.statsNumber, { color: "#EF4444" }]}>{stats.absent}</ThemedText>
+                  <ThemedText style={styles.statsLabel}>Absent</ThemedText>
+                </View>
+              </View>
+
+              <View style={styles.siteInfoFooter}>
+                <Feather name="calendar" size={13} color="#94A3B8" style={{ marginRight: 6 }} />
+                <ThemedText style={styles.footerText}>
+                  Est. Completion: {activeSite.endDate || "N/A"}
                 </ThemedText>
               </View>
+            </LinearGradient>
+          </View>
+        )}
 
-              {/* Stages List */}
-              <View style={styles.stagesContainer}>
-                <View style={styles.stageItem}>
-                  <View style={[styles.stageIndicator, { backgroundColor: "rgba(34, 197, 94, 0.15)" }]}>
-                    <Feather name="check" size={12} color="#22C55E" />
+        {/* Visually Dominant Quick Action Button */}
+        <View style={{ marginVertical: Spacing.md }}>
+          <Pressable
+            style={styles.primaryMarkBtn}
+            onPress={() => {
+              triggerHaptic();
+              scrollViewRef.current?.scrollTo({ y: 400, animated: true });
+            }}
+          >
+            <Ionicons name="checkbox" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+            <ThemedText style={styles.primaryMarkBtnText}>Mark Today's Attendance</ThemedText>
+          </Pressable>
+        </View>
+
+        {/* Secondary Operations */}
+        <View style={styles.secondaryActionsGrid}>
+          <Pressable onPress={() => handleQuickAction("AddWorker")} style={styles.secondaryActionBtn}>
+            <Feather name="user-plus" size={16} color="#3B82F6" />
+            <ThemedText style={styles.secondaryBtnText}>Add Worker</ThemedText>
+          </Pressable>
+          <Pressable onPress={() => handleQuickAction("ProjectManagement")} style={styles.secondaryActionBtn}>
+            <Feather name="plus-circle" size={16} color="#8B5CF6" />
+            <ThemedText style={styles.secondaryBtnText}>Add Site</ThemedText>
+          </Pressable>
+          <Pressable onPress={() => handleQuickAction("Reports")} style={styles.secondaryActionBtn}>
+            <Feather name="file-text" size={16} color="#10B981" />
+            <ThemedText style={styles.secondaryBtnText}>View Reports</ThemedText>
+          </Pressable>
+        </View>
+
+        {/* GPS Auto Check-in Toggle */}
+        <View style={styles.gpsRow}>
+          <View style={{ flex: 1 }}>
+            <ThemedText style={styles.gpsTitle}>GPS Auto Check-in</ThemedText>
+            <ThemedText style={styles.gpsDesc}>Automatically mark present on arrival</ThemedText>
+          </View>
+          <Switch
+            value={gpsCheckInActive}
+            onValueChange={(val) => {
+              triggerHaptic();
+              setGpsCheckInActive(val);
+              if (val) {
+                Alert.alert("GPS Active", "Auto check-in simulates marking present for on-site workers.");
+              }
+            }}
+            trackColor={{ false: "#334155", true: "#10B981" }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+
+        {/* Core Attendance marking: Tappable Worker List */}
+        <View style={styles.workerListHeader}>
+          <ThemedText style={styles.cardSectionTitle}>Today's Attendance Log</ThemedText>
+          <Pressable onPress={handleMarkAllPresent} style={styles.bulkMarkBtn}>
+            <Feather name="check" size={14} color="#3B82F6" style={{ marginRight: 4 }} />
+            <ThemedText style={styles.bulkMarkText}>Mark All Present</ThemedText>
+          </Pressable>
+        </View>
+
+        {displayWorkers.length === 0 ? (
+          <View style={styles.emptyWorkersContainer}>
+            <Feather name="users" size={24} color="#475569" style={{ marginBottom: 8 }} />
+            <ThemedText style={styles.emptyWorkersText}>No workers registered for this site.</ThemedText>
+          </View>
+        ) : (
+          <View style={styles.workersListCard}>
+            {displayWorkers.map((worker) => {
+              const todayRecord = attendanceRecords.find(
+                (r) => r.workerId === worker.id && r.day === todayDay
+              );
+              const val = todayRecord ? todayRecord.value : "";
+
+              return (
+                <Pressable
+                  key={worker.id}
+                  onPress={() => handleMarkPresent(worker.id)}
+                  onLongPress={() => handleMarkOptions(worker.id)}
+                  delayLongPress={300}
+                  style={({ pressed }) => [
+                    styles.workerRow,
+                    { backgroundColor: pressed ? "#334155" : "transparent" },
+                    { borderBottomColor: "#1E293B" }
+                  ]}
+                >
+                  <View style={styles.workerAvatar}>
+                    <ThemedText style={styles.workerAvatarText}>
+                      {worker.name.charAt(0).toUpperCase()}
+                    </ThemedText>
                   </View>
-                  <ThemedText style={styles.stageLabel}>Foundation</ThemedText>
-                  <ThemedText style={[styles.stageValue, { color: "#22C55E" }]}>100%</ThemedText>
-                </View>
-
-                <View style={styles.stageItem}>
-                  <View style={[styles.stageIndicator, { backgroundColor: "rgba(34, 197, 94, 0.15)" }]}>
-                    <Feather name="check" size={12} color="#22C55E" />
+                  <View style={styles.workerInfo}>
+                    <ThemedText style={styles.workerName}>{worker.name}</ThemedText>
+                    <ThemedText style={styles.workerCategory}>{worker.category.toUpperCase()}</ThemedText>
                   </View>
-                  <ThemedText style={styles.stageLabel}>Structure</ThemedText>
-                  <ThemedText style={[styles.stageValue, { color: "#22C55E" }]}>85%</ThemedText>
-                </View>
 
-                <View style={styles.stageItem}>
-                  <View style={[styles.stageIndicator, { backgroundColor: "rgba(245, 158, 11, 0.15)" }]}>
-                    <Feather name="loader" size={12} color="#F59E0B" />
-                  </View>
-                  <ThemedText style={styles.stageLabel}>Plaster</ThemedText>
-                  <ThemedText style={[styles.stageValue, { color: "#F59E0B" }]}>40%</ThemedText>
-                </View>
-              </View>
-            </Pressable>
-
-            {/* Section 4: Weekly Attendance Trend */}
-            <View style={styles.sectionHeader}>
-              <ThemedText style={styles.sectionTitle}>Weekly Attendance Trend</ThemedText>
-            </View>
-
-            <View
-              style={[
-                styles.chartCard,
-                {
-                  backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
-                  borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)",
-                },
-              ]}
-            >
-              <View style={styles.chartHeader}>
-                <ThemedText style={styles.chartTitle}>Past 6 Days Attendance</ThemedText>
-              </View>
-
-              <View style={styles.barsContainer}>
-                {[
-                  { day: "Mon", rate: 85 },
-                  { day: "Tue", rate: 90 },
-                  { day: "Wed", rate: 88 },
-                  { day: "Thu", rate: 80 },
-                  { day: "Fri", rate: 92 },
-                  { day: "Sat", rate: 78 },
-                ].map((item) => {
-                  let barColor = "#22C55E";
-                  if (item.rate < 80) barColor = "#EF4444";
-                  else if (item.rate < 85) barColor = "#F59E0B";
-
-                  return (
-                    <View key={item.day} style={styles.barItem}>
-                      <View style={styles.barWrapper}>
-                        <View
-                          style={[
-                            styles.bar,
-                            {
-                              height: `${item.rate}%`,
-                              backgroundColor: barColor,
-                            },
-                          ]}
-                        />
-                        <ThemedText style={styles.barPercentage}>{item.rate}%</ThemedText>
+                  <View style={styles.attendanceStatusContainer}>
+                    {val === "P" && (
+                      <View style={[styles.statusBadge, { backgroundColor: "rgba(16, 185, 129, 0.15)" }]}>
+                        <ThemedText style={[styles.statusBadgeText, { color: "#10B981" }]}>PRESENT</ThemedText>
                       </View>
-                      <ThemedText style={[styles.barDayText, { color: theme.textSecondary }]}>
-                        {item.day}
-                      </ThemedText>
-                    </View>
-                  );
-                })}
-              </View>
+                    )}
+                    {val === "H" && (
+                      <View style={[styles.statusBadge, { backgroundColor: "rgba(245, 158, 11, 0.15)" }]}>
+                        <ThemedText style={[styles.statusBadgeText, { color: "#F59E0B" }]}>HALF DAY</ThemedText>
+                      </View>
+                    )}
+                    {val === "OT" && (
+                      <View style={[styles.statusBadge, { backgroundColor: "rgba(168, 85, 247, 0.15)" }]}>
+                        <ThemedText style={[styles.statusBadgeText, { color: "#A855F7" }]}>OVERTIME</ThemedText>
+                      </View>
+                    )}
+                    {val === "A" && (
+                      <View style={[styles.statusBadge, { backgroundColor: "rgba(239, 68, 68, 0.15)" }]}>
+                        <ThemedText style={[styles.statusBadgeText, { color: "#EF4444" }]}>ABSENT</ThemedText>
+                      </View>
+                    )}
+                    {val === "" && (
+                      <View style={styles.checkboxEmpty}>
+                        <Feather name="square" size={18} color="#475569" />
+                      </View>
+                    )}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {/* View Grid Attendance Register Button/Cell */}
+        <Pressable
+          onPress={() => {
+            triggerHaptic();
+            navigation.navigate("AttendanceDetail");
+          }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            backgroundColor: isDark ? "#1E293B" : "#F8FAFC",
+            borderRadius: 12,
+            padding: 16,
+            marginTop: Spacing.md,
+            marginBottom: Spacing.lg,
+            borderWidth: 1,
+            borderColor: isDark ? "#334155" : "#E2E8F0",
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(59, 130, 246, 0.15)", justifyContent: "center", alignItems: "center" }}>
+              <Feather name="calendar" size={18} color="#3B82F6" />
             </View>
-          </>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={{ fontWeight: "700", fontSize: 14 }}>View Attendance Register (Grid Sheet)</ThemedText>
+              <ThemedText style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>See month-wise matrix, presets, and reports</ThemedText>
+            </View>
+          </View>
+          <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+        </Pressable>
+
+        {/* Weekly Trend (Color Coded with Threshold Rules) */}
+        <View style={styles.cardHeaderRow}>
+          <ThemedText style={styles.cardSectionTitle}>Weekly Attendance Trend</ThemedText>
+        </View>
+        <View style={styles.chartCard}>
+          <View style={styles.barsContainer}>
+            {[
+              { day: "Mon", rate: stats.totalWorkers > 0 ? 85 : 0 },
+              { day: "Tue", rate: stats.totalWorkers > 0 ? 90 : 0 },
+              { day: "Wed", rate: stats.totalWorkers > 0 ? 45 : 0 },
+              { day: "Thu", rate: stats.totalWorkers > 0 ? 80 : 0 },
+              { day: "Fri", rate: stats.totalWorkers > 0 ? 65 : 0 },
+              { day: "Sat", rate: stats.totalWorkers > 0 ? 78 : 0 },
+            ].map((item) => {
+              let barColor = "#EF4444";
+              if (item.rate >= 75) barColor = "#10B981";
+              else if (item.rate >= 50) barColor = "#F59E0B";
+
+              return (
+                <View key={item.day} style={styles.barItem}>
+                  <View style={styles.barWrapper}>
+                    <View
+                      style={[
+                        styles.bar,
+                        {
+                          height: `${item.rate}%`,
+                          backgroundColor: barColor,
+                        },
+                      ]}
+                    />
+                    <ThemedText style={styles.barPercentage}>{item.rate}%</ThemedText>
+                  </View>
+                  <ThemedText style={styles.barDayText}>{item.day}</ThemedText>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Dynamic Prime/Upgrade Billing History */}
+        {billingHistory.length > 0 && (
+          <View style={styles.billingSection}>
+            <ThemedText style={styles.cardSectionTitle}>Billing History</ThemedText>
+            <View style={styles.historyCard}>
+              {billingHistory.map((item, index) => (
+                <View key={index} style={styles.historyRow}>
+                  <ThemedText style={styles.historyDate}>{item.date}</ThemedText>
+                  <ThemedText style={styles.historyDesc}>{item.planName}</ThemedText>
+                  <ThemedText style={styles.historyAmount}>₹{item.amount}</ThemedText>
+                </View>
+              ))}
+            </View>
+          </View>
         )}
       </ScrollView>
 
-      {/* ─── SUBSCRIPTION CENTER MODAL ─── */}
+
+
+      {/* Custom Attendance Entry & Advanced Configuration Modal */}
       <Modal
-        visible={showSubModal}
+        visible={attendanceModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowSubModal(false)}
+        onRequestClose={() => setAttendanceModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.subModalContent, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF", width: "95%" }]}>
-            <View style={styles.subModalHeader}>
-              <ThemedText style={styles.subModalTitle}>👑 PRIME Subscription</ThemedText>
-              <Pressable onPress={() => setShowSubModal(false)} style={styles.closeBtn}>
-                <Feather name="x" size={20} color={theme.text} />
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: isDark ? "#0F172A" : "#FFFFFF", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: Platform.OS === "ios" ? 40 : 24 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <View>
+                <ThemedText style={{ fontSize: 18, fontWeight: "800", color: isDark ? "#FFFFFF" : "#0F172A" }}>
+                  {selectedWorkerForAttendance?.name || "Mark Attendance"}
+                </ThemedText>
+                <ThemedText style={{ fontSize: 12, color: theme.textSecondary, marginTop: 4 }}>
+                  Choose status and configure special parameters for today
+                </ThemedText>
+              </View>
+              <Pressable onPress={() => setAttendanceModalVisible(false)} style={{ padding: 6, backgroundColor: isDark ? "#1E293B" : "#F1F5F9", borderRadius: 20 }}>
+                <Feather name="x" size={20} color={isDark ? "#94A3B8" : "#475569"} />
               </Pressable>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.subModalScroll}>
-              {/* Plan Switcher */}
-              <ThemedText style={[styles.subSectionTitle, { color: theme.textSecondary }]}>Select Subscription Plan</ThemedText>
-              <View style={styles.planSwitchRow}>
-                <Pressable
-                  onPress={() => {
-                    triggerHaptic();
-                    setSelectedPlanOption("standard");
-                  }}
-                  style={[
-                    styles.planOptionCard,
-                    {
-                      borderColor: selectedPlanOption === "standard" ? "#F59E0B" : theme.border,
-                      backgroundColor: selectedPlanOption === "standard" ? (isDark ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.05)") : "transparent",
-                    },
-                  ]}
-                >
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                    <ThemedText style={{ fontWeight: "700", fontSize: 15 }}>PRIME Standard</ThemedText>
-                    {selectedPlanOption === "standard" && <Feather name="check-circle" size={16} color="#F59E0B" />}
-                  </View>
-                  <ThemedText style={{ fontSize: 20, fontWeight: "900", marginTop: 8, color: "#F59E0B" }}>₹299/year</ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>Basic cloud & limits upgrade</ThemedText>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => {
-                    triggerHaptic();
-                    setSelectedPlanOption("pro");
-                  }}
-                  style={[
-                    styles.planOptionCard,
-                    {
-                      borderColor: selectedPlanOption === "pro" ? "#F59E0B" : theme.border,
-                      backgroundColor: selectedPlanOption === "pro" ? (isDark ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.05)") : "transparent",
-                    },
-                  ]}
-                >
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                    <ThemedText style={{ fontWeight: "700", fontSize: 15 }}>PRIME Pro</ThemedText>
-                    {selectedPlanOption === "pro" && <Feather name="check-circle" size={16} color="#F59E0B" />}
-                  </View>
-                  <ThemedText style={{ fontSize: 20, fontWeight: "900", marginTop: 8, color: "#F59E0B" }}>₹499/year</ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>Advanced AI & team features</ThemedText>
-                </Pressable>
-              </View>
-
-              {/* Benefits list depending on selection */}
-              <View style={styles.benefitsContainer}>
-                <ThemedText style={[styles.subSectionTitle, { color: theme.textSecondary, marginBottom: 10 }]}>
-                  Included Benefits:
-                </ThemedText>
-                {[
-                  { text: "Unlimited Workers", active: true },
-                  { text: "Unlimited Sites", active: true },
-                  { text: "Export PDF and Excel", active: true },
-                  { text: "Cloud Backup", active: selectedPlanOption === "pro" },
-                  { text: "Multi Device Access", active: selectedPlanOption === "pro" },
-                  { text: "Future AI Features", active: selectedPlanOption === "pro" },
-                ].map((b) => (
-                  <View key={b.text} style={styles.benefitRow}>
-                    <Feather
-                      name={b.active ? "check-circle" : "x-circle"}
-                      size={16}
-                      color={b.active ? "#22C55E" : theme.textSecondary}
-                      style={{ marginRight: 10 }}
-                    />
-                    <ThemedText style={[styles.benefitText, { color: b.active ? theme.text : theme.textSecondary }]}>
-                      {b.text}
+            {/* Attendance Status Selectors (Explicitly Structured Rows to prevent overlapping) */}
+            <ThemedText style={{ fontSize: 13, fontWeight: "700", color: isDark ? "#94A3B8" : "#475569", marginBottom: 10 }}>Status</ThemedText>
+            
+            {/* Row 1: Present, Absent, Half-Day */}
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+              {[
+                { val: "P", label: "Present", color: "#10B981" },
+                { val: "A", label: "Absent", color: "#EF4444" },
+                { val: "H", label: "Half-Day", color: "#F59E0B" }
+              ].map((status) => {
+                const isActive = modalAttendanceValue === status.val;
+                return (
+                  <Pressable
+                    key={status.val}
+                    onPress={() => {
+                      triggerHaptic();
+                      setModalAttendanceValue(status.val as any);
+                    }}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      borderRadius: 8,
+                      borderWidth: 2,
+                      borderColor: isActive ? status.color : (isDark ? "#334155" : "#E2E8F0"),
+                      backgroundColor: isActive ? `${status.color}15` : (isDark ? "#1E293B" : "#F8FAFC"),
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}
+                  >
+                    <ThemedText style={{ fontSize: 13, fontWeight: "800", color: isActive ? status.color : (isDark ? "#94A3B8" : "#475569") }}>
+                      {status.label}
                     </ThemedText>
-                  </View>
-                ))}
-              </View>
+                  </Pressable>
+                );
+              })}
+            </View>
 
-              {/* Payment Methods Section */}
-              <View style={styles.paymentMethodsSection}>
-                <ThemedText style={[styles.subSectionTitle, { color: theme.textSecondary, marginBottom: 10 }]}>
-                  Payment Method
-                </ThemedText>
-                <View style={styles.paymentMethodTabs}>
-                  {(["card", "upi"] as const).map((method) => (
-                    <Pressable
-                      key={method}
-                      onPress={() => {
-                        triggerHaptic();
-                        setSelectedPaymentMethod(method);
-                      }}
-                      style={[
-                        styles.paymentTabBtn,
-                        {
-                          backgroundColor: selectedPaymentMethod === method ? theme.primary : (isDark ? "rgba(255,255,255,0.05)" : "#F1F5F9"),
-                        },
-                      ]}
-                    >
-                      <ThemedText style={{ color: selectedPaymentMethod === method ? "#FFFFFF" : theme.text, fontWeight: "700", textTransform: "uppercase", fontSize: 12 }}>
-                        {method === "card" ? "💳 Card" : "📱 UPI"}
-                      </ThemedText>
-                    </Pressable>
-                  ))}
+            {/* Row 2: Overtime, Unmark */}
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
+              {[
+                { val: "OT", label: "Overtime", color: "#6366F1" },
+                { val: "", label: "Unmark", color: "#64748B" }
+              ].map((status) => {
+                const isActive = modalAttendanceValue === status.val;
+                return (
+                  <Pressable
+                    key={status.val}
+                    onPress={() => {
+                      triggerHaptic();
+                      setModalAttendanceValue(status.val as any);
+                    }}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      borderRadius: 8,
+                      borderWidth: 2,
+                      borderColor: isActive ? status.color : (isDark ? "#334155" : "#E2E8F0"),
+                      backgroundColor: isActive ? `${status.color}15` : (isDark ? "#1E293B" : "#F8FAFC"),
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}
+                  >
+                    <ThemedText style={{ fontSize: 13, fontWeight: "800", color: isActive ? status.color : (isDark ? "#94A3B8" : "#475569") }}>
+                      {status.label}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Optional Fields (Only if present/half-day/overtime is checked) */}
+            {modalAttendanceValue !== "A" && modalAttendanceValue !== "" ? (
+              <View style={{ gap: 16, marginBottom: 24 }}>
+                {/* Advance Amount (Custom Wage) */}
+                <View>
+                  <ThemedText style={{ fontSize: 13, fontWeight: "700", color: isDark ? "#94A3B8" : "#475569", marginBottom: 6 }}>Advance / Custom Wage (₹)</ThemedText>
+                  <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderRadius: 8, borderWidth: 1, borderColor: isDark ? "#334155" : "#E2E8F0", paddingHorizontal: 12, height: 44 }}>
+                    <ThemedText style={{ color: theme.textSecondary, marginRight: 6, fontWeight: "700" }}>₹</ThemedText>
+                    <TextInput
+                      keyboardType="numeric"
+                      placeholder="e.g. 100 (optional)"
+                      placeholderTextColor={theme.textSecondary}
+                      style={{ flex: 1, color: isDark ? "#FFFFFF" : "#0F172A", fontSize: 14 }}
+                      value={modalAdvanceAmount}
+                      onChangeText={setModalAdvanceAmount}
+                    />
+                  </View>
                 </View>
 
-                {selectedPaymentMethod === "card" ? (
-                  <View style={[styles.cardForm, { borderColor: theme.border }]}>
-                    {/* Card type switcher */}
-                    <View style={styles.cardTypeRow}>
-                      {(["visa", "mastercard", "rupay"] as const).map((type) => (
-                        <Pressable
-                          key={type}
-                          onPress={() => setCardType(type)}
-                          style={[
-                            styles.cardTypeBtn,
-                            {
-                              borderColor: cardType === type ? "#F59E0B" : theme.border,
-                              backgroundColor: cardType === type ? (isDark ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.05)") : "transparent",
-                            },
-                          ]}
-                        >
-                          <ThemedText style={{ fontSize: 11, fontWeight: "700", textTransform: "uppercase", color: theme.text }}>{type}</ThemedText>
-                        </Pressable>
-                      ))}
-                    </View>
-
-                    <TextInput
-                      style={[styles.paymentInput, { color: theme.text, borderColor: theme.border }]}
-                      placeholder="Cardholder Name"
-                      placeholderTextColor={theme.textSecondary}
-                      value={cardName}
-                      onChangeText={setCardName}
-                    />
-
-                    <TextInput
-                      style={[styles.paymentInput, { color: theme.text, borderColor: theme.border }]}
-                      placeholder="Card Number (e.g. 4242 4242 4242 4242)"
-                      placeholderTextColor={theme.textSecondary}
-                      keyboardType="numeric"
-                      value={cardNumber}
-                      onChangeText={setCardNumber}
-                    />
-
-                    <View style={{ flexDirection: "row", gap: 10 }}>
+                {/* Overtime Fields */}
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={{ fontSize: 13, fontWeight: "700", color: isDark ? "#94A3B8" : "#475569", marginBottom: 6 }}>OT Wage (₹)</ThemedText>
+                    <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderRadius: 8, borderWidth: 1, borderColor: isDark ? "#334155" : "#E2E8F0", paddingHorizontal: 12, height: 44 }}>
+                      <ThemedText style={{ color: theme.textSecondary, marginRight: 6, fontWeight: "700" }}>₹</ThemedText>
                       <TextInput
-                        style={[styles.paymentInput, { color: theme.text, borderColor: theme.border, flex: 1 }]}
-                        placeholder="Expiry (MM/YY)"
-                        placeholderTextColor={theme.textSecondary}
-                        value={cardExpiry}
-                        onChangeText={setCardExpiry}
-                      />
-                      <TextInput
-                        style={[styles.paymentInput, { color: theme.text, borderColor: theme.border, flex: 1 }]}
-                        placeholder="CVV"
-                        placeholderTextColor={theme.textSecondary}
                         keyboardType="numeric"
-                        secureTextEntry
-                        value={cardCvv}
-                        onChangeText={setCardCvv}
+                        placeholder="OT amount"
+                        placeholderTextColor={theme.textSecondary}
+                        style={{ flex: 1, color: isDark ? "#FFFFFF" : "#0F172A", fontSize: 14 }}
+                        value={modalOvertimeWage}
+                        onChangeText={setModalOvertimeWage}
                       />
                     </View>
                   </View>
-                ) : (
-                  <View style={[styles.cardForm, { borderColor: theme.border }]}>
-                    <TextInput
-                      style={[styles.paymentInput, { color: theme.text, borderColor: theme.border }]}
-                      placeholder="Enter UPI ID (e.g. user@upi)"
-                      placeholderTextColor={theme.textSecondary}
-                      value={cardName}
-                      onChangeText={setCardName}
-                    />
+
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={{ fontSize: 13, fontWeight: "700", color: isDark ? "#94A3B8" : "#475569", marginBottom: 6 }}>OT Hours</ThemedText>
+                    <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderRadius: 8, borderWidth: 1, borderColor: isDark ? "#334155" : "#E2E8F0", paddingHorizontal: 12, height: 44 }}>
+                      <TextInput
+                        keyboardType="numeric"
+                        placeholder="Hours"
+                        placeholderTextColor={theme.textSecondary}
+                        style={{ flex: 1, color: isDark ? "#FFFFFF" : "#0F172A", fontSize: 14 }}
+                        value={modalOvertimeHours}
+                        onChangeText={setModalOvertimeHours}
+                      />
+                    </View>
                   </View>
-                )}
+                </View>
+              </View>
+            ) : null}
+
+            {/* Action Buttons */}
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <Pressable
+                onPress={() => setAttendanceModalVisible(false)}
+                style={{ flex: 1, height: 46, borderRadius: 8, justifyContent: "center", alignItems: "center", backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }}
+              >
+                <ThemedText style={{ fontWeight: "700", color: isDark ? "#94A3B8" : "#475569" }}>Cancel</ThemedText>
+              </Pressable>
+              
+              <Pressable
+                onPress={handleSaveAttendanceModal}
+                style={{ flex: 1.5, height: 46, borderRadius: 8, justifyContent: "center", alignItems: "center", backgroundColor: "#3B82F6" }}
+              >
+                <ThemedText style={{ fontWeight: "800", color: "#FFFFFF" }}>Save Attendance</ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Razorpay WebView Checkout Modal */}
+      <Modal
+        visible={showRazorpayModal}
+        animationType="slide"
+        onRequestClose={() => setShowRazorpayModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+          <View style={styles.razorpayHeader}>
+            <ThemedText style={styles.razorpayTitle}>Razorpay Payment Gateway</ThemedText>
+            <Pressable onPress={() => setShowRazorpayModal(false)} style={{ padding: 8 }}>
+              <Feather name="x" size={24} color="#64748B" />
+            </Pressable>
+          </View>
+          <WebView
+            source={{ html: razorpayHtml }}
+            onMessage={(e) => handlePaymentResponse(e.nativeEvent.data)}
+            style={{ flex: 1 }}
+          />
+        </View>
+      </Modal>
+
+      {/* PRIME Subscription upgrade modal */}
+      <Modal
+        visible={showSubModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSubModal(false)}
+      >
+        <View style={styles.subModalOverlay}>
+          <View style={styles.subModalContent}>
+            <View style={styles.subHeader}>
+              <ThemedText style={styles.subTitle}>PRIME Membership</ThemedText>
+              <Pressable onPress={() => setShowSubModal(false)} style={{ padding: 4 }}>
+                <Feather name="x" size={20} color="#FFFFFF" />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
+              <ThemedText style={styles.planSelectorLabel}>Select Subscription Plan</ThemedText>
+              <View style={styles.planGrid}>
+                <Pressable
+                  onPress={() => setSelectedPlanOption("standard")}
+                  style={[
+                    styles.planOption,
+                    selectedPlanOption === "standard" && styles.planOptionActive,
+                  ]}
+                >
+                  <ThemedText style={styles.planOptionName}>Standard</ThemedText>
+                  <ThemedText style={styles.planOptionPrice}>₹99/month</ThemedText>
+                  <ThemedText style={styles.planOptionSub}>Half features included</ThemedText>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setSelectedPlanOption("pro")}
+                  style={[
+                    styles.planOption,
+                    selectedPlanOption === "pro" && styles.planOptionActive,
+                  ]}
+                >
+                  <ThemedText style={styles.planOptionName}>Pro</ThemedText>
+                  <ThemedText style={styles.planOptionPrice}>₹399/month</ThemedText>
+                  <ThemedText style={styles.planOptionSub}>Full unlimited access</ThemedText>
+                </Pressable>
               </View>
 
-              {/* Checkout CTA */}
+              <ThemedText style={styles.planSelectorLabel}>Benefits Summary</ThemedText>
+              {[
+                { text: "Max 50 Workers", active: true },
+                { text: "Max 5 Sites", active: true },
+                { text: "Export PDF and Excel (Max 10)", active: true },
+                { text: "Unlimited Workers", active: selectedPlanOption === "pro" },
+                { text: "Unlimited Sites", active: selectedPlanOption === "pro" },
+                { text: "Unlimited PDF & Excel Exports", active: selectedPlanOption === "pro" },
+                { text: "Cloud Backup", active: selectedPlanOption === "pro" },
+                { text: "Multi Device Access", active: selectedPlanOption === "pro" },
+                { text: "Future AI Features", active: selectedPlanOption === "pro" },
+              ].map((b, index) => (
+                <View key={index} style={styles.benefitRow}>
+                  <Feather
+                    name={b.active ? "check-circle" : "x-circle"}
+                    size={14}
+                    color={b.active ? "#10B981" : "#475569"}
+                  />
+                  <ThemedText style={[styles.benefitText, { color: b.active ? "#F8FAFC" : "#64748B" }]}>
+                    {b.text}
+                  </ThemedText>
+                </View>
+              ))}
+
               <Pressable
-                style={[styles.upgradeBtn, { backgroundColor: "#F59E0B", marginTop: 10 }]}
-                onPress={async () => {
+                style={styles.checkoutBtn}
+                onPress={() => {
                   triggerHaptic();
-                  if (selectedPaymentMethod === "card") {
-                    if (!cardName || !cardNumber || !cardExpiry || !cardCvv) {
-                      Alert.alert("Missing Details", "Please fill in all card details before proceeding.");
-                      return;
-                    }
-                  } else {
-                    if (!cardName) {
-                      Alert.alert("Missing Details", "Please fill in your UPI ID before proceeding.");
-                      return;
-                    }
-                  }
-
-                  const chosenPlan = selectedPlanOption === "standard" ? "professional" : "business";
-                  const price = selectedPlanOption === "standard" ? "₹299" : "₹499";
-                  
-                  // Update plan in local storage
-                  const auth = await storage.getAuth();
-                  if (auth) {
-                    await storage.setAuth({ ...auth, plan: chosenPlan });
-                  }
-                  setCurrentPlan(chosenPlan);
-
-                  Alert.alert(
-                    "Payment Successful",
-                    `Successfully upgraded to PRIME ${selectedPlanOption === "standard" ? "Standard" : "Pro"} (${price}/year)!`
-                  );
-                  setShowSubModal(false);
+                  const html = generateRazorpayHtml(selectedPlanOption);
+                  setRazorpayHtml(html);
+                  setShowRazorpayModal(true);
                 }}
               >
-                <ThemedText style={styles.upgradeBtnText}>
-                  Proceed to Checkout — {selectedPlanOption === "standard" ? "₹299" : "₹499"}
+                <ThemedText style={styles.checkoutBtnText}>
+                  Proceed to Checkout — {selectedPlanOption === "standard" ? "₹99" : "₹399"}
                 </ThemedText>
               </Pressable>
-
-              {/* Billing History Section */}
-              <View style={[styles.detailSection, { marginTop: 24 }]}>
-                <ThemedText style={[styles.subSectionTitle, { color: theme.textSecondary, marginBottom: 10 }]}>
-                  Billing History
-                </ThemedText>
-                <View style={[styles.historyRow, { borderBottomColor: theme.border }]}>
-                  <ThemedText style={styles.historyDate}>09 Jul 2026</ThemedText>
-                  <ThemedText style={[styles.historyDesc, { color: theme.text }]}>PRIME Plan Renewal</ThemedText>
-                  <ThemedText style={[styles.historyAmount, { color: theme.text }]}>₹299</ThemedText>
-                </View>
-                <View style={[styles.historyRow, { borderBottomColor: theme.border }]}>
-                  <ThemedText style={styles.historyDate}>09 Jul 2025</ThemedText>
-                  <ThemedText style={[styles.historyDesc, { color: theme.text }]}>PRIME Trial Activation</ThemedText>
-                  <ThemedText style={[styles.historyAmount, { color: theme.text }]}>₹0</ThemedText>
-                </View>
-              </View>
             </ScrollView>
           </View>
         </View>
       </Modal>
+
+      {/* Undo Toast overlay popup */}
+      {showToast && (
+        <Animated.View style={[styles.toastContainer, { opacity: toastFadeAnim }]}>
+          <ThemedText style={styles.toastMessage}>{toastMessage}</ThemedText>
+          <Pressable onPress={handleUndo} style={styles.toastUndoBtn}>
+            <ThemedText style={styles.toastUndoText}>UNDO</ThemedText>
+          </Pressable>
+        </Animated.View>
+      )}
+
     </ThemedView>
   );
 }
@@ -787,284 +1408,425 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#0F172A",
+  },
+  center: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerContainer: {
+    backgroundColor: "#1E293B",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#334155",
+  },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  hamburgerBtn: {
+    padding: 6,
+  },
+  headerTitleArea: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  headerDate: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#94A3B8",
+    letterSpacing: 1.2,
+  },
+  headerSiteName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#F8FAFC",
+    marginTop: 2,
+  },
+  primeBadge: {
+    backgroundColor: "#F59E0B",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  primeBadgeText: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: "#0F172A",
+  },
+  upgradeBadge: {
+    backgroundColor: "#3B82F6",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  upgradeBadgeText: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: "#FFFFFF",
+  },
+  headerSummaryBar: {
+    backgroundColor: "#0F172A",
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginTop: 10,
+    alignItems: "center",
+  },
+  summaryBarText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94A3B8",
   },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: 110,
   },
-  topRow: {
+  streakBannerRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.lg,
+    gap: 8,
+    marginVertical: Spacing.md,
   },
-  topLeft: {
+  streakCard: {
+    backgroundColor: "#1E293B",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    justifyContent: "center",
+  },
+  streakText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#F59E0B",
+  },
+  insightCard: {
+    flex: 1,
+    backgroundColor: "#1E293B",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  insightText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#E2E8F0",
     flex: 1,
   },
-  greetingText: {
-    fontSize: 22,
-    fontWeight: "900",
-  },
-  topRightActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  primeBadge: {
-    borderRadius: 20,
-    overflow: "hidden",
-    ...Shadows.sm,
-  },
-  primeBadgeGradient: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  primeBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "900",
-    letterSpacing: 0.5,
-  },
-  avatarContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    ...Shadows.sm,
-  },
-  avatarText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  loaderContainer: {
-    paddingVertical: 100,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heroCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    overflow: "hidden",
-    ...Shadows.md,
-    marginBottom: Spacing.lg,
-  },
-  heroGradient: {
-    padding: 20,
-  },
-  heroHeaderRow: {
+  cardHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
-  heroTitle: {
-    fontSize: 18,
+  cardSectionTitle: {
+    fontSize: 13,
     fontWeight: "800",
-    color: "#FFFFFF",
-  },
-  heroSubtitle: {
-    fontSize: 12,
-    color: "rgba(255, 255, 255, 0.8)",
-    marginTop: 2,
-  },
-  rateContainer: {
-    alignItems: "flex-end",
-  },
-  rateValue: {
-    fontSize: 26,
-    fontWeight: "900",
-    color: "#FFFFFF",
-  },
-  rateLabel: {
-    fontSize: 10,
-    color: "rgba(255, 255, 255, 0.7)",
-    fontWeight: "700",
+    color: "#94A3B8",
     textTransform: "uppercase",
   },
-  progressBarBg: {
-    height: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 4,
-    marginTop: 18,
+  emptyStateCard: {
+    backgroundColor: "#1E293B",
+    borderColor: "#334155",
+    borderWidth: 1.5,
+    borderRadius: 16,
+    padding: Spacing.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginVertical: Spacing.xs,
+  },
+  emptyStateText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#EF4444",
+  },
+  emptyStateBtn: {
+    backgroundColor: "#3B82F6",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  emptyStateBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  unifiedCard: {
+    borderRadius: 16,
     overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: "#334155",
+    marginVertical: Spacing.xs,
   },
-  progressBarFill: {
-    height: "100%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 4,
+  unifiedGradient: {
+    padding: Spacing.lg,
   },
-  statsGrid: {
+  unifiedHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 20,
-  },
-  statBox: {
     alignItems: "center",
-    flex: 1,
+    marginBottom: 12,
   },
-  statNumber: {
+  unifiedSiteTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#F8FAFC",
+  },
+  unifiedSiteSub: {
+    fontSize: 11,
+    color: "#94A3B8",
+    marginTop: 2,
+  },
+  rateCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#0F172A",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#3B82F6",
+  },
+  ratePercent: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#F8FAFC",
+  },
+  rateLabel: {
+    fontSize: 8,
+    color: "#94A3B8",
+    fontWeight: "700",
+  },
+  barBg: {
+    height: 8,
+    backgroundColor: "#334155",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  barFill: {
+    height: "100%",
+    borderRadius: 4,
+  },
+  statsSummaryGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    borderRadius: 10,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    marginBottom: 12,
+  },
+  statsBox: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statsNumber: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#F8FAFC",
+  },
+  statsLabel: {
+    fontSize: 10,
+    color: "#94A3B8",
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  siteInfoFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  footerText: {
+    fontSize: 11,
+    color: "#94A3B8",
+  },
+  primaryMarkBtn: {
+    backgroundColor: "#3B82F6",
+    borderRadius: 12,
+    height: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  primaryMarkBtnText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  secondaryActionsGrid: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: Spacing.md,
+  },
+  secondaryActionBtn: {
+    flex: 1,
+    backgroundColor: "#1E293B",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 10,
+    height: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  secondaryBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#E2E8F0",
+  },
+  gpsRow: {
+    backgroundColor: "#1E293B",
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
+  gpsTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#F8FAFC",
+  },
+  gpsDesc: {
+    fontSize: 10,
+    color: "#94A3B8",
+    marginTop: 1,
+  },
+  workerListHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  bulkMarkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(59, 130, 246, 0.1)",
+  },
+  bulkMarkText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#3B82F6",
+  },
+  emptyWorkersContainer: {
+    backgroundColor: "#1E293B",
+    borderRadius: 12,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#334155",
+    marginBottom: Spacing.lg,
+  },
+  emptyWorkersText: {
+    fontSize: 12,
+    color: "#94A3B8",
+    textAlign: "center",
+  },
+  workersListCard: {
+    backgroundColor: "#1E293B",
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#334155",
+    overflow: "hidden",
+    marginBottom: Spacing.lg,
+  },
+  workerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1.2,
+  },
+  workerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#3B82F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workerAvatarText: {
     fontSize: 16,
     fontWeight: "800",
     color: "#FFFFFF",
   },
-  statLabel: {
-    fontSize: 9,
-    color: "rgba(255, 255, 255, 0.75)",
-    fontWeight: "700",
-    marginTop: 4,
-    textAlign: "center",
-  },
-  sectionHeader: {
-    marginBottom: Spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  quickActionsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginBottom: Spacing.lg,
-    gap: 10,
-  },
-  quickActionBtn: {
-    width: (SCREEN_WIDTH - Spacing.lg * 2 - 10) / 2,
-    borderRadius: 20,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(0, 0, 0, 0.05)",
-    ...Shadows.sm,
-  },
-  actionIconContainer: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  actionBtnText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  progressCard: {
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    ...Shadows.md,
-    marginBottom: Spacing.lg,
-  },
-  progressHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  progressSiteName: {
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  siteInfoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 6,
-  },
-  infoBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  infoBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  circularIndicator: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    borderWidth: 4,
-    borderColor: "#2563EB",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  circularPercent: {
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  circularSub: {
-    fontSize: 8,
-    opacity: 0.6,
-  },
-  estimationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    marginTop: 12,
-    borderBottomWidth: 1,
-  },
-  stagesContainer: {
-    marginTop: 12,
-    gap: 8,
-  },
-  stageItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  stageIndicator: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  stageLabel: {
-    fontSize: 13,
+  workerInfo: {
     flex: 1,
+    marginLeft: 12,
   },
-  stageValue: {
-    fontSize: 12,
+  workerName: {
+    fontSize: 14,
     fontWeight: "700",
+    color: "#F8FAFC",
+  },
+  workerCategory: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#94A3B8",
+    marginTop: 2,
+  },
+  attendanceStatusContainer: {
+    paddingLeft: 8,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  statusBadgeText: {
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  checkboxEmpty: {
+    padding: 4,
   },
   chartCard: {
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    ...Shadows.md,
-  },
-  chartHeader: {
-    marginBottom: 16,
-  },
-  chartTitle: {
-    fontSize: 13,
-    fontWeight: "700",
+    backgroundColor: "#1E293B",
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#334155",
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   barsContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
     height: 120,
-    paddingTop: 10,
+    paddingTop: 16,
   },
   barItem: {
     alignItems: "center",
-    width: (SCREEN_WIDTH - Spacing.lg * 2 - 32 - 10 * 5) / 6,
+    width: 40,
   },
   barWrapper: {
     height: 80,
     width: 14,
-    backgroundColor: Platform.select({ ios: "rgba(0,0,0,0.05)", android: "#F1F5F9" }),
+    backgroundColor: "#334155",
     borderRadius: 7,
     justifyContent: "flex-end",
-    alignItems: "center",
     position: "relative",
   },
   bar: {
@@ -1073,212 +1835,197 @@ const styles = StyleSheet.create({
   },
   barPercentage: {
     position: "absolute",
-    top: -18,
-    fontSize: 9,
-    fontWeight: "700",
+    top: -16,
+    fontSize: 8,
+    fontWeight: "800",
+    color: "#F8FAFC",
+    alignSelf: "center",
   },
   barDayText: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 10,
+    color: "#94A3B8",
     marginTop: 8,
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  subModalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    maxHeight: "85%",
-  },
-  subModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  subModalTitle: {
-    fontSize: 20,
-    fontWeight: "900",
-  },
-  closeBtn: {
-    padding: 4,
-  },
-  subModalScroll: {
-    paddingBottom: 40,
-  },
-  subInfoBox: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-  },
-  subInfoLabel: {
-    fontSize: 12,
-    opacity: 0.6,
-    textTransform: "uppercase",
     fontWeight: "700",
   },
-  subInfoValue: {
-    fontSize: 22,
-    fontWeight: "900",
-    marginTop: 4,
+  billingSection: {
+    marginTop: Spacing.md,
   },
-  subExpiryText: {
-    fontSize: 12,
-    marginTop: 6,
-    fontWeight: "600",
-  },
-  priceContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  priceLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  priceVal: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#F59E0B",
-  },
-  benefitsContainer: {
-    marginBottom: 24,
-  },
-  benefitsTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    marginBottom: 12,
-  },
-  benefitRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  benefitText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  upgradeBtn: {
-    paddingVertical: 14,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    ...Shadows.sm,
-    marginBottom: 12,
-  },
-  upgradeBtnText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  renewBtn: {
-    paddingVertical: 14,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
+  historyCard: {
+    backgroundColor: "#1E293B",
+    borderColor: "#334155",
     borderWidth: 1,
-    marginBottom: 24,
-  },
-  renewBtnText: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  detailSection: {
-    marginBottom: 20,
-  },
-  detailSectionTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    marginBottom: 6,
-  },
-  detailSectionText: {
-    fontSize: 13,
-    fontWeight: "600",
+    borderRadius: 12,
+    paddingVertical: 4,
+    marginTop: 6,
   },
   historyRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 8,
-    borderBottomWidth: 0.5,
-    borderColor: "rgba(0,0,0,0.1)",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
   },
   historyDate: {
-    fontSize: 12,
-    opacity: 0.6,
+    fontSize: 11,
+    color: "#94A3B8",
   },
   historyDesc: {
     fontSize: 12,
-    flex: 1,
-    marginLeft: 12,
+    color: "#F8FAFC",
     fontWeight: "600",
+    flex: 1,
+    marginLeft: 8,
   },
   historyAmount: {
-    fontSize: 13,
+    fontSize: 12,
+    color: "#F8FAFC",
     fontWeight: "700",
   },
-  planSwitchRow: {
+  razorpayHeader: {
+    height: Platform.OS === 'ios' ? 90 : 60,
+    paddingTop: Platform.OS === 'ios' ? 40 : 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
     flexDirection: "row",
-    gap: 12,
-    marginBottom: 20,
-  },
-  planOptionCard: {
-    flex: 1,
-    borderWidth: 2,
-    borderRadius: 16,
-    padding: 12,
-  },
-  subSectionTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    marginBottom: 8,
-  },
-  paymentMethodsSection: {
-    marginBottom: 20,
-  },
-  paymentMethodTabs: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
-  },
-  paymentTabBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
     alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+  },
+  razorpayTitle: {
+    fontWeight: "700",
+    fontSize: 16,
+    color: "#0F172A",
+  },
+  subModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
+    padding: Spacing.lg,
   },
-  cardForm: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
-    gap: 10,
-    marginBottom: 10,
+  subModalContent: {
+    backgroundColor: "#1E293B",
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#334155",
+    maxHeight: "85%",
+    overflow: "hidden",
   },
-  cardTypeRow: {
+  subHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
+  },
+  subTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#F8FAFC",
+  },
+  planSelectorLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#94A3B8",
+    textTransform: "uppercase",
+    marginBottom: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  planGrid: {
     flexDirection: "row",
     gap: 8,
-    marginBottom: 4,
+    marginBottom: Spacing.md,
   },
-  cardTypeBtn: {
+  planOption: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 8,
+    backgroundColor: "#0F172A",
+    borderColor: "#334155",
+    borderWidth: 1.5,
+    borderRadius: 10,
+    padding: 12,
+    alignItems: "center",
+  },
+  planOptionActive: {
+    borderColor: "#F59E0B",
+  },
+  planOptionName: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#94A3B8",
+  },
+  planOptionPrice: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#F8FAFC",
+    marginVertical: 4,
+  },
+  planOptionSub: {
+    fontSize: 8,
+    color: "#64748B",
+    textAlign: "center",
+  },
+  benefitRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     paddingVertical: 6,
+  },
+  benefitText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  checkoutBtn: {
+    backgroundColor: "#F59E0B",
+    borderRadius: 10,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
+    marginTop: 18,
   },
-  paymentInput: {
-    height: 40,
+  checkoutBtnText: {
+    color: "#0F172A",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  toastContainer: {
+    position: "absolute",
+    bottom: 30,
+    left: 20,
+    right: 20,
+    backgroundColor: "#1E293B",
+    borderColor: "#3B82F6",
     borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 10,
+  },
+  toastMessage: {
     fontSize: 13,
+    fontWeight: "600",
+    color: "#F8FAFC",
+    flex: 1,
+  },
+  toastUndoBtn: {
+    backgroundColor: "rgba(59, 130, 246, 0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  toastUndoText: {
+    color: "#3B82F6",
+    fontWeight: "800",
+    fontSize: 12,
   },
 });

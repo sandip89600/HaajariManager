@@ -26,10 +26,17 @@ import DeviceManagementScreen from "@/screens/DeviceManagementScreen";
 import SiteControlDashboardScreen from "@/screens/SiteControlDashboardScreen";
 import SiteDetailControlScreen from "@/screens/SiteDetailControlScreen";
 import DashboardScreen from "@/screens/DashboardScreen";
+import SiteListScreen from "@/screens/SiteListScreen";
+import CreateSiteScreen from "@/screens/CreateSiteScreen";
+import EditSiteScreen from "@/screens/EditSiteScreen";
+import SiteDetailsScreen from "@/screens/SiteDetailsScreen";
+import EnterpriseCollaborationScreen from "@/screens/EnterpriseCollaborationScreen";
 
 export type MainTabParamList = {
   AttendanceTab: undefined;
   SiteManagementTab: undefined;
+  ReportsTab: undefined;
+  WorkersTab: undefined;
   SettingsTab: undefined;
 };
 
@@ -51,6 +58,11 @@ export type RootStackParamList = {
   DeviceManagement: undefined;
   SiteManagement: undefined;
   SiteDetailControl: { siteId: string };
+  SiteList: undefined;
+  CreateSite: undefined;
+  EditSite: { siteId: string };
+  SiteDetails: { siteId: string };
+  EnterpriseCollaboration: undefined;
 
   // Root stack fallbacks
   AttendanceDetail: undefined;
@@ -162,10 +174,32 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
+        name="ReportsTab"
+        component={SummaryScreen}
+        options={{
+          title: "Reports",
+          headerTitle: t.summary.title,
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="bar-chart-2" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="WorkersTab"
+        component={WorkersScreen}
+        options={{
+          title: "Workers",
+          headerTitle: t.workers.title,
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="users" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="SettingsTab"
         component={SettingsScreen}
         options={{
-          title: t.tabs.settings,
+          title: "Settings",
           headerTitle: t.settings.title,
           tabBarIcon: ({ color, size }) => (
             <Feather name="settings" size={size} color={color} />
@@ -250,6 +284,41 @@ export default function MainTabNavigator() {
       <Stack.Screen
         name="SiteDetailControl"
         component={SiteDetailControlScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="SiteList"
+        component={SiteListScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="CreateSite"
+        component={CreateSiteScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="EditSite"
+        component={EditSiteScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="SiteDetails"
+        component={SiteDetailsScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="EnterpriseCollaboration"
+        component={EnterpriseCollaborationScreen}
         options={{
           headerShown: false,
         }}

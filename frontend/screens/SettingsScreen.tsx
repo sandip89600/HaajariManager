@@ -164,7 +164,12 @@ function SettingCard({
 }
 
 // ─── MAIN SETTINGS SCREEN ────────────────────────────────────────────────────
-export default function SettingsScreen() {
+interface SettingsScreenProps {
+  isInDrawer?: boolean;
+  onClose?: () => void;
+}
+
+export default function SettingsScreen({ isInDrawer = false, onClose }: SettingsScreenProps) {
   const { theme, themeMode, setThemeMode, isDark } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const { user: authUser, logout, isGuest } = useAuth();
@@ -1005,16 +1010,78 @@ export default function SettingsScreen() {
   const initials = (translateWorkerName(currentUser?.name || "", language) || "?").charAt(0).toUpperCase();
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, isInDrawer && { backgroundColor: theme.backgroundDefault }]}>
       <ScrollView
         contentContainerStyle={{
-          paddingTop: finalHeaderHeight + Spacing.lg,
+          paddingTop: isInDrawer ? insets.top + Spacing.md : finalHeaderHeight + Spacing.lg,
           paddingBottom: insets.bottom + Spacing["5xl"],
           paddingHorizontal: Spacing.lg,
         }}
         showsVerticalScrollIndicator={false}
       >
+        {isInDrawer && (
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.lg, marginTop: Platform.OS === "ios" ? 10 : 0 }}>
+            <Pressable onPress={onClose} style={{ paddingRight: 16 }}>
+              <Feather name="x" size={24} color={theme.text} />
+            </Pressable>
+            <ThemedText style={{ fontSize: 20, fontWeight: "900" }}>{t.settings.title}</ThemedText>
+          </View>
+        )}
 
+
+        {/* ─── 1. USER PROFILE CARD (DYNAMIC) ─── */}
+        {!isGuest && currentUser && (
+          <Pressable
+            onPress={() => {
+              if (isInDrawer && onClose) {
+                onClose();
+              }
+              navigation.navigate("UserProfile");
+            }}
+            style={[
+              styles.profileCard,
+              {
+                backgroundColor: theme.backgroundSecondary,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <View style={[styles.profileAvatar, { backgroundColor: currentUser.avatarColor || theme.primary }]}>
+              <ThemedText style={styles.profileAvatarText}>
+                {initials}
+              </ThemedText>
+            </View>
+            <View style={styles.profileDetails}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <ThemedText style={styles.profileName}>{currentUser.name}</ThemedText>
+                <Feather name="chevron-right" size={16} color={theme.textSecondary} />
+              </View>
+              <ThemedText type="small" style={styles.profileMeta}>
+                📧 {currentUser.email || "No email added"}
+              </ThemedText>
+              <ThemedText type="small" style={styles.profileMeta}>
+                📞 {currentUser.phone}
+              </ThemedText>
+              {currentUser.companyName && (
+                <ThemedText type="small" style={styles.profileMeta}>
+                  🏢 {currentUser.companyName}
+                </ThemedText>
+              )}
+              <View style={{ flexDirection: "row", marginTop: 8 }}>
+                <View
+                  style={[
+                    styles.planBadge,
+                    { backgroundColor: getPlanColor(currentPlan) },
+                  ]}
+                >
+                  <ThemedText style={styles.planBadgeText}>
+                    {getPlanLabel(currentPlan).toUpperCase()}
+                  </ThemedText>
+                </View>
+              </View>
+            </View>
+          </Pressable>
+        )}
 
         {/* ─── GUEST BANNER ─── */}
         {isGuest && (
@@ -1078,6 +1145,22 @@ export default function SettingsScreen() {
                     label={t.settings.siteManagement}
                     sublabel={t.settings.siteManagementDesc}
                     onPress={() => navigation.navigate("SiteManagement")}
+                    theme={theme}
+                  />
+                  <SettingRow
+                    icon="layers"
+                    iconColor="#3B82F6"
+                    label="Manage Sites Registry"
+                    sublabel="Create, edit, archive and manage site settings"
+                    onPress={() => navigation.navigate("SiteList")}
+                    theme={theme}
+                  />
+                  <SettingRow
+                    icon="cpu"
+                    iconColor="#FF9800"
+                    label="Enterprise Workspace"
+                    sublabel="Collaborate on documents, approvals, activity logs & backups"
+                    onPress={() => navigation.navigate("EnterpriseCollaboration")}
                     isLast
                     theme={theme}
                   />
@@ -1116,6 +1199,14 @@ export default function SettingsScreen() {
                     label={t.settings.siteManagement}
                     sublabel={t.settings.siteManagementDesc}
                     onPress={() => navigation.navigate("SiteManagement")}
+                    theme={theme}
+                  />
+                  <SettingRow
+                    icon="cpu"
+                    iconColor="#FF9800"
+                    label="Enterprise Workspace"
+                    sublabel="Collaborate on documents, approvals, activity logs & backups"
+                    onPress={() => navigation.navigate("EnterpriseCollaboration")}
                     isLast
                     theme={theme}
                   />
@@ -1392,59 +1483,6 @@ export default function SettingsScreen() {
           />
         </SettingCard>
 
-        {/* ─── 9B. EXCLUDED MODULES ─── */}
-        <ThemedText type="small" style={styles.sectionLabel}>
-          {t.settings.excludedModules}
-        </ThemedText>
-        <SettingCard theme={theme} isDark={isDark}>
-          <SettingRow
-            icon="shopping-bag"
-            iconColor={theme.textSecondary}
-            label={t.settings.labourMarketplace}
-            sublabel={t.settings.labourMarketplaceDesc}
-            right={
-              <ThemedText
-                type="small"
-                style={{ color: theme.error, fontWeight: "600" }}
-              >
-                {t.settings.excluded}
-              </ThemedText>
-            }
-            theme={theme}
-          />
-          <SettingRow
-            icon="rss"
-            iconColor={theme.textSecondary}
-            label={t.settings.labourJobFeed}
-            sublabel={t.settings.labourJobFeedDesc}
-            right={
-              <ThemedText
-                type="small"
-                style={{ color: theme.error, fontWeight: "600" }}
-              >
-                {t.settings.excluded}
-              </ThemedText>
-            }
-            theme={theme}
-          />
-          <SettingRow
-            icon="briefcase"
-            iconColor={theme.textSecondary}
-            label={t.settings.labourManagement}
-            sublabel={t.settings.labourManagementDesc}
-            right={
-              <ThemedText
-                type="small"
-                style={{ color: theme.error, fontWeight: "600" }}
-              >
-                {t.settings.excluded}
-              </ThemedText>
-            }
-            isLast
-            theme={theme}
-          />
-        </SettingCard>
-
         {/* ─── 10. ABOUT HAI ─── */}
         <ThemedText type="small" style={styles.sectionLabel}>
           {t.settings.aboutHai}
@@ -1485,17 +1523,6 @@ export default function SettingsScreen() {
             theme={theme}
           />
         </SettingCard>
-
-        {/* ─── 11. LOGOUT BUTTON ─── */}
-        <Pressable
-          onPress={handleLogout}
-          style={[styles.logoutBtn, { borderColor: theme.error }]}
-        >
-          <Feather name="log-out" size={16} color={theme.error} />
-          <ThemedText style={{ color: theme.error, fontWeight: "700" }}>
-            {t.settings.logout}
-          </ThemedText>
-        </Pressable>
       </ScrollView>
 
       {/* ─── THEME MODAL ─── */}
@@ -3067,5 +3094,39 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 8,
     fontWeight: "800",
+  },
+  profileCard: {
+    flexDirection: "row",
+    padding: Spacing.md,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    marginBottom: Spacing.lg,
+    alignItems: "center",
+  },
+  profileAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.md,
+  },
+  profileAvatarText: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#FFFFFF",
+  },
+  profileDetails: {
+    flex: 1,
+    gap: 2,
+  },
+  profileName: {
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  profileMeta: {
+    fontSize: 12,
+    color: "#6B7280",
   },
 });

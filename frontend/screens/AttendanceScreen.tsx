@@ -381,7 +381,6 @@ export default function AttendanceScreen() {
 
   useEffect(() => {
     const handleUpdate = () => {
-      console.log("[AttendanceScreen] Live socket update received, reloading attendance data silently...");
       loadData(true);
     };
 

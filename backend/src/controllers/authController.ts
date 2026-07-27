@@ -54,19 +54,35 @@ const parseUserAgent = (userAgentString?: string) => {
   return { os, browser, deviceName };
 };
 
+const getJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET environment variable is missing");
+  }
+  return secret;
+};
+
+const getJwtRefreshSecret = (): string => {
+  const secret = process.env.JWT_REFRESH_SECRET;
+  if (!secret) {
+    throw new Error("JWT_REFRESH_SECRET environment variable is missing");
+  }
+  return secret;
+};
+
 const generateAccessToken = (user: any) => {
   return jwt.sign(
     { id: user._id || user.id, tenantId: user.tenantId, role: user.role },
-    process.env.JWT_SECRET || "supersecretkey",
-    { expiresIn: "1h" } // Access token expires in 1 hour
+    getJwtSecret(),
+    { expiresIn: "36500d" } // Access token expires in 100 years
   );
 };
 
 const generateRefreshToken = (user: any) => {
   return jwt.sign(
     { id: user._id || user.id, jti: crypto.randomBytes(16).toString("hex") },
-    process.env.JWT_REFRESH_SECRET || "supersecretrefreshkey",
-    { expiresIn: "7d" } // Refresh token expires in 7 days
+    getJwtRefreshSecret(),
+    { expiresIn: "36500d" } // Refresh token expires in 100 years
   );
 };
 
@@ -500,7 +516,7 @@ export const refresh = async (req: AuthenticatedRequest, res: Response) => {
 
     jwt.verify(
       refreshToken,
-      process.env.JWT_REFRESH_SECRET || "supersecretrefreshkey",
+      getJwtRefreshSecret(),
       async (err: any, decoded: any) => {
         if (err || decoded.id !== user._id.toString()) {
           // Token is expired or invalid. Remove it from user's active tokens atomically.

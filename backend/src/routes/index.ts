@@ -10,6 +10,7 @@ import adminRoutes from "./adminRoutes";
 import supportRoutes from "./supportRoutes";
 import exportRoutes from "./exportRoutes";
 import voiceRoutes from "./voiceRoutes";
+import siteRoutes from "./siteRoutes";
 
 const router = Router();
 
@@ -24,6 +25,7 @@ router.use("/admin", adminRoutes);
 router.use("/support", supportRoutes);
 router.use("/export", exportRoutes);
 router.use("/voice", voiceRoutes);
+router.use("/sites", siteRoutes);
 
 export default router;
 

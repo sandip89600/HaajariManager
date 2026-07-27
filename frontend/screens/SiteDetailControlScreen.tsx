@@ -82,14 +82,34 @@ export default function SiteDetailControlScreen() {
     if (!siteId) return;
     setIsLoading(true);
     try {
+      // 1. Fetch site details from our new Site Management API first
+      let currentSite = await storage.getSiteById(siteId) as any;
+      
+      // 2. Fallback to Project model if it was an older project
       const allProjects = await storage.getProjects();
-      const currentSite = allProjects.find((p) => p.id === siteId) || null;
+      if (!currentSite) {
+        currentSite = allProjects.find((p) => p.id === siteId) || null;
+      }
+      
       setSite(currentSite);
 
       const workersList = await storage.getWorkers();
       setAllWorkers(workersList);
 
-      setAllSitesForTransfer(allProjects.filter(p => p.id !== siteId));
+      // Fetch sites list and combine for transfer options
+      const allSitesResult = await storage.getSites();
+      const allSites = allSitesResult.sites || [];
+      const combinedSites = [
+        ...allProjects,
+        ...allSites.map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          location: s.address,
+          status: "active" as const,
+          createdAt: s.createdAt ? new Date(s.createdAt).getTime() : Date.now()
+        }))
+      ];
+      setAllSitesForTransfer(combinedSites.filter(p => p.id !== siteId));
 
       // Load analytics and ledger from Server if online, else mock fallback
       try {
@@ -353,7 +373,7 @@ export default function SiteDetailControlScreen() {
         </Pressable>
         <View style={{ flex: 1, marginLeft: 8 }}>
           <ThemedText numberOfLines={1} style={styles.headerTitle}>{site.name}</ThemedText>
-          <ThemedText numberOfLines={1} style={styles.headerSubtitle}>{site.location || "N/A"}</ThemedText>
+          <ThemedText numberOfLines={1} style={styles.headerSubtitle}>{site.location || (site as any).address || "N/A"}</ThemedText>
         </View>
       </View>
 
@@ -747,7 +767,7 @@ export default function SiteDetailControlScreen() {
                   style={[styles.siteOptionItem, { borderColor: theme.border }]}
                 >
                   <ThemedText style={{ fontWeight: "700", fontSize: 13 }}>{p.name}</ThemedText>
-                  <ThemedText style={{ fontSize: 11, color: "#6B7280" }}>{p.location || "N/A"}</ThemedText>
+                  <ThemedText style={{ fontSize: 11, color: "#6B7280" }}>{p.location || (p as any).address || "N/A"}</ThemedText>
                 </Pressable>
               ))
             )}

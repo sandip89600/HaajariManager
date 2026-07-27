@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -39,15 +39,17 @@ import {
 
 // Dark Theme Colors specifically for Admin Portal
 const ADMIN_COLORS = {
-  background: "#080711", // Obsidian Dark Navy
-  card: "#12121A", // Soft dark card background
-  border: "#212030", // Elegant dark border
-  primary: "#FF5E25", // Glowing Orange Accent
-  success: "#10B981", // Mint Green
+  background: "#0B0E14", // Near-black base
+  card: "#151920", // Elevated card surfaces
+  border: "#232833", // Soft borders
+  primary: "#6366F1", // Electric Indigo Accent
+  success: "#10B981", // Emerald Success
   text: "#FFFFFF",
-  textSecondary: "#9E9EA8", // Curated secondary text
-  danger: "#EF4444", // Modern Red
-  cardHeader: "#1B1A24",
+  textSecondary: "#8B93A7", // Muted gray-blue secondary text
+  danger: "#F43F5E", // Rose Error
+  cardHeader: "#151920",
+  warning: "#F59E0B", // Amber Warning
+  info: "#38BDF8", // Sky Info
 };
 
 interface SystemMetrics {
@@ -136,9 +138,9 @@ export default function AdminDashboardScreen() {
     disconnectSocket,
   } = useSocket();
 
-  // Active Tab
   const [activeTab, setActiveTab] = useState<
     | "dashboard"
+    | "analytics"
     | "users"
     | "workers"
     | "attendance"
@@ -148,6 +150,8 @@ export default function AdminDashboardScreen() {
     | "security"
   >("dashboard");
 
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   // Support Dashboard States
   const [supportProblems, setSupportProblems] = useState<any[]>([]);
   const [supportFeedback, setSupportFeedback] = useState<any[]>([]);
@@ -156,6 +160,10 @@ export default function AdminDashboardScreen() {
     null,
   );
   const [supportFilterDate, setSupportFilterDate] = useState<string>("");
+  const [attendanceFilterDate, setAttendanceFilterDate] = useState<string>("");
+  const [attendanceViewMode, setAttendanceViewMode] = useState<"grid" | "list">("grid");
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   // Security Module States
   const [securityLogs, setSecurityLogs] = useState<any[]>([]);
@@ -168,6 +176,42 @@ export default function AdminDashboardScreen() {
     id: string;
     type: "user" | "worker" | "attendance" | "payment";
   } | null>(null);
+
+  // Real-time Today's Attendance calculation
+  const todayAttendanceStats = useMemo(() => {
+    const today = new Date();
+    const currentDay = today.getDate();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    let present = 0;
+    let absent = 0;
+    let halfDay = 0;
+    let overtime = 0;
+
+    const todaysLogs = attendanceList.filter((item) => {
+      // Handle potential formats (either item.day is number or date string parsing)
+      return item.day === currentDay && item.month === currentMonth && item.year === currentYear;
+    });
+
+    todaysLogs.forEach((item) => {
+      if (item.value === "P") present++;
+      else if (item.value === "A") absent++;
+      else if (item.value === "H" || item.value === "HD") halfDay++;
+      else if (item.value === "OT") overtime++;
+    });
+
+    const total = todaysLogs.length;
+
+    return {
+      present,
+      absent,
+      halfDay,
+      overtime,
+      total,
+      todaysLogs,
+    };
+  }, [attendanceList]);
 
   // Edit Modals states
   const [editUserModalVisible, setEditUserModalVisible] = useState(false);
@@ -251,19 +295,39 @@ export default function AdminDashboardScreen() {
     connectSocket();
 
     const onDashboardUpdate = () => {
-      console.log("[Socket] Dashboard update event received");
       loadDashboardData(adminToken);
       // Also refresh tab-specific data on socket updates
       if (activeTab === "workers") loadWorkers();
-      else if (activeTab === "attendance") loadAttendance();
+      else if (activeTab === "attendance") {
+        loadAttendance();
+        loadWorkers();
+      }
       else if (activeTab === "payments") loadPayments();
       else if (activeTab === "profile") loadAdminProfile();
     };
 
+    const onAdminActivity = (activity: any) => {
+      if (activity && activity.message) {
+        setActivityFeed((prev) => {
+          // Prevent duplicates
+          if (prev.some((item) => item.id === activity.id)) return prev;
+          
+          const newItem: ActivityItem = {
+            id: activity.id || Math.random().toString(),
+            message: activity.message,
+            timestamp: activity.timestamp || new Date().toISOString(),
+          };
+          return [newItem, ...prev].slice(0, 50);
+        });
+      }
+    };
+
     socket.on("admin_dashboard_update", onDashboardUpdate);
+    socket.on("admin_activity", onAdminActivity);
 
     return () => {
       socket.off("admin_dashboard_update", onDashboardUpdate);
+      socket.off("admin_activity", onAdminActivity);
     };
   }, [adminToken, socket, activeTab]);
 
@@ -271,7 +335,10 @@ export default function AdminDashboardScreen() {
   useEffect(() => {
     if (!adminToken) return;
     if (activeTab === "workers") loadWorkers();
-    else if (activeTab === "attendance") loadAttendance();
+    else if (activeTab === "attendance") {
+      loadAttendance();
+      loadWorkers();
+    }
     else if (activeTab === "payments") loadPayments();
     else if (activeTab === "support") loadSupportData();
     else if (activeTab === "security") loadSecurityData();
@@ -297,40 +364,22 @@ export default function AdminDashboardScreen() {
 
   const loadDashboardData = async (token: string) => {
     try {
-      console.log(
-        "[Admin Frontend] loadDashboardData called with token:",
-        token ? token.substring(0, 15) + "..." : "none",
-      );
+
       const headers = { Authorization: `Bearer ${token}` };
       const [usersRes, analyticsRes] = await Promise.all([
         fetch(`${API_URL}/admin/users`, { headers }),
         fetch(`${API_URL}/admin/analytics`, { headers }),
       ]);
 
-      console.log(
-        "[Admin Frontend] usersRes.status:",
-        usersRes.status,
-        "ok:",
-        usersRes.ok,
-      );
-      console.log(
-        "[Admin Frontend] analyticsRes.status:",
-        analyticsRes.status,
-        "ok:",
-        analyticsRes.ok,
-      );
+
+
 
       if (usersRes.ok && analyticsRes.ok) {
         const usersData = await usersRes.json();
         const analyticsData = await analyticsRes.json();
 
         const response = analyticsData;
-        console.log("Dashboard Response:", response);
-        console.log("[Admin Frontend] Parsed users length:", usersData.length);
-        console.log(
-          "[Admin Frontend] Parsed analytics metrics:",
-          analyticsData.metrics,
-        );
+
 
         setUsers(usersData);
         setMetrics(analyticsData.metrics);
@@ -338,21 +387,14 @@ export default function AdminDashboardScreen() {
         setAnalytics(analyticsData.analytics);
         setActivityFeed(analyticsData.activityFeed || []);
       } else {
-        console.warn(
-          "[Admin Frontend] Failed response status. usersRes status:",
-          usersRes.status,
-          "analyticsRes status:",
-          analyticsRes.status,
-        );
+
         if (
           usersRes.status === 401 ||
           usersRes.status === 403 ||
           analyticsRes.status === 401 ||
           analyticsRes.status === 403
         ) {
-          console.log(
-            "[Admin Frontend] Session expired or unauthorized. Clearing session and redirecting to login.",
-          );
+
           await AsyncStorage.removeItem("@haajari/admin_session");
           await logout();
         }
@@ -501,6 +543,120 @@ export default function AdminDashboardScreen() {
         else Alert.alert("Error", "Failed to force logout user.");
       }
     } catch (err) {
+      if (Platform.OS === "web") alert("Server connection failed.");
+      else Alert.alert("Error", "Server connection failed.");
+    }
+  };
+
+  const handleAdminLogoutAllDevices = async () => {
+    const proceed =
+      Platform.OS === "web"
+        ? window.confirm("Are you sure you want to terminate all active sessions and log out all users from their devices?")
+        : await new Promise((resolve) => {
+            Alert.alert(
+              "Logout All Devices",
+              "Are you sure you want to terminate all active sessions and log out all users from their devices? (This excludes you)",
+              [
+                {
+                  text: "Cancel",
+                  style: "cancel",
+                  onPress: () => resolve(false),
+                },
+                {
+                  text: "Logout All",
+                  style: "destructive",
+                  onPress: () => resolve(true),
+                },
+              ],
+            );
+          });
+
+    if (!proceed) return;
+
+    try {
+      const res = await adminFetch(`${API_URL}/admin/security/logout-all`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (Platform.OS === "web") alert(data.message || "All devices have been logged out.");
+        else Alert.alert("Success", data.message || "All devices have been logged out.");
+        loadSecurityData();
+      } else {
+        if (Platform.OS === "web") alert(data.error || "Failed to logout all devices.");
+        else Alert.alert("Error", data.error || "Failed to logout all devices.");
+      }
+    } catch (err: any) {
+      if (Platform.OS === "web") alert("Server connection failed.");
+      else Alert.alert("Error", "Server connection failed.");
+    }
+  };
+
+  const handleAdminWipeAllUsers = async () => {
+    const proceed1 =
+      Platform.OS === "web"
+        ? window.confirm("CRITICAL WARNING: This will permanently delete all contractors, supervisors, workers, attendance records, and payments from the system! Admin accounts will NOT be deleted. Proceed?")
+        : await new Promise((resolve) => {
+            Alert.alert(
+              "WIPE DATABASE",
+              "CRITICAL WARNING: This will permanently delete all contractors, supervisors, workers, attendance records, and payments from the system! Admin accounts will NOT be deleted.",
+              [
+                {
+                  text: "Cancel",
+                  style: "cancel",
+                  onPress: () => resolve(false),
+                },
+                {
+                  text: "Wipe All Users",
+                  style: "destructive",
+                  onPress: () => resolve(true),
+                },
+              ],
+            );
+          });
+
+    if (!proceed1) return;
+
+    const proceed2 =
+      Platform.OS === "web"
+        ? window.confirm("FINAL CONFIRMATION: Are you absolutely sure? This action is completely IRREVERSIBLE.")
+        : await new Promise((resolve) => {
+            Alert.alert(
+              "FINAL CONFIRMATION",
+              "Are you absolutely sure? This action is completely IRREVERSIBLE.",
+              [
+                {
+                  text: "Cancel",
+                  style: "cancel",
+                  onPress: () => resolve(false),
+                },
+                {
+                  text: "CONFIRM WIPE",
+                  style: "destructive",
+                  onPress: () => resolve(true),
+                },
+              ],
+            );
+          });
+
+    if (!proceed2) return;
+
+    try {
+      const res = await adminFetch(`${API_URL}/admin/users-wipe`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (Platform.OS === "web") alert(data.message || "All users and data have been wiped.");
+        else Alert.alert("Success", data.message || "All users and data have been wiped.");
+        if (adminToken) {
+          loadDashboardData(adminToken);
+        }
+      } else {
+        if (Platform.OS === "web") alert(data.error || "Failed to wipe database.");
+        else Alert.alert("Error", data.error || "Failed to wipe database.");
+      }
+    } catch (err: any) {
       if (Platform.OS === "web") alert("Server connection failed.");
       else Alert.alert("Error", "Server connection failed.");
     }
@@ -874,20 +1030,18 @@ export default function AdminDashboardScreen() {
     id: string,
     type: "user" | "worker" | "attendance" | "payment",
   ) => {
-    console.log(`[Delete] promptDelete triggered: id=${id}, type=${type}`);
+
     setDeleteTarget({ id, type });
     setDeleteModalVisible(true);
   };
 
   const handleExecuteDelete = async () => {
     if (!deleteTarget) {
-      console.log(
-        "[Delete] handleExecuteDelete called but deleteTarget is null",
-      );
+
       return;
     }
     const { id, type } = deleteTarget;
-    console.log(`[Delete] Executing delete for: id=${id}, type=${type}`);
+
     setDeleteModalVisible(false);
 
     try {
@@ -898,15 +1052,13 @@ export default function AdminDashboardScreen() {
       else if (type === "payment") endpoint = `/admin/payments/${id}`;
 
       const requestUrl = `${API_URL}${endpoint}`;
-      console.log(`[Delete] Sending DELETE request to: ${requestUrl}`);
+
 
       const res = await adminFetch(requestUrl, { method: "DELETE" });
-      console.log(
-        `[Delete] Response received: status=${res.status}, ok=${res.ok}`,
-      );
+
 
       if (res.ok) {
-        console.log(`[Delete] Deletion successful for id=${id}`);
+
         Alert.alert("Success", "Item permanently removed.");
 
         // Remove locally from state instantly
@@ -1195,230 +1347,294 @@ export default function AdminDashboardScreen() {
     });
   };
 
+  const sidebarItems = [
+    {
+      section: "System",
+      items: [
+        { id: "dashboard" as const, label: t.admin.dashboardTab || "Dashboard", icon: "activity" },
+        { id: "analytics" as const, label: "Analytics", icon: "bar-chart-2" },
+      ],
+    },
+    {
+      section: "People",
+      items: [
+        { id: "users" as const, label: t.admin.usersTab || "Users", icon: "users" },
+        { id: "workers" as const, label: t.workers.title || "Workers", icon: "briefcase" },
+        { id: "attendance" as const, label: t.attendance.title || "Attendance", icon: "calendar" },
+      ],
+    },
+    {
+      section: "Finance",
+      items: [
+        { id: "payments" as const, label: t.admin.payments || "Payments", icon: "credit-card" },
+      ],
+    },
+    {
+      section: "Support",
+      items: [
+        { id: "support" as const, label: t.support.title || "Support & Help", icon: "help-circle" },
+      ],
+    },
+    {
+      section: "Admin",
+      items: [
+        { id: "security" as const, label: t.device.title || "Security & Sessions", icon: "lock" },
+        { id: "profile" as const, label: t.profile.title || "Profile", icon: "shield" },
+      ],
+    },
+  ];
+
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.adminHeader}>
-        <View>
-          <ThemedText type="h1" style={styles.dashboardTitle}>
-            {t.admin.dashboard}
-          </ThemedText>
-          <View style={styles.connectionRow}>
-            <View
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: socketConnected
-                    ? ADMIN_COLORS.success
-                    : ADMIN_COLORS.danger,
-                },
-              ]}
-            />
-            <ThemedText
-              type="small"
-              style={{
-                color: socketConnected
-                  ? ADMIN_COLORS.success
-                  : ADMIN_COLORS.textSecondary,
-                fontWeight: "700",
-              }}
-            >
-              {socketConnected ? t.admin.liveSocket : t.admin.socketConnecting}
-            </ThemedText>
-          </View>
-        </View>
-        <Pressable onPress={handleAdminLogout} style={styles.logoutBtn}>
-          <Feather name="log-out" size={20} color={ADMIN_COLORS.danger} />
-        </Pressable>
-      </View>
-
-      {/* Navigation tabs */}
-      <View style={styles.tabRowWrapper}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabScroll}
+      <View style={{ flex: 1, flexDirection: "row" }}>
+        {/* Left Collapsible Sidebar */}
+        <View
+          style={[
+            styles.sidebar,
+            isCollapsed && styles.sidebarCollapsed,
+            { backgroundColor: ADMIN_COLORS.card, borderRightColor: ADMIN_COLORS.border }
+          ]}
         >
-          {[
-            {
-              id: "dashboard",
-              label: t.admin.dashboardTab || "Dashboard",
-              icon: "activity",
-            },
-            { id: "users", label: t.admin.usersTab || "Users", icon: "users" },
-            {
-              id: "workers",
-              label: t.workers.title || "Workers",
-              icon: "briefcase",
-            },
-            {
-              id: "attendance",
-              label: t.attendance.title || "Attendance",
-              icon: "calendar",
-            },
-            {
-              id: "payments",
-              label: t.admin.payments || "Payments",
-              icon: "credit-card",
-            },
-            {
-              id: "support",
-              label: t.support.title || "Support & Help",
-              icon: "help-circle",
-            },
-            {
-              id: "security",
-              label: t.device.title || "Security & Sessions",
-              icon: "lock",
-            },
-            {
-              id: "profile",
-              label: t.profile.title || "Profile",
-              icon: "shield",
-            },
-          ].map((tab) => (
-            <Pressable
-              key={tab.id}
-              onPress={() => {
-                setActiveTab(tab.id as any);
-                setSearchQuery("");
-                if (Platform.OS !== "web") {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }
-              }}
-              style={[
-                styles.tab,
-                activeTab === tab.id && {
-                  backgroundColor: "rgba(255, 94, 37, 0.12)",
-                },
-              ]}
-            >
-              <Feather
-                name={tab.icon as any}
-                size={16}
-                color={
-                  activeTab === tab.id
-                    ? ADMIN_COLORS.primary
-                    : ADMIN_COLORS.textSecondary
-                }
-                style={{ marginRight: 6 }}
-              />
-              <ThemedText
-                type="body"
-                style={{
-                  fontWeight: activeTab === tab.id ? "700" : "500",
-                  color:
-                    activeTab === tab.id
-                      ? ADMIN_COLORS.primary
-                      : ADMIN_COLORS.textSecondary,
-                }}
-              >
-                {tab.label}
-              </ThemedText>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
+          <View style={[styles.sidebarHeader, { borderBottomColor: ADMIN_COLORS.border }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={[styles.logoIcon, { backgroundColor: ADMIN_COLORS.primary }]}>
+                <Feather name="grid" size={18} color="#FFFFFF" />
+              </View>
+              {!isCollapsed && (
+                <View>
+                  <ThemedText style={{ fontWeight: "800", color: "#FFFFFF", fontSize: 14 }}>Haajari System</ThemedText>
+                  <ThemedText type="small" style={{ color: ADMIN_COLORS.textSecondary, fontSize: 10 }}>Control Center</ThemedText>
+                </View>
+              )}
+            </View>
+          </View>
 
-      {isLoadingData ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={ADMIN_COLORS.primary} />
+          <ScrollView contentContainerStyle={styles.sidebarScroll}>
+            {sidebarItems.map((group) => (
+              <View key={group.section} style={{ marginBottom: Spacing.md }}>
+                {!isCollapsed && (
+                  <ThemedText type="small" style={styles.sidebarSectionHeader}>
+                    {group.section}
+                  </ThemedText>
+                )}
+                {group.items.map((tab) => {
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <Pressable
+                      key={tab.id}
+                      onPress={() => {
+                        setActiveTab(tab.id as any);
+                        setSearchQuery("");
+                        if (Platform.OS !== "web") {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        }
+                      }}
+                      style={[
+                        styles.sidebarItem,
+                        isActive && {
+                          backgroundColor: "rgba(99, 102, 241, 0.12)",
+                          borderLeftColor: ADMIN_COLORS.primary,
+                          borderLeftWidth: 3,
+                        }
+                      ]}
+                    >
+                      <Feather
+                        name={tab.icon as any}
+                        size={16}
+                        color={isActive ? ADMIN_COLORS.primary : ADMIN_COLORS.textSecondary}
+                        style={{ marginRight: isCollapsed ? 0 : 10 }}
+                      />
+                      {!isCollapsed && (
+                        <ThemedText
+                          style={{
+                            fontWeight: isActive ? "700" : "500",
+                            color: isActive ? "#FFFFFF" : ADMIN_COLORS.textSecondary,
+                            fontSize: 13,
+                          }}
+                        >
+                          {tab.label}
+                        </ThemedText>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
+          </ScrollView>
         </View>
-      ) : activeTab === "dashboard" ? (
+
+        {/* Main Content Area */}
+        <View style={{ flex: 1, backgroundColor: ADMIN_COLORS.background }}>
+          {/* Top Bar */}
+          <View style={[styles.topbar, { borderBottomColor: ADMIN_COLORS.border }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+              <Pressable
+                onPress={() => setIsCollapsed(!isCollapsed)}
+                style={styles.collapseBtn}
+              >
+                <Feather name={isCollapsed ? "chevrons-right" : "chevrons-left"} size={18} color={ADMIN_COLORS.textSecondary} />
+              </Pressable>
+              
+              <View style={styles.topbarSearch}>
+                <Feather name="search" size={14} color={ADMIN_COLORS.textSecondary} style={{ marginRight: 8 }} />
+                <TextInput
+                  placeholder="Search system records..."
+                  placeholderTextColor={ADMIN_COLORS.textSecondary}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  style={styles.topbarSearchInput}
+                />
+              </View>
+            </View>
+
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginRight: 8 }}>
+                <View
+                  style={[
+                    styles.dot,
+                    {
+                      backgroundColor: socketConnected ? ADMIN_COLORS.success : ADMIN_COLORS.danger,
+                    },
+                  ]}
+                />
+                <ThemedText type="small" style={{ color: ADMIN_COLORS.textSecondary, fontSize: 11, fontWeight: "700" }}>
+                  {socketConnected ? "LIVE" : "OFFLINE"}
+                </ThemedText>
+              </View>
+
+              <Pressable
+                onPress={() => {
+                  Alert.alert("Control Console", "Wipe or logout systems via Security tab.");
+                }}
+                style={[styles.quickCreateBtn, { backgroundColor: ADMIN_COLORS.primary }]}
+              >
+                <Feather name="plus" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                <ThemedText style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 12 }}>Action</ThemedText>
+              </Pressable>
+
+              <Pressable
+                onPress={handleAdminLogout}
+                style={styles.topbarLogoutBtn}
+              >
+                <Feather name="log-out" size={16} color={ADMIN_COLORS.danger} />
+              </Pressable>
+            </View>
+          </View>
+
+          {isLoadingData ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={ADMIN_COLORS.primary} />
+            </View>
+          ) : activeTab === "dashboard" ? (
         /* TAB 1: DASHBOARD & CHARTS */
         <ScrollView
           contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 100 }}
         >
-          {/* Metrics summary cards */}
+          {/* Topline KPI Cards Row */}
           <View style={styles.financialRow}>
-            <View
-              style={[
-                styles.financialCard,
-                { borderColor: ADMIN_COLORS.border },
-              ]}
-            >
-              <Feather
-                name="trending-up"
-                size={18}
-                color={ADMIN_COLORS.primary}
-              />
-              <ThemedText
-                type="small"
-                style={{
-                  color: ADMIN_COLORS.textSecondary,
-                  marginTop: Spacing.xs,
-                }}
-              >
-                MRR Plan Income
-              </ThemedText>
-              <ThemedText
-                type="h2"
-                style={{ color: ADMIN_COLORS.primary, marginTop: 4 }}
-              >
-                ₹{metrics?.totalRevenue || 0}
-              </ThemedText>
+            {/* KPI Card 1: MRR */}
+            <View style={[styles.financialCard, { borderColor: ADMIN_COLORS.border }]}>
+              <View style={styles.kpiHeaderRow}>
+                <Feather name="trending-up" size={18} color={ADMIN_COLORS.primary} />
+                <View style={[styles.trendChip, { backgroundColor: "rgba(16, 185, 129, 0.12)" }]}>
+                  <Feather name="arrow-up-right" size={10} color={ADMIN_COLORS.success} />
+                  <ThemedText style={[styles.trendChipText, { color: ADMIN_COLORS.success }]}>+8.4%</ThemedText>
+                </View>
+              </View>
+              <ThemedText type="small" style={styles.kpiSublabel}>MRR Plan Income</ThemedText>
+              <ThemedText style={styles.kpiValue}>₹{metrics?.totalRevenue || 0}</ThemedText>
             </View>
-            <View
-              style={[
-                styles.financialCard,
-                { borderColor: ADMIN_COLORS.border },
-              ]}
-            >
-              <Feather
-                name="check-square"
-                size={18}
-                color={ADMIN_COLORS.success}
-              />
-              <ThemedText
-                type="small"
-                style={{
-                  color: ADMIN_COLORS.textSecondary,
-                  marginTop: Spacing.xs,
-                }}
-              >
-                Total Paid Payroll
-              </ThemedText>
-              <ThemedText
-                type="h2"
-                style={{ color: ADMIN_COLORS.success, marginTop: 4 }}
-              >
-                ₹{metrics?.totalPayroll || 0}
-              </ThemedText>
+
+            {/* KPI Card 2: Total Paid Payroll */}
+            <View style={[styles.financialCard, { borderColor: ADMIN_COLORS.border }]}>
+              <View style={styles.kpiHeaderRow}>
+                <Feather name="check-square" size={18} color={ADMIN_COLORS.success} />
+                <View style={[styles.trendChip, { backgroundColor: "rgba(16, 185, 129, 0.12)" }]}>
+                  <Feather name="arrow-up-right" size={10} color={ADMIN_COLORS.success} />
+                  <ThemedText style={[styles.trendChipText, { color: ADMIN_COLORS.success }]}>+12.1%</ThemedText>
+                </View>
+              </View>
+              <ThemedText type="small" style={styles.kpiSublabel}>Total Paid Payroll</ThemedText>
+              <ThemedText style={styles.kpiValue}>₹{metrics?.totalPayroll || 0}</ThemedText>
             </View>
-            <View
-              style={[
-                styles.financialCard,
-                { borderColor: ADMIN_COLORS.border },
-              ]}
-            >
-              <Feather name="clock" size={18} color="#FFD166" />
-              <ThemedText
-                type="small"
-                style={{
-                  color: ADMIN_COLORS.textSecondary,
-                  marginTop: Spacing.xs,
-                }}
-              >
-                Total Due Liability
-              </ThemedText>
-              <ThemedText type="h2" style={{ color: "#FFD166", marginTop: 4 }}>
-                ₹{metrics?.outstandingAmount || 0}
-              </ThemedText>
+
+            {/* KPI Card 3: Outstanding Liability */}
+            <View style={[styles.financialCard, { borderColor: ADMIN_COLORS.border }]}>
+              <View style={styles.kpiHeaderRow}>
+                <Feather name="clock" size={18} color={ADMIN_COLORS.warning} />
+                <View style={[styles.trendChip, { backgroundColor: "rgba(244, 63, 94, 0.12)" }]}>
+                  <Feather name="arrow-down-left" size={10} color={ADMIN_COLORS.danger} />
+                  <ThemedText style={[styles.trendChipText, { color: ADMIN_COLORS.danger }]}>-3.4%</ThemedText>
+                </View>
+              </View>
+              <ThemedText type="small" style={styles.kpiSublabel}>Total Due Liability</ThemedText>
+              <ThemedText style={styles.kpiValue}>₹{metrics?.outstandingAmount || 0}</ThemedText>
+            </View>
+
+            {/* KPI Card 4: Active Client Base */}
+            <View style={[styles.financialCard, { borderColor: ADMIN_COLORS.border }]}>
+              <View style={styles.kpiHeaderRow}>
+                <Feather name="users" size={18} color={ADMIN_COLORS.info} />
+                <View style={[styles.trendChip, { backgroundColor: "rgba(16, 185, 129, 0.12)" }]}>
+                  <Feather name="arrow-up-right" size={10} color={ADMIN_COLORS.success} />
+                  <ThemedText style={[styles.trendChipText, { color: ADMIN_COLORS.success }]}>+4.8%</ThemedText>
+                </View>
+              </View>
+              <ThemedText type="small" style={styles.kpiSublabel}>Active Clients</ThemedText>
+              <ThemedText style={styles.kpiValue}>{metrics?.activeUsers || 0}</ThemedText>
             </View>
           </View>
 
-          {/* User Distribution Counts */}
+          {/* Today's Live Attendance Summary Widget */}
+          <View style={[styles.planCard, { backgroundColor: ADMIN_COLORS.card, marginTop: Spacing.lg, padding: 20, borderColor: "rgba(99, 102, 241, 0.15)" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: Spacing.md }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="calendar" size={18} color={ADMIN_COLORS.primary} />
+                <ThemedText type="h3" style={{ color: "#FFFFFF" }}>Today's Labor Attendance Summary</ThemedText>
+              </View>
+              <View style={{ backgroundColor: "rgba(16, 185, 129, 0.12)", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
+                <ThemedText style={{ color: ADMIN_COLORS.success, fontSize: 10, fontWeight: "700" }}>REAL-TIME UPDATES</ThemedText>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
+              <View style={{ flex: 1, backgroundColor: "#0F172A", padding: 12, borderRadius: 8, borderWidth: 1, borderColor: ADMIN_COLORS.border }}>
+                <ThemedText style={{ color: ADMIN_COLORS.success, fontSize: 11, fontWeight: "700" }}>PRESENT</ThemedText>
+                <ThemedText style={{ fontSize: 20, fontWeight: "800", color: "#FFFFFF", marginTop: 4 }}>{todayAttendanceStats.present}</ThemedText>
+              </View>
+              
+              <View style={{ flex: 1, backgroundColor: "#0F172A", padding: 12, borderRadius: 8, borderWidth: 1, borderColor: ADMIN_COLORS.border }}>
+                <ThemedText style={{ color: ADMIN_COLORS.danger, fontSize: 11, fontWeight: "700" }}>ABSENT</ThemedText>
+                <ThemedText style={{ fontSize: 20, fontWeight: "800", color: "#FFFFFF", marginTop: 4 }}>{todayAttendanceStats.absent}</ThemedText>
+              </View>
+
+              <View style={{ flex: 1, backgroundColor: "#0F172A", padding: 12, borderRadius: 8, borderWidth: 1, borderColor: ADMIN_COLORS.border }}>
+                <ThemedText style={{ color: ADMIN_COLORS.warning, fontSize: 11, fontWeight: "700" }}>HALF-DAY</ThemedText>
+                <ThemedText style={{ fontSize: 20, fontWeight: "800", color: "#FFFFFF", marginTop: 4 }}>{todayAttendanceStats.halfDay}</ThemedText>
+              </View>
+
+              <View style={{ flex: 1, backgroundColor: "#0F172A", padding: 12, borderRadius: 8, borderWidth: 1, borderColor: ADMIN_COLORS.border }}>
+                <ThemedText style={{ color: ADMIN_COLORS.info, fontSize: 11, fontWeight: "700" }}>TOTAL</ThemedText>
+                <ThemedText style={{ fontSize: 20, fontWeight: "800", color: "#FFFFFF", marginTop: 4 }}>{todayAttendanceStats.total}</ThemedText>
+              </View>
+            </View>
+          </View>
+
+          {/* User Distribution Details */}
           <View
             style={[
               styles.planCard,
-              { backgroundColor: ADMIN_COLORS.card, marginTop: Spacing.lg },
+              { backgroundColor: ADMIN_COLORS.card, marginTop: Spacing.lg, padding: 20 },
             ]}
           >
             <View style={styles.planRowItem}>
-              <ThemedText type="body" style={{ color: ADMIN_COLORS.text }}>
-                System Users (Contractors/Builders/Supervisors)
-              </ThemedText>
-              <ThemedText type="h3" style={{ color: "#FFFFFF" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="user-check" size={16} color={ADMIN_COLORS.info} />
+                <ThemedText type="body" style={{ color: ADMIN_COLORS.text, fontWeight: "600" }}>
+                  Total System Users (Organizations/Supervisors)
+                </ThemedText>
+              </View>
+              <ThemedText style={styles.tabularNumber}>
                 {metrics?.totalUsers || 0}
               </ThemedText>
             </View>
@@ -1426,54 +1642,115 @@ export default function AdminDashboardScreen() {
               style={[styles.divider, { backgroundColor: ADMIN_COLORS.border }]}
             />
             <View style={styles.planRowItem}>
-              <ThemedText type="body" style={{ color: ADMIN_COLORS.text }}>
-                Active Client Base (Unblocked)
-              </ThemedText>
-              <ThemedText type="h3" style={{ color: ADMIN_COLORS.success }}>
-                {metrics?.activeUsers || 0}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="activity" size={16} color={ADMIN_COLORS.success} />
+                <ThemedText type="body" style={{ color: ADMIN_COLORS.text, fontWeight: "600" }}>
+                  Active Working Labor Workforce Enrolled
+                </ThemedText>
+              </View>
+              <ThemedText style={styles.tabularNumber}>
+                {metrics?.totalWorkers || 0}
               </ThemedText>
             </View>
           </View>
 
-          {/* Dashboard Charts */}
+          {/* Today's Live Attendance Logs */}
           <View style={{ marginTop: Spacing.xl }}>
-            <ThemedText type="h2" style={styles.sectionTitle}>
-              Dashboard Trend Graphs
-            </ThemedText>
-            {analytics?.userGrowth && (
-              <UserGrowthChart data={analytics.userGrowth} />
-            )}
-            {analytics?.revenueGrowth && (
-              <RevenueTrendChart data={analytics.revenueGrowth} />
-            )}
-            {planCounts && (
-              <SubscriptionPieChart
-                free={planCounts.free}
-                pro={planCounts.professional}
-                business={planCounts.business}
-              />
-            )}
-            {analytics?.workersByCompany && (
-              <WorkforceBarChart data={analytics.workersByCompany} />
-            )}
-            {analytics?.attendanceBreakdown && (
-              <AttendanceBarChart
-                present={analytics.attendanceBreakdown.present}
-                absent={analytics.attendanceBreakdown.absent}
-                halfDay={analytics.attendanceBreakdown.halfDay}
-              />
-            )}
-            {analytics?.payrollTrend && (
-              <PayrollTrendChart data={analytics.payrollTrend} />
-            )}
+            <View style={styles.sectionHeaderRow}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="check-circle" size={18} color={ADMIN_COLORS.success} />
+                <ThemedText type="h2" style={styles.sectionTitle}>
+                  Today's Active Attendance Logs
+                </ThemedText>
+              </View>
+              <Pressable
+                onPress={() => {
+                  setActiveTab("attendance");
+                  setSearchQuery("");
+                }}
+                style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(99, 102, 241, 0.12)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}
+              >
+                <ThemedText style={{ color: ADMIN_COLORS.primary, fontWeight: "700", fontSize: 11 }}>View All Attendance</ThemedText>
+                <Feather name="chevron-right" size={12} color={ADMIN_COLORS.primary} />
+              </Pressable>
+            </View>
+
+            <View style={[styles.planCard, { backgroundColor: ADMIN_COLORS.card, paddingVertical: Spacing.md }]}>
+              {todayAttendanceStats.todaysLogs.length > 0 ? (
+                todayAttendanceStats.todaysLogs.map((item: any, idx: number) => (
+                  <View key={item._id || idx}>
+                    {idx > 0 && (
+                      <View style={[styles.divider, { backgroundColor: ADMIN_COLORS.border }]} />
+                    )}
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8, paddingHorizontal: Spacing.md }}>
+                      <View>
+                        <ThemedText style={{ fontWeight: "700", color: "#FFFFFF", fontSize: 14 }}>
+                          {item.workerId?.name || "Deleted Worker"}
+                        </ThemedText>
+                        <ThemedText style={{ color: ADMIN_COLORS.textSecondary, fontSize: 11, marginTop: 2 }}>
+                          🏢 Employer: {item.tenantId?.name || "N/A"}
+                        </ThemedText>
+                      </View>
+                      
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <View style={{ backgroundColor: "#1E293B", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                          <ThemedText style={{ color: "#FFFFFF", fontSize: 10, fontWeight: "600" }}>
+                            ₹{item.dailyRate || item.workerId?.dailyRate || 0}
+                          </ThemedText>
+                        </View>
+                        
+                        <View
+                          style={[
+                            styles.roleBadge,
+                            {
+                              backgroundColor:
+                                item.value === "P"
+                                  ? ADMIN_COLORS.success + "20"
+                                  : item.value === "A"
+                                    ? ADMIN_COLORS.danger + "20"
+                                    : "#FFD16620",
+                              paddingHorizontal: 8,
+                              paddingVertical: 3,
+                              borderRadius: 4,
+                            },
+                          ]}
+                        >
+                          <ThemedText
+                            style={{
+                              color:
+                                item.value === "P"
+                                  ? ADMIN_COLORS.success
+                                  : item.value === "A"
+                                    ? ADMIN_COLORS.danger
+                                    : "#FFD166",
+                              fontWeight: "800",
+                              fontSize: 11,
+                            }}
+                          >
+                            {item.value === "P" ? "Present" : item.value === "A" ? "Absent" : "Half-Day"}
+                          </ThemedText>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <ThemedText type="body" style={styles.noDataText}>
+                  No labor attendance marked for today yet.
+                </ThemedText>
+              )}
+            </View>
           </View>
 
           {/* Live Timeline logs */}
           <View style={{ marginTop: Spacing.xl }}>
             <View style={styles.sectionHeaderRow}>
-              <ThemedText type="h2" style={styles.sectionTitle}>
-                Real-Time Event Audit Log
-              </ThemedText>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="list" size={18} color={ADMIN_COLORS.primary} />
+                <ThemedText type="h2" style={styles.sectionTitle}>
+                  Real-Time Event Audit Log
+                </ThemedText>
+              </View>
               <View style={styles.pulseContainer}>
                 <View style={styles.pulseIndicator} />
                 <ThemedText
@@ -1485,7 +1762,7 @@ export default function AdminDashboardScreen() {
               </View>
             </View>
             <View
-              style={[styles.planCard, { backgroundColor: ADMIN_COLORS.card }]}
+              style={[styles.planCard, { backgroundColor: ADMIN_COLORS.card, paddingVertical: Spacing.md }]}
             >
               {activityFeed.length > 0 ? (
                 activityFeed.map((item, idx) => (
@@ -1499,16 +1776,17 @@ export default function AdminDashboardScreen() {
                       />
                     )}
                     <View style={styles.activityFeedItem}>
-                      <Feather
-                        name="activity"
-                        size={14}
-                        color={ADMIN_COLORS.primary}
-                        style={{ marginRight: Spacing.sm, marginTop: 2 }}
-                      />
-                      <View style={{ flex: 1 }}>
+                      <View style={[styles.activityBadge, { backgroundColor: "rgba(99, 102, 241, 0.12)" }]}>
+                        <Feather
+                          name="activity"
+                          size={12}
+                          color={ADMIN_COLORS.primary}
+                        />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: Spacing.md }}>
                         <ThemedText
                           type="body"
-                          style={{ color: ADMIN_COLORS.text }}
+                          style={{ color: ADMIN_COLORS.text, fontSize: 13, lineHeight: 18 }}
                         >
                           {item.message}
                         </ThemedText>
@@ -1516,10 +1794,11 @@ export default function AdminDashboardScreen() {
                           type="small"
                           style={{
                             color: ADMIN_COLORS.textSecondary,
-                            marginTop: 2,
+                            marginTop: 4,
+                            fontSize: 11,
                           }}
                         >
-                          {new Date(item.timestamp).toLocaleTimeString()} -{" "}
+                          🕒 {new Date(item.timestamp).toLocaleTimeString()} -{" "}
                           {new Date(item.timestamp).toLocaleDateString()}
                         </ThemedText>
                       </View>
@@ -1530,6 +1809,74 @@ export default function AdminDashboardScreen() {
                 <ThemedText type="body" style={styles.noDataText}>
                   No platform activity recorded yet.
                 </ThemedText>
+              )}
+            </View>
+          </View>
+        </ScrollView>
+      ) : activeTab === "analytics" ? (
+        /* TAB: SYSTEM ANALYTICS & TREND GRAPHS */
+        <ScrollView
+          contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 100 }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: Spacing.lg }}>
+            <Feather name="bar-chart-2" size={20} color={ADMIN_COLORS.primary} />
+            <ThemedText type="h2" style={styles.sectionTitle}>
+              System Growth & Trend Analytics
+            </ThemedText>
+          </View>
+
+          <View style={{ gap: Spacing.xl }}>
+            {analytics?.userGrowth && (
+              <View style={[styles.chartCard, { borderColor: ADMIN_COLORS.border }]}>
+                <ThemedText style={styles.chartTitle}>User Growth Trend</ThemedText>
+                <UserGrowthChart data={analytics.userGrowth} />
+              </View>
+            )}
+            
+            {analytics?.revenueGrowth && (
+              <View style={[styles.chartCard, { borderColor: ADMIN_COLORS.border }]}>
+                <ThemedText style={styles.chartTitle}>Revenue Growth History</ThemedText>
+                <RevenueTrendChart data={analytics.revenueGrowth} />
+              </View>
+            )}
+
+            <View style={{ flexDirection: "row", gap: Spacing.lg, flexWrap: "wrap" }}>
+              {planCounts && (
+                <View style={[styles.chartCard, { flex: 1, minWidth: 300, borderColor: ADMIN_COLORS.border }]}>
+                  <ThemedText style={styles.chartTitle}>Subscription Plans Share</ThemedText>
+                  <SubscriptionPieChart
+                    free={planCounts.free}
+                    pro={planCounts.professional}
+                    business={planCounts.business}
+                  />
+                </View>
+              )}
+              
+              {analytics?.workersByCompany && (
+                <View style={[styles.chartCard, { flex: 1, minWidth: 300, borderColor: ADMIN_COLORS.border }]}>
+                  <ThemedText style={styles.chartTitle}>Workforce by Organization</ThemedText>
+                  <WorkforceBarChart data={analytics.workersByCompany} />
+                </View>
+              )}
+            </View>
+
+            <View style={{ flexDirection: "row", gap: Spacing.lg, flexWrap: "wrap" }}>
+              {analytics?.attendanceBreakdown && (
+                <View style={[styles.chartCard, { flex: 1, minWidth: 300, borderColor: ADMIN_COLORS.border }]}>
+                  <ThemedText style={styles.chartTitle}>Attendance Metrics Split</ThemedText>
+                  <AttendanceBarChart
+                    present={analytics.attendanceBreakdown.present}
+                    absent={analytics.attendanceBreakdown.absent}
+                    halfDay={analytics.attendanceBreakdown.halfDay}
+                  />
+                </View>
+              )}
+              
+              {analytics?.payrollTrend && (
+                <View style={[styles.chartCard, { flex: 1, minWidth: 300, borderColor: ADMIN_COLORS.border }]}>
+                  <ThemedText style={styles.chartTitle}>Monthly Payroll Distributions</ThemedText>
+                  <PayrollTrendChart data={analytics.payrollTrend} />
+                </View>
               )}
             </View>
           </View>
@@ -1859,120 +2206,322 @@ export default function AdminDashboardScreen() {
           />
         </View>
       ) : activeTab === "attendance" ? (
-        /* TAB 4: ATTENDANCE CONTROL */
+        /* TAB 4: ATTENDANCE CONTROL & MATRIX GRID SHEET */
         <View style={{ flex: 1 }}>
-          <View style={styles.searchBarContainer}>
-            <Feather
-              name="search"
-              size={18}
-              color={ADMIN_COLORS.textSecondary}
-              style={{ marginRight: Spacing.sm }}
-            />
-            <TextInput
-              placeholder="Search attendance worker name, employer organization..."
-              placeholderTextColor={ADMIN_COLORS.textSecondary}
-              style={[styles.searchInput, { color: ADMIN_COLORS.text }]}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
+          {/* View Mode Toggle Header */}
+          <View style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: ADMIN_COLORS.border, backgroundColor: ADMIN_COLORS.card }}>
+            <Pressable
+              onPress={() => setAttendanceViewMode("grid")}
+              style={[{ flex: 1, paddingVertical: 12, alignItems: "center", borderBottomWidth: 2, borderBottomColor: "transparent" }, attendanceViewMode === "grid" && { borderBottomColor: ADMIN_COLORS.primary }]}
+            >
+              <ThemedText style={{ fontWeight: "700", color: attendanceViewMode === "grid" ? "#FFFFFF" : ADMIN_COLORS.textSecondary, fontSize: 13 }}>Grid Register Sheet</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() => setAttendanceViewMode("list")}
+              style={[{ flex: 1, paddingVertical: 12, alignItems: "center", borderBottomWidth: 2, borderBottomColor: "transparent" }, attendanceViewMode === "list" && { borderBottomColor: ADMIN_COLORS.primary }]}
+            >
+              <ThemedText style={{ fontWeight: "700", color: attendanceViewMode === "list" ? "#FFFFFF" : ADMIN_COLORS.textSecondary, fontSize: 13 }}>Detailed Logs List</ThemedText>
+            </Pressable>
           </View>
 
-          <FlatList
-            data={getFilteredData(attendanceList, [
-              "workerId.name",
-              "tenantId.name",
-            ])}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 100 }}
-            renderItem={({ item }) => (
-              <View
-                style={[
-                  styles.userCard,
-                  {
-                    backgroundColor: ADMIN_COLORS.card,
-                    borderColor: ADMIN_COLORS.border,
-                  },
-                ]}
-              >
-                <View style={styles.cardInfo}>
-                  <View style={styles.userMainRow}>
-                    <ThemedText type="h3" style={{ color: ADMIN_COLORS.text }}>
-                      {item.workerId?.name || "Deleted Worker"}
-                    </ThemedText>
-                    <View
-                      style={[
-                        styles.roleBadge,
-                        {
-                          backgroundColor:
-                            item.value === "P"
-                              ? ADMIN_COLORS.success + "20"
-                              : item.value === "A"
-                                ? ADMIN_COLORS.danger + "20"
-                                : item.value === "OT"
-                                  ? "#3B82F620"
-                                  : "#FFD16620",
-                        },
-                      ]}
-                    >
-                      <ThemedText
-                        type="small"
-                        style={{
-                          color:
-                            item.value === "P"
-                              ? ADMIN_COLORS.success
-                              : item.value === "A"
-                                ? ADMIN_COLORS.danger
-                                : item.value === "OT"
-                                  ? "#3B82F6"
-                                  : "#FFD166",
-                          fontWeight: "700",
-                        }}
-                      >
-                        Status: {item.value}
-                      </ThemedText>
-                    </View>
-                  </View>
-                  <ThemedText
-                    type="body"
-                    style={{
-                      color: ADMIN_COLORS.textSecondary,
-                      marginVertical: Spacing.xs,
-                    }}
-                  >
-                    Date: {item.day}/{item.month + 1}/{item.year}
+          {attendanceViewMode === "grid" ? (
+            /* GRID REGISTER SHEET VIEW */
+            <View style={{ flex: 1 }}>
+              {/* Calendar Month Selector */}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: Spacing.xl, paddingVertical: Spacing.sm, backgroundColor: ADMIN_COLORS.card, borderBottomWidth: 1, borderBottomColor: ADMIN_COLORS.border }}>
+                <Pressable
+                  onPress={() => {
+                    if (selectedMonth === 0) {
+                      setSelectedMonth(11);
+                      setSelectedYear(selectedYear - 1);
+                    } else {
+                      setSelectedMonth(selectedMonth - 1);
+                    }
+                  }}
+                  style={{ padding: 8 }}
+                >
+                  <Feather name="chevron-left" size={20} color="#FFFFFF" />
+                </Pressable>
+                
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Feather name="calendar" size={16} color={ADMIN_COLORS.primary} />
+                  <ThemedText style={{ fontWeight: "800", color: "#FFFFFF", fontSize: 14 }}>
+                    {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][selectedMonth]} {selectedYear}
                   </ThemedText>
+                </View>
+
+                <Pressable
+                  onPress={() => {
+                    if (selectedMonth === 11) {
+                      setSelectedMonth(0);
+                      setSelectedYear(selectedYear + 1);
+                    } else {
+                      setSelectedMonth(selectedMonth + 1);
+                    }
+                  }}
+                  style={{ padding: 8 }}
+                >
+                  <Feather name="chevron-right" size={20} color="#FFFFFF" />
+                </Pressable>
+              </View>
+
+              {/* Live Grid Search bar */}
+              <View style={{ paddingHorizontal: Spacing.xl, paddingVertical: Spacing.sm }}>
+                <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: ADMIN_COLORS.card, borderRadius: 8, borderWidth: 1, borderColor: ADMIN_COLORS.border, paddingHorizontal: Spacing.md, height: 36 }}>
+                  <Feather name="search" size={14} color={ADMIN_COLORS.textSecondary} style={{ marginRight: 8 }} />
+                  <TextInput
+                    placeholder="Filter labor names in grid register..."
+                    placeholderTextColor={ADMIN_COLORS.textSecondary}
+                    style={{ flex: 1, color: "#FFFFFF", fontSize: 13 }}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                  />
+                  {searchQuery ? (
+                    <Pressable onPress={() => setSearchQuery("")}>
+                      <Feather name="x" size={14} color={ADMIN_COLORS.textSecondary} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+
+              {/* Grid matrix layout sheet */}
+              <View style={{ flex: 1, flexDirection: "row" }}>
+                {/* Workers frozen names list column */}
+                <View style={{ width: 120, borderRightWidth: 1, borderRightColor: ADMIN_COLORS.border }}>
+                  <View style={{ height: 40, backgroundColor: "#0B0E14", justifyContent: "center", paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: ADMIN_COLORS.border }}>
+                    <ThemedText style={{ fontSize: 11, fontWeight: "800", color: "#FFFFFF" }}>WORKERS</ThemedText>
+                  </View>
+                  
+                  <ScrollView showsVerticalScrollIndicator={false} scrollEnabled={false}>
+                    {workers
+                      .filter((w: any) => !searchQuery || w.name?.toLowerCase().includes(searchQuery.toLowerCase()))
+                      .map((worker: any) => (
+                        <View key={worker._id || worker.id} style={{ height: 48, justifyContent: "center", paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: ADMIN_COLORS.border, backgroundColor: "#151920" }}>
+                          <ThemedText numberOfLines={1} style={{ fontSize: 12, fontWeight: "700", color: "#FFFFFF" }}>
+                            {worker.name}
+                          </ThemedText>
+                          <ThemedText numberOfLines={1} style={{ fontSize: 9, color: ADMIN_COLORS.textSecondary, marginTop: 2 }}>
+                            ₹{worker.dailyRate || 0}
+                          </ThemedText>
+                        </View>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                {/* Horizontal scrollable cells matrix */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={true} bounces={false}>
+                  <View>
+                    {/* Days Header */}
+                    <View style={{ flexDirection: "row", height: 40, borderBottomWidth: 1, borderBottomColor: ADMIN_COLORS.border, backgroundColor: "#0B0E14" }}>
+                      {Array.from({ length: new Date(selectedYear, selectedMonth + 1, 0).getDate() }, (_, i) => (
+                        <View key={i} style={{ width: 44, height: 40, justifyContent: "center", alignItems: "center", borderRightWidth: 1, borderRightColor: ADMIN_COLORS.border }}>
+                          <ThemedText style={{ fontSize: 12, fontWeight: "800", color: "#FFFFFF" }}>{i + 1}</ThemedText>
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* Cells Sheet rows */}
+                    <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+                      {workers
+                        .filter((w: any) => !searchQuery || w.name?.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .map((worker: any) => (
+                          <View key={worker._id || worker.id} style={{ flexDirection: "row", height: 48, borderBottomWidth: 1, borderBottomColor: ADMIN_COLORS.border }}>
+                            {Array.from({ length: new Date(selectedYear, selectedMonth + 1, 0).getDate() }, (_, i) => {
+                              const rec = attendanceList.find((item: any) => {
+                                const wId = item.workerId?._id || item.workerId;
+                                return wId === (worker._id || worker.id) && item.day === (i + 1) && item.month === selectedMonth && item.year === selectedYear;
+                              });
+                              const value = rec?.value ?? null;
+                              
+                              let bg = "rgba(255, 255, 255, 0.02)";
+                              let color = "#FFFFFF";
+                              let label = "";
+
+                              if (value === "P") { bg = "#10B981"; label = "P"; }
+                              else if (value === "A") { bg = "#F43F5E"; label = "A"; }
+                              else if (value === "H" || value === "HD") { bg = "#F59E0B"; label = "½"; }
+                              else if (value === "OT") { bg = "#6366F1"; label = "OT"; }
+
+                              return (
+                                <Pressable
+                                  key={i}
+                                  onPress={() => {
+                                    if (rec) {
+                                      Alert.alert(
+                                        "Attendance Details",
+                                        `Worker: ${worker.name}\nDate: ${i + 1} ${["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][selectedMonth]} ${selectedYear}\nStatus: ${value === "P" ? "Present" : value === "A" ? "Absent" : "Half-Day"}\nRate: ₹${rec.dailyRate || worker.dailyRate || 0}\nOrganization: ${rec.tenantId?.name || "Unknown"}`
+                                      );
+                                    } else {
+                                      Alert.alert("No Record", "No attendance marked for this date.");
+                                    }
+                                  }}
+                                  style={{ width: 44, height: 48, padding: 3, justifyContent: "center", alignItems: "center", borderRightWidth: 1, borderRightColor: ADMIN_COLORS.border }}
+                                >
+                                  <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: bg, justifyContent: "center", alignItems: "center" }}>
+                                    <ThemedText style={{ fontSize: 11, fontWeight: "800", color }}>{label}</ThemedText>
+                                  </View>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                      ))}
+                    </ScrollView>
+                  </View>
+                </ScrollView>
+              </View>
+            </View>
+          ) : (
+            /* DETAILED SEARCH LOGS LIST VIEW */
+            <View style={{ flex: 1 }}>
+              <View style={styles.searchBarContainer}>
+                <Feather
+                  name="search"
+                  size={18}
+                  color={ADMIN_COLORS.textSecondary}
+                  style={{ marginRight: Spacing.sm }}
+                />
+                <TextInput
+                  placeholder="Search attendance worker name, employer organization..."
+                  placeholderTextColor={ADMIN_COLORS.textSecondary}
+                  style={[styles.searchInput, { color: ADMIN_COLORS.text }]}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+              </View>
+
+              <View style={{ flexDirection: "row", gap: 12, marginHorizontal: Spacing.xl, marginTop: Spacing.md }}>
+                <View style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: ADMIN_COLORS.card, borderRadius: 8, borderWidth: 1, borderColor: ADMIN_COLORS.border, paddingHorizontal: Spacing.md, height: 38 }}>
+                  <Feather name="calendar" size={16} color={ADMIN_COLORS.textSecondary} style={{ marginRight: 8 }} />
+                  <TextInput
+                    placeholder="Filter by date YYYY-MM-DD"
+                    placeholderTextColor={ADMIN_COLORS.textSecondary}
+                    style={{ flex: 1, color: "#FFFFFF", fontSize: 13 }}
+                    value={attendanceFilterDate}
+                    onChangeText={setAttendanceFilterDate}
+                  />
+                  {attendanceFilterDate ? (
+                    <Pressable onPress={() => setAttendanceFilterDate("")}>
+                      <Feather name="x" size={14} color={ADMIN_COLORS.textSecondary} />
+                    </Pressable>
+                  ) : null}
+                </View>
+                
+                <Pressable
+                  onPress={() => {
+                    const today = new Date();
+                    const yyyy = today.getFullYear();
+                    const mm = String(today.getMonth() + 1).padStart(2, "0");
+                    const dd = String(today.getDate()).padStart(2, "0");
+                    setAttendanceFilterDate(`${yyyy}-${mm}-${dd}`);
+                  }}
+                  style={{ backgroundColor: "rgba(99, 102, 241, 0.12)", paddingHorizontal: 12, borderRadius: 8, justifyContent: "center", borderWidth: 1, borderColor: "rgba(99, 102, 241, 0.3)" }}
+                >
+                  <ThemedText style={{ color: ADMIN_COLORS.primary, fontWeight: "700", fontSize: 12 }}>Today</ThemedText>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const yyyy = yesterday.getFullYear();
+                    const mm = String(yesterday.getMonth() + 1).padStart(2, "0");
+                    const dd = String(yesterday.getDate()).padStart(2, "0");
+                    setAttendanceFilterDate(`${yyyy}-${mm}-${dd}`);
+                  }}
+                  style={{ backgroundColor: "rgba(99, 102, 241, 0.12)", paddingHorizontal: 12, borderRadius: 8, justifyContent: "center", borderWidth: 1, borderColor: "rgba(99, 102, 241, 0.3)" }}
+                >
+                  <ThemedText style={{ color: ADMIN_COLORS.primary, fontWeight: "700", fontSize: 12 }}>Yesterday</ThemedText>
+                </Pressable>
+              </View>
+
+              <FlatList
+                data={(() => {
+                  const base = getFilteredData(attendanceList, [
+                    "workerId.name",
+                    "tenantId.name",
+                  ]);
+                  if (!attendanceFilterDate) return base;
+                  const parts = attendanceFilterDate.split("-");
+                  if (parts.length === 3) {
+                    const yr = parseInt(parts[0], 10);
+                    const mo = parseInt(parts[1], 10) - 1;
+                    const dy = parseInt(parts[2], 10);
+                    return base.filter(
+                      (item: any) => item.year === yr && item.month === mo && item.day === dy
+                    );
+                  }
+                  return base;
+                })()}
+                keyExtractor={(item) => item._id}
+                contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 100 }}
+                renderItem={({ item }) => (
                   <View
-                    style={{
-                      flexDirection: "row",
-                      flexWrap: "wrap",
-                      gap: 6,
-                      marginVertical: 4,
-                    }}
+                    style={[
+                      styles.userCard,
+                      {
+                        backgroundColor: ADMIN_COLORS.card,
+                        borderColor: ADMIN_COLORS.border,
+                      },
+                    ]}
                   >
-                    <View
-                      style={{
-                        backgroundColor: "#1E293B",
-                        paddingHorizontal: 6,
-                        paddingVertical: 2,
-                        borderRadius: 4,
-                      }}
-                    >
+                    <View style={styles.cardInfo}>
+                      <View style={styles.userMainRow}>
+                        <ThemedText type="h3" style={{ color: ADMIN_COLORS.text }}>
+                          {item.workerId?.name || "Deleted Worker"}
+                        </ThemedText>
+                        <View
+                          style={[
+                            styles.roleBadge,
+                            {
+                              backgroundColor:
+                                item.value === "P"
+                                  ? ADMIN_COLORS.success + "20"
+                                  : item.value === "A"
+                                    ? ADMIN_COLORS.danger + "20"
+                                    : item.value === "OT"
+                                      ? "#3B82F620"
+                                      : "#FFD16620",
+                            },
+                          ]}
+                        >
+                          <ThemedText
+                            type="small"
+                            style={{
+                              color:
+                                item.value === "P"
+                                  ? ADMIN_COLORS.success
+                                  : item.value === "A"
+                                    ? ADMIN_COLORS.danger
+                                    : item.value === "OT"
+                                      ? "#3B82F6"
+                                      : "#FFD166",
+                              fontWeight: "700",
+                            }}
+                          >
+                            Status: {item.value}
+                          </ThemedText>
+                        </View>
+                      </View>
                       <ThemedText
-                        type="small"
+                        type="body"
                         style={{
-                          color: "#FFFFFF",
-                          fontWeight: "600",
-                          fontSize: 10,
+                          color: ADMIN_COLORS.textSecondary,
+                          marginVertical: Spacing.xs,
                         }}
                       >
-                        Rate: ₹{item.dailyRate || item.workerId?.dailyRate || 0}
+                        Date: {item.day}/{item.month + 1}/{item.year}
                       </ThemedText>
-                    </View>
-                    {item.customWage !== undefined &&
-                      item.customWage !== null && (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          flexWrap: "wrap",
+                          gap: 6,
+                          marginVertical: 4,
+                        }}
+                      >
                         <View
                           style={{
-                            backgroundColor: "#FF6B3520",
+                            backgroundColor: "#1E293B",
                             paddingHorizontal: 6,
                             paddingVertical: 2,
                             borderRadius: 4,
@@ -1981,88 +2530,112 @@ export default function AdminDashboardScreen() {
                           <ThemedText
                             type="small"
                             style={{
-                              color: "#FF6B35",
+                              color: "#FFFFFF",
                               fontWeight: "600",
                               fontSize: 10,
                             }}
                           >
-                            Custom: ₹{item.customWage}
+                            Rate: ₹{item.dailyRate || item.workerId?.dailyRate || 0}
                           </ThemedText>
                         </View>
-                      )}
-                    {item.finalPay !== undefined && item.finalPay !== null && (
-                      <View
-                        style={{
-                          backgroundColor: "#10B98120",
-                          paddingHorizontal: 6,
-                          paddingVertical: 2,
-                          borderRadius: 4,
-                        }}
+                        {item.customWage !== undefined &&
+                          item.customWage !== null && (
+                            <View
+                              style={{
+                                backgroundColor: "#FF6B3520",
+                                paddingHorizontal: 6,
+                                paddingVertical: 2,
+                                borderRadius: 4,
+                              }}
+                            >
+                              <ThemedText
+                                type="small"
+                                style={{
+                                  color: "#FF6B35",
+                                  fontWeight: "600",
+                                  fontSize: 10,
+                                }}
+                              >
+                                Custom: ₹{item.customWage}
+                              </ThemedText>
+                            </View>
+                          )}
+                        {item.finalPay !== undefined && item.finalPay !== null && (
+                          <View
+                            style={{
+                              backgroundColor: "#10B98120",
+                              paddingHorizontal: 6,
+                              paddingVertical: 2,
+                              borderColor: "#10B98133",
+                              borderRadius: 4,
+                            }}
+                          >
+                            <ThemedText
+                              type="small"
+                              style={{
+                                color: "#10B981",
+                                  fontWeight: "600",
+                                  fontSize: 10,
+                              }}
+                            >
+                              Pay: ₹{item.finalPay}
+                            </ThemedText>
+                          </View>
+                        )}
+                      </View>
+                      <ThemedText
+                        type="small"
+                        style={{ color: ADMIN_COLORS.textSecondary, marginTop: 4 }}
                       >
+                        Employer Org: {item.tenantId?.name || "Unknown"}
+                      </ThemedText>
+                    </View>
+
+                    <View style={styles.cardActions}>
+                      <Pressable
+                        onPress={() => openEditAttendance(item)}
+                        style={[
+                          styles.cardActionBtn,
+                          { backgroundColor: "#FFD1661A" },
+                        ]}
+                      >
+                        <Feather name="edit-2" size={16} color="#FFD166" />
+                        <ThemedText
+                          type="small"
+                          style={{ color: "#FFD166", marginLeft: Spacing.xs }}
+                        >
+                          Modify
+                        </ThemedText>
+                      </Pressable>
+
+                      <Pressable
+                        onPress={() => promptDelete(item._id, "attendance")}
+                        style={[
+                          styles.cardActionBtn,
+                          { backgroundColor: ADMIN_COLORS.danger + "15" },
+                        ]}
+                      >
+                        <Feather
+                          name="trash-2"
+                          size={16}
+                          color={ADMIN_COLORS.danger}
+                        />
                         <ThemedText
                           type="small"
                           style={{
-                            color: "#10B981",
-                            fontWeight: "600",
-                            fontSize: 10,
+                            color: ADMIN_COLORS.danger,
+                            marginLeft: Spacing.xs,
                           }}
                         >
-                          Pay: ₹{item.finalPay}
+                          Delete
                         </ThemedText>
-                      </View>
-                    )}
+                      </Pressable>
+                    </View>
                   </View>
-                  <ThemedText
-                    type="small"
-                    style={{ color: ADMIN_COLORS.textSecondary, marginTop: 4 }}
-                  >
-                    Employer Org: {item.tenantId?.name || "Unknown"}
-                  </ThemedText>
-                </View>
-
-                <View style={styles.cardActions}>
-                  <Pressable
-                    onPress={() => openEditAttendance(item)}
-                    style={[
-                      styles.cardActionBtn,
-                      { backgroundColor: "#FFD1661A" },
-                    ]}
-                  >
-                    <Feather name="edit-2" size={16} color="#FFD166" />
-                    <ThemedText
-                      type="small"
-                      style={{ color: "#FFD166", marginLeft: Spacing.xs }}
-                    >
-                      Modify
-                    </ThemedText>
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => promptDelete(item._id, "attendance")}
-                    style={[
-                      styles.cardActionBtn,
-                      { backgroundColor: ADMIN_COLORS.danger + "15" },
-                    ]}
-                  >
-                    <Feather
-                      name="trash-2"
-                      size={16}
-                      color={ADMIN_COLORS.danger}
-                    />
-                    <ThemedText
-                      type="small"
-                      style={{
-                        color: ADMIN_COLORS.danger,
-                        marginLeft: Spacing.xs,
-                      }}
-                    >
-                      Delete
-                    </ThemedText>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-          />
+                )}
+              />
+            </View>
+          )}
         </View>
       ) : activeTab === "payments" ? (
         /* TAB 5: PAYMENT CONTROL */
@@ -2602,6 +3175,75 @@ export default function AdminDashboardScreen() {
               style={{ flex: 1 }}
               contentContainerStyle={{ paddingBottom: 100 }}
             >
+              {/* Global Administrative Controls */}
+              <View style={{ paddingHorizontal: Spacing.xl, marginTop: Spacing.md, marginBottom: Spacing.lg }}>
+                <ThemedText
+                  type="h2"
+                  style={{
+                    color: ADMIN_COLORS.text,
+                    fontWeight: "700",
+                    marginBottom: Spacing.md,
+                  }}
+                >
+                  Global System Controls
+                </ThemedText>
+                
+                <View
+                  style={{
+                    backgroundColor: ADMIN_COLORS.card,
+                    borderColor: ADMIN_COLORS.border,
+                    borderWidth: 1,
+                    borderRadius: BorderRadius.md,
+                    padding: Spacing.lg,
+                    gap: Spacing.md,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <Feather name="shield-off" size={20} color={ADMIN_COLORS.primary} style={{ marginRight: 4 }} />
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={{ fontWeight: "700", color: "#FFFFFF" }}>Global Sessions</ThemedText>
+                      <ThemedText type="small" style={{ color: ADMIN_COLORS.textSecondary }}>Terminate all active client device tokens and force all users to login again.</ThemedText>
+                    </View>
+                    <Pressable
+                      onPress={handleAdminLogoutAllDevices}
+                      style={{
+                        backgroundColor: ADMIN_COLORS.primary + "15",
+                        borderColor: ADMIN_COLORS.primary,
+                        borderWidth: 1,
+                        borderRadius: BorderRadius.sm,
+                        paddingVertical: Spacing.xs,
+                        paddingHorizontal: Spacing.sm,
+                      }}
+                    >
+                      <ThemedText style={{ color: ADMIN_COLORS.primary, fontWeight: "700", fontSize: 13 }}>Logout All</ThemedText>
+                    </Pressable>
+                  </View>
+
+                  <View style={{ height: 1, backgroundColor: ADMIN_COLORS.border, marginVertical: Spacing.xs }} />
+
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <Feather name="trash-2" size={20} color={ADMIN_COLORS.danger} style={{ marginRight: 4 }} />
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={{ fontWeight: "700", color: "#FFFFFF" }}>Wipe System Databases</ThemedText>
+                      <ThemedText type="small" style={{ color: ADMIN_COLORS.textSecondary }}>Permanently deletes all tenants, projects, workers, payments, and non-admin users.</ThemedText>
+                    </View>
+                    <Pressable
+                      onPress={handleAdminWipeAllUsers}
+                      style={{
+                        backgroundColor: ADMIN_COLORS.danger + "15",
+                        borderColor: ADMIN_COLORS.danger,
+                        borderWidth: 1,
+                        borderRadius: BorderRadius.sm,
+                        paddingVertical: Spacing.xs,
+                        paddingHorizontal: Spacing.sm,
+                      }}
+                    >
+                      <ThemedText style={{ color: ADMIN_COLORS.danger, fontWeight: "700", fontSize: 13 }}>Wipe Data</ThemedText>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+
               {/* Active Sessions */}
               <View
                 style={{ paddingHorizontal: Spacing.xl, marginTop: Spacing.md }}
@@ -4378,11 +5020,153 @@ export default function AdminDashboardScreen() {
           </View>
         </View>
       </Modal>
+        </View>
+      </View>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
+  sidebar: {
+    width: 240,
+    borderRightWidth: 1,
+    paddingVertical: Spacing.md,
+  },
+  sidebarCollapsed: {
+    width: 70,
+    alignItems: "center",
+  },
+  sidebarHeader: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+    borderBottomWidth: 1,
+    marginBottom: Spacing.md,
+  },
+  logoIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sidebarScroll: {
+    paddingHorizontal: Spacing.md,
+  },
+  sidebarSectionHeader: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#64748B",
+    marginBottom: 6,
+    paddingHorizontal: Spacing.sm,
+    letterSpacing: 0.5,
+  },
+  sidebarItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  topbar: {
+    height: 60,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.xl,
+  },
+  collapseBtn: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: "transparent",
+  },
+  topbarSearch: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#151920",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#232833",
+    paddingHorizontal: Spacing.md,
+    height: 36,
+    width: 240,
+  },
+  topbarSearchInput: {
+    flex: 1,
+    color: "#FFFFFF",
+    fontSize: 13,
+  },
+  quickCreateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  topbarLogoutBtn: {
+    padding: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#232833",
+    backgroundColor: "#151920",
+  },
+  kpiHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  trendChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 2,
+  },
+  trendChipText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  kpiSublabel: {
+    color: "#8B93A7",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  kpiValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginTop: 4,
+    fontFamily: Platform.select({ ios: "Courier", android: "monospace", default: "monospace" }),
+  },
+  tabularNumber: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: Platform.select({ ios: "Courier", android: "monospace", default: "monospace" }),
+  },
+  activityBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chartCard: {
+    backgroundColor: "#151920",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  chartTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: Spacing.md,
+  },
   container: {
     flex: 1,
     backgroundColor: ADMIN_COLORS.background,

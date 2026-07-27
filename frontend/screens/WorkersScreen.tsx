@@ -55,7 +55,7 @@ interface WorkerCardProps {
   role?: string;
 }
 
-function WorkerCard({
+const WorkerCard = React.memo(function WorkerCard({
   worker,
   onEdit,
   onDelete,
@@ -228,7 +228,7 @@ function WorkerCard({
       </AnimatedPressable>
     </Animated.View>
   );
-}
+});
 
 export default function WorkersScreen() {
   const { theme, isDark } = useTheme();
@@ -488,23 +488,35 @@ export default function WorkersScreen() {
     if (isLoading) return null;
     return (
       <View style={styles.emptyContainer}>
-        <Feather
-          name="users"
-          size={64}
-          color={theme.textSecondary}
-          style={styles.emptyIcon}
-        />
-        <ThemedText type="h3" style={styles.emptyTitle}>
+        <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: theme.backgroundSecondary, justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
+          <Feather name="users" size={32} color={theme.primary} />
+        </View>
+        <ThemedText style={{ fontSize: 18, fontWeight: "800", marginBottom: 8, color: theme.text }}>
           {t.workers.noWorkers}
         </ThemedText>
         <ThemedText
-          type="body"
-          style={[styles.emptySubtitle, { color: theme.textSecondary }]}
+          style={{ fontSize: 14, textAlign: "center", color: theme.textSecondary, marginBottom: 20, paddingHorizontal: 24 }}
         >
           {role === "supervisor"
             ? "No workers assigned to your projects yet."
             : t.workers.addFirst}
         </ThemedText>
+        {role !== "supervisor" && (
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate("AddWorker");
+            }}
+            style={{
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              backgroundColor: theme.primary,
+              borderRadius: BorderRadius.xs
+            }}
+          >
+            <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Add Worker</ThemedText>
+          </Pressable>
+        )}
       </View>
     );
   };
@@ -538,6 +550,10 @@ export default function WorkersScreen() {
         refreshing={false}
         onRefresh={loadWorkers}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS === "android"}
       />
 
       {/* Professional Upgrade Modal */}

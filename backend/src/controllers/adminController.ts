@@ -1,6 +1,6 @@
 import { Response } from "express";
 import bcrypt from "bcryptjs";
-import { User, Tenant, Worker, Attendance, Payment, AuditLog, WageHistory, Project, SupportProblem, SupportFeedback } from "../models";
+import { User, Tenant, Worker, Attendance, Payment, AuditLog, WageHistory, Project, SupportProblem, SupportFeedback, DelayLog, Expense, MBEntry, OtpCode } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { broadcastAdminActivity } from "../utils/socket";
 
@@ -1032,3 +1032,80 @@ export const disableSuspiciousDevice = async (req: AuthenticatedRequest, res: Re
     res.status(500).json({ error: error.message });
   }
 };
+
+// Wipes all non-admin data (Do not delete admin accounts/tenants)
+export const deleteAllUsers = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    // 1. Wipe all transactional and entity collections
+    await Attendance.deleteMany({});
+    await Payment.deleteMany({});
+    await WageHistory.deleteMany({});
+    await Worker.deleteMany({});
+    await Project.deleteMany({});
+    await AuditLog.deleteMany({});
+    await SupportProblem.deleteMany({});
+    await SupportFeedback.deleteMany({});
+    await DelayLog.deleteMany({});
+    await Expense.deleteMany({});
+    await MBEntry.deleteMany({});
+    await OtpCode.deleteMany({});
+
+    // 2. Delete all non-admin users (keeping admins completely intact)
+    const userDeleteResult = await User.deleteMany({ role: { $ne: "admin" } });
+
+    // 3. Delete all non-SYSADMIN tenants
+    const tenantDeleteResult = await Tenant.deleteMany({ code: { $ne: "SYSADMIN" } });
+
+    console.log(`[Admin Wipe Database] Deleted non-admin users: ${userDeleteResult.deletedCount}, deleted tenants: ${tenantDeleteResult.deletedCount}`);
+
+    broadcastAdminActivity({ action: "ADMIN_USER_DELETE" });
+    res.json({ success: true, message: "All non-admin users, associated tenants, and tracking documents have been wiped." });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Force logout all active user devices except the current requesting administrator
+export const logoutAllUsers = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const currentAdminId = req.user?.id;
+
+    // Find all users (both admins and non-admins)
+    const users = await User.find({});
+    let count = 0;
+
+    for (const user of users) {
+      // Do not log out the currently logged in administrator
+      if (user._id.toString() === currentAdminId?.toString()) {
+        continue;
+      }
+
+      // Revoke all session keys
+      user.refreshTokens = [];
+      user.trustedDevices = [];
+      if (user.loginHistory) {
+        user.loginHistory.forEach(h => {
+          if (!h.logoutTime) h.logoutTime = new Date();
+        });
+      }
+
+      if (!user.securityLogs) user.securityLogs = [];
+      user.securityLogs.push({
+        timestamp: new Date(),
+        eventType: "ADMIN_FORCE_LOGOUT_ALL",
+        details: "Administrator forced global logout across all active devices",
+        ipAddress: req.ip || "Admin Portal"
+      });
+
+      await user.save();
+      count++;
+    }
+
+    console.log(`[Admin Force Logout] Revoked active sessions for ${count} users.`);
+    broadcastAdminActivity({ action: "ADMIN_FORCE_LOGOUT" });
+    res.json({ success: true, message: `Successfully logged out active devices for ${count} users.` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+

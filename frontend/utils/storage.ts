@@ -85,6 +85,25 @@ function mapProject(doc: any): Project {
   };
 }
 
+function mapSite(doc: any): Site {
+  return {
+    id: doc._id || doc.id,
+    name: doc.name,
+    projectType: doc.projectType,
+    clientName: doc.clientName || "",
+    address: doc.address || "",
+    startDate: doc.startDate || "",
+    description: doc.description || "",
+    status: doc.status || "Planning",
+    supervisor: doc.supervisor,
+    createdBy: doc.createdBy,
+    isArchived: doc.isArchived || false,
+    isDeleted: doc.isDeleted || false,
+    createdAt: doc.createdAt || "",
+    updatedAt: doc.updatedAt || "",
+  };
+}
+
 function mapPayment(doc: any): PaymentRecord {
   return {
     id: doc._id || doc.id,
@@ -116,6 +135,7 @@ export const STORAGE_KEYS = {
   PROFILE: "@haajari/profile",
   THEME: "@haajari/theme",
   PROJECTS: "@haajari/projects",
+  SITES: "@haajari/sites",
 };
 
 export interface AuthData {
@@ -183,6 +203,29 @@ export interface Project {
     percentDone: number;
   }[];
   createdAt: number;
+}
+
+export interface Site {
+  id: string;
+  name: string;
+  projectType: string;
+  clientName?: string;
+  address: string;
+  startDate: string;
+  description?: string;
+  status: "Planning" | "Started" | "In Progress" | "On Hold" | "Delayed" | "Completed";
+  supervisor?: {
+    _id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    role?: string;
+  } | string;
+  createdBy?: string;
+  isArchived?: boolean;
+  isDeleted?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Worker {
@@ -536,6 +579,170 @@ export const storage = {
         console.warn("Failed to delete project on backend, deleted locally", e);
       }
     }
+  },
+
+  // Site methods
+  async getSiteDashboardStats(): Promise<{
+    totalSites: number;
+    activeSites: number;
+    workersPresent: number;
+    workersAbsent: number;
+    totalWorkers: number;
+    sitesInProgress: number;
+    delayedSites: number;
+    completedSites: number;
+  }> {
+    try {
+      const auth = await this.getAuth();
+      if (auth?.token) {
+        const res = await authenticatedFetch(`${API_URL}/sites/dashboard/stats`);
+        if (res.ok) {
+          return await res.json();
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to fetch site dashboard stats", e);
+    }
+    return {
+      totalSites: 0,
+      activeSites: 0,
+      workersPresent: 0,
+      workersAbsent: 0,
+      totalWorkers: 0,
+      sitesInProgress: 0,
+      delayedSites: 0,
+      completedSites: 0
+    };
+  },
+
+  async getSites(params?: { search?: string; status?: string; sortBy?: string; page?: number; limit?: number }): Promise<{ sites: Site[]; pagination?: any }> {
+    try {
+      const auth = await this.getAuth();
+      if (auth?.token) {
+        try {
+          let url = `${API_URL}/sites?`;
+          if (params) {
+            const queryParams = [];
+            if (params.search) queryParams.push(`search=${encodeURIComponent(params.search)}`);
+            if (params.status) queryParams.push(`status=${encodeURIComponent(params.status)}`);
+            if (params.sortBy) queryParams.push(`sortBy=${encodeURIComponent(params.sortBy)}`);
+            if (params.page) queryParams.push(`page=${params.page}`);
+            if (params.limit) queryParams.push(`limit=${params.limit}`);
+            url += queryParams.join("&");
+          }
+          
+          const res = await authenticatedFetch(url);
+          if (res.ok) {
+            const data = await res.json();
+            const serverSites = data.sites.map(mapSite);
+            await AsyncStorage.setItem(
+              STORAGE_KEYS.SITES,
+              JSON.stringify(serverSites),
+            );
+            return { sites: serverSites, pagination: data.pagination };
+          }
+        } catch (e) {
+          console.log("Failed to fetch sites from backend, using cache", e);
+        }
+      }
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.SITES);
+      return { sites: data ? JSON.parse(data) : [] };
+    } catch {
+      return { sites: [] };
+    }
+  },
+
+  async getSiteById(siteId: string): Promise<Site | null> {
+    try {
+      const auth = await this.getAuth();
+      if (auth?.token) {
+        const res = await authenticatedFetch(`${API_URL}/sites/${siteId}`);
+        if (res.ok) {
+          return mapSite(await res.json());
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to get site details from backend", e);
+    }
+    return null;
+  },
+
+  async createSite(siteData: any): Promise<Site | null> {
+    try {
+      const auth = await this.getAuth();
+      if (auth?.token) {
+        const res = await authenticatedFetch(`${API_URL}/sites`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(siteData),
+        });
+        if (res.ok) {
+          return mapSite(await res.json());
+        } else {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to create site");
+        }
+      }
+    } catch (e: any) {
+      console.warn("Failed to create site", e);
+      throw e;
+    }
+    return null;
+  },
+
+  async updateSite(siteId: string, siteData: any): Promise<Site | null> {
+    try {
+      const auth = await this.getAuth();
+      if (auth?.token) {
+        const res = await authenticatedFetch(`${API_URL}/sites/${siteId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(siteData),
+        });
+        if (res.ok) {
+          return mapSite(await res.json());
+        } else {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to update site");
+        }
+      }
+    } catch (e: any) {
+      console.warn("Failed to update site", e);
+      throw e;
+    }
+    return null;
+  },
+
+  async archiveSite(siteId: string): Promise<Site | null> {
+    try {
+      const auth = await this.getAuth();
+      if (auth?.token) {
+        const res = await authenticatedFetch(`${API_URL}/sites/${siteId}/archive`, {
+          method: "PUT",
+        });
+        if (res.ok) {
+          return mapSite(await res.json());
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to archive site", e);
+    }
+    return null;
+  },
+
+  async deleteSite(siteId: string): Promise<boolean> {
+    try {
+      const auth = await this.getAuth();
+      if (auth?.token) {
+        const res = await authenticatedFetch(`${API_URL}/sites/${siteId}`, {
+          method: "DELETE",
+        });
+        return res.ok;
+      }
+    } catch (e) {
+      console.warn("Failed to delete site", e);
+    }
+    return false;
   },
 
   // Worker methods
