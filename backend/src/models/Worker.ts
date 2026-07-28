@@ -38,5 +38,6 @@ const WorkerSchema = new Schema<IWorker>({
 
 WorkerSchema.index({ tenantId: 1 });
 WorkerSchema.index({ tenantId: 1, name: 1 });
+WorkerSchema.index({ tenantId: 1, projectId: 1 });
 
 export const Worker = mongoose.model<IWorker>("Worker", WorkerSchema);

@@ -21,6 +21,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { storage, API_URL, authenticatedFetch } from "@/utils/storage";
+import ContextualTooltip from "@/components/ContextualTooltip";
 
 interface Supervisor {
   _id: string;
@@ -136,6 +137,11 @@ export default function CreateSiteScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.formScroll}>
+          <ContextualTooltip
+            tooltipKey="create_site"
+            title="Create Site"
+            description="Setup supervisor assignment, address data, and name details. This registers the site on the system."
+          />
           {/* Site Name Input */}
           <View style={styles.inputGroup}>
             <ThemedText style={styles.label}>Site Name *</ThemedText>

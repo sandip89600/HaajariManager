@@ -38,6 +38,7 @@ import {
 } from "@/utils/storage";
 import { appContextTracker } from "@/utils/appContextTracker";
 import { DeviceEventEmitter } from "react-native";
+import ContextualTooltip from "@/components/ContextualTooltip";
 import {
   generateAttendanceHTML,
   generateSummaryHTML,
@@ -1648,6 +1649,13 @@ export default function SummaryScreen() {
           </ThemedText>
         </Pressable>
       </View>
+
+      <ContextualTooltip
+        tooltipKey="reports_summary"
+        title="Reports & Analytics"
+        description="View payroll worksheets, custom BI reports, and export clean PDFs of workers' monthly attendance and advances."
+        style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 4 }}
+      />
 
       {viewMode === "payroll" ? (
         <FlatList

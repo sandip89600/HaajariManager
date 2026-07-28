@@ -41,6 +41,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { translateWorkerName } from "@/utils/transliteration";
 import { appContextTracker } from "@/utils/appContextTracker";
 import { useAuth } from "@/hooks/useAuth";
+import { useTour } from "@/contexts/TourContext";
 import { Language, languageNames } from "@/constants/i18n";
 import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
 import {
@@ -62,6 +63,7 @@ import {
   requestNotificationPermission,
   DEFAULT_NOTIFICATION_SETTINGS,
 } from "@/utils/notifications";
+import HelpSheet from "@/components/FloatingHelpButton";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -182,6 +184,7 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
       : insets.top + Platform.select({ ios: 44, default: 56 });
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const tour = useTour();
 
   // State Declarations
   const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -248,6 +251,7 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
   const [feedbackRating, setFeedbackRating] = useState(5);
   const [feedbackText, setFeedbackText] = useState("");
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [showHelpSheet, setShowHelpSheet] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -1124,14 +1128,6 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                     theme={theme}
                   />
                   <SettingRow
-                    icon="map"
-                    iconColor="#FF9800"
-                    label={t.settings.manageProjects}
-                    sublabel={t.settings.manageProjectsDesc}
-                    onPress={() => navigation.navigate("ProjectManagement")}
-                    theme={theme}
-                  />
-                  <SettingRow
                     icon="shield"
                     iconColor="#7C3AED"
                     label={t.settings.supervisorManagement}
@@ -1145,14 +1141,6 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                     label={t.settings.siteManagement}
                     sublabel={t.settings.siteManagementDesc}
                     onPress={() => navigation.navigate("SiteManagement")}
-                    theme={theme}
-                  />
-                  <SettingRow
-                    icon="layers"
-                    iconColor="#3B82F6"
-                    label="Manage Sites Registry"
-                    sublabel="Create, edit, archive and manage site settings"
-                    onPress={() => navigation.navigate("SiteList")}
                     theme={theme}
                   />
                   <SettingRow
@@ -1470,6 +1458,17 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
             label={t.settings.reportProblem}
             sublabel={t.settings.reportProblemDesc}
             onPress={() => setShowReportModal(true)}
+            theme={theme}
+          />
+          <SettingRow
+            icon="compass"
+            iconColor="#FF9800"
+            label="Help & Support"
+            sublabel="App Tour aur Contact Support"
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowHelpSheet(true);
+            }}
             theme={theme}
           />
           <SettingRow
@@ -2692,6 +2691,16 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
           </ThemedView>
         </BlurView>
       </Modal>
+
+      {/* ─── HELP SHEET ─── */}
+      <HelpSheet
+        visible={showHelpSheet}
+        onClose={() => setShowHelpSheet(false)}
+        onTourStart={() => {
+          if (isInDrawer && onClose) onClose();
+          navigation.navigate("AttendanceTab", { screen: "Dashboard" });
+        }}
+      />
     </ThemedView>
   );
 }

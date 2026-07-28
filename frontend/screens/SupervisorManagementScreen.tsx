@@ -60,8 +60,12 @@ export default function SupervisorManagementScreen() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch projects
-      const projs = await storage.getProjects();
+      // 1. Fetch sites
+      const sitesResult = await storage.getSites();
+      const projs = (sitesResult.sites || []).map((s: any) => ({
+        id: s.id,
+        name: s.name,
+      })) as any[];
       setProjects(projs);
 
       // 2. Fetch supervisors from backend
@@ -606,7 +610,7 @@ export default function SupervisorManagementScreen() {
                     type="body"
                     style={{ color: "#FFFFFF", fontWeight: "600" }}
                   >
-                    {t.common.save || "Save"}
+                    {editingSupervisor ? (t.common.save || "Save") : "Assign Supervisor"}
                   </ThemedText>
                 </Pressable>
               </View>

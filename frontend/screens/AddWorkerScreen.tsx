@@ -29,8 +29,10 @@ import {
   Worker,
   WorkerCategory,
   generateId,
+  API_URL,
   Project,
 } from "@/utils/storage";
+import ContextualTooltip from "@/components/ContextualTooltip";
 import { uploadImageToServer } from "@/utils/upload";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/MainTabNavigator";
@@ -354,6 +356,11 @@ export default function AddWorkerScreen() {
       <ScreenKeyboardAwareScrollView
         contentContainerStyle={styles.scrollContent}
       >
+        <ContextualTooltip
+          tooltipKey="create_worker"
+          title="Create Worker"
+          description="Fill worker wages, skill categories, subcontractor details, and select their primary assigned construction site."
+        />
         {/* Photo Avatar */}
         <View style={styles.avatarSection}>
           <Pressable

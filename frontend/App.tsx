@@ -16,9 +16,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LanguageContext, useLanguageProvider } from "@/hooks/useLanguage";
 import { AuthContext, useAuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
-import { Colors } from "@/constants/theme";
+import { TourProvider } from "@/contexts/TourContext";
 import { SocketProvider } from "@/context/SocketContext";
-// VoiceAssistant removed — will be re-added in a future release
 import { navigationRef } from "@/navigation/navigationRef";
 
 const prefix = Linking.createURL("/");
@@ -78,7 +77,7 @@ function AppInner() {
   if (languageContext.isLoading) {
     return (
       <View style={[styles.loading, { backgroundColor: theme.backgroundRoot }]}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
@@ -102,11 +101,13 @@ export default function App() {
       <GestureHandlerRootView style={styles.root}>
         <KeyboardProvider>
           <ThemeProvider>
-            <SocketProvider>
-              <ErrorBoundary>
-                <AppInner />
-              </ErrorBoundary>
-            </SocketProvider>
+            <TourProvider>
+              <SocketProvider>
+                <ErrorBoundary>
+                  <AppInner />
+                </ErrorBoundary>
+              </SocketProvider>
+            </TourProvider>
           </ThemeProvider>
         </KeyboardProvider>
       </GestureHandlerRootView>

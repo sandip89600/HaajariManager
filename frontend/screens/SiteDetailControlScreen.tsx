@@ -21,7 +21,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { Spacing } from "@/constants/theme";
 import { storage, Project, Worker, authenticatedFetch, API_URL } from "@/utils/storage";
 
-type ActiveTab = "overview" | "workers" | "materials" | "expenses" | "reports" | "analytics";
+type ActiveTab = "overview" | "workers" | "materials" | "expenses" | "reports" | "analytics" | "photos";
 
 export default function SiteDetailControlScreen() {
   const { theme } = useTheme();
@@ -31,7 +31,7 @@ export default function SiteDetailControlScreen() {
 
   const [site, setSite] = useState<Project | null>(null);
   const [allWorkers, setAllWorkers] = useState<Worker[]>([]);
-  const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
+  const [activeTab, setActiveTab] = useState<ActiveTab>(route.params?.initialTab || "overview");
   const [isLoading, setIsLoading] = useState(false);
 
   // Detail Data States from API/Cache
@@ -61,14 +61,25 @@ export default function SiteDetailControlScreen() {
   const [expDesc, setExpDesc] = useState("");
 
   // Material Tracker Mock Database (syncs with local state for visual simulation)
-  const [materials, setMaterials] = useState([
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [photos, setPhotos] = useState<any[]>([]);
+  const [searchMaterial, setSearchMaterial] = useState("");
+  const [showMaterialModal, setShowMaterialModal] = useState(false);
+  const [materialForm, setMaterialForm] = useState({ name: "", unit: "bags", required: "0", minThreshold: "0", id: "" });
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [photoForm, setPhotoForm] = useState({ workerId: "", type: "before", uri: "" });
+  const [materialHistoryModal, setMaterialHistoryModal] = useState(false);
+  const [materialHistory, setMaterialHistory] = useState<any[]>([]);
+  const [showAssignWorkerModal, setShowAssignWorkerModal] = useState(false);
+  // Mock removed
+  /*
     { name: "Cement", unit: "bags", required: 500, used: 380, remaining: 120, minThreshold: 50 },
     { name: "Steel Rebars", unit: "tons", required: 15, used: 12, remaining: 3, minThreshold: 2 },
     { name: "Sand", unit: "brass", required: 80, used: 65, remaining: 15, minThreshold: 10 },
     { name: "Bricks", unit: "pcs", required: 20000, used: 18500, remaining: 1500, minThreshold: 2000 },
     { name: "Paint", unit: "litres", required: 600, used: 120, remaining: 480, minThreshold: 100 },
     { name: "Tiles", unit: "boxes", required: 400, used: 350, remaining: 50, minThreshold: 40 },
-  ]);
+  ]);*/
 
   // Documents Local Mock state
   const [documents, setDocuments] = useState([
@@ -130,6 +141,17 @@ export default function SiteDetailControlScreen() {
         if (mbRes.ok) {
           setMbEntries(await mbRes.json());
         }
+        // Fetch materials and photos
+        try {
+          const matRes = await authenticatedFetch(`${API_URL}/sites/${siteId}/materials`);
+          if (matRes.ok) setMaterials(await matRes.json());
+          
+          const photRes = await authenticatedFetch(`${API_URL}/sites/${siteId}/photos`);
+          if (photRes.ok) setPhotos(await photRes.json());
+        } catch (e) {
+          console.warn("Failed to fetch materials or photos", e);
+        }
+
       } catch (e) {
         // Offline cache / simulated values
         const spent = currentSite?.budget ? Math.round(currentSite.budget * 0.45) : 180000;
@@ -273,36 +295,33 @@ export default function SiteDetailControlScreen() {
 
   // Material usage logger
   const handleLogMaterialUse = (materialName: string) => {
+    
     Alert.prompt(
       "Log Material Used",
       `How many units of ${materialName} did you use today?`,
       [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Log Usage",
-          onPress: (val?: string) => {
+          onPress: async (val?: string) => {
             if (!val || isNaN(Number(val))) return;
             const qty = Number(val);
-            setMaterials(prev =>
-              prev.map(m => {
-                if (m.name === materialName) {
-                  const used = m.used + qty;
-                  return { ...m, used, remaining: Math.max(0, m.remaining - qty) };
-                }
-                return m;
-              })
-            );
+            const mat = materials.find(m => m.name === materialName);
+            if(!mat) return;
+            try {
+              const r = await authenticatedFetch(`${API_URL}/sites/${siteId}/materials/${mat.id || mat._id}/consume`, {
+                method: "POST",
+                body: JSON.stringify({ quantity: qty })
+              });
+              if(r.ok) loadSiteData();
+            }catch(e){}
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
       ],
-      "plain-text",
-      "",
-      "number-pad"
+      "plain-text", "", "number-pad"
     );
+
   };
 
   // Measuring Tape progress bar
@@ -387,6 +406,7 @@ export default function SiteDetailControlScreen() {
             { id: "expenses", label: "Expenses Ledger" },
             { id: "reports", label: "Reports & Docs" },
             { id: "analytics", label: "Analytics" },
+            { id: "photos", label: "Photos" },
           ] as const).map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -518,7 +538,13 @@ export default function SiteDetailControlScreen() {
               ))}
             </ScrollView>
 
-            <ThemedText style={styles.sectionHeaderTitle}>Assigned Roster List</ThemedText>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 12 }}>
+              <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 0, marginBottom: 0 }]}>Assigned Roster List</ThemedText>
+              <Pressable onPress={() => setShowAssignWorkerModal(true)} style={[styles.transferButton, { backgroundColor: theme.primary }]}>
+                <Feather name="plus" size={14} color="#FFF" />
+                <ThemedText style={[styles.transferText, { color: "#FFF" }]}>Assign</ThemedText>
+              </Pressable>
+            </View>
             {filteredWorkers.length === 0 ? (
               <ThemedText style={styles.emptyText}>No workers match the selected category.</ThemedText>
             ) : (
@@ -544,6 +570,22 @@ export default function SiteDetailControlScreen() {
                     <Feather name="move" size={14} color={theme.text} />
                     <ThemedText style={styles.transferText}>Transfer</ThemedText>
                   </Pressable>
+                  <Pressable
+                    onPress={async () => {
+                      try {
+                        const updated = { ...worker, projectId: undefined };
+                        await storage.updateWorker(updated);
+                        setAllWorkers(allWorkers.map(w => w.id === worker.id ? updated : w));
+                        Alert.alert("Success", "Worker removed from site.");
+                      } catch (e) {
+                        Alert.alert("Error", "Failed to remove worker");
+                      }
+                    }}
+                    style={[styles.transferButton, { backgroundColor: '#FEE2E2', marginLeft: 6 }]}
+                  >
+                    <Feather name="user-minus" size={14} color="#EF4444" />
+                    <ThemedText style={[styles.transferText, { color: "#EF4444" }]}>Remove</ThemedText>
+                  </Pressable>
                 </View>
               ))
             )}
@@ -554,8 +596,33 @@ export default function SiteDetailControlScreen() {
         {activeTab === "materials" && (
           <View>
             <ThemedText style={styles.sectionHeaderTitle}>Stock Levels & Alerts</ThemedText>
-            {materials.map((mat) => {
-              const isLow = mat.remaining <= mat.minThreshold;
+            
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <TextInput
+                placeholder="Search materials..."
+                placeholderTextColor="#9CA3AF"
+                value={searchMaterial}
+                onChangeText={setSearchMaterial}
+                style={[styles.formInput, { flex: 1, marginRight: 8, borderColor: theme.border, color: theme.text, height: 40, marginBottom: 0 }]}
+              />
+              <Pressable onPress={() => { setMaterialForm({name:"", unit:"bags", required:"0", minThreshold:"0", id:""}); setShowMaterialModal(true); }} style={[styles.transferButton, { backgroundColor: theme.primary, height: 40 }]}>
+                <Feather name="plus" size={16} color="#FFF" />
+                <ThemedText style={[styles.transferText, {color: "#FFF"}]}>Add</ThemedText>
+              </Pressable>
+              <Pressable onPress={async () => { 
+                try {
+                   const r = await authenticatedFetch(`${API_URL}/sites/${siteId}/materials-history`);
+                   if(r.ok) { setMaterialHistory(await r.json()); setMaterialHistoryModal(true); }
+                }catch(e){}
+              }} style={[styles.transferButton, { backgroundColor: theme.backgroundSecondary, height: 40, marginLeft: 8 }]}>
+                <Feather name="clock" size={16} color={theme.text} />
+              </Pressable>
+            </View>
+
+            {materials.filter(m => m.name.toLowerCase().includes(searchMaterial.toLowerCase())).map((mat) => {
+              const remaining = mat.remaining || 0;
+              const isLow = remaining <= mat.minThreshold;
+
               return (
                 <View
                   key={mat.name}
@@ -740,6 +807,33 @@ export default function SiteDetailControlScreen() {
             </View>
           </View>
         )}
+      
+        {/* TAB 7: PHOTOS */}
+        {activeTab === "photos" && (
+          <View>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <ThemedText style={styles.sectionHeaderTitle}>Site Progress Photos</ThemedText>
+              <Pressable onPress={() => setShowPhotoModal(true)} style={[styles.transferButton, { backgroundColor: theme.primary }]}>
+                <Feather name="camera" size={14} color="#FFF" />
+                <ThemedText style={[styles.transferText, {color: "#FFF"}]}>Upload</ThemedText>
+              </Pressable>
+            </View>
+            {photos.length === 0 ? (
+              <ThemedText style={styles.emptyText}>No photos available.</ThemedText>
+            ) : (
+              photos.map((p, i) => (
+                <View key={i} style={[styles.workerCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+                  <Feather name="image" size={24} color={theme.primary} style={{marginRight: 10}} />
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={styles.workerName}>{p.type === 'before' ? "Before Work" : "After Work"}</ThemedText>
+                    <ThemedText style={styles.workerRate}>{new Date(p.timestamp || Date.now()).toLocaleString()}</ThemedText>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        )}
+
       </ScrollView>
 
       {/* Worker Transfer Modal */}
@@ -771,6 +865,129 @@ export default function SiteDetailControlScreen() {
                 </Pressable>
               ))
             )}
+          </View>
+        </Pressable>
+      </Modal>
+
+      
+      <Modal visible={showAssignWorkerModal} animationType="slide" transparent>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowAssignWorkerModal(false)}>
+          <View style={[styles.modalSheet, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.sheetHeader}>
+              <ThemedText style={styles.sheetTitle}>Assign Worker</ThemedText>
+              <Pressable onPress={() => setShowAssignWorkerModal(false)}>
+                <Feather name="x" size={20} color={theme.text} />
+              </Pressable>
+            </View>
+            <ScrollView>
+              {allWorkers.filter(w => w.projectId !== siteId).length === 0 ? (
+                <ThemedText style={styles.emptyText}>No unassigned workers available.</ThemedText>
+              ) : (
+                allWorkers.filter(w => w.projectId !== siteId).map(w => (
+                  <View key={w.id} style={[styles.workerCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={styles.workerName}>{w.name}</ThemedText>
+                      <ThemedText style={styles.workerRate}>{w.category}</ThemedText>
+                    </View>
+                    <Pressable
+                      onPress={async () => {
+                        try {
+                          const updated = { ...w, projectId: siteId };
+                          await storage.updateWorker(updated);
+                          setAllWorkers(allWorkers.map(aw => aw.id === w.id ? updated : aw));
+                          Alert.alert("Success", "Worker assigned.");
+                        } catch(e){}
+                      }}
+                      style={[styles.transferButton, { backgroundColor: theme.primary }]}
+                    >
+                      <ThemedText style={[styles.transferText, {color:"#FFF"}]}>Assign</ThemedText>
+                    </Pressable>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+
+      
+      <Modal visible={showMaterialModal} animationType="slide" transparent>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowMaterialModal(false)}>
+          <View style={[styles.modalSheet, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.sheetHeader}>
+              <ThemedText style={styles.sheetTitle}>{materialForm.id ? "Edit Material" : "Add Material"}</ThemedText>
+              <Pressable onPress={() => setShowMaterialModal(false)}>
+                <Feather name="x" size={20} color={theme.text} />
+              </Pressable>
+            </View>
+            <ScrollView>
+              <TextInput placeholder="Name" value={materialForm.name} onChangeText={t => setMaterialForm({...materialForm, name:t})} style={[styles.formInput, {color:theme.text, borderColor:theme.border}]} />
+              <TextInput placeholder="Unit" value={materialForm.unit} onChangeText={t => setMaterialForm({...materialForm, unit:t})} style={[styles.formInput, {color:theme.text, borderColor:theme.border}]} />
+              <TextInput placeholder="Required" value={materialForm.required} onChangeText={t => setMaterialForm({...materialForm, required:t})} keyboardType="numeric" style={[styles.formInput, {color:theme.text, borderColor:theme.border}]} />
+              <TextInput placeholder="Min Threshold" value={materialForm.minThreshold} onChangeText={t => setMaterialForm({...materialForm, minThreshold:t})} keyboardType="numeric" style={[styles.formInput, {color:theme.text, borderColor:theme.border}]} />
+              <Pressable onPress={async () => {
+                try {
+                  const m = materialForm.id ? "PUT" : "POST";
+                  const u = materialForm.id ? `${API_URL}/sites/${siteId}/materials/${materialForm.id}` : `${API_URL}/sites/${siteId}/materials`;
+                  const r = await authenticatedFetch(u, {
+                    method: m,
+                    body: JSON.stringify({ name: materialForm.name, unit: materialForm.unit, required: Number(materialForm.required), minThreshold: Number(materialForm.minThreshold) })
+                  });
+                  if(r.ok) loadSiteData();
+                  setShowMaterialModal(false);
+                }catch(e){}
+              }} style={[styles.submitButton, { backgroundColor: theme.primary }]}><ThemedText style={{color:"#FFF", fontWeight:"700"}}>Save</ThemedText></Pressable>
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+      
+      <Modal visible={materialHistoryModal} animationType="slide" transparent>
+        <Pressable style={styles.modalOverlay} onPress={() => setMaterialHistoryModal(false)}>
+          <View style={[styles.modalSheet, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.sheetHeader}>
+              <ThemedText style={styles.sheetTitle}>Material Usage History</ThemedText>
+              <Pressable onPress={() => setMaterialHistoryModal(false)}>
+                <Feather name="x" size={20} color={theme.text} />
+              </Pressable>
+            </View>
+            <ScrollView>
+              {materialHistory.map((h, i) => (
+                <View key={i} style={[styles.workerCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+                  <ThemedText style={styles.workerName}>{h.materialName} - Used {h.quantity}</ThemedText>
+                  <ThemedText style={styles.workerRate}>{new Date(h.date || Date.now()).toLocaleDateString()}</ThemedText>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+
+      
+      <Modal visible={showPhotoModal} animationType="slide" transparent>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowPhotoModal(false)}>
+          <View style={[styles.modalSheet, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.sheetHeader}>
+              <ThemedText style={styles.sheetTitle}>Upload Photo</ThemedText>
+              <Pressable onPress={() => setShowPhotoModal(false)}>
+                <Feather name="x" size={20} color={theme.text} />
+              </Pressable>
+            </View>
+            <ScrollView>
+              <TextInput placeholder="Worker ID (optional)" value={photoForm.workerId} onChangeText={t => setPhotoForm({...photoForm, workerId:t})} style={[styles.formInput, {color:theme.text, borderColor:theme.border}]} />
+              <TextInput placeholder="Type (before/after)" value={photoForm.type} onChangeText={t => setPhotoForm({...photoForm, type:t})} style={[styles.formInput, {color:theme.text, borderColor:theme.border}]} />
+              
+              <Pressable onPress={async () => {
+                try {
+                  const r = await authenticatedFetch(`${API_URL}/sites/${siteId}/photos`, {
+                    method: "POST",
+                    body: JSON.stringify({ workerId: photoForm.workerId || undefined, type: photoForm.type, uri: "fake_uri.jpg", location: {lat: 28.7041, lng: 77.1025} })
+                  });
+                  if(r.ok) loadSiteData();
+                  setShowPhotoModal(false);
+                }catch(e){}
+              }} style={[styles.submitButton, { backgroundColor: theme.primary }]}><ThemedText style={{color:"#FFF", fontWeight:"700"}}>Upload (Simulated)</ThemedText></Pressable>
+            </ScrollView>
           </View>
         </Pressable>
       </Modal>

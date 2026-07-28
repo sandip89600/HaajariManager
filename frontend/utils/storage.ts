@@ -582,6 +582,10 @@ export const storage = {
   },
 
   // Site methods
+  async getSiteStats() {
+    return this.getSiteDashboardStats();
+  },
+
   async getSiteDashboardStats(): Promise<{
     totalSites: number;
     activeSites: number;
@@ -677,7 +681,9 @@ export const storage = {
           body: JSON.stringify(siteData),
         });
         if (res.ok) {
-          return mapSite(await res.json());
+          const site = mapSite(await res.json());
+          DeviceEventEmitter.emit("refreshData");
+          return site;
         } else {
           const err = await res.json();
           throw new Error(err.error || "Failed to create site");
@@ -700,7 +706,9 @@ export const storage = {
           body: JSON.stringify(siteData),
         });
         if (res.ok) {
-          return mapSite(await res.json());
+          const site = mapSite(await res.json());
+          DeviceEventEmitter.emit("refreshData");
+          return site;
         } else {
           const err = await res.json();
           throw new Error(err.error || "Failed to update site");
@@ -721,7 +729,9 @@ export const storage = {
           method: "PUT",
         });
         if (res.ok) {
-          return mapSite(await res.json());
+          const site = mapSite(await res.json());
+          DeviceEventEmitter.emit("refreshData");
+          return site;
         }
       }
     } catch (e) {
@@ -737,7 +747,11 @@ export const storage = {
         const res = await authenticatedFetch(`${API_URL}/sites/${siteId}`, {
           method: "DELETE",
         });
-        return res.ok;
+        const isOk = res.ok;
+        if (isOk) {
+          DeviceEventEmitter.emit("refreshData");
+        }
+        return isOk;
       }
     } catch (e) {
       console.warn("Failed to delete site", e);
@@ -775,6 +789,7 @@ export const storage = {
   async setWorkers(workers: Worker[]): Promise<void> {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.WORKERS, JSON.stringify(workers));
+      DeviceEventEmitter.emit("refreshData");
     } catch (error) {
       console.error("Error saving workers:", error);
     }
@@ -900,6 +915,7 @@ export const storage = {
         STORAGE_KEYS.ATTENDANCE,
         JSON.stringify(records),
       );
+      DeviceEventEmitter.emit("refreshData");
     } catch (error) {
       console.error("Error saving attendance:", error);
     }
@@ -1085,6 +1101,7 @@ export const storage = {
         STORAGE_KEYS_EXT.PAYMENTS,
         JSON.stringify(payments),
       );
+      DeviceEventEmitter.emit("refreshData");
     } catch (error) {
       console.error("Error saving payment:", error);
     }
@@ -1098,6 +1115,7 @@ export const storage = {
         STORAGE_KEYS_EXT.PAYMENTS,
         JSON.stringify(filtered),
       );
+      DeviceEventEmitter.emit("refreshData");
 
       const auth = await this.getAuth();
       if (auth?.token && paymentId.length >= 24) {

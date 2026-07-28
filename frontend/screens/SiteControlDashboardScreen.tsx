@@ -237,13 +237,13 @@ export default function SiteControlDashboardScreen() {
           </View>
         </View>
 
-        <View style={[styles.cardActions, { borderTopColor: theme.border }]}>
+        <View style={[styles.cardActions, { borderTopColor: theme.border, flexWrap: "wrap" }]}>
           <Pressable
             onPress={() => {
               triggerHaptic();
               navigation.navigate("SiteDetails", { siteId: item.id });
             }}
-            style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary }]}
+            style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary, minWidth: "30%" }]}
           >
             <Feather name="eye" size={13} color={theme.text} />
             <ThemedText style={styles.actionBtnText}>Open</ThemedText>
@@ -254,16 +254,27 @@ export default function SiteControlDashboardScreen() {
               triggerHaptic();
               navigation.navigate("EditSite", { siteId: item.id });
             }}
-            style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary }]}
+            style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary, minWidth: "30%" }]}
           >
             <Feather name="edit-2" size={13} color={theme.text} />
             <ThemedText style={styles.actionBtnText}>Edit</ThemedText>
           </Pressable>
 
+          <Pressable
+            onPress={() => {
+              triggerHaptic();
+              navigation.navigate("SiteDetailControl", { siteId: item.id, initialTab: "workers" });
+            }}
+            style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary, minWidth: "30%" }]}
+          >
+            <Feather name="users" size={13} color={theme.text} />
+            <ThemedText style={styles.actionBtnText}>Workforce</ThemedText>
+          </Pressable>
+
           {!item.isArchived && item.status !== "Completed" && (
             <Pressable
               onPress={() => handleArchiveSite(item)}
-              style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary }]}
+              style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary, minWidth: "30%" }]}
             >
               <Feather name="archive" size={13} color={theme.text} />
               <ThemedText style={styles.actionBtnText}>Archive</ThemedText>
@@ -272,7 +283,7 @@ export default function SiteControlDashboardScreen() {
 
           <Pressable
             onPress={() => handleDeleteSite(item)}
-            style={[styles.actionBtn, { backgroundColor: isDark ? "#451A20" : "#FEE2E2" }]}
+            style={[styles.actionBtn, { backgroundColor: isDark ? "#451A20" : "#FEE2E2", minWidth: "30%" }]}
           >
             <Feather name="trash-2" size={13} color="#EF4444" />
             <ThemedText style={[styles.actionBtnText, { color: "#EF4444" }]}>Delete</ThemedText>
@@ -301,7 +312,7 @@ export default function SiteControlDashboardScreen() {
             : "Create your first site to start managing attendance, workers, progress and reports."}
         </ThemedText>
         
-        {isFiltered ? (
+        {isFiltered && (
           <Pressable
             onPress={() => {
               triggerHaptic();
@@ -312,16 +323,6 @@ export default function SiteControlDashboardScreen() {
           >
             <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Reset Filters</ThemedText>
           </Pressable>
-        ) : (
-          <Pressable
-            onPress={() => {
-              triggerHaptic();
-              navigation.navigate("CreateSite");
-            }}
-            style={[styles.resetBtn, { backgroundColor: theme.primary }]}
-          >
-            <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Create Site</ThemedText>
-          </Pressable>
         )}
       </View>
     );
@@ -330,33 +331,29 @@ export default function SiteControlDashboardScreen() {
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
       {/* Top Header Row with Title */}
-      <View style={styles.header}>
-        <View>
+      <View style={[styles.header, { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }]}>
+        <View style={{ flex: 1 }}>
           <ThemedText style={styles.headerSubtitle}>Haajari Manager</ThemedText>
           <ThemedText style={styles.headerTitle}>Site Control Center</ThemedText>
         </View>
-      </View>
-
-      {/* Stats Cards Section (Today's Site Overview) */}
-      <View style={styles.statsContainer}>
-        <ThemedText style={styles.sectionHeaderTitle}>Today's Site Overview</ThemedText>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsScroll}>
-          {[
-            { label: "Total Sites", value: stats.totalSites, color: theme.text },
-            { label: "Active Sites", value: stats.activeSites, color: "#3B82F6" },
-            { label: "Present Today", value: stats.workersPresent, color: "#10B981" },
-            { label: "Absent Today", value: stats.workersAbsent, color: "#EF4444" },
-            { label: "Total Workers", value: stats.totalWorkers, color: theme.textSecondary },
-            { label: "In Progress", value: stats.sitesInProgress, color: "#3B82F6" },
-            { label: "Delayed Sites", value: stats.delayedSites, color: "#EF4444" },
-            { label: "Completed", value: stats.completedSites, color: "#10B981" }
-          ].map((item, idx) => (
-            <View key={idx} style={[styles.statCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-              <ThemedText style={[styles.statValue, { color: item.color }]}>{item.value}</ThemedText>
-              <ThemedText style={styles.statLabel}>{item.label}</ThemedText>
-            </View>
-          ))}
-        </ScrollView>
+        <Pressable
+          onPress={() => {
+            triggerHaptic();
+            navigation.navigate("CreateSite");
+          }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: theme.primary,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: BorderRadius.xs || 8,
+            alignSelf: "center"
+          }}
+        >
+          <Feather name="plus" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+          <ThemedText style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 13 }}>Create Site</ThemedText>
+        </Pressable>
       </View>
 
       {/* Search and Sorting Bar */}

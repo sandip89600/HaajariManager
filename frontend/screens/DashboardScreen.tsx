@@ -12,6 +12,7 @@ import {
   TextInput,
   Switch,
   Animated,
+  DeviceEventEmitter,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,12 +23,14 @@ import { WebView } from "react-native-webview";
 import SettingsDrawer from "@/components/SettingsDrawer";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
+import { useTour } from "@/contexts/TourContext";
 import { storage, Project, Worker, AttendanceRecord, AttendanceValue, authenticatedFetch, API_URL } from "@/utils/storage";
 import { Spacing, BorderRadius, Shadows, Colors } from "@/constants/theme";
 
@@ -47,7 +50,19 @@ export default function DashboardScreen() {
   const { user } = useAuth();
   const { socket, connectSocket } = useSocket();
   const insets = useSafeAreaInsets();
+  const tour = useTour();
+  const welcomeRef = useRef<View>(null);
+  const summaryRef = useRef<View>(null);
+  const logRef = useRef<View>(null);
+  const actionsRef = useRef<View>(null);
+  const gpsRef = useRef<View>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  const onLayoutWelcome = () => tour.registerTarget(0, welcomeRef);
+  const onLayoutSummary = () => tour.registerTarget(1, summaryRef);
+  const onLayoutLog = () => tour.registerTarget(2, logRef);
+  const onLayoutActions = () => tour.registerTarget(3, actionsRef);
+  const onLayoutGps = () => tour.registerTarget(4, gpsRef);
 
   // States
   const [loading, setLoading] = useState(true);
@@ -75,8 +90,8 @@ export default function DashboardScreen() {
   const toastFadeAnim = useRef(new Animated.Value(0)).current;
 
   // Gamification & insights fallbacks
-  const [streakCount, setStreakCount] = useState(5);
-  const [smartInsight, setSmartInsight] = useState("Attendance dropped 15% vs last Thursday");
+  const [streakCount, setStreakCount] = useState(1);
+  const [smartInsight, setSmartInsight] = useState("Calculating live analytics...");
 
   // Custom interactive attendance modal states
   const [attendanceModalVisible, setAttendanceModalVisible] = useState(false);
@@ -150,7 +165,7 @@ export default function DashboardScreen() {
         clientName: s.clientName,
       })) as any[];
 
-      const statsData = await storage.getSiteStats();
+      const statsData = await storage.getSiteDashboardStats();
       setSiteStats(statsData);
 
       const workers = await storage.getWorkers();
@@ -214,14 +229,59 @@ export default function DashboardScreen() {
         rate: totalWorkers > 0 ? rate : 0,
       });
 
-      // Smart dynamic insights based on statistics
-      if (totalWorkers > 0) {
-        if (rate >= 85) {
-          setSmartInsight("Attendance is high today 🔥 Great project momentum!");
-        } else if (rate < 50) {
-          setSmartInsight("⚠️ Alert: Critical labor shortage! Less than 50% on site.");
+      // Calculate dynamic streak: check how many consecutive days (going backwards from today)
+      // have at least one attendance record marked in the current month.
+      let streak = 0;
+      let checkDate = new Date();
+      for (let i = 0; i < 30; i++) {
+        const year = checkDate.getFullYear();
+        const month = checkDate.getMonth();
+        const day = checkDate.getDate();
+        
+        const hasAttendance = attendance.some(
+          (r) => r.year === year && r.month === month && r.day === day && (r.value === "P" || r.value === "A" || r.value === "H" || r.value === "OT" || typeof r.value === "number")
+        );
+        if (hasAttendance) {
+          streak++;
+          checkDate.setDate(checkDate.getDate() - 1);
         } else {
-          setSmartInsight("Attendance drop: 2 workers took half-day today.");
+          // If we checked today and there's no attendance yet, check yesterday to continue yesterday's streak.
+          if (streak === 0 && checkDate.getDate() === today.getDate()) {
+            checkDate.setDate(checkDate.getDate() - 1);
+            continue;
+          }
+          break;
+        }
+      }
+      setStreakCount(Math.max(1, streak));
+
+      // Smart dynamic insights comparing today's rate with yesterday's
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayYear = yesterday.getFullYear();
+      const yesterdayMonth = yesterday.getMonth();
+      const yesterdayDay = yesterday.getDate();
+
+      const yesterdayRecords = attendance.filter(
+        (r) => r.year === yesterdayYear && r.month === yesterdayMonth && r.day === yesterdayDay
+      );
+      
+      let yesterdayPresent = 0;
+      yesterdayRecords.forEach((rec) => {
+        const belongsToScope = siteWorkers.some(sw => sw.id === rec.workerId);
+        if (belongsToScope) {
+          if (rec.value === "P" || rec.value === "H" || rec.value === "OT") yesterdayPresent++;
+        }
+      });
+      const yesterdayRate = totalWorkers > 0 ? Math.round((yesterdayPresent / totalWorkers) * 100) : 0;
+
+      if (totalWorkers > 0) {
+        if (rate > yesterdayRate) {
+          setSmartInsight(`Attendance improved by ${rate - yesterdayRate}% compared to yesterday! 🎉`);
+        } else if (rate < yesterdayRate) {
+          setSmartInsight(`Attendance dropped by ${yesterdayRate - rate}% vs yesterday. ⚠️`);
+        } else {
+          setSmartInsight("Attendance is stable and matching yesterday's levels.");
         }
       } else {
         setSmartInsight("Welcome! Register workers and sites to view live insights.");
@@ -241,12 +301,19 @@ export default function DashboardScreen() {
   useEffect(() => {
     const handleUpdate = () => {
       loadDashboardData(true);
+      DeviceEventEmitter.emit("refreshData");
     };
     socket.on("admin_dashboard_update", handleUpdate);
     socket.on("admin_activity", handleUpdate);
+
+    const sub = DeviceEventEmitter.addListener("refreshData", () => {
+      loadDashboardData(true);
+    });
+
     return () => {
       socket.off("admin_dashboard_update", handleUpdate);
       socket.off("admin_activity", handleUpdate);
+      sub.remove();
     };
   }, [socket]);
 
@@ -812,8 +879,45 @@ export default function DashboardScreen() {
 
   if (loading && workersList.length === 0) {
     return (
-      <ThemedView style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color="#2563EB" />
+      <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+        {/* Header Skeleton */}
+        <View style={[styles.headerContainer, { paddingTop: insets.top + Spacing.sm, opacity: 0.5 }]}>
+          <View style={styles.headerTopRow}>
+            <View style={{ width: 140, height: 24, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 4 }} />
+            <View style={{ width: 70, height: 20, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 10 }} />
+          </View>
+          <View style={{ width: "100%", height: 32, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 6, marginTop: 12 }} />
+        </View>
+
+        <ScrollView contentContainerStyle={styles.scrollContent} scrollEnabled={false}>
+          {/* Streak Banner Skeleton */}
+          <View style={{ flexDirection: "row", gap: 12, marginBottom: 16, opacity: 0.5 }}>
+            <View style={{ flex: 1, height: 50, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 12 }} />
+            <View style={{ flex: 1, height: 50, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 12 }} />
+          </View>
+
+          {/* Quick Actions Skeleton */}
+          <View style={{ flexDirection: "row", gap: 12, marginBottom: 20, opacity: 0.5 }}>
+            <View style={{ flex: 1, height: 48, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 12 }} />
+            <View style={{ flex: 1, height: 48, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 12 }} />
+            <View style={{ flex: 1, height: 48, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 12 }} />
+          </View>
+
+          {/* Workers List Header Skeleton */}
+          <View style={{ height: 20, width: 150, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 4, marginBottom: 16, opacity: 0.5 }} />
+
+          {/* Roster Skeleton Rows */}
+          {[1, 2, 3, 4, 5].map((key) => (
+            <View key={key} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: isDark ? "#1E293B" : "#E2E8F0", opacity: 0.4 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", marginRight: 12 }} />
+              <View style={{ flex: 1, gap: 6 }}>
+                <View style={{ width: 120, height: 16, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 4 }} />
+                <View style={{ width: 70, height: 12, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 3 }} />
+              </View>
+              <View style={{ width: 80, height: 24, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 6 }} />
+            </View>
+          ))}
+        </ScrollView>
       </ThemedView>
     );
   }
@@ -825,7 +929,7 @@ export default function DashboardScreen() {
     <ThemedView style={styles.container}>
       {/* 1. Header Redesign (Date, Active Site Name, Worker-Count Summary) */}
       <View style={[styles.headerContainer, { paddingTop: insets.top + Spacing.sm }]}>
-        <View style={styles.headerTopRow}>
+        <View ref={welcomeRef} onLayout={onLayoutWelcome} style={styles.headerTopRow}>
           <View style={[styles.headerTitleArea, { marginLeft: 0 }]}>
             <ThemedText style={styles.headerDate}>{formattedDate.toUpperCase()}</ThemedText>
             <ThemedText style={styles.headerSiteName} numberOfLines={1}>
@@ -843,7 +947,7 @@ export default function DashboardScreen() {
           )}
         </View>
 
-        <View style={styles.headerSummaryBar}>
+        <View ref={summaryRef} onLayout={onLayoutSummary} style={styles.headerSummaryBar}>
           <ThemedText style={styles.summaryBarText}>
             👷 {stats.totalWorkers} Workers  |  🟢 {stats.present + stats.halfDay + stats.overtime} Active  |  🔴 {stats.absent} Absent
           </ThemedText>
@@ -866,84 +970,7 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* 2. Unified Card Summary (Today's Attendance + Active Site Info) */}
-        <View style={styles.cardHeaderRow}>
-          <ThemedText style={styles.cardSectionTitle}>Active Site Summary</ThemedText>
-        </View>
 
-        {!activeSite ? (
-          <Pressable
-            onPress={() => handleQuickAction("ProjectManagement")}
-            style={styles.emptyStateCard}
-          >
-            <Feather name="map" size={32} color="#94A3B8" />
-            <ThemedText style={styles.emptyStateText}>No active site — tap to set one up</ThemedText>
-            <View style={styles.emptyStateBtn}>
-              <ThemedText style={styles.emptyStateBtnText}>Create / Activate Site</ThemedText>
-            </View>
-          </Pressable>
-        ) : (
-          <View style={styles.unifiedCard}>
-            <LinearGradient
-              colors={["#1E293B", "#0F172A"]}
-              style={styles.unifiedGradient}
-            >
-              <View style={styles.unifiedHeader}>
-                <View>
-                  <ThemedText style={styles.unifiedSiteTitle}>{activeSite.name}</ThemedText>
-                  <ThemedText style={styles.unifiedSiteSub}>Location: {activeSite.location || "N/A"}</ThemedText>
-                </View>
-                <View style={styles.rateCircle}>
-                  <ThemedText style={styles.ratePercent}>{stats.rate}%</ThemedText>
-                  <ThemedText style={styles.rateLabel}>Rate</ThemedText>
-                </View>
-              </View>
-
-              {/* Progress bar */}
-              <View style={styles.barBg}>
-                <View
-                  style={[
-                    styles.barFill,
-                    {
-                      width: `${stats.rate}%`,
-                      backgroundColor: stats.rate < 50 ? "#EF4444" : stats.rate < 75 ? "#F59E0B" : "#10B981",
-                    },
-                  ]}
-                />
-              </View>
-
-              <View style={styles.statsSummaryGrid}>
-                <View style={styles.statsBox}>
-                  <ThemedText style={styles.statsNumber}>{stats.totalWorkers}</ThemedText>
-                  <ThemedText style={styles.statsLabel}>Total</ThemedText>
-                </View>
-                <View style={styles.statsBox}>
-                  <ThemedText style={[styles.statsNumber, { color: "#10B981" }]}>{stats.present}</ThemedText>
-                  <ThemedText style={styles.statsLabel}>Present</ThemedText>
-                </View>
-                <View style={styles.statsBox}>
-                  <ThemedText style={[styles.statsNumber, { color: "#F59E0B" }]}>{stats.halfDay}</ThemedText>
-                  <ThemedText style={styles.statsLabel}>Half Day</ThemedText>
-                </View>
-                <View style={styles.statsBox}>
-                  <ThemedText style={[styles.statsNumber, { color: "#A855F7" }]}>{stats.overtime}</ThemedText>
-                  <ThemedText style={styles.statsLabel}>Overtime</ThemedText>
-                </View>
-                <View style={styles.statsBox}>
-                  <ThemedText style={[styles.statsNumber, { color: "#EF4444" }]}>{stats.absent}</ThemedText>
-                  <ThemedText style={styles.statsLabel}>Absent</ThemedText>
-                </View>
-              </View>
-
-              <View style={styles.siteInfoFooter}>
-                <Feather name="calendar" size={13} color="#94A3B8" style={{ marginRight: 6 }} />
-                <ThemedText style={styles.footerText}>
-                  Est. Completion: {activeSite.endDate || "N/A"}
-                </ThemedText>
-              </View>
-            </LinearGradient>
-          </View>
-        )}
 
         {/* Visually Dominant Quick Action Button */}
         <View style={{ marginVertical: Spacing.md }}>
@@ -951,7 +978,7 @@ export default function DashboardScreen() {
             style={styles.primaryMarkBtn}
             onPress={() => {
               triggerHaptic();
-              scrollViewRef.current?.scrollTo({ y: 400, animated: true });
+              scrollViewRef.current?.scrollTo({ y: 200, animated: true });
             }}
           >
             <Ionicons name="checkbox" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
@@ -960,7 +987,7 @@ export default function DashboardScreen() {
         </View>
 
         {/* Secondary Operations */}
-        <View style={styles.secondaryActionsGrid}>
+        <View ref={actionsRef} onLayout={onLayoutActions} style={styles.secondaryActionsGrid}>
           <Pressable onPress={() => handleQuickAction("AddWorker")} style={styles.secondaryActionBtn}>
             <Feather name="user-plus" size={16} color="#3B82F6" />
             <ThemedText style={styles.secondaryBtnText}>Add Worker</ThemedText>
@@ -976,7 +1003,7 @@ export default function DashboardScreen() {
         </View>
 
         {/* GPS Auto Check-in Toggle */}
-        <View style={styles.gpsRow}>
+        <View ref={gpsRef} onLayout={onLayoutGps} style={styles.gpsRow}>
           <View style={{ flex: 1 }}>
             <ThemedText style={styles.gpsTitle}>GPS Auto Check-in</ThemedText>
             <ThemedText style={styles.gpsDesc}>Automatically mark present on arrival</ThemedText>
@@ -996,7 +1023,7 @@ export default function DashboardScreen() {
         </View>
 
         {/* Core Attendance marking: Tappable Worker List */}
-        <View style={styles.workerListHeader}>
+        <View ref={logRef} onLayout={onLayoutLog} style={styles.workerListHeader}>
           <ThemedText style={styles.cardSectionTitle}>Today's Attendance Log</ThemedText>
           <Pressable onPress={handleMarkAllPresent} style={styles.bulkMarkBtn}>
             <Feather name="check" size={14} color="#3B82F6" style={{ marginRight: 4 }} />
@@ -1470,6 +1497,7 @@ export default function DashboardScreen() {
           </Pressable>
         </Animated.View>
       )}
+
 
     </ThemedView>
   );
