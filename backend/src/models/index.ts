@@ -13,3 +13,6 @@ export * from "./Expense";
 export * from "./MBEntry";
 export * from "./DelayLog";
 export * from "./Site";
+export * from "./Material";
+export * from "./MaterialUsage";
+export * from "./WorkPhoto";

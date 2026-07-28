@@ -149,7 +149,7 @@ export interface AuthData {
   token?: string;
   refreshToken?: string;
   tenantId?: string;
-  plan?: "free" | "professional" | "business";
+  plan?: "free" | "starter" | "professional" | "business";
 }
 
 export interface ProfileData {
@@ -174,7 +174,7 @@ export interface User {
   loginHistory: number[];
   assignedProjects?: string[];
   companyName?: string;
-  plan?: "free" | "professional" | "business";
+  plan?: "free" | "starter" | "professional" | "business";
   planExpiresAt?: string;
   username?: string;
 }

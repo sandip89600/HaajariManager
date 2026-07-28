@@ -187,7 +187,7 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
   const SCREEN_HEIGHT = Dimensions.get("window").height;
   const [currentUser, setCurrentUser] = useState<User | null>(authUser || null);
   const [currentPlan, setCurrentPlan] = useState<
-    "free" | "professional" | "business"
+    "free" | "starter" | "professional" | "business"
   >("free");
   const [notifSettings, setNotifSettings] = useState(
     DEFAULT_NOTIFICATION_SETTINGS,

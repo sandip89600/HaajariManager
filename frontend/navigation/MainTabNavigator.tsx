@@ -17,7 +17,6 @@ import WorkersScreen from "@/screens/WorkersScreen";
 import SummaryScreen from "@/screens/SummaryScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
 import AddWorkerScreen from "@/screens/AddWorkerScreen";
-import ProjectManagementScreen from "@/screens/ProjectManagementScreen";
 import SupervisorManagementScreen from "@/screens/SupervisorManagementScreen";
 import UserProfileScreen from "@/screens/UserProfileScreen";
 import SupportScreen from "@/screens/SupportScreen";
@@ -234,9 +233,9 @@ export default function MainTabNavigator() {
       />
       <Stack.Screen
         name="ProjectManagement"
-        component={ProjectManagementScreen}
+        component={SiteControlDashboardScreen}
         options={{
-          headerTitle: "Project Management",
+          headerTitle: "Site Management",
         }}
       />
       <Stack.Screen

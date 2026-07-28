@@ -248,7 +248,7 @@ export default function WorkersScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [showUpgradeLimitModal, setShowUpgradeLimitModal] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<
-    "free" | "professional" | "business"
+    "free" | "starter" | "professional" | "business"
   >("free");
 
   const route = useRoute<any>();

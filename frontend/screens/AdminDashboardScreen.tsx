@@ -101,7 +101,7 @@ interface AdminUserItem {
     _id: string;
     name: string;
     code: string;
-    plan: "free" | "professional" | "business";
+    plan: "free" | "starter" | "professional" | "business";
     planExpiresAt?: string;
   };
 }
@@ -864,8 +864,9 @@ export default function AdminDashboardScreen() {
     tenantId: string,
     currentPlan: string,
   ) => {
-    const plans: ("free" | "professional" | "business")[] = [
+    const plans: ("free" | "starter" | "professional" | "business")[] = [
       "free",
+      "starter",
       "professional",
       "business",
     ];

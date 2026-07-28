@@ -56,8 +56,8 @@ export default function DashboardScreen() {
   const [workersList, setWorkersList] = useState<Worker[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [showSubModal, setShowSubModal] = useState(false);
-  const [selectedPlanOption, setSelectedPlanOption] = useState<"standard" | "pro">("standard");
-  const [currentPlan, setCurrentPlan] = useState<"free" | "professional" | "business">("free");
+  const [selectedPlanOption, setSelectedPlanOption] = useState<"starter" | "professional" | "business">("starter");
+  const [currentPlan, setCurrentPlan] = useState<"free" | "starter" | "professional" | "business">("free");
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [showRazorpayModal, setShowRazorpayModal] = useState(false);
   const [razorpayHtml, setRazorpayHtml] = useState("");
@@ -96,6 +96,17 @@ export default function DashboardScreen() {
     rate: 0,
   });
 
+  const [siteStats, setSiteStats] = useState({
+    totalSites: 0,
+    activeSites: 0,
+    completedSites: 0,
+    delayedSites: 0,
+    workersPresent: 0,
+    workersAbsent: 0,
+    totalWorkers: 0,
+    sitesInProgress: 0,
+  });
+
   // Current date strings
   const today = new Date();
   const formattedDate = today.toLocaleDateString("en-US", {
@@ -125,7 +136,23 @@ export default function DashboardScreen() {
   const loadDashboardData = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      const projects = await storage.getProjects();
+      
+      const sitesResult = await storage.getSites();
+      const rawSites = sitesResult.sites || [];
+      // Map Site properties to Project properties for backward compatibility
+      const projects = rawSites.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        location: s.address || s.location,
+        status: (s.status === "Completed" || s.status === "On Hold") ? "inactive" : "active",
+        startDate: s.startDate,
+        endDate: s.endDate,
+        clientName: s.clientName,
+      })) as any[];
+
+      const statsData = await storage.getSiteStats();
+      setSiteStats(statsData);
+
       const workers = await storage.getWorkers();
 
       const todayYear = today.getFullYear();
@@ -605,9 +632,16 @@ export default function DashboardScreen() {
     }
   };
 
-  const generateRazorpayHtml = (plan: "standard" | "pro") => {
-    const amount = plan === "standard" ? 99 : 399;
-    const planName = plan === "standard" ? "PRIME Monthly Standard" : "PRIME Monthly Pro";
+  const generateRazorpayHtml = (plan: "starter" | "professional" | "business") => {
+    let amount = 499;
+    let planName = "PRIME Starter (Monthly)";
+    if (plan === "professional") {
+      amount = 1499;
+      planName = "PRIME Professional (Monthly)";
+    } else if (plan === "business") {
+      amount = 4999;
+      planName = "PRIME Business (Monthly)";
+    }
     const amountPaise = amount * 100;
     const email = user?.email || "contractor@example.com";
     const phone = user?.phone || "9999999999";
@@ -721,8 +755,16 @@ export default function DashboardScreen() {
       setShowRazorpayModal(false);
 
       if (data.status === "success") {
-        const chosenPlan = selectedPlanOption === "standard" ? "professional" : "business";
-        const price = selectedPlanOption === "standard" ? 99 : 399;
+        const chosenPlan = selectedPlanOption;
+        let price = 499;
+        let nameOfPlan = "Starter";
+        if (selectedPlanOption === "professional") {
+          price = 1499;
+          nameOfPlan = "Professional";
+        } else if (selectedPlanOption === "business") {
+          price = 4999;
+          nameOfPlan = "Business";
+        }
         
         try {
           await authenticatedFetch(`${API_URL}/auth/upgrade`, {
@@ -741,7 +783,7 @@ export default function DashboardScreen() {
 
         const newTransaction = {
           date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
-          planName: selectedPlanOption === "standard" ? "PRIME Standard (Monthly)" : "PRIME Pro (Monthly)",
+          planName: `PRIME ${nameOfPlan} (Monthly)`,
           amount: price,
           paymentId: data.razorpay_payment_id || "pay_mock" + Math.random().toString(36).substring(7),
         };
@@ -751,7 +793,7 @@ export default function DashboardScreen() {
         await AsyncStorage.setItem("@haajari/prime_billing_history", JSON.stringify(updatedHistory));
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Payment Successful", `Successfully upgraded to PRIME ${selectedPlanOption === "standard" ? "Standard" : "Pro"} (₹${price}/month)!`);
+        Alert.alert("Payment Successful", `Successfully upgraded to PRIME ${nameOfPlan} (₹${price}/month)!`);
         setShowSubModal(false);
       } else if (data.status === "cancelled") {
         Alert.alert("Payment Cancelled", "The payment process was cancelled.");
@@ -1061,42 +1103,60 @@ export default function DashboardScreen() {
           <Feather name="chevron-right" size={20} color={theme.textSecondary} />
         </Pressable>
 
-        {/* Weekly Trend (Color Coded with Threshold Rules) */}
+        {/* Today's Site Overview (Premium SaaS Widget) */}
         <View style={styles.cardHeaderRow}>
-          <ThemedText style={styles.cardSectionTitle}>Weekly Attendance Trend</ThemedText>
+          <ThemedText style={styles.cardSectionTitle}>Today's Site Overview</ThemedText>
+          <Pressable
+            onPress={() => {
+              triggerHaptic();
+              navigation.navigate("CreateSite");
+            }}
+            style={styles.createSiteBtnInline}
+          >
+            <Feather name="plus" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+            <ThemedText style={styles.createSiteBtnInlineText}>Create Site</ThemedText>
+          </Pressable>
         </View>
-        <View style={styles.chartCard}>
-          <View style={styles.barsContainer}>
-            {[
-              { day: "Mon", rate: stats.totalWorkers > 0 ? 85 : 0 },
-              { day: "Tue", rate: stats.totalWorkers > 0 ? 90 : 0 },
-              { day: "Wed", rate: stats.totalWorkers > 0 ? 45 : 0 },
-              { day: "Thu", rate: stats.totalWorkers > 0 ? 80 : 0 },
-              { day: "Fri", rate: stats.totalWorkers > 0 ? 65 : 0 },
-              { day: "Sat", rate: stats.totalWorkers > 0 ? 78 : 0 },
-            ].map((item) => {
-              let barColor = "#EF4444";
-              if (item.rate >= 75) barColor = "#10B981";
-              else if (item.rate >= 50) barColor = "#F59E0B";
+        <View style={styles.overviewCard}>
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <ThemedText style={styles.statVal}>{siteStats.totalSites}</ThemedText>
+              <ThemedText style={styles.statLabel}>Total Sites</ThemedText>
+            </View>
+            <View style={styles.statBox}>
+              <ThemedText style={[styles.statVal, { color: "#F97316" }]}>{siteStats.activeSites}</ThemedText>
+              <ThemedText style={styles.statLabel}>Active</ThemedText>
+            </View>
+            <View style={styles.statBox}>
+              <ThemedText style={[styles.statVal, { color: "#22C55E" }]}>{siteStats.completedSites}</ThemedText>
+              <ThemedText style={styles.statLabel}>Completed</ThemedText>
+            </View>
+            <View style={styles.statBox}>
+              <ThemedText style={[styles.statVal, { color: "#EF4444" }]}>{siteStats.delayedSites}</ThemedText>
+              <ThemedText style={styles.statLabel}>Delayed</ThemedText>
+            </View>
+          </View>
 
-              return (
-                <View key={item.day} style={styles.barItem}>
-                  <View style={styles.barWrapper}>
-                    <View
-                      style={[
-                        styles.bar,
-                        {
-                          height: `${item.rate}%`,
-                          backgroundColor: barColor,
-                        },
-                      ]}
-                    />
-                    <ThemedText style={styles.barPercentage}>{item.rate}%</ThemedText>
-                  </View>
-                  <ThemedText style={styles.barDayText}>{item.day}</ThemedText>
-                </View>
-              );
-            })}
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+          <View style={styles.detailsGrid}>
+            <View style={styles.detailRowInline}>
+              <Feather name="users" size={16} color={theme.textSecondary} />
+              <ThemedText style={styles.detailLabelInline}>Active Workers Today:</ThemedText>
+              <ThemedText style={styles.detailValueInline}>{siteStats.workersPresent}</ThemedText>
+            </View>
+            <View style={styles.detailRowInline}>
+              <Feather name="trending-up" size={16} color={theme.textSecondary} />
+              <ThemedText style={styles.detailLabelInline}>Today's Progress:</ThemedText>
+              <ThemedText style={styles.detailValueInline}>
+                {siteStats.totalSites > 0 ? `${Math.round(((siteStats.completedSites) / siteStats.totalSites) * 100)}%` : "0%"}
+              </ThemedText>
+            </View>
+            <View style={styles.detailRowInline}>
+              <Feather name="dollar-sign" size={16} color={theme.textSecondary} />
+              <ThemedText style={styles.detailLabelInline}>Today's Expenses:</ThemedText>
+              <ThemedText style={styles.detailValueInline}>₹0</ThemedText>
+            </View>
           </View>
         </View>
 
@@ -1325,41 +1385,51 @@ export default function DashboardScreen() {
               <ThemedText style={styles.planSelectorLabel}>Select Subscription Plan</ThemedText>
               <View style={styles.planGrid}>
                 <Pressable
-                  onPress={() => setSelectedPlanOption("standard")}
+                  onPress={() => setSelectedPlanOption("starter")}
                   style={[
                     styles.planOption,
-                    selectedPlanOption === "standard" && styles.planOptionActive,
+                    selectedPlanOption === "starter" && styles.planOptionActive,
                   ]}
                 >
-                  <ThemedText style={styles.planOptionName}>Standard</ThemedText>
-                  <ThemedText style={styles.planOptionPrice}>₹99/month</ThemedText>
-                  <ThemedText style={styles.planOptionSub}>Half features included</ThemedText>
+                  <ThemedText style={styles.planOptionName}>Starter</ThemedText>
+                  <ThemedText style={styles.planOptionPrice}>₹499/mo</ThemedText>
+                  <ThemedText style={styles.planOptionSub}>Up to 50 workers, 3 sites</ThemedText>
                 </Pressable>
 
                 <Pressable
-                  onPress={() => setSelectedPlanOption("pro")}
+                  onPress={() => setSelectedPlanOption("professional")}
                   style={[
                     styles.planOption,
-                    selectedPlanOption === "pro" && styles.planOptionActive,
+                    selectedPlanOption === "professional" && styles.planOptionActive,
                   ]}
                 >
                   <ThemedText style={styles.planOptionName}>Pro</ThemedText>
-                  <ThemedText style={styles.planOptionPrice}>₹399/month</ThemedText>
-                  <ThemedText style={styles.planOptionSub}>Full unlimited access</ThemedText>
+                  <ThemedText style={styles.planOptionPrice}>₹1,499/mo</ThemedText>
+                  <ThemedText style={styles.planOptionSub}>Up to 250 workers, 10 sites</ThemedText>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setSelectedPlanOption("business")}
+                  style={[
+                    styles.planOption,
+                    selectedPlanOption === "business" && styles.planOptionActive,
+                  ]}
+                >
+                  <ThemedText style={styles.planOptionName}>Business</ThemedText>
+                  <ThemedText style={styles.planOptionPrice}>₹4,999/mo</ThemedText>
+                  <ThemedText style={styles.planOptionSub}>Up to 1,000 workers, 30 sites</ThemedText>
                 </Pressable>
               </View>
 
               <ThemedText style={styles.planSelectorLabel}>Benefits Summary</ThemedText>
               {[
-                { text: "Max 50 Workers", active: true },
-                { text: "Max 5 Sites", active: true },
-                { text: "Export PDF and Excel (Max 10)", active: true },
-                { text: "Unlimited Workers", active: selectedPlanOption === "pro" },
-                { text: "Unlimited Sites", active: selectedPlanOption === "pro" },
-                { text: "Unlimited PDF & Excel Exports", active: selectedPlanOption === "pro" },
-                { text: "Cloud Backup", active: selectedPlanOption === "pro" },
-                { text: "Multi Device Access", active: selectedPlanOption === "pro" },
-                { text: "Future AI Features", active: selectedPlanOption === "pro" },
+                { text: "Dynamic Geofencing Logs", active: true },
+                { text: "22 Indian Languages Support", active: true },
+                { text: "Offline Operations & Sync", active: true },
+                { text: "Ask HAI AI Assistant queries", active: selectedPlanOption !== "starter" },
+                { text: "Automated WhatsApp payment reminders", active: selectedPlanOption !== "starter" },
+                { text: "Multi-Company & Multi-Device Access", active: selectedPlanOption === "business" },
+                { text: "Priority SLA Phone Support", active: selectedPlanOption === "business" },
               ].map((b, index) => (
                 <View key={index} style={styles.benefitRow}>
                   <Feather
@@ -1383,7 +1453,7 @@ export default function DashboardScreen() {
                 }}
               >
                 <ThemedText style={styles.checkoutBtnText}>
-                  Proceed to Checkout — {selectedPlanOption === "standard" ? "₹99" : "₹399"}
+                  Proceed to Checkout — {selectedPlanOption === "starter" ? "₹499" : selectedPlanOption === "professional" ? "₹1,499" : "₹4,999"}
                 </ThemedText>
               </Pressable>
             </ScrollView>
@@ -1802,7 +1872,20 @@ const styles = StyleSheet.create({
   checkboxEmpty: {
     padding: 4,
   },
-  chartCard: {
+  createSiteBtnInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F97316",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.xs,
+  },
+  createSiteBtnInlineText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  overviewCard: {
     backgroundColor: "#1E293B",
     borderRadius: 16,
     borderWidth: 1.5,
@@ -1810,42 +1893,49 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     marginBottom: Spacing.lg,
   },
-  barsContainer: {
+  statsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-end",
-    height: 120,
-    paddingTop: 16,
-  },
-  barItem: {
     alignItems: "center",
-    width: 40,
+    marginVertical: 4,
   },
-  barWrapper: {
-    height: 80,
-    width: 14,
-    backgroundColor: "#334155",
-    borderRadius: 7,
-    justifyContent: "flex-end",
-    position: "relative",
+  statBox: {
+    alignItems: "center",
+    flex: 1,
   },
-  bar: {
-    width: "100%",
-    borderRadius: 7,
-  },
-  barPercentage: {
-    position: "absolute",
-    top: -16,
-    fontSize: 8,
+  statVal: {
+    fontSize: 18,
     fontWeight: "800",
     color: "#F8FAFC",
-    alignSelf: "center",
   },
-  barDayText: {
+  statLabel: {
     fontSize: 10,
     color: "#94A3B8",
-    marginTop: 8,
+    marginTop: 4,
+    fontWeight: "600",
+  },
+  divider: {
+    height: 1,
+    opacity: 0.2,
+    marginVertical: 12,
+  },
+  detailsGrid: {
+    gap: 8,
+  },
+  detailRowInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  detailLabelInline: {
+    fontSize: 12,
+    color: "#94A3B8",
+    flex: 1,
+  },
+  detailValueInline: {
+    fontSize: 12,
     fontWeight: "700",
+    color: "#F8FAFC",
   },
   billingSection: {
     marginTop: Spacing.md,

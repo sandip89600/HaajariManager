@@ -262,7 +262,7 @@ export default function AttendanceScreen() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [currentPlan, setCurrentPlan] = useState<
-    "free" | "professional" | "business"
+    "free" | "starter" | "professional" | "business"
   >("free");
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
