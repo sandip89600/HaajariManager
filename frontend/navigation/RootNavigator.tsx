@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
@@ -10,9 +10,12 @@ import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import AdminLoginScreen from "@/screens/AdminLoginScreen";
 import AdminDashboardScreen from "@/screens/AdminDashboardScreen";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
+import FirstTimeSetupScreen from "@/screens/FirstTimeSetupScreen";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 
 export type RootNavigatorParamList = {
+  FirstTimeSetup: undefined;
   Login: undefined;
   Signup: undefined;
   TermsAndConditions: undefined;
@@ -27,8 +30,19 @@ const Stack = createNativeStackNavigator<RootNavigatorParamList>();
 export default function RootNavigator() {
   const { isLoggedIn, isGuest, isLoading, userType } = useAuth();
   const { theme, isDark } = useTheme();
+  const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
 
-  if (isLoading) {
+  useEffect(() => {
+    AsyncStorage.getItem("@haajari/isFirstLaunchCompleted")
+      .then((val) => {
+        setIsFirstLaunch(val !== "true");
+      })
+      .catch(() => {
+        setIsFirstLaunch(false);
+      });
+  }, []);
+
+  if (isLoading || isFirstLaunch === null) {
     return (
       <View style={[styles.loading, { backgroundColor: theme.backgroundRoot }]}>
         <ActivityIndicator size="large" color={theme.primary} />
@@ -45,7 +59,16 @@ export default function RootNavigator() {
         headerShown: false,
       }}
     >
-      {isLoggedIn && userType === "admin" ? (
+      {isFirstLaunch ? (
+        <Stack.Screen name="FirstTimeSetup">
+          {(props) => (
+            <FirstTimeSetupScreen
+              {...props}
+              onComplete={() => setIsFirstLaunch(false)}
+            />
+          )}
+        </Stack.Screen>
+      ) : isLoggedIn && userType === "admin" ? (
         <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
       ) : hasAccess ? (
         <Stack.Screen name="Main" component={MainTabNavigator} />
