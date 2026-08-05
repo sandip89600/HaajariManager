@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { User, Key, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -14,6 +15,7 @@ interface ProfileData {
 
 export function SettingsPage() {
   const { token, login } = useAuthStore();
+  const { isMobile } = useBreakpoint();
   const [profile, setProfile] = useState<ProfileData>({
     name: 'System Admin',
     phone: 'haajari896',
@@ -149,11 +151,11 @@ export function SettingsPage() {
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+    <div style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '40px' }}>
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: '800', marginBottom: '4px' }}>Admin Settings</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Modify your admin profile credentials, password, and configuration</p>
+        <h1 style={{ fontSize: isMobile ? '20px' : '22px', fontWeight: '800', marginBottom: '4px' }}>Admin Settings</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Modify your admin profile credentials, password, and configuration</p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -161,20 +163,20 @@ export function SettingsPage() {
         <div style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          padding: '24px',
+          borderRadius: '16px',
+          padding: isMobile ? '16px' : '24px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
             <User size={18} color="var(--primary)" />
-            <h2 style={{ fontSize: '16px', fontWeight: '700' }}>Admin Credentials & Profile</h2>
+            <h2 style={{ fontSize: '15px', fontWeight: '700' }}>Admin Credentials & Profile</h2>
           </div>
 
           {error && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: '8px',
-              background: 'var(--error-muted)', border: '1px solid rgba(239,68,68,0.2)',
+              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
               borderRadius: '8px', padding: '10px 14px', marginBottom: '16px',
-              color: 'var(--error)', fontSize: '13px',
+              color: '#EF4444', fontSize: '13px',
             }}>
               <AlertCircle size={16} />
               {error}
@@ -184,18 +186,18 @@ export function SettingsPage() {
           {success && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: '8px',
-              background: 'var(--success-muted)', border: '1px solid rgba(34,197,94,0.2)',
+              background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)',
               borderRadius: '8px', padding: '10px 14px', marginBottom: '16px',
-              color: 'var(--success)', fontSize: '13px',
+              color: '#22C55E', fontSize: '13px',
             }}>
               <CheckCircle size={16} />
               {success}
             </div>
           )}
 
-          <form onSubmit={handleProfileSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <form onSubmit={handleProfileSubmit} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
             <div>
-              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+              <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
                 Full Name
               </label>
               <input
@@ -207,7 +209,7 @@ export function SettingsPage() {
             </div>
 
             <div>
-              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+              <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
                 Admin Username / ID
               </label>
               <input
@@ -219,7 +221,7 @@ export function SettingsPage() {
             </div>
 
             <div>
-              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+              <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
                 Admin Email Address
               </label>
               <input
@@ -231,7 +233,7 @@ export function SettingsPage() {
             </div>
 
             <div>
-              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+              <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
                 Phone Number / Mobile
               </label>
               <input
@@ -242,8 +244,8 @@ export function SettingsPage() {
               />
             </div>
 
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+            <div style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
+              <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
                 HQ Location / Address
               </label>
               <input
@@ -254,19 +256,20 @@ export function SettingsPage() {
               />
             </div>
 
-            <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+            <div style={{ gridColumn: isMobile ? 'span 1' : 'span 2', display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
               <button
                 type="submit"
                 disabled={loading}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: '8px',
+                  width: isMobile ? '100%' : 'auto',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                   background: 'linear-gradient(135deg, #F97316, #EA580C)',
                   color: 'white', fontWeight: '700', fontSize: '14px',
-                  padding: '10px 20px', borderRadius: '10px', cursor: 'pointer',
+                  padding: '12px 20px', borderRadius: '12px', border: 'none', cursor: 'pointer',
                   boxShadow: '0 4px 12px rgba(249,115,22,0.3)',
                 }}
               >
-                {loading && <RefreshCw size={14} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />}
+                {loading && <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />}
                 Save Changes
               </button>
             </div>
@@ -277,20 +280,20 @@ export function SettingsPage() {
         <div style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          padding: '24px',
+          borderRadius: '16px',
+          padding: isMobile ? '16px' : '24px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
             <Key size={18} color="var(--primary)" />
-            <h2 style={{ fontSize: '16px', fontWeight: '700' }}>Security & Password</h2>
+            <h2 style={{ fontSize: '15px', fontWeight: '700' }}>Security & Password</h2>
           </div>
 
           {pwError && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: '8px',
-              background: 'var(--error-muted)', border: '1px solid rgba(239,68,68,0.2)',
+              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
               borderRadius: '8px', padding: '10px 14px', marginBottom: '16px',
-              color: 'var(--error)', fontSize: '13px',
+              color: '#EF4444', fontSize: '13px',
             }}>
               <AlertCircle size={16} />
               {pwError}
@@ -300,9 +303,9 @@ export function SettingsPage() {
           {pwSuccess && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: '8px',
-              background: 'var(--success-muted)', border: '1px solid rgba(34,197,94,0.2)',
+              background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)',
               borderRadius: '8px', padding: '10px 14px', marginBottom: '16px',
-              color: 'var(--success)', fontSize: '13px',
+              color: '#22C55E', fontSize: '13px',
             }}>
               <CheckCircle size={16} />
               {pwSuccess}
@@ -311,7 +314,7 @@ export function SettingsPage() {
 
           <form onSubmit={handlePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
-              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+              <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
                 Current Password
               </label>
               <input
@@ -323,9 +326,9 @@ export function SettingsPage() {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
               <div>
-                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
                   New Password
                 </label>
                 <input
@@ -338,7 +341,7 @@ export function SettingsPage() {
               </div>
 
               <div>
-                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
                   Confirm New Password
                 </label>
                 <input
@@ -356,10 +359,11 @@ export function SettingsPage() {
                 type="submit"
                 disabled={pwLoading}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: '8px',
+                  width: isMobile ? '100%' : 'auto',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                   background: 'linear-gradient(135deg, #F97316, #EA580C)',
                   color: 'white', fontWeight: '700', fontSize: '14px',
-                  padding: '10px 20px', borderRadius: '10px', cursor: 'pointer',
+                  padding: '12px 20px', borderRadius: '12px', border: 'none', cursor: 'pointer',
                   boxShadow: '0 4px 12px rgba(249,115,22,0.3)',
                 }}
               >

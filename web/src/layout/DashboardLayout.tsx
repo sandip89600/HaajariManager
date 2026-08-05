@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, CalendarCheck, MapPin,
@@ -6,6 +6,7 @@ import {
   Menu, X, Bell, Search, ChevronRight
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 import styles from './DashboardLayout.module.css';
 
 const NAV_ITEMS = [
@@ -24,18 +25,52 @@ function Clock() {
     return () => clearInterval(id);
   }, []);
   return (
-    <span style={{ color: 'var(--text-muted)', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>
+    <span className={styles.clock} style={{ color: 'var(--text-muted)', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>
       {time.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
     </span>
   );
 }
 
 export function DashboardLayout() {
+  const { isMobile, isTablet, isDesktop } = useBreakpoint();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { username, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const touchStartX = useRef(0);
+  const touchCurrentX = useRef(0);
+
+  // Monitor Window Breaks
+  useEffect(() => {
+    if (isMobile) {
+      setSidebarOpen(true);
+    } else if (isTablet) {
+      setSidebarOpen(false);
+      setMobileOpen(false);
+    } else if (isDesktop) {
+      setSidebarOpen(true);
+      setMobileOpen(false);
+    }
+  }, [isMobile, isTablet, isDesktop]);
+
+  // Swipe to Close Drawer
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchCurrentX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchCurrentX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    const diffX = touchStartX.current - touchCurrentX.current;
+    if (diffX > 50 && mobileOpen) {
+      setMobileOpen(false);
+    }
+  };
 
   const pageTitle = NAV_ITEMS.find(n =>
     n.exact ? location.pathname === n.path : location.pathname.startsWith(n.path)
@@ -49,15 +84,27 @@ export function DashboardLayout() {
   return (
     <div className={styles.shell}>
       {/* ── Sidebar ─────────────────────────────────────────────── */}
-      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.expanded : styles.collapsed} ${mobileOpen ? styles.mobileVisible : ''}`}>
+      <aside 
+        className={`${styles.sidebar} ${sidebarOpen ? styles.expanded : styles.collapsed} ${mobileOpen ? styles.mobileVisible : ''}`}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {/* Logo */}
         <div className={styles.logo}>
-          <div className={styles.logoIcon}>H</div>
-          {sidebarOpen && (
-            <div>
-              <div className={styles.logoText}>Haajari</div>
-              <div className={styles.logoSub}>Admin Portal</div>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+            <div className={styles.logoIcon}>H</div>
+            {sidebarOpen && (
+              <div>
+                <div className={styles.logoText}>Haajari</div>
+                <div className={styles.logoSub}>Admin Portal</div>
+              </div>
+            )}
+          </div>
+          {isMobile && mobileOpen && (
+            <button className={styles.closeDrawerBtn} onClick={() => setMobileOpen(false)}>
+              <X size={18} />
+            </button>
           )}
         </div>
 
@@ -84,6 +131,7 @@ export function DashboardLayout() {
         <NavLink
           to="/settings"
           className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
+          onClick={() => setMobileOpen(false)}
           title={!sidebarOpen ? 'Settings' : undefined}
         >
           <Settings size={20} className={styles.navIcon} />
@@ -126,11 +174,14 @@ export function DashboardLayout() {
             <button
               className={styles.menuBtn}
               onClick={() => {
-                setSidebarOpen(v => !v);
-                setMobileOpen(v => !v);
+                if (isMobile) {
+                  setMobileOpen(v => !v);
+                } else {
+                  setSidebarOpen(v => !v);
+                }
               }}
             >
-              {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+              {isMobile && mobileOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
             <div className={styles.breadcrumb}>
               <span className={styles.breadcrumbBase}>Admin</span>
