@@ -8,6 +8,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DeviceEventEmitter } from "react-native";
 import { storage, AuthData, User, generateId, API_URL } from "@/utils/storage";
+import { registerExpoPushToken } from "@/utils/notifications";
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -31,7 +32,7 @@ interface AuthContextType {
     companyName?: string,
     email?: string,
     username?: string,
-  ) => Promise<boolean>;
+  ) => Promise<{ success: boolean; field?: string; message?: string }>;
   loginAsGuest: () => void;
   logout: () => Promise<void>;
   loginWithBiometrics: (
@@ -80,6 +81,18 @@ export function useAuthProvider() {
         // Run sync on launch if logged in
         if (auth.token) {
           storage.syncWithBackend();
+          registerExpoPushToken().then(async (pushToken) => {
+            if (pushToken) {
+              await fetch(`${API_URL}/auth/push-token`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${auth.token}`,
+                },
+                body: JSON.stringify({ pushToken }),
+              }).catch(() => {});
+            }
+          });
         }
       }
     } finally {
@@ -167,75 +180,57 @@ export function useAuthProvider() {
           // Trigger background sync
           storage.syncWithBackend();
 
+          registerExpoPushToken().then(async (pushToken) => {
+            if (pushToken) {
+              await fetch(`${API_URL}/auth/push-token`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${data.token}`,
+                },
+                body: JSON.stringify({ pushToken }),
+              }).catch(() => {});
+            }
+          });
+
           return true;
         }
       } catch (e) {
         console.warn("Backend login failed, attempting local fallback", e);
       }
 
-      // 1.5 Local Fallback for Admin (for offline/local testing)
-      const inputLower = phoneTrimmed.toLowerCase();
-      const isSandeepAdmin = inputLower === "sandeep@gmail.com" && password === "sandeep121";
-      const isHaajariAdmin = (inputLower === "haajari896" || inputLower === "admin" || inputLower === "admin@haajari.com") && password === "12345678";
+      // 2. Local Fallback for offline support (using their real stored password)
+      const users = await storage.getUsers();
+      const userData = users.find(
+        (u) =>
+          u.phone === phoneTrimmed ||
+          u.email?.toLowerCase() === phoneTrimmed.toLowerCase() ||
+          u.username?.toLowerCase() === phoneTrimmed.toLowerCase()
+      );
 
-      if (isSandeepAdmin || isHaajariAdmin) {
-        const authData: AuthData = {
-          isLoggedIn: true,
-          userId: "admin",
-          userType: "admin",
-          role: "admin",
-          phone: "haajari896",
-          rememberMe,
-          token: "mock-local-token",
-          plan: "business",
-        };
-        await storage.setAuth(authData);
-        setIsLoggedIn(true);
-        setIsGuest(false);
-        setUserId("admin");
-        setUserType("admin");
-        setEmail(phoneTrimmed);
-
-        const session = {
-          token: "mock-local-token",
-          refreshToken: "mock-local-refresh-token",
-          username: phoneTrimmed,
-          loggedInAt: Date.now(),
-        };
-        await AsyncStorage.setItem(
-          "@haajari/admin_session",
-          JSON.stringify(session),
-        );
-
-        return true;
-      }
-
-      // 2. Local Fallback (only for user accounts, not admin)
-      const userData = await storage.getUserByPhone(phoneTrimmed);
       if (userData && userData.isActive) {
         let isMatched = false;
-        if (otp) {
-          isMatched = otp === "123456";
-        } else if (password) {
+        if (password) {
           isMatched = userData.password === password;
         }
 
         if (isMatched) {
           await storage.recordUserLogin(userData.id);
+          const uType = userData.role === "admin" ? ("admin" as const) : ("user" as const);
           const authData: AuthData = {
             isLoggedIn: true,
             userId: userData.id,
-            userType: "user",
+            userType: uType,
             role: userData.role,
             phone: userData.phone,
             rememberMe,
-            plan: "free", // Default local fallback plan
+            plan: userData.plan || "free",
           };
           await storage.setAuth(authData);
           setIsLoggedIn(true);
           setIsGuest(false);
           setUserId(userData.id);
-          setUserType("user");
+          setUserType(uType);
           setEmail(userData.phone);
           setUser(userData);
           return true;
@@ -256,7 +251,7 @@ export function useAuthProvider() {
       companyName?: string,
       email?: string,
       username?: string,
-    ): Promise<boolean> => {
+    ): Promise<{ success: boolean; field?: string; message?: string }> => {
       const phoneTrimmed = phone.trim();
 
       // 1. Try server signup
@@ -274,8 +269,10 @@ export function useAuthProvider() {
             username: username ? username.toLowerCase().trim() : undefined,
           }),
         });
+
+        const data = await res.json();
+
         if (res.ok) {
-          const data = await res.json();
           const authData: AuthData = {
             isLoggedIn: true,
             userId: data.user.id,
@@ -318,7 +315,26 @@ export function useAuthProvider() {
           // Trigger sync
           storage.syncWithBackend();
 
-          return true;
+          registerExpoPushToken().then(async (pushToken) => {
+            if (pushToken) {
+              await fetch(`${API_URL}/auth/push-token`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${data.token}`,
+                },
+                body: JSON.stringify({ pushToken }),
+              }).catch(() => {});
+            }
+          });
+
+          return { success: true };
+        } else {
+          return {
+            success: false,
+            field: data.field,
+            message: data.message || data.error || "Signup failed.",
+          };
         }
       } catch (e) {
         console.warn("Backend signup failed, attempting local signup", e);
@@ -326,7 +342,13 @@ export function useAuthProvider() {
 
       // 2. Local Fallback
       const existingPhone = await storage.getUserByPhone(phoneTrimmed);
-      if (existingPhone) return false;
+      if (existingPhone) {
+        return {
+          success: false,
+          field: "mobile",
+          message: "This mobile number is already registered.",
+        };
+      }
 
       const newUser: User = {
         id: generateId(),
@@ -363,7 +385,7 @@ export function useAuthProvider() {
       setEmail(phoneTrimmed);
       setUser(newUser);
 
-      return true;
+      return { success: true };
     },
     [],
   );

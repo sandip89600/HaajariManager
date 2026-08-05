@@ -4,25 +4,27 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
-  ActivityIndicator,
+  RefreshControl,
   Dimensions,
   Platform,
-  Modal,
   Alert,
-  TextInput,
-  Switch,
-  Animated,
+  Modal,
   DeviceEventEmitter,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import Animated, {
+  FadeInDown,
+  FadeInRight,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { WebView } from "react-native-webview";
-import SettingsDrawer from "@/components/SettingsDrawer";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
+import SettingsDrawer from "@/components/SettingsDrawer";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -31,10 +33,29 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
 import { useTour } from "@/contexts/TourContext";
-import { storage, Project, Worker, AttendanceRecord, AttendanceValue, authenticatedFetch, API_URL } from "@/utils/storage";
-import { Spacing, BorderRadius, Shadows, Colors } from "@/constants/theme";
+import {
+  storage,
+  Project,
+  Worker,
+  AttendanceRecord,
+  AttendanceValue,
+  API_URL,
+} from "@/utils/storage";
+
+// UI System Components
+import { designSystem } from "@/constants/designSystem";
+import { KPICard } from "@/components/ui/KPICard";
+import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { Badge } from "@/components/ui/Badge";
+import { Avatar } from "@/components/ui/Avatar";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { useInAppReview } from "@/hooks/useInAppReview";
+import { markSessionStart, trackInteraction } from "@/utils/reviewTracker";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface PrimeBillingTransaction {
   date: string;
@@ -42,6 +63,21 @@ interface PrimeBillingTransaction {
   amount: number;
   paymentId: string;
 }
+
+interface QuickAction {
+  id: string;
+  label: string;
+  icon: string;
+  colors: [string, string];
+  screen: string;
+}
+
+const QUICK_ACTIONS: QuickAction[] = [
+  { id: "attendance", label: "Mark Attendance", icon: "check-square", colors: ["#22C55E", "#16A34A"], screen: "AttendanceDetail" },
+  { id: "workers", label: "Add Worker", icon: "user-plus", colors: ["#3B82F6", "#2563EB"], screen: "Workers" },
+  { id: "reports", label: "View Reports", icon: "bar-chart-2", colors: ["#A855F7", "#9333EA"], screen: "Summary" },
+  { id: "sites", label: "Manage Sites", icon: "map-pin", colors: ["#F97316", "#EA580C"], screen: "ProjectManagement" },
+];
 
 export default function DashboardScreen() {
   const { theme, isDark } = useTheme();
@@ -51,6 +87,7 @@ export default function DashboardScreen() {
   const { socket, connectSocket } = useSocket();
   const insets = useSafeAreaInsets();
   const tour = useTour();
+
   const welcomeRef = useRef<View>(null);
   const summaryRef = useRef<View>(null);
   const logRef = useRef<View>(null);
@@ -66,42 +103,20 @@ export default function DashboardScreen() {
 
   // States
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeSite, setActiveSite] = useState<Project | null>(null);
   const [projectsList, setProjectsList] = useState<Project[]>([]);
   const [workersList, setWorkersList] = useState<Worker[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [showSubModal, setShowSubModal] = useState(false);
-  const [selectedPlanOption, setSelectedPlanOption] = useState<"starter" | "professional" | "business">("starter");
   const [currentPlan, setCurrentPlan] = useState<"free" | "starter" | "professional" | "business">("free");
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
-  const [showRazorpayModal, setShowRazorpayModal] = useState(false);
-  const [razorpayHtml, setRazorpayHtml] = useState("");
-  const [billingHistory, setBillingHistory] = useState<PrimeBillingTransaction[]>([]);
-  const [gpsCheckInActive, setGpsCheckInActive] = useState(false);
-
-  // Undo Toast state
-  const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-  const [lastAction, setLastAction] = useState<{
-    type: "single" | "bulk";
-    workerId?: string;
-    prevValue: string; // JSON string for bulk, or string value for single
-  } | null>(null);
-  const toastFadeAnim = useRef(new Animated.Value(0)).current;
-
-  // Gamification & insights fallbacks
+  const [showToast, setShowToast] = useState(false);
   const [streakCount, setStreakCount] = useState(1);
   const [smartInsight, setSmartInsight] = useState("Calculating live analytics...");
+  const [quickMarkModalVisible, setQuickMarkModalVisible] = useState(false);
+  const [quickMarkWorker, setQuickMarkWorker] = useState<Worker | null>(null);
 
-  // Custom interactive attendance modal states
-  const [attendanceModalVisible, setAttendanceModalVisible] = useState(false);
-  const [selectedWorkerForAttendance, setSelectedWorkerForAttendance] = useState<Worker | null>(null);
-  const [modalAttendanceValue, setModalAttendanceValue] = useState<"P" | "A" | "H" | "OT" | "">("");
-  const [modalAdvanceAmount, setModalAdvanceAmount] = useState("");
-  const [modalOvertimeWage, setModalOvertimeWage] = useState("");
-  const [modalOvertimeHours, setModalOvertimeHours] = useState("");
-
-  // Statistics
   const [stats, setStats] = useState({
     totalWorkers: 0,
     present: 0,
@@ -122,39 +137,28 @@ export default function DashboardScreen() {
     sitesInProgress: 0,
   });
 
-  // Current date strings
+  // Date helpers
   const today = new Date();
   const formattedDate = today.toLocaleDateString("en-US", {
-    weekday: "short",
+    weekday: "long",
     day: "numeric",
     month: "short",
-    year: "numeric"
+    year: "numeric",
   });
 
-  const triggerHaptic = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
+  const greetingHour = today.getHours();
+  const greeting =
+    greetingHour < 12 ? "Good morning" : greetingHour < 17 ? "Good afternoon" : "Good evening";
 
-  const loadBillingHistory = async () => {
-    try {
-      const saved = await AsyncStorage.getItem("@haajari/prime_billing_history");
-      if (saved) {
-        setBillingHistory(JSON.parse(saved));
-      } else {
-        setBillingHistory([]);
-      }
-    } catch (e) {
-      console.warn("Failed to load billing history:", e);
-    }
-  };
+  const triggerHaptic = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
+  // Load dashboard data
   const loadDashboardData = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      
+
       const sitesResult = await storage.getSites();
       const rawSites = sitesResult.sites || [];
-      // Map Site properties to Project properties for backward compatibility
       const projects = rawSites.map((s: any) => ({
         id: s.id,
         name: s.name,
@@ -169,7 +173,6 @@ export default function DashboardScreen() {
       setSiteStats(statsData);
 
       const workers = await storage.getWorkers();
-
       const todayYear = today.getFullYear();
       const todayMonth = today.getMonth();
       const todayDay = today.getDate();
@@ -177,35 +180,26 @@ export default function DashboardScreen() {
       const attendance = await storage.getAttendanceForMonth(todayYear, todayMonth);
 
       const auth = await storage.getAuth();
-      if (auth?.plan) {
-        setCurrentPlan(auth.plan);
-      } else if (user?.plan) {
-        setCurrentPlan(user.plan);
-      }
+      if (auth?.plan) setCurrentPlan(auth.plan);
+      else if (user?.plan) setCurrentPlan(user.plan);
 
       setProjectsList(projects);
       setWorkersList(workers);
       setAttendanceRecords(attendance);
-      await loadBillingHistory();
 
-      // Find first active site/project
       const active = projects.find((p) => p.status === "active") || projects[0] || null;
       setActiveSite(active);
 
-      // Filter workers assigned to the active site (or use all workers if no active site)
-      const siteWorkers = active ? workers.filter(w => w.projectId === active.id) : workers;
+      const siteWorkers = active ? workers.filter((w) => w.projectId === active.id) : workers;
       const totalWorkers = siteWorkers.length;
 
       const todayAttendance = attendance.filter(
         (r) => r.year === todayYear && r.month === todayMonth && r.day === todayDay
       );
 
-      let presentCount = 0;
-      let halfDayCount = 0;
-      let overtimeCount = 0;
-
+      let presentCount = 0, halfDayCount = 0, overtimeCount = 0;
       todayAttendance.forEach((rec) => {
-        const belongsToScope = siteWorkers.some(sw => sw.id === rec.workerId);
+        const belongsToScope = siteWorkers.some((sw) => sw.id === rec.workerId);
         if (belongsToScope) {
           if (rec.value === "P") presentCount++;
           else if (rec.value === "H") halfDayCount++;
@@ -213,12 +207,10 @@ export default function DashboardScreen() {
         }
       });
 
-      // MATH CONSISTENCY ENFORCEMENT:
-      // Any unmarked worker is automatically counted as Absent.
-      // Total = Present + Half Day + Overtime + Absent.
       const absentCount = totalWorkers - presentCount - halfDayCount - overtimeCount;
-
-      const rate = totalWorkers > 0 ? Math.round(((presentCount + halfDayCount + overtimeCount) / totalWorkers) * 100) : 0;
+      const rate = totalWorkers > 0
+        ? Math.round(((presentCount + halfDayCount + overtimeCount) / totalWorkers) * 100)
+        : 0;
 
       setStats({
         totalWorkers,
@@ -229,87 +221,64 @@ export default function DashboardScreen() {
         rate: totalWorkers > 0 ? rate : 0,
       });
 
-      // Calculate dynamic streak: check how many consecutive days (going backwards from today)
-      // have at least one attendance record marked in the current month.
+      // Streak calculation
       let streak = 0;
       let checkDate = new Date();
       for (let i = 0; i < 30; i++) {
         const year = checkDate.getFullYear();
         const month = checkDate.getMonth();
         const day = checkDate.getDate();
-        
         const hasAttendance = attendance.some(
-          (r) => r.year === year && r.month === month && r.day === day && (r.value === "P" || r.value === "A" || r.value === "H" || r.value === "OT" || typeof r.value === "number")
+          (r) => r.year === year && r.month === month && r.day === day &&
+            (r.value === "P" || r.value === "A" || r.value === "H" || r.value === "OT" || typeof r.value === "number")
         );
-        if (hasAttendance) {
-          streak++;
-          checkDate.setDate(checkDate.getDate() - 1);
-        } else {
-          // If we checked today and there's no attendance yet, check yesterday to continue yesterday's streak.
+        if (hasAttendance) { streak++; checkDate.setDate(checkDate.getDate() - 1); }
+        else {
           if (streak === 0 && checkDate.getDate() === today.getDate()) {
-            checkDate.setDate(checkDate.getDate() - 1);
-            continue;
+            checkDate.setDate(checkDate.getDate() - 1); continue;
           }
           break;
         }
       }
       setStreakCount(Math.max(1, streak));
 
-      // Smart dynamic insights comparing today's rate with yesterday's
+      // Smart insight
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayYear = yesterday.getFullYear();
-      const yesterdayMonth = yesterday.getMonth();
-      const yesterdayDay = yesterday.getDate();
-
-      const yesterdayRecords = attendance.filter(
-        (r) => r.year === yesterdayYear && r.month === yesterdayMonth && r.day === yesterdayDay
+      const yesterdayAttendance = attendance.filter(
+        (r) => r.year === yesterday.getFullYear() && r.month === yesterday.getMonth() && r.day === yesterday.getDate()
       );
-      
       let yesterdayPresent = 0;
-      yesterdayRecords.forEach((rec) => {
-        const belongsToScope = siteWorkers.some(sw => sw.id === rec.workerId);
-        if (belongsToScope) {
-          if (rec.value === "P" || rec.value === "H" || rec.value === "OT") yesterdayPresent++;
-        }
+      yesterdayAttendance.forEach((rec) => {
+        const belongs = siteWorkers.some((sw) => sw.id === rec.workerId);
+        if (belongs && (rec.value === "P" || rec.value === "H" || rec.value === "OT")) yesterdayPresent++;
       });
       const yesterdayRate = totalWorkers > 0 ? Math.round((yesterdayPresent / totalWorkers) * 100) : 0;
 
       if (totalWorkers > 0) {
-        if (rate > yesterdayRate) {
-          setSmartInsight(`Attendance improved by ${rate - yesterdayRate}% compared to yesterday! 🎉`);
-        } else if (rate < yesterdayRate) {
-          setSmartInsight(`Attendance dropped by ${yesterdayRate - rate}% vs yesterday. ⚠️`);
-        } else {
-          setSmartInsight("Attendance is stable and matching yesterday's levels.");
-        }
+        if (rate > yesterdayRate) setSmartInsight(`Attendance improved by ${rate - yesterdayRate}% vs yesterday 🎉`);
+        else if (rate < yesterdayRate) setSmartInsight(`Attendance dropped by ${yesterdayRate - rate}% vs yesterday ⚠️`);
+        else setSmartInsight("Attendance is stable, matching yesterday's levels.");
       } else {
-        setSmartInsight("Welcome! Register workers and sites to view live insights.");
+        setSmartInsight("Welcome! Register workers and sites to see live insights.");
       }
 
     } catch (error) {
       console.warn("Failed to load dashboard statistics:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    connectSocket();
-  }, []);
+  // Effects
+  useEffect(() => { connectSocket(); }, []);
 
   useEffect(() => {
-    const handleUpdate = () => {
-      loadDashboardData(true);
-      DeviceEventEmitter.emit("refreshData");
-    };
+    const handleUpdate = () => { loadDashboardData(true); DeviceEventEmitter.emit("refreshData"); };
     socket.on("admin_dashboard_update", handleUpdate);
     socket.on("admin_activity", handleUpdate);
-
-    const sub = DeviceEventEmitter.addListener("refreshData", () => {
-      loadDashboardData(true);
-    });
-
+    const sub = DeviceEventEmitter.addListener("refreshData", () => loadDashboardData(true));
     return () => {
       socket.off("admin_dashboard_update", handleUpdate);
       socket.off("admin_activity", handleUpdate);
@@ -320,129 +289,58 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       loadDashboardData();
+      markSessionStart();
     }, [activeSite?.id])
   );
 
-  // Toast animation handler
-  useEffect(() => {
-    if (showToast) {
-      Animated.timing(toastFadeAnim, {
-        toValue: 1,
-        duration: 350,
-        useNativeDriver: true,
-      }).start();
-
-      const timer = setTimeout(() => {
-        hideToast();
-      }, 5000); // disappear after 5 seconds
-
-      return () => clearTimeout(timer);
-    }
-  }, [showToast]);
-
-  const hideToast = () => {
-    Animated.timing(toastFadeAnim, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
-      setShowToast(false);
-      setLastAction(null);
-    });
-  };
+  useInAppReview({ isReady: !loading && !refreshing });
 
   const deleteAttendanceLocally = async (workerId: string, year: number, month: number, day: number) => {
     const allRecords = await storage.getAttendance();
     const filtered = allRecords.filter(
-      r => !(r.workerId === workerId && r.year === year && r.month === month && r.day === day)
+      (r) => !(r.workerId === workerId && r.year === year && r.month === month && r.day === day)
     );
     await storage.setAttendance(filtered);
   };
 
-  // Quick Marking actions
   const handleMarkPresent = async (workerId: string) => {
     triggerHaptic();
     try {
       const todayYear = today.getFullYear();
       const todayMonth = today.getMonth();
       const todayDay = today.getDate();
-
-      const existingIdx = attendanceRecords.findIndex(
+      const existing = attendanceRecords.find(
         (r) => r.workerId === workerId && r.year === todayYear && r.month === todayMonth && r.day === todayDay
       );
-
-      let prevVal: AttendanceValue | "" = "";
-      let newVal = "P";
-
-      if (existingIdx !== -1) {
-        prevVal = attendanceRecords[existingIdx].value;
-        if (prevVal === "P") {
-          newVal = ""; // toggle to unmarked
-        }
-      }
-
-      setLastAction({ workerId, type: "single", prevValue: String(prevVal) });
-
-      if (newVal === "") {
-        if (existingIdx !== -1) {
-          await deleteAttendanceLocally(workerId, todayYear, todayMonth, todayDay);
-          const updated = [...attendanceRecords];
-          updated.splice(existingIdx, 1);
-          setAttendanceRecords(updated);
-        }
-      } else {
-        const newRecord: AttendanceRecord = {
-          workerId,
-          projectId: activeSite?.id || undefined,
-          year: todayYear,
-          month: todayMonth,
-          day: todayDay,
-          value: "P",
-        };
-        await storage.setAttendanceRecord(newRecord);
-        const updated = [...attendanceRecords];
-        if (existingIdx !== -1) {
-          updated[existingIdx] = newRecord;
-        } else {
-          updated.push(newRecord);
-        }
-        setAttendanceRecords(updated);
-      }
-
-      await loadDashboardData(true);
-      const workerName = workersList.find(w => w.id === workerId)?.name || "Worker";
-      setToastMessage(newVal === "" ? `Cleared attendance for ${workerName}` : `Marked ${workerName} as Present`);
+      const newValue: AttendanceValue = existing?.value === "P" ? "A" : "P";
+      const worker = workersList.find((w) => w.id === workerId);
+      const dailyRate = worker?.dailyRate ?? 0;
+      const finalPay = newValue === "P" ? dailyRate : 0;
+      await storage.setAttendanceRecord({
+        workerId,
+        year: todayYear,
+        month: todayMonth,
+        day: todayDay,
+        value: newValue,
+        dailyRate,
+        finalPay,
+        timestamp: Date.now(),
+      });
+      setToastMessage(newValue === "P" ? "Marked Present ✓" : "Marked Absent ✗");
       setShowToast(true);
-
-    } catch (e) {
-      console.warn("Failed to mark attendance:", e);
-    }
+      await loadDashboardData(true);
+    } catch (err) { console.warn("Quick mark failed:", err); }
   };
 
   const handleMarkOptions = (workerId: string) => {
     triggerHaptic();
-    const worker = workersList.find(w => w.id === workerId);
+    const worker = workersList.find((w) => w.id === workerId);
     if (!worker) return;
-
-    const todayDay = today.getDate();
-    const existingRecord = attendanceRecords.find(
-      (r) => r.workerId === workerId && r.day === todayDay
-    );
-
-    setSelectedWorkerForAttendance(worker);
-    setModalAttendanceValue(existingRecord ? (existingRecord.value as any) : "");
-    setModalAdvanceAmount(existingRecord && existingRecord.customWage ? String(existingRecord.customWage) : "");
-    setModalOvertimeWage(existingRecord && existingRecord.overtimeWage ? String(existingRecord.overtimeWage) : "");
-    setModalOvertimeHours(existingRecord && existingRecord.overtimeHours ? String(existingRecord.overtimeHours) : "");
-    
-    setAttendanceModalVisible(true);
+    setQuickMarkWorker(worker);
+    setQuickMarkModalVisible(true);
   };
 
-  const handleSaveAttendanceModal = async () => {
-    if (!selectedWorkerForAttendance) return;
-    const workerId = selectedWorkerForAttendance.id;
-    const val = modalAttendanceValue;
-    
+  const updateAttendanceValue = async (workerId: string, val: AttendanceValue | null) => {
     try {
       const todayYear = today.getFullYear();
       const todayMonth = today.getMonth();
@@ -452,10 +350,7 @@ export default function DashboardScreen() {
         (r) => r.workerId === workerId && r.year === todayYear && r.month === todayMonth && r.day === todayDay
       );
 
-      const prevVal = existingIdx !== -1 ? attendanceRecords[existingIdx].value : "";
-      setLastAction({ workerId, type: "single", prevValue: String(prevVal) });
-
-      if (val === "") {
+      if (val === null) {
         if (existingIdx !== -1) {
           await deleteAttendanceLocally(workerId, todayYear, todayMonth, todayDay);
           const updated = [...attendanceRecords];
@@ -463,9 +358,9 @@ export default function DashboardScreen() {
           setAttendanceRecords(updated);
         }
       } else {
-        const adv = modalAdvanceAmount ? parseFloat(modalAdvanceAmount) : undefined;
-        const otW = modalOvertimeWage ? parseFloat(modalOvertimeWage) : undefined;
-        const otH = modalOvertimeHours ? parseFloat(modalOvertimeHours) : undefined;
+        const worker = workersList.find((w) => w.id === workerId);
+        const dailyRate = worker?.dailyRate ?? 0;
+        const finalPay = val === "P" ? dailyRate : val === "H" ? dailyRate / 2 : val === "OT" ? dailyRate * 1.5 : 0;
         
         const newRecord: AttendanceRecord = {
           workerId,
@@ -473,67 +368,10 @@ export default function DashboardScreen() {
           year: todayYear,
           month: todayMonth,
           day: todayDay,
-          value: val as any,
-          customWage: adv,
-          overtimeWage: otW,
-          overtimeHours: otH,
-        };
-        
-        await storage.setAttendanceRecord(newRecord);
-        const updated = [...attendanceRecords];
-        if (existingIdx !== -1) {
-          updated[existingIdx] = newRecord;
-        } else {
-          updated.push(newRecord);
-        }
-        setAttendanceRecords(updated);
-      }
-
-      await loadDashboardData(true);
-      setAttendanceModalVisible(false);
-      
-      const workerName = selectedWorkerForAttendance.name;
-      let statusLabel = "Present";
-      if (val === "H") statusLabel = "Half Day";
-      else if (val === "OT") statusLabel = "Overtime";
-      else if (val === "A") statusLabel = "Absent";
-      else if (val === "") statusLabel = "Unmarked";
-
-      setToastMessage(`Marked ${workerName} as ${statusLabel}`);
-      setShowToast(true);
-    } catch (e) {
-      console.warn("Failed to save attendance:", e);
-    }
-  };
-
-  const updateAttendanceValue = async (workerId: string, val: string) => {
-    try {
-      const todayYear = today.getFullYear();
-      const todayMonth = today.getMonth();
-      const todayDay = today.getDate();
-
-      const existingIdx = attendanceRecords.findIndex(
-        (r) => r.workerId === workerId && r.year === todayYear && r.month === todayMonth && r.day === todayDay
-      );
-
-      const prevVal = existingIdx !== -1 ? attendanceRecords[existingIdx].value : "";
-      setLastAction({ workerId, type: "single", prevValue: String(prevVal) });
-
-      if (val === "") {
-        if (existingIdx !== -1) {
-          await deleteAttendanceLocally(workerId, todayYear, todayMonth, todayDay);
-          const updated = [...attendanceRecords];
-          updated.splice(existingIdx, 1);
-          setAttendanceRecords(updated);
-        }
-      } else {
-        const newRecord: AttendanceRecord = {
-          workerId,
-          projectId: activeSite?.id || undefined,
-          year: todayYear,
-          month: todayMonth,
-          day: todayDay,
-          value: val as any,
+          value: val,
+          dailyRate,
+          finalPay,
+          timestamp: Date.now(),
         };
         await storage.setAttendanceRecord(newRecord);
         const updated = [...attendanceRecords];
@@ -546,19 +384,27 @@ export default function DashboardScreen() {
       }
 
       await loadDashboardData(true);
-      const workerName = workersList.find(w => w.id === workerId)?.name || "Worker";
+      const workerName = workersList.find((w) => w.id === workerId)?.name || "Worker";
       let statusLabel = "Present";
       if (val === "H") statusLabel = "Half Day";
       else if (val === "OT") statusLabel = "Overtime";
       else if (val === "A") statusLabel = "Absent";
-      else if (val === "") statusLabel = "Unmarked";
+      else if (val === null) statusLabel = "Unmarked";
 
       setToastMessage(`Marked ${workerName} as ${statusLabel}`);
       setShowToast(true);
+
+      if (val !== null) {
+        trackInteraction("attendance_marked");
+      }
     } catch (e) {
       console.warn("Failed to update attendance value:", e);
     }
   };
+
+  const displayWorkers = activeSite
+    ? workersList.filter((w) => w.projectId === activeSite.id)
+    : workersList;
 
   const handleMarkAllPresent = async () => {
     triggerHaptic();
@@ -567,25 +413,19 @@ export default function DashboardScreen() {
       const todayMonth = today.getMonth();
       const todayDay = today.getDate();
 
-      const siteWorkers = activeSite
-        ? workersList.filter(w => w.projectId === activeSite.id)
-        : workersList;
-
-      if (siteWorkers.length === 0) {
+      if (displayWorkers.length === 0) {
         Alert.alert("No Workers", "There are no workers registered to mark.");
         return;
       }
 
-      const prevRecords = [...attendanceRecords];
-      setLastAction({ type: "bulk", prevValue: JSON.stringify(prevRecords) });
-
       const updated = [...attendanceRecords];
 
-      for (const worker of siteWorkers) {
+      for (const worker of displayWorkers) {
         const idx = updated.findIndex(
           (r) => r.workerId === worker.id && r.year === todayYear && r.month === todayMonth && r.day === todayDay
         );
 
+        const dailyRate = worker.dailyRate ?? 0;
         const newRecord: AttendanceRecord = {
           workerId: worker.id,
           projectId: activeSite?.id || undefined,
@@ -593,6 +433,9 @@ export default function DashboardScreen() {
           month: todayMonth,
           day: todayDay,
           value: "P",
+          dailyRate,
+          finalPay: dailyRate,
+          timestamp: Date.now(),
         };
         await storage.setAttendanceRecord(newRecord);
 
@@ -612,1538 +455,727 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleUndo = async () => {
-    triggerHaptic();
-    if (!lastAction) return;
+  const onRefresh = async () => { setRefreshing(true); await loadDashboardData(false); };
 
-    try {
-      const todayYear = today.getFullYear();
-      const todayMonth = today.getMonth();
-      const todayDay = today.getDate();
+  const ratePercent = stats.rate;
+  const recentWorkers = workersList.slice(0, 6);
 
-      if (lastAction.type === "bulk") {
-        const prevRecords = JSON.parse(lastAction.prevValue) as AttendanceRecord[];
-
-        const siteWorkers = activeSite
-          ? workersList.filter(w => w.projectId === activeSite.id)
-          : workersList;
-
-        for (const worker of siteWorkers) {
-          await deleteAttendanceLocally(worker.id, todayYear, todayMonth, todayDay);
-        }
-
-        for (const rec of prevRecords) {
-          await storage.setAttendanceRecord(rec);
-        }
-
-        setAttendanceRecords(prevRecords);
-        setLastAction(null);
-        setShowToast(false);
-        await loadDashboardData(true);
-        Alert.alert("Undone", "Bulk action has been reverted.");
-        return;
-      }
-
-      const { workerId, prevValue } = lastAction;
-      if (!workerId) return;
-
-      const existingIdx = attendanceRecords.findIndex(
-        (r) => r.workerId === workerId && r.year === todayYear && r.month === todayMonth && r.day === todayDay
-      );
-
-      if (prevValue === "" || prevValue === "undefined") {
-        if (existingIdx !== -1) {
-          await deleteAttendanceLocally(workerId, todayYear, todayMonth, todayDay);
-          const updated = [...attendanceRecords];
-          updated.splice(existingIdx, 1);
-          setAttendanceRecords(updated);
-        }
-      } else {
-        const newRecord: AttendanceRecord = {
-          workerId,
-          projectId: activeSite?.id || undefined,
-          year: todayYear,
-          month: todayMonth,
-          day: todayDay,
-          value: prevValue as any,
-        };
-        await storage.setAttendanceRecord(newRecord);
-        const updated = [...attendanceRecords];
-        if (existingIdx !== -1) {
-          updated[existingIdx] = newRecord;
-        } else {
-          updated.push(newRecord);
-        }
-        setAttendanceRecords(updated);
-      }
-
-      setLastAction(null);
-      setShowToast(false);
-      await loadDashboardData(true);
-      Alert.alert("Undone", "Last action reverted successfully.");
-    } catch (e) {
-      console.warn("Undo failed:", e);
-    }
-  };
-
-  const handleQuickAction = (action: string) => {
-    triggerHaptic();
-    if (action === "AddWorker") {
-      navigation.navigate("AddWorker");
-    } else if (action === "ProjectManagement") {
-      navigation.navigate("ProjectManagement");
-    } else if (action === "AttendanceDetail") {
-      navigation.navigate("AttendanceDetail");
-    } else if (action === "Reports") {
-      navigation.navigate("ReportsTab");
-    }
-  };
-
-  const generateRazorpayHtml = (plan: "starter" | "professional" | "business") => {
-    let amount = 499;
-    let planName = "PRIME Starter (Monthly)";
-    if (plan === "professional") {
-      amount = 1499;
-      planName = "PRIME Professional (Monthly)";
-    } else if (plan === "business") {
-      amount = 4999;
-      planName = "PRIME Business (Monthly)";
-    }
-    const amountPaise = amount * 100;
-    const email = user?.email || "contractor@example.com";
-    const phone = user?.phone || "9999999999";
-    const name = user?.name || "Contractor User";
-
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background-color: #F8FAFC;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-          }
-          .card {
-            background: white;
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
-          }
-          h2 { margin-top: 0; color: #1E293B; }
-          p { color: #64748B; font-size: 14px; margin-bottom: 24px; }
-          .btn {
-            background-color: #F59E0B;
-            color: white;
-            border: none;
-            padding: 14px 24px;
-            font-size: 16px;
-            font-weight: 600;
-            border-radius: 8px;
-            cursor: pointer;
-            width: 100%;
-            margin-bottom: 12px;
-          }
-          .btn-secondary {
-            background-color: #E2E8F0;
-            color: #475569;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h2>Razorpay Secure Checkout</h2>
-          <p>You are paying <strong>INR ${amount}</strong> for the <strong>${planName}</strong> subscription plan (Test Mode).</p>
-          <button class="btn" onclick="payNow()">Pay with Razorpay</button>
-          <button class="btn btn-secondary" onclick="cancelPay()">Cancel</button>
-        </div>
-
-        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-        <script>
-          function payNow() {
-            var options = {
-              "key": "rzp_test_mock1234567890",
-              "amount": "${amountPaise}",
-              "currency": "INR",
-              "name": "Haajari Manager",
-              "description": "PRIME Subscription - ${planName}",
-              "image": "https://haajari.com/logo.png",
-              "handler": function (response){
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  status: "success",
-                  razorpay_payment_id: response.razorpay_payment_id
-                }));
-              },
-              "modal": {
-                "ondismiss": function(){
-                  window.ReactNativeWebView.postMessage(JSON.stringify({
-                    status: "cancelled"
-                  }));
-                }
-              },
-              "prefill": {
-                "name": "${name}",
-                "email": "${email}",
-                "contact": "${phone}"
-              },
-              "theme": {
-                "color": "#F59E0B"
-              }
-            };
-            var rzp = new Razorpay(options);
-            rzp.open();
-          }
-          
-          function cancelPay() {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              status: "cancelled"
-            }));
-          }
-        </script>
-      </body>
-      </html>
-    `;
-  };
-
-  const handlePaymentResponse = async (dataStr: string) => {
-    try {
-      const data = JSON.parse(dataStr);
-      setShowRazorpayModal(false);
-
-      if (data.status === "success") {
-        const chosenPlan = selectedPlanOption;
-        let price = 499;
-        let nameOfPlan = "Starter";
-        if (selectedPlanOption === "professional") {
-          price = 1499;
-          nameOfPlan = "Professional";
-        } else if (selectedPlanOption === "business") {
-          price = 4999;
-          nameOfPlan = "Business";
-        }
-        
-        try {
-          await authenticatedFetch(`${API_URL}/auth/upgrade`, {
-            method: "PUT",
-            body: JSON.stringify({ plan: chosenPlan }),
-          });
-        } catch (e) {
-          console.warn("Backend sync failed, updated locally", e);
-        }
-
-        const auth = await storage.getAuth();
-        if (auth) {
-          await storage.setAuth({ ...auth, plan: chosenPlan });
-        }
-        setCurrentPlan(chosenPlan);
-
-        const newTransaction = {
-          date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
-          planName: `PRIME ${nameOfPlan} (Monthly)`,
-          amount: price,
-          paymentId: data.razorpay_payment_id || "pay_mock" + Math.random().toString(36).substring(7),
-        };
-
-        const updatedHistory = [newTransaction, ...billingHistory];
-        setBillingHistory(updatedHistory);
-        await AsyncStorage.setItem("@haajari/prime_billing_history", JSON.stringify(updatedHistory));
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Payment Successful", `Successfully upgraded to PRIME ${nameOfPlan} (₹${price}/month)!`);
-        setShowSubModal(false);
-      } else if (data.status === "cancelled") {
-        Alert.alert("Payment Cancelled", "The payment process was cancelled.");
-      }
-    } catch (err) {
-      console.warn("Error parsing payment response:", err);
-    }
-  };
-
-  // Filter display workers list
-  const displayWorkers = activeSite
-    ? workersList.filter(w => w.projectId === activeSite.id)
-    : workersList;
-
-  const todayDay = today.getDate();
-
-  if (loading && workersList.length === 0) {
-    return (
-      <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-        {/* Header Skeleton */}
-        <View style={[styles.headerContainer, { paddingTop: insets.top + Spacing.sm, opacity: 0.5 }]}>
-          <View style={styles.headerTopRow}>
-            <View style={{ width: 140, height: 24, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 4 }} />
-            <View style={{ width: 70, height: 20, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 10 }} />
-          </View>
-          <View style={{ width: "100%", height: 32, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 6, marginTop: 12 }} />
-        </View>
-
-        <ScrollView contentContainerStyle={styles.scrollContent} scrollEnabled={false}>
-          {/* Streak Banner Skeleton */}
-          <View style={{ flexDirection: "row", gap: 12, marginBottom: 16, opacity: 0.5 }}>
-            <View style={{ flex: 1, height: 50, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 12 }} />
-            <View style={{ flex: 1, height: 50, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 12 }} />
-          </View>
-
-          {/* Quick Actions Skeleton */}
-          <View style={{ flexDirection: "row", gap: 12, marginBottom: 20, opacity: 0.5 }}>
-            <View style={{ flex: 1, height: 48, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 12 }} />
-            <View style={{ flex: 1, height: 48, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 12 }} />
-            <View style={{ flex: 1, height: 48, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 12 }} />
-          </View>
-
-          {/* Workers List Header Skeleton */}
-          <View style={{ height: 20, width: 150, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 4, marginBottom: 16, opacity: 0.5 }} />
-
-          {/* Roster Skeleton Rows */}
-          {[1, 2, 3, 4, 5].map((key) => (
-            <View key={key} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: isDark ? "#1E293B" : "#E2E8F0", opacity: 0.4 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", marginRight: 12 }} />
-              <View style={{ flex: 1, gap: 6 }}>
-                <View style={{ width: 120, height: 16, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 4 }} />
-                <View style={{ width: 70, height: 12, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 3 }} />
-              </View>
-              <View style={{ width: 80, height: 24, backgroundColor: isDark ? "#1E293B" : "#E2E8F0", borderRadius: 6 }} />
-            </View>
-          ))}
-        </ScrollView>
-      </ThemedView>
-    );
-  }
-
-  const siteName = activeSite ? activeSite.name : "No Active Site";
-  const summaryStr = `Total: ${stats.totalWorkers} | Present: ${stats.present + stats.halfDay + stats.overtime} | Absent: ${stats.absent}`;
+  const cardBg = isDark ? "#1E293B" : "#FFFFFF";
+  const bgRoot = isDark ? "#0F172A" : "#F8FAFC";
+  const borderColor = isDark ? "#334155" : "#E2E8F0";
 
   return (
-    <ThemedView style={styles.container}>
-      {/* 1. Header Redesign (Date, Active Site Name, Worker-Count Summary) */}
-      <View style={[styles.headerContainer, { paddingTop: insets.top + Spacing.sm }]}>
-        <View ref={welcomeRef} onLayout={onLayoutWelcome} style={styles.headerTopRow}>
-          <View style={[styles.headerTitleArea, { marginLeft: 0 }]}>
-            <ThemedText style={styles.headerDate}>{formattedDate.toUpperCase()}</ThemedText>
-            <ThemedText style={styles.headerSiteName} numberOfLines={1}>
-              🏢 {siteName}
+    <View style={[styles.root, { backgroundColor: bgRoot }]}>
+      {/* ── Header Section ─────────────────────────────────────────── */}
+      <LinearGradient
+        colors={isDark ? ["#0F172A", "#1E293B"] : ["#F97316", "#EA580C"]}
+        style={[styles.header, { paddingTop: insets.top + 16 }]}
+      >
+        <View style={styles.headerInner} ref={welcomeRef} onLayout={onLayoutWelcome}>
+          <View style={{ flex: 1 }}>
+            <ThemedText style={[styles.greeting, { color: isDark ? "#94A3B8" : "rgba(255,255,255,0.7)" }]}>
+              {greeting},
+            </ThemedText>
+            <ThemedText style={[styles.userName, { color: "#FFFFFF" }]}>
+              {user?.name || "Contractor"} 👋
+            </ThemedText>
+            <ThemedText style={[styles.dateText, { color: isDark ? "#64748B" : "rgba(255,255,255,0.7)", marginTop: 4 }]}>
+              {formattedDate}
             </ThemedText>
           </View>
-          {currentPlan !== "free" ? (
-            <View style={styles.primeBadge}>
-              <ThemedText style={styles.primeBadgeText}>PRIME</ThemedText>
-            </View>
-          ) : (
-            <Pressable onPress={() => setShowSubModal(true)} style={styles.upgradeBadge}>
-              <ThemedText style={styles.upgradeBadgeText}>UPGRADE</ThemedText>
+          <View style={styles.headerActions}>
+            <Pressable
+              onPress={() => { triggerHaptic(); setShowSettingsDrawer(true); }}
+              style={[styles.headerBtn, { backgroundColor: isDark ? "#334155" : "rgba(255,255,255,0.2)" }]}
+            >
+              <Feather name="settings" size={18} color="#FFFFFF" />
             </Pressable>
-          )}
+          </View>
         </View>
 
-        <View ref={summaryRef} onLayout={onLayoutSummary} style={styles.headerSummaryBar}>
-          <ThemedText style={styles.summaryBarText}>
-            👷 {stats.totalWorkers} Workers  |  🟢 {stats.present + stats.halfDay + stats.overtime} Active  |  🔴 {stats.absent} Absent
+        {/* Streak badge */}
+        <View style={[styles.streakBadge, { backgroundColor: isDark ? "#334155" : "rgba(255,255,255,0.2)" }]}>
+          <Feather name="zap" size={14} color="#F97316" />
+          <ThemedText style={[styles.streakText, { color: "#FFFFFF" }]}>
+            {streakCount} day streak
           </ThemedText>
         </View>
-      </View>
+      </LinearGradient>
 
       <ScrollView
         ref={scrollViewRef}
-        contentContainerStyle={styles.scrollContent}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
-        {/* Engagement Streak & Insight Banner */}
-        <View style={styles.streakBannerRow}>
-          <View style={styles.streakCard}>
-            <ThemedText style={styles.streakText}>🔥 {streakCount}-Day Streak</ThemedText>
-          </View>
-          <View style={styles.insightCard}>
-            <Feather name="trending-down" size={14} color="#F59E0B" />
-            <ThemedText style={styles.insightText} numberOfLines={1}>{smartInsight}</ThemedText>
-          </View>
-        </View>
+        {/* ── Smart Insight Banner ──────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(100).springify()} style={[styles.insightBanner, { backgroundColor: isDark ? "#1E293B" : "#FFF7ED", borderColor: "#F97316" + "40" }]}>
+          <Feather name="zap" size={14} color="#F97316" style={{ marginRight: 8 }} />
+          <ThemedText style={[styles.insightText, { color: isDark ? "#FED7AA" : "#92400E" }]} numberOfLines={2}>
+            {smartInsight}
+          </ThemedText>
+        </Animated.View>
 
-
-
-        {/* Visually Dominant Quick Action Button */}
-        <View style={{ marginVertical: Spacing.md }}>
-          <Pressable
-            style={styles.primaryMarkBtn}
-            onPress={() => {
-              triggerHaptic();
-              scrollViewRef.current?.scrollTo({ y: 200, animated: true });
-            }}
+        {/* ── KPI Scroll ────────────────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(150).springify()}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.kpiScrollContent}
+            style={styles.kpiScroll}
           >
-            <Ionicons name="checkbox" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-            <ThemedText style={styles.primaryMarkBtnText}>Mark Today's Attendance</ThemedText>
-          </Pressable>
-        </View>
+            <KPICard title="Total" value={stats.totalWorkers} icon="users" color="#3B82F6" isLoading={loading} />
+            <KPICard title="Present" value={stats.present} icon="check-circle" color="#22C55E" isLoading={loading} />
+            <KPICard title="Absent" value={stats.absent} icon="x-circle" color="#EF4444" isLoading={loading} />
+            <KPICard title="Half Day" value={stats.halfDay} icon="clock" color="#F59E0B" isLoading={loading} />
+          </ScrollView>
+        </Animated.View>
 
-        {/* Secondary Operations */}
-        <View ref={actionsRef} onLayout={onLayoutActions} style={styles.secondaryActionsGrid}>
-          <Pressable onPress={() => handleQuickAction("AddWorker")} style={styles.secondaryActionBtn}>
-            <Feather name="user-plus" size={16} color="#3B82F6" />
-            <ThemedText style={styles.secondaryBtnText}>Add Worker</ThemedText>
-          </Pressable>
-          <Pressable onPress={() => handleQuickAction("ProjectManagement")} style={styles.secondaryActionBtn}>
-            <Feather name="plus-circle" size={16} color="#8B5CF6" />
-            <ThemedText style={styles.secondaryBtnText}>Add Site</ThemedText>
-          </Pressable>
-          <Pressable onPress={() => handleQuickAction("Reports")} style={styles.secondaryActionBtn}>
-            <Feather name="file-text" size={16} color="#10B981" />
-            <ThemedText style={styles.secondaryBtnText}>View Reports</ThemedText>
-          </Pressable>
-        </View>
-
-        {/* GPS Auto Check-in Toggle */}
-        <View ref={gpsRef} onLayout={onLayoutGps} style={styles.gpsRow}>
-          <View style={{ flex: 1 }}>
-            <ThemedText style={styles.gpsTitle}>GPS Auto Check-in</ThemedText>
-            <ThemedText style={styles.gpsDesc}>Automatically mark present on arrival</ThemedText>
-          </View>
-          <Switch
-            value={gpsCheckInActive}
-            onValueChange={(val) => {
-              triggerHaptic();
-              setGpsCheckInActive(val);
-              if (val) {
-                Alert.alert("GPS Active", "Auto check-in simulates marking present for on-site workers.");
-              }
-            }}
-            trackColor={{ false: "#334155", true: "#10B981" }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-
-        {/* Core Attendance marking: Tappable Worker List */}
-        <View ref={logRef} onLayout={onLayoutLog} style={styles.workerListHeader}>
-          <ThemedText style={styles.cardSectionTitle}>Today's Attendance Log</ThemedText>
-          <Pressable onPress={handleMarkAllPresent} style={styles.bulkMarkBtn}>
-            <Feather name="check" size={14} color="#3B82F6" style={{ marginRight: 4 }} />
-            <ThemedText style={styles.bulkMarkText}>Mark All Present</ThemedText>
-          </Pressable>
-        </View>
-
-        {displayWorkers.length === 0 ? (
-          <View style={styles.emptyWorkersContainer}>
-            <Feather name="users" size={24} color="#475569" style={{ marginBottom: 8 }} />
-            <ThemedText style={styles.emptyWorkersText}>No workers registered for this site.</ThemedText>
-          </View>
-        ) : (
-          <View style={styles.workersListCard}>
-            {displayWorkers.map((worker) => {
-              const todayRecord = attendanceRecords.find(
-                (r) => r.workerId === worker.id && r.day === todayDay
-              );
-              const val = todayRecord ? todayRecord.value : "";
-
-              return (
-                <Pressable
-                  key={worker.id}
-                  onPress={() => handleMarkPresent(worker.id)}
-                  onLongPress={() => handleMarkOptions(worker.id)}
-                  delayLongPress={300}
-                  style={({ pressed }) => [
-                    styles.workerRow,
-                    { backgroundColor: pressed ? "#334155" : "transparent" },
-                    { borderBottomColor: "#1E293B" }
-                  ]}
-                >
-                  <View style={styles.workerAvatar}>
-                    <ThemedText style={styles.workerAvatarText}>
-                      {worker.name.charAt(0).toUpperCase()}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.workerInfo}>
-                    <ThemedText style={styles.workerName}>{worker.name}</ThemedText>
-                    <ThemedText style={styles.workerCategory}>{worker.category.toUpperCase()}</ThemedText>
-                  </View>
-
-                  <View style={styles.attendanceStatusContainer}>
-                    {val === "P" && (
-                      <View style={[styles.statusBadge, { backgroundColor: "rgba(16, 185, 129, 0.15)" }]}>
-                        <ThemedText style={[styles.statusBadgeText, { color: "#10B981" }]}>PRESENT</ThemedText>
-                      </View>
-                    )}
-                    {val === "H" && (
-                      <View style={[styles.statusBadge, { backgroundColor: "rgba(245, 158, 11, 0.15)" }]}>
-                        <ThemedText style={[styles.statusBadgeText, { color: "#F59E0B" }]}>HALF DAY</ThemedText>
-                      </View>
-                    )}
-                    {val === "OT" && (
-                      <View style={[styles.statusBadge, { backgroundColor: "rgba(168, 85, 247, 0.15)" }]}>
-                        <ThemedText style={[styles.statusBadgeText, { color: "#A855F7" }]}>OVERTIME</ThemedText>
-                      </View>
-                    )}
-                    {val === "A" && (
-                      <View style={[styles.statusBadge, { backgroundColor: "rgba(239, 68, 68, 0.15)" }]}>
-                        <ThemedText style={[styles.statusBadgeText, { color: "#EF4444" }]}>ABSENT</ThemedText>
-                      </View>
-                    )}
-                    {val === "" && (
-                      <View style={styles.checkboxEmpty}>
-                        <Feather name="square" size={18} color="#475569" />
-                      </View>
-                    )}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-
-        {/* View Grid Attendance Register Button/Cell */}
-        <Pressable
-          onPress={() => {
-            triggerHaptic();
-            navigation.navigate("AttendanceDetail");
-          }}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            backgroundColor: isDark ? "#1E293B" : "#F8FAFC",
-            borderRadius: 12,
-            padding: 16,
-            marginTop: Spacing.md,
-            marginBottom: Spacing.lg,
-            borderWidth: 1,
-            borderColor: isDark ? "#334155" : "#E2E8F0",
-          }}
+        {/* ── Today's Attendance Breakdown Card ─────────────────────── */}
+        <Animated.View
+          entering={FadeInDown.delay(200).springify()}
+          style={[styles.sectionCard, { backgroundColor: cardBg, borderColor }]}
+          ref={summaryRef}
+          onLayout={onLayoutSummary}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(59, 130, 246, 0.15)", justifyContent: "center", alignItems: "center" }}>
-              <Feather name="calendar" size={18} color="#3B82F6" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <ThemedText style={{ fontWeight: "700", fontSize: 14 }}>View Attendance Register (Grid Sheet)</ThemedText>
-              <ThemedText style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>See month-wise matrix, presets, and reports</ThemedText>
-            </View>
-          </View>
-          <Feather name="chevron-right" size={20} color={theme.textSecondary} />
-        </Pressable>
-
-        {/* Today's Site Overview (Premium SaaS Widget) */}
-        <View style={styles.cardHeaderRow}>
-          <ThemedText style={styles.cardSectionTitle}>Today's Site Overview</ThemedText>
-          <Pressable
-            onPress={() => {
-              triggerHaptic();
-              navigation.navigate("CreateSite");
-            }}
-            style={styles.createSiteBtnInline}
-          >
-            <Feather name="plus" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-            <ThemedText style={styles.createSiteBtnInlineText}>Create Site</ThemedText>
-          </Pressable>
-        </View>
-        <View style={styles.overviewCard}>
-          <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <ThemedText style={styles.statVal}>{siteStats.totalSites}</ThemedText>
-              <ThemedText style={styles.statLabel}>Total Sites</ThemedText>
-            </View>
-            <View style={styles.statBox}>
-              <ThemedText style={[styles.statVal, { color: "#F97316" }]}>{siteStats.activeSites}</ThemedText>
-              <ThemedText style={styles.statLabel}>Active</ThemedText>
-            </View>
-            <View style={styles.statBox}>
-              <ThemedText style={[styles.statVal, { color: "#22C55E" }]}>{siteStats.completedSites}</ThemedText>
-              <ThemedText style={styles.statLabel}>Completed</ThemedText>
-            </View>
-            <View style={styles.statBox}>
-              <ThemedText style={[styles.statVal, { color: "#EF4444" }]}>{siteStats.delayedSites}</ThemedText>
-              <ThemedText style={styles.statLabel}>Delayed</ThemedText>
-            </View>
-          </View>
-
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-          <View style={styles.detailsGrid}>
-            <View style={styles.detailRowInline}>
-              <Feather name="users" size={16} color={theme.textSecondary} />
-              <ThemedText style={styles.detailLabelInline}>Active Workers Today:</ThemedText>
-              <ThemedText style={styles.detailValueInline}>{siteStats.workersPresent}</ThemedText>
-            </View>
-            <View style={styles.detailRowInline}>
-              <Feather name="trending-up" size={16} color={theme.textSecondary} />
-              <ThemedText style={styles.detailLabelInline}>Today's Progress:</ThemedText>
-              <ThemedText style={styles.detailValueInline}>
-                {siteStats.totalSites > 0 ? `${Math.round(((siteStats.completedSites) / siteStats.totalSites) * 100)}%` : "0%"}
+          <View style={styles.sectionCardHeader}>
+            <View>
+              <ThemedText style={styles.sectionTitle}>Attendance Overview</ThemedText>
+              <ThemedText style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+                Rate: {ratePercent}% today
               </ThemedText>
             </View>
-            <View style={styles.detailRowInline}>
-              <Feather name="dollar-sign" size={16} color={theme.textSecondary} />
-              <ThemedText style={styles.detailLabelInline}>Today's Expenses:</ThemedText>
-              <ThemedText style={styles.detailValueInline}>₹0</ThemedText>
-            </View>
+            <Pressable
+              onPress={() => { triggerHaptic(); navigation.navigate("AttendanceDetail"); }}
+              style={[styles.viewAllBtn, { backgroundColor: theme.primary + "15" }]}
+            >
+              <ThemedText style={[styles.viewAllText, { color: theme.primary }]}>Grid Sheet</ThemedText>
+              <Feather name="arrow-right" size={14} color={theme.primary} />
+            </Pressable>
           </View>
-        </View>
 
-        {/* Dynamic Prime/Upgrade Billing History */}
-        {billingHistory.length > 0 && (
-          <View style={styles.billingSection}>
-            <ThemedText style={styles.cardSectionTitle}>Billing History</ThemedText>
-            <View style={styles.historyCard}>
-              {billingHistory.map((item, index) => (
-                <View key={index} style={styles.historyRow}>
-                  <ThemedText style={styles.historyDate}>{item.date}</ThemedText>
-                  <ThemedText style={styles.historyDesc}>{item.planName}</ThemedText>
-                  <ThemedText style={styles.historyAmount}>₹{item.amount}</ThemedText>
+          <View style={styles.attendanceRow}>
+            {/* Circle Progress bar */}
+            <View style={styles.rateRingWrap}>
+              <View style={styles.rateRing}>
+                <View style={[styles.rateRingTrack, { borderColor: isDark ? "#334155" : "#E2E8F0" }]} />
+                <View style={[styles.rateRingFill, {
+                  borderColor: ratePercent >= 80 ? "#22C55E" : ratePercent >= 50 ? "#F59E0B" : "#EF4444",
+                  transform: [{ rotate: `${(ratePercent / 100) * 360}deg` }],
+                }]} />
+                <View style={styles.rateRingCenter}>
+                  <ThemedText style={[styles.rateValue, {
+                    color: ratePercent >= 80 ? "#22C55E" : ratePercent >= 50 ? "#F59E0B" : "#EF4444",
+                  }]}>{ratePercent}%</ThemedText>
+                  <ThemedText style={[styles.rateLabel, { color: theme.textSecondary }]}>Rate</ThemedText>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.statsBreakdown}>
+              {[
+                { label: "Present", value: stats.present, color: "#22C55E" },
+                { label: "Absent", value: stats.absent, color: "#EF4444" },
+                { label: "Half Day", value: stats.halfDay, color: "#F59E0B" },
+                { label: "Overtime", value: stats.overtime, color: "#A855F7" },
+              ].map((item) => (
+                <View key={item.label} style={styles.statRow}>
+                  <View style={[styles.statDot, { backgroundColor: item.color }]} />
+                  <ThemedText style={[styles.statRowLabel, { color: theme.textSecondary }]}>{item.label}</ThemedText>
+                  <ThemedText style={[styles.statRowValue, { color: item.color }]}>{item.value}</ThemedText>
                 </View>
               ))}
             </View>
           </View>
+        </Animated.View>
+
+        {/* ── Quick Actions Grid ────────────────────────────────────── */}
+        <Animated.View
+          entering={FadeInDown.delay(240).springify()}
+          style={styles.section}
+          ref={actionsRef}
+          onLayout={onLayoutActions}
+        >
+          <SectionHeader title="Quick Actions" />
+          <View style={styles.quickActionsGrid}>
+            {QUICK_ACTIONS.map((action) => (
+              <AnimatedPressable
+                key={action.id}
+                style={[styles.quickActionCard, { backgroundColor: cardBg, borderColor }]}
+                onPress={() => {
+                  triggerHaptic();
+                  trackInteraction("screen_navigated");
+                  navigation.navigate(action.screen);
+                }}
+              >
+                <LinearGradient colors={action.colors} style={styles.quickActionIconWrap}>
+                  <Feather name={action.icon as any} size={20} color="#FFFFFF" />
+                </LinearGradient>
+                <ThemedText style={styles.quickActionLabel}>{action.label}</ThemedText>
+              </AnimatedPressable>
+            ))}
+          </View>
+        </Animated.View>
+
+        {/* ── Active Site Card ──────────────────────────────────────── */}
+        {activeSite ? (
+          <Animated.View
+            entering={FadeInDown.delay(280).springify()}
+            style={[styles.siteCard, { backgroundColor: cardBg, borderColor }]}
+          >
+            <View style={styles.siteCardHeader}>
+              <LinearGradient colors={["#F97316", "#EA580C"]} style={styles.siteIconWrap}>
+                <Feather name="map-pin" size={16} color="#FFF" />
+              </LinearGradient>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <ThemedText style={styles.siteCardTitle} numberOfLines={1}>{activeSite.name}</ThemedText>
+                <ThemedText style={[styles.siteCardLocation, { color: theme.textSecondary }]} numberOfLines={1}>
+                  {activeSite.location || "Default Location"}
+                </ThemedText>
+              </View>
+              <Badge label="Active" variant="success" />
+            </View>
+
+            <View style={styles.siteCardStats}>
+              <Feather name="users" size={14} color={theme.textSecondary} style={{ marginRight: 6 }} />
+              <ThemedText style={{ color: theme.textSecondary, fontSize: 13 }}>
+                {siteStats.workersPresent}/{siteStats.totalWorkers} workers on site
+              </ThemedText>
+            </View>
+
+            <View style={styles.siteCardActions}>
+              <PrimaryButton
+                label="Mark Attendance"
+                onPress={() => { triggerHaptic(); navigation.navigate("AttendanceDetail"); }}
+                size="sm"
+                style={{ flex: 1 }}
+              />
+              <Pressable
+                onPress={() => { triggerHaptic(); navigation.navigate("ProjectManagement"); }}
+                style={[styles.siteActionOutlineBtn, { borderColor }]}
+              >
+                <Feather name="external-link" size={14} color={theme.text} style={{ marginRight: 6 }} />
+                <ThemedText style={{ color: theme.text, fontSize: 13, fontWeight: "600" }}>Manage</ThemedText>
+              </Pressable>
+            </View>
+          </Animated.View>
+        ) : null}
+
+        {/* ── Today's Attendance Log ────────────────────────────────── */}
+        <Animated.View
+          entering={FadeInDown.delay(320).springify()}
+          style={[styles.sectionCard, { backgroundColor: cardBg, borderColor }]}
+          ref={logRef}
+          onLayout={onLayoutLog}
+        >
+          <View style={styles.sectionCardHeader}>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.sectionTitle}>Today's Attendance Log</ThemedText>
+              <ThemedText style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+                Tap row to mark, hold for options.
+              </ThemedText>
+            </View>
+            <Pressable
+              onPress={handleMarkAllPresent}
+              style={[styles.viewAllBtn, { backgroundColor: theme.primary + "15" }]}
+            >
+              <Feather name="check" size={14} color={theme.primary} />
+              <ThemedText style={[styles.viewAllText, { color: theme.primary, marginLeft: 4 }]}>All Present</ThemedText>
+            </Pressable>
+          </View>
+
+          {displayWorkers.length === 0 ? (
+            <View style={styles.emptyWorkersLog}>
+              <Feather name="users" size={24} color={theme.textSecondary} style={{ marginBottom: 8 }} />
+              <ThemedText style={{ color: theme.textSecondary, fontSize: 13 }}>
+                No workers registered for this site.
+              </ThemedText>
+            </View>
+          ) : (
+            <View style={{ gap: 8 }}>
+              {displayWorkers.map((worker, idx) => {
+                const todayYear = today.getFullYear();
+                const todayMonth = today.getMonth();
+                const todayDay = today.getDate();
+                const todayRec = attendanceRecords.find(
+                  (r) =>
+                    r.workerId === worker.id &&
+                    r.year === todayYear &&
+                    r.month === todayMonth &&
+                    r.day === todayDay
+                );
+                const val = todayRec?.value;
+
+                return (
+                  <Pressable
+                    key={worker.id}
+                    onPress={() => handleMarkPresent(worker.id)}
+                    onLongPress={() => handleMarkOptions(worker.id)}
+                    delayLongPress={300}
+                    style={({ pressed }) => [
+                      styles.workerLogRow,
+                      {
+                        backgroundColor: pressed
+                          ? (isDark ? "#334155" : "#F1F5F9")
+                          : (isDark ? "#0F172A" : "#F8FAFC"),
+                        borderColor,
+                      },
+                    ]}
+                  >
+                    <Avatar name={worker.name} size="sm" />
+                    <View style={styles.workerLogInfo}>
+                      <ThemedText style={styles.workerLogName}>{worker.name}</ThemedText>
+                      <ThemedText style={[styles.workerLogCategory, { color: theme.textSecondary }]}>
+                        {worker.category ? worker.category.toUpperCase() : "GENERAL WORKER"}
+                      </ThemedText>
+                    </View>
+                    <View style={styles.workerLogStatus}>
+                      {val === "P" && <Badge label="Present" variant="success" />}
+                      {val === "H" && <Badge label="Half Day" variant="warning" />}
+                      {val === "OT" && <Badge label="Overtime" variant="info" />}
+                      {val === "A" && <Badge label="Absent" variant="error" />}
+                      {!val && <Badge label="Unmarked" variant="neutral" />}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+        </Animated.View>
+
+        {/* ── Recent Workers Row ────────────────────────────────────── */}
+        {recentWorkers.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(360).springify()} style={styles.section}>
+            <SectionHeader
+              title="Recent Workers"
+              actionLabel="View All"
+              onAction={() => navigation.navigate("Workers")}
+            />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+              {recentWorkers.map((worker, idx) => {
+                const todayRec = attendanceRecords.find(
+                  (r) =>
+                    r.workerId === worker.id &&
+                    r.year === today.getFullYear() &&
+                    r.month === today.getMonth() &&
+                    r.day === today.getDate()
+                );
+                const status = todayRec?.value;
+                let badgeVariant: "success" | "warning" | "error" | "info" | "neutral" = "neutral";
+                let label = "Unmarked";
+                
+                if (status === "P") { badgeVariant = "success"; label = "Present"; }
+                else if (status === "A") { badgeVariant = "error"; label = "Absent"; }
+                else if (status === "H") { badgeVariant = "warning"; label = "Half Day"; }
+                else if (status === "OT") { badgeVariant = "info"; label = "Overtime"; }
+
+                return (
+                  <Animated.View
+                    key={worker.id}
+                    entering={FadeInRight.delay(idx * 50).springify()}
+                    style={[styles.workerChip, { backgroundColor: cardBg, borderColor }]}
+                  >
+                    <Avatar name={worker.name} size="md" />
+                    <ThemedText style={styles.workerName} numberOfLines={1}>{worker.name}</ThemedText>
+                    <Badge label={label} variant={badgeVariant} />
+                  </Animated.View>
+                );
+              })}
+            </ScrollView>
+          </Animated.View>
+        )}
+
+        {/* ── Empty State ───────────────────────────────────────────── */}
+        {!loading && stats.totalWorkers === 0 && workersList.length === 0 && (
+          <Animated.View entering={FadeInDown.delay(400).springify()}>
+            <EmptyState
+              icon="users"
+              title="Start Managing Workforce"
+              subtitle="Add your first site and workers to begin tracking attendance."
+              actionLabel="Add First Worker"
+              onAction={() => navigation.navigate("AddWorker")}
+            />
+          </Animated.View>
         )}
       </ScrollView>
 
-
-
-      {/* Custom Attendance Entry & Advanced Configuration Modal */}
-      <Modal
-        visible={attendanceModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setAttendanceModalVisible(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: isDark ? "#0F172A" : "#FFFFFF", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: Platform.OS === "ios" ? 40 : 24 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <View>
-                <ThemedText style={{ fontSize: 18, fontWeight: "800", color: isDark ? "#FFFFFF" : "#0F172A" }}>
-                  {selectedWorkerForAttendance?.name || "Mark Attendance"}
-                </ThemedText>
-                <ThemedText style={{ fontSize: 12, color: theme.textSecondary, marginTop: 4 }}>
-                  Choose status and configure special parameters for today
-                </ThemedText>
-              </View>
-              <Pressable onPress={() => setAttendanceModalVisible(false)} style={{ padding: 6, backgroundColor: isDark ? "#1E293B" : "#F1F5F9", borderRadius: 20 }}>
-                <Feather name="x" size={20} color={isDark ? "#94A3B8" : "#475569"} />
-              </Pressable>
-            </View>
-
-            {/* Attendance Status Selectors (Explicitly Structured Rows to prevent overlapping) */}
-            <ThemedText style={{ fontSize: 13, fontWeight: "700", color: isDark ? "#94A3B8" : "#475569", marginBottom: 10 }}>Status</ThemedText>
-            
-            {/* Row 1: Present, Absent, Half-Day */}
-            <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
-              {[
-                { val: "P", label: "Present", color: "#10B981" },
-                { val: "A", label: "Absent", color: "#EF4444" },
-                { val: "H", label: "Half-Day", color: "#F59E0B" }
-              ].map((status) => {
-                const isActive = modalAttendanceValue === status.val;
-                return (
-                  <Pressable
-                    key={status.val}
-                    onPress={() => {
-                      triggerHaptic();
-                      setModalAttendanceValue(status.val as any);
-                    }}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      borderRadius: 8,
-                      borderWidth: 2,
-                      borderColor: isActive ? status.color : (isDark ? "#334155" : "#E2E8F0"),
-                      backgroundColor: isActive ? `${status.color}15` : (isDark ? "#1E293B" : "#F8FAFC"),
-                      alignItems: "center",
-                      justifyContent: "center"
-                    }}
-                  >
-                    <ThemedText style={{ fontSize: 13, fontWeight: "800", color: isActive ? status.color : (isDark ? "#94A3B8" : "#475569") }}>
-                      {status.label}
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {/* Row 2: Overtime, Unmark */}
-            <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
-              {[
-                { val: "OT", label: "Overtime", color: "#6366F1" },
-                { val: "", label: "Unmark", color: "#64748B" }
-              ].map((status) => {
-                const isActive = modalAttendanceValue === status.val;
-                return (
-                  <Pressable
-                    key={status.val}
-                    onPress={() => {
-                      triggerHaptic();
-                      setModalAttendanceValue(status.val as any);
-                    }}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      borderRadius: 8,
-                      borderWidth: 2,
-                      borderColor: isActive ? status.color : (isDark ? "#334155" : "#E2E8F0"),
-                      backgroundColor: isActive ? `${status.color}15` : (isDark ? "#1E293B" : "#F8FAFC"),
-                      alignItems: "center",
-                      justifyContent: "center"
-                    }}
-                  >
-                    <ThemedText style={{ fontSize: 13, fontWeight: "800", color: isActive ? status.color : (isDark ? "#94A3B8" : "#475569") }}>
-                      {status.label}
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {/* Optional Fields (Only if present/half-day/overtime is checked) */}
-            {modalAttendanceValue !== "A" && modalAttendanceValue !== "" ? (
-              <View style={{ gap: 16, marginBottom: 24 }}>
-                {/* Advance Amount (Custom Wage) */}
-                <View>
-                  <ThemedText style={{ fontSize: 13, fontWeight: "700", color: isDark ? "#94A3B8" : "#475569", marginBottom: 6 }}>Advance / Custom Wage (₹)</ThemedText>
-                  <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderRadius: 8, borderWidth: 1, borderColor: isDark ? "#334155" : "#E2E8F0", paddingHorizontal: 12, height: 44 }}>
-                    <ThemedText style={{ color: theme.textSecondary, marginRight: 6, fontWeight: "700" }}>₹</ThemedText>
-                    <TextInput
-                      keyboardType="numeric"
-                      placeholder="e.g. 100 (optional)"
-                      placeholderTextColor={theme.textSecondary}
-                      style={{ flex: 1, color: isDark ? "#FFFFFF" : "#0F172A", fontSize: 14 }}
-                      value={modalAdvanceAmount}
-                      onChangeText={setModalAdvanceAmount}
-                    />
-                  </View>
-                </View>
-
-                {/* Overtime Fields */}
-                <View style={{ flexDirection: "row", gap: 12 }}>
-                  <View style={{ flex: 1 }}>
-                    <ThemedText style={{ fontSize: 13, fontWeight: "700", color: isDark ? "#94A3B8" : "#475569", marginBottom: 6 }}>OT Wage (₹)</ThemedText>
-                    <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderRadius: 8, borderWidth: 1, borderColor: isDark ? "#334155" : "#E2E8F0", paddingHorizontal: 12, height: 44 }}>
-                      <ThemedText style={{ color: theme.textSecondary, marginRight: 6, fontWeight: "700" }}>₹</ThemedText>
-                      <TextInput
-                        keyboardType="numeric"
-                        placeholder="OT amount"
-                        placeholderTextColor={theme.textSecondary}
-                        style={{ flex: 1, color: isDark ? "#FFFFFF" : "#0F172A", fontSize: 14 }}
-                        value={modalOvertimeWage}
-                        onChangeText={setModalOvertimeWage}
-                      />
-                    </View>
-                  </View>
-
-                  <View style={{ flex: 1 }}>
-                    <ThemedText style={{ fontSize: 13, fontWeight: "700", color: isDark ? "#94A3B8" : "#475569", marginBottom: 6 }}>OT Hours</ThemedText>
-                    <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderRadius: 8, borderWidth: 1, borderColor: isDark ? "#334155" : "#E2E8F0", paddingHorizontal: 12, height: 44 }}>
-                      <TextInput
-                        keyboardType="numeric"
-                        placeholder="Hours"
-                        placeholderTextColor={theme.textSecondary}
-                        style={{ flex: 1, color: isDark ? "#FFFFFF" : "#0F172A", fontSize: 14 }}
-                        value={modalOvertimeHours}
-                        onChangeText={setModalOvertimeHours}
-                      />
-                    </View>
-                  </View>
-                </View>
-              </View>
-            ) : null}
-
-            {/* Action Buttons */}
-            <View style={{ flexDirection: "row", gap: 12 }}>
-              <Pressable
-                onPress={() => setAttendanceModalVisible(false)}
-                style={{ flex: 1, height: 46, borderRadius: 8, justifyContent: "center", alignItems: "center", backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }}
-              >
-                <ThemedText style={{ fontWeight: "700", color: isDark ? "#94A3B8" : "#475569" }}>Cancel</ThemedText>
-              </Pressable>
-              
-              <Pressable
-                onPress={handleSaveAttendanceModal}
-                style={{ flex: 1.5, height: 46, borderRadius: 8, justifyContent: "center", alignItems: "center", backgroundColor: "#3B82F6" }}
-              >
-                <ThemedText style={{ fontWeight: "800", color: "#FFFFFF" }}>Save Attendance</ThemedText>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Razorpay WebView Checkout Modal */}
-      <Modal
-        visible={showRazorpayModal}
-        animationType="slide"
-        onRequestClose={() => setShowRazorpayModal(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
-          <View style={styles.razorpayHeader}>
-            <ThemedText style={styles.razorpayTitle}>Razorpay Payment Gateway</ThemedText>
-            <Pressable onPress={() => setShowRazorpayModal(false)} style={{ padding: 8 }}>
-              <Feather name="x" size={24} color="#64748B" />
-            </Pressable>
-          </View>
-          <WebView
-            source={{ html: razorpayHtml }}
-            onMessage={(e) => handlePaymentResponse(e.nativeEvent.data)}
-            style={{ flex: 1 }}
-          />
-        </View>
-      </Modal>
-
-      {/* PRIME Subscription upgrade modal */}
-      <Modal
-        visible={showSubModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSubModal(false)}
-      >
-        <View style={styles.subModalOverlay}>
-          <View style={styles.subModalContent}>
-            <View style={styles.subHeader}>
-              <ThemedText style={styles.subTitle}>PRIME Membership</ThemedText>
-              <Pressable onPress={() => setShowSubModal(false)} style={{ padding: 4 }}>
-                <Feather name="x" size={20} color="#FFFFFF" />
-              </Pressable>
-            </View>
-            <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
-              <ThemedText style={styles.planSelectorLabel}>Select Subscription Plan</ThemedText>
-              <View style={styles.planGrid}>
-                <Pressable
-                  onPress={() => setSelectedPlanOption("starter")}
-                  style={[
-                    styles.planOption,
-                    selectedPlanOption === "starter" && styles.planOptionActive,
-                  ]}
-                >
-                  <ThemedText style={styles.planOptionName}>Starter</ThemedText>
-                  <ThemedText style={styles.planOptionPrice}>₹499/mo</ThemedText>
-                  <ThemedText style={styles.planOptionSub}>Up to 50 workers, 3 sites</ThemedText>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => setSelectedPlanOption("professional")}
-                  style={[
-                    styles.planOption,
-                    selectedPlanOption === "professional" && styles.planOptionActive,
-                  ]}
-                >
-                  <ThemedText style={styles.planOptionName}>Pro</ThemedText>
-                  <ThemedText style={styles.planOptionPrice}>₹1,499/mo</ThemedText>
-                  <ThemedText style={styles.planOptionSub}>Up to 250 workers, 10 sites</ThemedText>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => setSelectedPlanOption("business")}
-                  style={[
-                    styles.planOption,
-                    selectedPlanOption === "business" && styles.planOptionActive,
-                  ]}
-                >
-                  <ThemedText style={styles.planOptionName}>Business</ThemedText>
-                  <ThemedText style={styles.planOptionPrice}>₹4,999/mo</ThemedText>
-                  <ThemedText style={styles.planOptionSub}>Up to 1,000 workers, 30 sites</ThemedText>
-                </Pressable>
-              </View>
-
-              <ThemedText style={styles.planSelectorLabel}>Benefits Summary</ThemedText>
-              {[
-                { text: "Dynamic Geofencing Logs", active: true },
-                { text: "22 Indian Languages Support", active: true },
-                { text: "Offline Operations & Sync", active: true },
-                { text: "Ask HAI AI Assistant queries", active: selectedPlanOption !== "starter" },
-                { text: "Automated WhatsApp payment reminders", active: selectedPlanOption !== "starter" },
-                { text: "Multi-Company & Multi-Device Access", active: selectedPlanOption === "business" },
-                { text: "Priority SLA Phone Support", active: selectedPlanOption === "business" },
-              ].map((b, index) => (
-                <View key={index} style={styles.benefitRow}>
-                  <Feather
-                    name={b.active ? "check-circle" : "x-circle"}
-                    size={14}
-                    color={b.active ? "#10B981" : "#475569"}
-                  />
-                  <ThemedText style={[styles.benefitText, { color: b.active ? "#F8FAFC" : "#64748B" }]}>
-                    {b.text}
-                  </ThemedText>
-                </View>
-              ))}
-
-              <Pressable
-                style={styles.checkoutBtn}
-                onPress={() => {
-                  triggerHaptic();
-                  const html = generateRazorpayHtml(selectedPlanOption);
-                  setRazorpayHtml(html);
-                  setShowRazorpayModal(true);
-                }}
-              >
-                <ThemedText style={styles.checkoutBtnText}>
-                  Proceed to Checkout — {selectedPlanOption === "starter" ? "₹499" : selectedPlanOption === "professional" ? "₹1,499" : "₹4,999"}
-                </ThemedText>
-              </Pressable>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Undo Toast overlay popup */}
+      {/* Toast notification */}
       {showToast && (
-        <Animated.View style={[styles.toastContainer, { opacity: toastFadeAnim }]}>
-          <ThemedText style={styles.toastMessage}>{toastMessage}</ThemedText>
-          <Pressable onPress={handleUndo} style={styles.toastUndoBtn}>
-            <ThemedText style={styles.toastUndoText}>UNDO</ThemedText>
+        <View style={[styles.toast, { backgroundColor: isDark ? "#1E293B" : "#FFF" }]}>
+          <Feather name="check-circle" size={18} color="#22C55E" />
+          <ThemedText style={[styles.toastText, { color: theme.text }]}>{toastMessage}</ThemedText>
+          <Pressable onPress={() => setShowToast(false)}>
+            <Feather name="x" size={16} color={theme.textSecondary} />
           </Pressable>
-        </Animated.View>
+        </View>
       )}
 
+      {/* Settings Drawer */}
+      <SettingsDrawer
+        visible={showSettingsDrawer}
+        onClose={() => setShowSettingsDrawer(false)}
+      />
 
-    </ThemedView>
+      {/* ── Quick-Mark Attendance Modal ─────────────────────────────── */}
+      <Modal
+        visible={quickMarkModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setQuickMarkModalVisible(false)}
+      >
+        <Pressable
+          style={styles.qmOverlay}
+          onPress={() => setQuickMarkModalVisible(false)}
+        >
+          <Pressable style={[styles.qmSheet, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]} onPress={() => {}}>
+            <View style={[styles.qmHandle, { backgroundColor: isDark ? "#475569" : "#CBD5E1" }]} />
+
+            {quickMarkWorker && (() => {
+              const todayRec = attendanceRecords.find(
+                (r) =>
+                  r.workerId === quickMarkWorker.id &&
+                  r.year === today.getFullYear() &&
+                  r.month === today.getMonth() &&
+                  r.day === today.getDate()
+              );
+              const currentVal = todayRec?.value;
+              return (
+                <View style={styles.qmWorkerHeader}>
+                  <Avatar name={quickMarkWorker.name} size="md" />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <ThemedText style={styles.qmWorkerName}>{quickMarkWorker.name}</ThemedText>
+                    <ThemedText style={[styles.qmWorkerSub, { color: theme.textSecondary }]}>
+                      {quickMarkWorker.category ? quickMarkWorker.category.toUpperCase() : "WORKER"}
+                      {currentVal ? `  •  Today: ${currentVal}` : "  •  Unmarked"}
+                    </ThemedText>
+                  </View>
+                </View>
+              );
+            })()}
+
+            <ThemedText style={[styles.qmTitle, { color: theme.textSecondary }]}>Change Today's Status</ThemedText>
+
+            <View style={styles.qmGrid}>
+              <Pressable
+                style={({ pressed }) => [styles.qmStatusBtn, { backgroundColor: pressed ? "#16A34A" : "#22C55E" }]}
+                onPress={() => { triggerHaptic(); updateAttendanceValue(quickMarkWorker!.id, "P"); setQuickMarkModalVisible(false); }}
+              >
+                <ThemedText style={styles.qmStatusLabel}>Present</ThemedText>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [styles.qmStatusBtn, { backgroundColor: pressed ? "#DC2626" : "#EF4444" }]}
+                onPress={() => { triggerHaptic(); updateAttendanceValue(quickMarkWorker!.id, "A"); setQuickMarkModalVisible(false); }}
+              >
+                <ThemedText style={styles.qmStatusLabel}>Absent</ThemedText>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [styles.qmStatusBtn, { backgroundColor: pressed ? "#D97706" : "#F59E0B" }]}
+                onPress={() => { triggerHaptic(); updateAttendanceValue(quickMarkWorker!.id, "H"); setQuickMarkModalVisible(false); }}
+              >
+                <ThemedText style={styles.qmStatusLabel}>Half Day</ThemedText>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [styles.qmStatusBtn, { backgroundColor: pressed ? "#7C3AED" : "#A855F7" }]}
+                onPress={() => { triggerHaptic(); updateAttendanceValue(quickMarkWorker!.id, "OT"); setQuickMarkModalVisible(false); }}
+              >
+                <ThemedText style={styles.qmStatusLabel}>Overtime</ThemedText>
+              </Pressable>
+            </View>
+
+            <View style={styles.qmFooterRow}>
+              <Pressable
+                style={[styles.qmClearBtn, { borderColor: isDark ? "#475569" : "#CBD5E1", backgroundColor: isDark ? "#0F172A" : "#F8FAFC" }]}
+                onPress={() => { triggerHaptic(); updateAttendanceValue(quickMarkWorker!.id, null); setQuickMarkModalVisible(false); }}
+              >
+                <ThemedText style={[styles.qmClearText, { color: theme.textSecondary }]}>⚪ Clear</ThemedText>
+              </Pressable>
+              <Pressable
+                style={[styles.qmCancelBtn, { borderColor: isDark ? "#475569" : "#E2E8F0", backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]}
+                onPress={() => setQuickMarkModalVisible(false)}
+              >
+                <ThemedText style={[styles.qmCancelText, { color: theme.textSecondary }]}>Cancel</ThemedText>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0F172A",
-  },
-  center: {
+  root: { flex: 1 },
+
+  // Header
+  header: { paddingHorizontal: 20, paddingBottom: 24 },
+  headerInner: { flexDirection: "row", alignItems: "flex-start", marginBottom: 12 },
+  greeting: { fontSize: 13, fontWeight: "500", marginBottom: 2 },
+  userName: { fontSize: 22, fontWeight: "800", letterSpacing: 0.3, marginBottom: 2 },
+  dateText: { fontSize: 12 },
+  headerActions: { flexDirection: "row", gap: 8 },
+  headerBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
-  headerContainer: {
-    backgroundColor: "#1E293B",
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 1.5,
-    borderBottomColor: "#334155",
-  },
-  headerTopRow: {
+  streakBadge: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-  },
-  hamburgerBtn: {
-    padding: 6,
-  },
-  headerTitleArea: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  headerDate: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: "#94A3B8",
-    letterSpacing: 1.2,
-  },
-  headerSiteName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#F8FAFC",
-    marginTop: 2,
-  },
-  primeBadge: {
-    backgroundColor: "#F59E0B",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  primeBadgeText: {
-    fontSize: 9,
-    fontWeight: "900",
-    color: "#0F172A",
-  },
-  upgradeBadge: {
-    backgroundColor: "#3B82F6",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  upgradeBadgeText: {
-    fontSize: 9,
-    fontWeight: "900",
-    color: "#FFFFFF",
-  },
-  headerSummaryBar: {
-    backgroundColor: "#0F172A",
-    borderRadius: 8,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    paddingHorizontal: 12,
-    marginTop: 10,
-    alignItems: "center",
-  },
-  summaryBarText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#94A3B8",
-  },
-  scrollContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: 110,
-  },
-  streakBannerRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginVertical: Spacing.md,
-  },
-  streakCard: {
-    backgroundColor: "#1E293B",
-    borderColor: "#334155",
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    justifyContent: "center",
-  },
-  streakText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#F59E0B",
-  },
-  insightCard: {
-    flex: 1,
-    backgroundColor: "#1E293B",
-    borderColor: "#334155",
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: "row",
-    alignItems: "center",
+    borderRadius: 20,
     gap: 6,
   },
-  insightText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#E2E8F0",
-    flex: 1,
+  streakText: { fontSize: 12, fontWeight: "700" },
+
+  // Insights
+  insightBanner: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
   },
-  cardHeaderRow: {
+  insightText: { fontSize: 13, fontWeight: "500", flex: 1 },
+
+  // KPI
+  kpiScroll: { marginTop: 16, marginBottom: 8 },
+  kpiScrollContent: { paddingHorizontal: 16, gap: 12 },
+
+  // Section Card
+  sectionCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  sectionCardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.xs,
-  },
-  cardSectionTitle: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#94A3B8",
-    textTransform: "uppercase",
-  },
-  emptyStateCard: {
-    backgroundColor: "#1E293B",
-    borderColor: "#334155",
-    borderWidth: 1.5,
-    borderRadius: 16,
-    padding: Spacing.xl,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    marginVertical: Spacing.xs,
-  },
-  emptyStateText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#EF4444",
-  },
-  emptyStateBtn: {
-    backgroundColor: "#3B82F6",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  emptyStateBtnText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  unifiedCard: {
-    borderRadius: 16,
-    overflow: "hidden",
-    borderWidth: 1.5,
-    borderColor: "#334155",
-    marginVertical: Spacing.xs,
-  },
-  unifiedGradient: {
-    padding: Spacing.lg,
-  },
-  unifiedHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  unifiedSiteTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#F8FAFC",
-  },
-  unifiedSiteSub: {
-    fontSize: 11,
-    color: "#94A3B8",
-    marginTop: 2,
-  },
-  rateCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#0F172A",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#3B82F6",
-  },
-  ratePercent: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: "#F8FAFC",
-  },
-  rateLabel: {
-    fontSize: 8,
-    color: "#94A3B8",
-    fontWeight: "700",
-  },
-  barBg: {
-    height: 8,
-    backgroundColor: "#334155",
-    borderRadius: 4,
-    overflow: "hidden",
     marginBottom: 16,
   },
-  barFill: {
-    height: "100%",
-    borderRadius: 4,
-  },
-  statsSummaryGrid: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
-    borderRadius: 10,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.sm,
-    marginBottom: 12,
-  },
-  statsBox: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statsNumber: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#F8FAFC",
-  },
-  statsLabel: {
-    fontSize: 10,
-    color: "#94A3B8",
-    fontWeight: "700",
-    marginTop: 2,
-  },
-  siteInfoFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  footerText: {
-    fontSize: 11,
-    color: "#94A3B8",
-  },
-  primaryMarkBtn: {
-    backgroundColor: "#3B82F6",
-    borderRadius: 12,
-    height: 52,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#3B82F6",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  primaryMarkBtnText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  secondaryActionsGrid: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: Spacing.md,
-  },
-  secondaryActionBtn: {
-    flex: 1,
-    backgroundColor: "#1E293B",
-    borderColor: "#334155",
-    borderWidth: 1,
-    borderRadius: 10,
-    height: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  secondaryBtnText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#E2E8F0",
-  },
-  gpsRow: {
-    backgroundColor: "#1E293B",
-    borderColor: "#334155",
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.lg,
-  },
-  gpsTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#F8FAFC",
-  },
-  gpsDesc: {
-    fontSize: 10,
-    color: "#94A3B8",
-    marginTop: 1,
-  },
-  workerListHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.xs,
-  },
-  bulkMarkBtn: {
+  sectionTitle: { fontSize: 15, fontWeight: "700" },
+  sectionSubtitle: { fontSize: 12, marginTop: 2 },
+  viewAllBtn: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: "rgba(59, 130, 246, 0.1)",
+    borderRadius: 20,
   },
-  bulkMarkText: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#3B82F6",
-  },
-  emptyWorkersContainer: {
-    backgroundColor: "#1E293B",
-    borderRadius: 12,
-    padding: 24,
+  viewAllText: { fontSize: 11, fontWeight: "700" },
+
+  // Attendance Breakdown
+  attendanceRow: { flexDirection: "row", alignItems: "center", gap: 24 },
+  rateRingWrap: { width: 80, height: 80, alignItems: "center", justifyContent: "center" },
+  rateRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#334155",
-    marginBottom: Spacing.lg,
+    position: "relative",
   },
-  emptyWorkersText: {
-    fontSize: 12,
-    color: "#94A3B8",
-    textAlign: "center",
-  },
-  workersListCard: {
-    backgroundColor: "#1E293B",
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: "#334155",
-    overflow: "hidden",
-    marginBottom: Spacing.lg,
-  },
-  workerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1.2,
-  },
-  workerAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#3B82F6",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  workerAvatarText: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#FFFFFF",
-  },
-  workerInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  workerName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#F8FAFC",
-  },
-  workerCategory: {
-    fontSize: 9,
-    fontWeight: "700",
-    color: "#94A3B8",
-    marginTop: 2,
-  },
-  attendanceStatusContainer: {
-    paddingLeft: 8,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  statusBadgeText: {
-    fontSize: 9,
-    fontWeight: "800",
-  },
-  checkboxEmpty: {
-    padding: 4,
-  },
-  createSiteBtnInline: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F97316",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.xs,
-  },
-  createSiteBtnInlineText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  overviewCard: {
-    backgroundColor: "#1E293B",
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: "#334155",
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginVertical: 4,
-  },
-  statBox: {
-    alignItems: "center",
-    flex: 1,
-  },
-  statVal: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#F8FAFC",
-  },
-  statLabel: {
-    fontSize: 10,
-    color: "#94A3B8",
-    marginTop: 4,
-    fontWeight: "600",
-  },
-  divider: {
-    height: 1,
-    opacity: 0.2,
-    marginVertical: 12,
-  },
-  detailsGrid: {
-    gap: 8,
-  },
-  detailRowInline: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  detailLabelInline: {
-    fontSize: 12,
-    color: "#94A3B8",
-    flex: 1,
-  },
-  detailValueInline: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#F8FAFC",
-  },
-  billingSection: {
-    marginTop: Spacing.md,
-  },
-  historyCard: {
-    backgroundColor: "#1E293B",
-    borderColor: "#334155",
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 4,
-    marginTop: 6,
-  },
-  historyRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#334155",
-  },
-  historyDate: {
-    fontSize: 11,
-    color: "#94A3B8",
-  },
-  historyDesc: {
-    fontSize: 12,
-    color: "#F8FAFC",
-    fontWeight: "600",
-    flex: 1,
-    marginLeft: 8,
-  },
-  historyAmount: {
-    fontSize: 12,
-    color: "#F8FAFC",
-    fontWeight: "700",
-  },
-  razorpayHeader: {
-    height: Platform.OS === 'ios' ? 90 : 60,
-    paddingTop: Platform.OS === 'ios' ? 40 : 10,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
-  },
-  razorpayTitle: {
-    fontWeight: "700",
-    fontSize: 16,
-    color: "#0F172A",
-  },
-  subModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    padding: Spacing.lg,
-  },
-  subModalContent: {
-    backgroundColor: "#1E293B",
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: "#334155",
-    maxHeight: "85%",
-    overflow: "hidden",
-  },
-  subHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: "#334155",
-  },
-  subTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#F8FAFC",
-  },
-  planSelectorLabel: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#94A3B8",
-    textTransform: "uppercase",
-    marginBottom: Spacing.sm,
-    marginTop: Spacing.xs,
-  },
-  planGrid: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: Spacing.md,
-  },
-  planOption: {
-    flex: 1,
-    backgroundColor: "#0F172A",
-    borderColor: "#334155",
-    borderWidth: 1.5,
-    borderRadius: 10,
-    padding: 12,
-    alignItems: "center",
-  },
-  planOptionActive: {
-    borderColor: "#F59E0B",
-  },
-  planOptionName: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#94A3B8",
-  },
-  planOptionPrice: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#F8FAFC",
-    marginVertical: 4,
-  },
-  planOptionSub: {
-    fontSize: 8,
-    color: "#64748B",
-    textAlign: "center",
-  },
-  benefitRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 6,
-  },
-  benefitText: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  checkoutBtn: {
-    backgroundColor: "#F59E0B",
-    borderRadius: 10,
-    height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 18,
-  },
-  checkoutBtnText: {
-    color: "#0F172A",
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  toastContainer: {
+  rateRingTrack: {
     position: "absolute",
-    bottom: 30,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 6,
+  },
+  rateRingFill: {
+    position: "absolute",
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 6,
+    borderLeftColor: "transparent",
+    borderBottomColor: "transparent",
+  },
+  rateRingCenter: { alignItems: "center" },
+  rateValue: { fontSize: 16, fontWeight: "800" },
+  rateLabel: { fontSize: 10, fontWeight: "600", marginTop: 1 },
+
+  statsBreakdown: { flex: 1, gap: 6 },
+  statRow: { flexDirection: "row", alignItems: "center" },
+  statDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  statRowLabel: { fontSize: 12, flex: 1 },
+  statRowValue: { fontSize: 13, fontWeight: "700" },
+
+  // Quick Actions Grid
+  section: { marginHorizontal: 16, marginTop: 20 },
+  quickActionsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 10,
+  },
+  quickActionCard: {
+    flex: 1,
+    minWidth: "45%",
+    aspectRatio: 1.5,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickActionIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  quickActionLabel: { fontSize: 12, fontWeight: "700", textAlign: "center" },
+
+  // Active Site Card
+  siteCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  siteCardHeader: { flexDirection: "row", alignItems: "center" },
+  siteIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  siteCardTitle: { fontSize: 15, fontWeight: "800" },
+  siteCardLocation: { fontSize: 12, marginTop: 2 },
+  siteCardStats: { flexDirection: "row", alignItems: "center", marginTop: 14 },
+  siteCardActions: { flexDirection: "row", gap: 10, marginTop: 14 },
+  siteActionOutlineBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+
+  // Today's Attendance Log List
+  emptyWorkersLog: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+  },
+  workerLogRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  workerLogInfo: { flex: 1, marginLeft: 12 },
+  workerLogName: { fontSize: 14, fontWeight: "700" },
+  workerLogCategory: { fontSize: 11, fontWeight: "600", marginTop: 2 },
+  workerLogStatus: { alignItems: "flex-end" },
+
+  // Recent Workers
+  workerChip: {
+    width: 100,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    gap: 6,
+  },
+  workerName: { fontSize: 12, fontWeight: "700", textAlign: "center" },
+
+  // Toast
+  toast: {
+    position: "absolute",
+    bottom: 24,
     left: 20,
     right: 20,
-    backgroundColor: "#1E293B",
-    borderColor: "#3B82F6",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    padding: 14,
+    borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 10,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  toastMessage: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#F8FAFC",
+  toastText: { fontSize: 13, fontWeight: "600", flex: 1 },
+
+  // Modal Sheet style
+  qmOverlay: {
     flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
-  toastUndoBtn: {
-    backgroundColor: "rgba(59, 130, 246, 0.15)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    marginLeft: 8,
+  qmSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
   },
-  toastUndoText: {
-    color: "#3B82F6",
-    fontWeight: "800",
-    fontSize: 12,
+  qmHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 20,
   },
+  qmWorkerHeader: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
+  qmWorkerName: { fontSize: 16, fontWeight: "800" },
+  qmWorkerSub: { fontSize: 12, marginTop: 2 },
+  qmTitle: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5, marginBottom: 12, textTransform: "uppercase" },
+  qmGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 },
+  qmStatusBtn: {
+    flex: 1,
+    minWidth: "45%",
+    height: 48,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qmStatusLabel: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  qmFooterRow: { flexDirection: "row", gap: 10 },
+  qmClearBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qmClearText: { fontSize: 13, fontWeight: "700" },
+  qmCancelBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qmCancelText: { fontSize: 13, fontWeight: "700" },
 });

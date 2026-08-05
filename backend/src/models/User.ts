@@ -60,11 +60,13 @@ export interface IUser extends Document {
     ipAddress?: string;
     deviceId?: string;
   }>;
+  expoPushToken?: string;
 }
 
 const UserSchema = new Schema<IUser>({
   tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true },
   name: { type: String, required: true },
+  expoPushToken: { type: String },
   username: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
   email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
   passwordHash: { type: String, required: true },

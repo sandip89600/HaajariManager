@@ -5,83 +5,112 @@ import { AuditLog } from "../models/AuditLog";
 let io: Server | null = null;
 
 const formatAuditLog = (log: any): string => {
-  const userName = log.userId?.name || "Someone";
-  const userRole = log.userId?.role || "";
+  const userName = log.userName || log.userId?.name || "Someone";
+  const userRole = log.role || log.userId?.role || "";
   const tenantName = log.tenantId?.name || "their organization";
   const action = log.action;
   const targetType = log.targetType;
 
+  // Custom detailed event action messages
+  if (action === "USER_SIGNUP" || action === "ACCOUNT_CREATED") {
+    return `${userName} (${userRole}) registered a new account.`;
+  }
+  if (action === "USER_LOGIN") {
+    return `${userName} logged in successfully.`;
+  }
+  if (action === "USER_LOGOUT") {
+    return `${userName} logged out.`;
+  }
+  if (action === "CHANGE_PASSWORD" || action === "PASSWORD_CHANGED") {
+    return `${userName} updated their password.`;
+  }
+  if (action === "UPDATE_PROFILE" || action === "PROFILE_UPDATED") {
+    return `${userName} updated their profile settings.`;
+  }
+  if (action === "GUEST_LOGIN") {
+    return `New guest user initiated onboarding.`;
+  }
+  if (action === "GPS_ATTENDANCE") {
+    return `${userName} clocked attendance via GPS.`;
+  }
+  if (action === "EXPORT_PDF") {
+    return `${userName} generated and exported a PDF report.`;
+  }
+  if (action === "EXPORT_EXCEL") {
+    return `${userName} generated and exported an Excel spreadsheet.`;
+  }
+  if (action === "BACKUP_CREATED") {
+    return `${userName} created a manual database backup.`;
+  }
+  if (action === "RESTORE_COMPLETED") {
+    return `System database restored successfully.`;
+  }
+  if (action === "SUBSCRIPTION_PURCHASED") {
+    return `${tenantName} purchased a premium subscription plan.`;
+  }
+
   switch (action) {
-    case "USER_SIGNUP":
-      return `${userName} (${userRole}) signed up for a new account.`;
-    case "USER_LOGIN":
-      return `${userName} logged in.`;
-    case "UPDATE_PROFILE":
-      return `${userName} updated their profile details.`;
-    case "CHANGE_PASSWORD":
-      return `${userName} updated their password.`;
-    case "PLAN_UPGRADE": {
-      const plan = log.changes?.after?.plan || "unknown";
-      return `${tenantName} upgraded to the ${plan.toUpperCase()} plan.`;
-    }
     case "CREATE":
-      if (targetType === "WORKER") {
-        const workerName = log.changes?.after?.name || "a worker";
+    case "WORKER_CREATED":
+    case "SITE_CREATED":
+    case "ATTENDANCE_MARKED":
+    case "PAYMENT_ADDED":
+    case "MATERIAL_ADDED":
+    case "EXPENSE_ADDED":
+      if (targetType === "WORKER" || action === "WORKER_CREATED") {
+        const workerName = log.changes?.after?.name || log.newValue?.name || "a worker";
         return `${userName} added worker "${workerName}".`;
       }
-      if (targetType === "ATTENDANCE") {
+      if (targetType === "ATTENDANCE" || action === "ATTENDANCE_MARKED") {
         return `${userName} marked attendance.`;
       }
-      if (targetType === "PAYMENT") {
-        const amount = log.changes?.after?.amount || 0;
+      if (targetType === "PAYMENT" || action === "PAYMENT_ADDED") {
+        const amount = log.changes?.after?.amount || log.newValue?.amount || 0;
         return `${userName} recorded a payment of ₹${amount}.`;
       }
-      if (targetType === "PROJECT") {
-        const projName = log.changes?.after?.name || "a project";
-        return `${userName} created project "${projName}".`;
+      if (targetType === "PROJECT" || targetType === "SITE" || action === "SITE_CREATED") {
+        const projName = log.changes?.after?.name || log.newValue?.name || "a project/site";
+        return `${userName} created site "${projName}".`;
       }
       return `${userName} created a new ${targetType.toLowerCase()}.`;
 
     case "UPDATE":
-      if (targetType === "WORKER") {
-        const workerName = log.changes?.after?.name || "a worker";
-        return `${userName} updated worker details for "${workerName}".`;
+    case "WORKER_UPDATED":
+    case "ATTENDANCE_UPDATED":
+    case "SITE_UPDATED":
+    case "PAYMENT_UPDATED":
+      if (targetType === "WORKER" || action === "WORKER_UPDATED") {
+        const workerName = log.changes?.after?.name || log.newValue?.name || "a worker";
+        return `${userName} updated worker "${workerName}".`;
       }
-      if (targetType === "ATTENDANCE") {
+      if (targetType === "ATTENDANCE" || action === "ATTENDANCE_UPDATED") {
         return `${userName} modified attendance records.`;
+      }
+      if (targetType === "PROJECT" || targetType === "SITE" || action === "SITE_UPDATED") {
+        const projName = log.changes?.after?.name || log.newValue?.name || "a site";
+        return `${userName} updated site settings for "${projName}".`;
       }
       return `${userName} modified a ${targetType.toLowerCase()}.`;
 
     case "SOFT_DELETE":
-      if (targetType === "WORKER") {
-        const workerName = log.changes?.before?.name || "a worker";
+    case "DELETE":
+    case "WORKER_DELETED":
+    case "SITE_DELETED":
+    case "ATTENDANCE_DELETED":
+    case "PAYMENT_DELETED":
+      if (targetType === "WORKER" || action === "WORKER_DELETED") {
+        const workerName = log.changes?.before?.name || log.oldValue?.name || "a worker";
         return `${userName} deleted worker "${workerName}".`;
       }
-      return `${userName} deleted a ${targetType.toLowerCase()}.`;
-
-    case "DELETE":
-      if (targetType === "PAYMENT") {
-        const amount = log.changes?.before?.amount || 0;
-        return `${userName} deleted a payment of ₹${amount}.`;
+      if (targetType === "PAYMENT" || action === "PAYMENT_DELETED") {
+        const amount = log.changes?.before?.amount || log.oldValue?.amount || 0;
+        return `${userName} deleted a payment transaction of ₹${amount}.`;
+      }
+      if (targetType === "PROJECT" || targetType === "SITE" || action === "SITE_DELETED") {
+        const projName = log.changes?.before?.name || log.oldValue?.name || "a site";
+        return `${userName} deleted site "${projName}".`;
       }
       return `${userName} deleted a ${targetType.toLowerCase()}.`;
-
-    case "ADMIN_USER_UPDATE":
-      return `${userName} updated system user details.`;
-    case "ADMIN_USER_DELETE":
-      return `${userName} permanently deleted a user.`;
-    case "ADMIN_WORKER_UPDATE":
-      return `${userName} modified worker credentials.`;
-    case "ADMIN_WORKER_DELETE":
-      return `${userName} permanently deleted worker.`;
-    case "ADMIN_ATTENDANCE_UPDATE":
-      return `${userName} modified worker attendance record.`;
-    case "ADMIN_ATTENDANCE_DELETE":
-      return `${userName} deleted worker attendance record.`;
-    case "ADMIN_PAYMENT_UPDATE":
-      return `${userName} modified payroll transaction.`;
-    case "ADMIN_PAYMENT_DELETE":
-      return `${userName} deleted payroll transaction.`;
 
     default:
       return `${userName} performed action: ${action} on ${targetType}.`;
@@ -126,9 +155,16 @@ export const broadcastAdminActivity = async (activity?: any) => {
         if (populatedLog) {
           const message = formatAuditLog(populatedLog);
           console.log(`[Socket] Broadcasting activity event: "${message}"`);
+          
           io.emit("admin_activity", {
             id: populatedLog._id.toString(),
             message,
+            action: populatedLog.action,
+            userName: populatedLog.userName || (populatedLog.userId as any)?.name || "Someone",
+            role: populatedLog.role || (populatedLog.userId as any)?.role || "user",
+            platform: populatedLog.platform || "unknown",
+            device: populatedLog.device || "unknown",
+            ipAddress: populatedLog.ipAddress || "127.0.0.1",
             timestamp: populatedLog.timestamp || new Date().toISOString(),
           });
         }
@@ -143,3 +179,4 @@ export const broadcastAdminActivity = async (activity?: any) => {
     console.log("[Socket] Socket server not running, skipping broadcast.");
   }
 };
+

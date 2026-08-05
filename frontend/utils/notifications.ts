@@ -1,5 +1,7 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import * as Device from "expo-device";
+import Constants from "expo-constants";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -111,4 +113,28 @@ export function formatReminderTime(hour: number, minute: number): string {
   const m = minute.toString().padStart(2, "0");
   const ampm = hour < 12 ? "AM" : "PM";
   return `${h}:${m} ${ampm}`;
+}
+
+export async function registerExpoPushToken(): Promise<string | null> {
+  if (Platform.OS === "web" || !Device.isDevice) {
+    return null;
+  }
+
+  try {
+    const granted = await requestNotificationPermission();
+    if (!granted) return null;
+
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      Constants.easConfig?.projectId;
+
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId,
+    });
+
+    return tokenData.data;
+  } catch (error) {
+    console.error("Failed to retrieve Expo Push Token:", error);
+    return null;
+  }
 }

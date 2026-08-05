@@ -1,396 +1,152 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   View,
-  StyleSheet,
   ScrollView,
+  StyleSheet,
   Pressable,
-  Modal,
-  TextInput,
-  Alert,
-  Platform,
   ActivityIndicator,
-  Image,
   Dimensions,
+  Platform,
+  Modal,
+  Alert,
+  TextInput,
+  Text,
+  DeviceEventEmitter,
 } from "react-native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
-import { Feather } from "@expo/vector-icons";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  FadeInDown,
-} from "react-native-reanimated";
-import * as Haptics from "expo-haptics";
-import { BlurView } from "expo-blur";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
 
-import {
-  captureLocation,
-  requestLocationPermission,
-  GPSLocation,
-} from "@/utils/gps";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { Avatar } from "@/components/ui/Avatar";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
-import { translateWorkerName } from "@/utils/transliteration";
+import { useAuth } from "@/hooks/useAuth";
+import { useSocket } from "@/hooks/useSocket";
 import {
   storage,
+  Project,
   Worker,
   AttendanceRecord,
   AttendanceValue,
-  getDaysInMonth,
+  API_URL,
 } from "@/utils/storage";
-import { appContextTracker } from "@/utils/appContextTracker";
-import { DeviceEventEmitter } from "react-native";
-import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
-import { useAuth } from "@/hooks/useAuth";
-import { useSocket } from "@/hooks/useSocket";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import * as WebBrowser from "expo-web-browser";
+import { Spacing, BorderRadius, Shadows, Colors } from "@/constants/theme";
 
-const CELL_SIZE = 56;
-const NAME_COLUMN_WIDTH = 130;
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-interface AttendanceCellProps {
-  record: AttendanceRecord | null;
-  onPress: () => void;
-  theme: typeof Colors.light;
-  isDark: boolean;
-}
-
-function AttendanceCell({
-  record,
-  onPress,
-  theme,
-  isDark,
-}: AttendanceCellProps) {
-  const scale = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const value = record?.value ?? null;
-  const customWage = record?.customWage ?? null;
-  const overtimeWage = record?.overtimeWage ?? null;
-
-  const hasExtra = (customWage !== null && customWage !== undefined && customWage > 0) ||
-                    (overtimeWage !== null && overtimeWage !== undefined && overtimeWage > 0);
-
-  const getCellStyle = () => {
-    if (value === "P") return { backgroundColor: "#22C55E" }; // Present Green
-    if (value === "A") return { backgroundColor: "#EF4444" }; // Absent Red
-    if (value === "H") return { backgroundColor: "#F59E0B" }; // Half Day Amber
-    if (value === "OT") return { backgroundColor: "#A855F7" }; // Overtime Purple
-    if (customWage !== null && customWage !== undefined) {
-      return { backgroundColor: "#3B82F6" }; // Advance Blue
-    }
-    if (typeof value === "number") return { backgroundColor: "#3B82F6" }; // Advance Blue
-    return {
-      backgroundColor: isDark
-        ? "rgba(255, 255, 255, 0.03)"
-        : "rgba(0,0,0,0.02)",
-      borderColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)",
-      borderWidth: 1,
-    };
-  };
-
-  const getCellText = () => {
-    if (value === "P") return "P";
-    if (value === "A") return "A";
-    if (value === "H") return "½";
-    if (value === "OT") return "OT";
-    if (customWage !== null && customWage !== undefined) {
-      return `₹${customWage}`;
-    }
-    if (typeof value === "number") return `₹${value}`;
-    return "";
-  };
-
-  const getTextColor = () => {
-    if (
-      value === "P" ||
-      value === "A" ||
-      value === "H" ||
-      value === "OT" ||
-      customWage !== null ||
-      typeof value === "number"
-    ) {
-      return "#FFFFFF";
-    }
-    return theme.textSecondary;
-  };
-
-  return (
-    <View style={styles.cellWrapper}>
-      <AnimatedPressable
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          onPress();
-        }}
-        onPressIn={() => {
-          scale.value = withSpring(0.9, { damping: 10 });
-        }}
-        onPressOut={() => {
-          scale.value = withSpring(1, { damping: 10 });
-        }}
-        style={[styles.cell, getCellStyle(), animatedStyle]}
-      >
-        <ThemedText
-          type="small"
-          style={[
-            styles.cellText,
-            { color: getTextColor(), fontWeight: "800" },
-          ]}
-        >
-          {getCellText()}
-        </ThemedText>
-        {hasExtra && (
-          <View
-            style={{
-              position: "absolute",
-              top: 2,
-              right: 2,
-              width: 5,
-              height: 5,
-              borderRadius: 2.5,
-              backgroundColor: "#FF8C35",
-            }}
-          />
-        )}
-      </AnimatedPressable>
-    </View>
-  );
-}
-
-// ─── REUSABLE MODERN DIALOG ──────────────────────────────────────────────────
-function GlassModal({
-  visible,
-  onClose,
-  title,
-  children,
-  theme,
-  isDark,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
-  theme: typeof Colors.light;
-  isDark: boolean;
-}) {
-  const content = (
-    <Pressable
-      style={[
-        styles.modalContentCard,
-        {
-          backgroundColor:
-            Platform.OS === "ios"
-              ? "transparent"
-              : isDark
-                ? "rgba(15, 23, 42, 0.96)"
-                : "rgba(255, 255, 255, 0.98)",
-          borderColor: isDark
-            ? "rgba(255, 255, 255, 0.08)"
-            : "rgba(0, 0, 0, 0.08)",
-          borderWidth: Platform.OS === "ios" ? 0 : 1,
-        },
-      ]}
-      onPress={(e) => e.stopPropagation()}
-    >
-      <ThemedText type="h3" style={styles.modalTitleText}>
-        {title}
-      </ThemedText>
-      {children}
-    </Pressable>
-  );
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
-        <Animated.View
-          entering={FadeInDown.duration(250)}
-          style={styles.modalContainer}
-        >
-          {Platform.OS === "ios" ? (
-            <BlurView
-              intensity={95}
-              tint={isDark ? "dark" : "light"}
-              style={[
-                styles.modalBlur,
-                {
-                  borderColor: isDark
-                    ? "rgba(255, 255, 255, 0.08)"
-                    : "rgba(0, 0, 0, 0.08)",
-                  borderWidth: 1,
-                },
-              ]}
-            >
-              {content}
-            </BlurView>
-          ) : (
-            content
-          )}
-        </Animated.View>
-      </Pressable>
-    </Modal>
-  );
-}
-
-// ─── MAIN ATTENDANCE SCREEN ──────────────────────────────────────────────────
 export default function AttendanceScreen() {
   const { theme, isDark } = useTheme();
-  const { t, language } = useLanguage();
-  const insets = useSafeAreaInsets();
-  const rawHeaderHeight = useHeaderHeight();
-  const headerHeight = rawHeaderHeight > 0 ? rawHeaderHeight : insets.top + Platform.select({ ios: 44, default: 56 });
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
-  const tabBarHeight = insets.bottom + 60;
+  const route = useRoute<any>();
   const { user } = useAuth();
   const { socket, connectSocket } = useSocket();
+  const insets = useSafeAreaInsets();
+
+  // Route site/project param
+  const passedSiteId = route.params?.siteId;
+
+  // Refs for Scroll Sync
+  const leftScrollRef = useRef<ScrollView>(null);
+  const rightScrollRef = useRef<ScrollView>(null);
+
+  // States
+  const [loading, setLoading] = useState(true);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeSite, setActiveSite] = useState<Project | null>(null);
 
-  const [currentPlan, setCurrentPlan] = useState<
-    "free" | "starter" | "professional" | "business"
-  >("free");
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginRight: Spacing.sm }}>
-          {user?.role !== "supervisor" && (
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                navigation.navigate("AddWorker");
-              }}
-              style={{ padding: 4 }}
-            >
-              <Feather name="user-plus" size={24} color={theme.primary} />
-            </Pressable>
-          )}
-        </View>
-      ),
-    });
-  }, [navigation, user?.role, theme.primary]);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  // Month Picker Modal state
   const [showMonthPicker, setShowMonthPicker] = useState(false);
-  const [showInputModal, setShowInputModal] = useState(false);
-  const [selectedCell, setSelectedCell] = useState<{
-    workerId: string;
-    day: number;
-  } | null>(null);
-  const [tempStatus, setTempStatus] = useState<AttendanceValue | null>(null);
-  const [tempCustomWage, setTempCustomWage] = useState("");
-  const [showOvertimeModal, setShowOvertimeModal] = useState(false);
-  const [tempOvertimeType, setTempOvertimeType] = useState<"1x" | "2x" | "custom" | "none">("none");
-  const [tempOvertimeCustomAmount, setTempOvertimeCustomAmount] = useState("");
-  const [capturedLocation, setCapturedLocation] = useState<GPSLocation | null>(
-    null,
-  );
-  const [isCapturingGPS, setIsCapturingGPS] = useState(false);
-  const [gridHeight, setGridHeight] = useState(0);
+  const [pickerYear, setPickerYear] = useState(selectedDate.getFullYear());
 
-  // Refs for synchronized scrolling
-  const namesScrollRef = useRef<ScrollView>(null);
-  const cellsScrollRef = useRef<ScrollView>(null);
+  // Detailed Cell Edit Modal state
+  const [cellModalVisible, setCellModalVisible] = useState(false);
+  const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
+  const [selectedDayNum, setSelectedDayNum] = useState<number>(1);
+  const [modalStatus, setModalStatus] = useState<AttendanceValue | "">("");
+  const [modalAdvance, setModalAdvance] = useState("");
+  const [modalOvertimeHours, setModalOvertimeHours] = useState("");
+  const [modalOvertimeWage, setModalOvertimeWage] = useState("");
 
-  const daysInMonth = getDaysInMonth(selectedYear, selectedMonth);
-  const selectedWorker = selectedCell
-    ? workers.find((w) => w.id === selectedCell.workerId)
-    : null;
+  // Tap Cell Options Modal state
+  const [tapModalVisible, setTapModalVisible] = useState(false);
+  const [selectedTapWorker, setSelectedTapWorker] = useState<Worker | null>(null);
+  const [selectedTapDayNum, setSelectedTapDayNum] = useState<number>(1);
 
-  useEffect(() => {
-    appContextTracker.setContext({
-      selectedWorkerId: selectedWorker?.id || null,
-      selectedWorkerName: selectedWorker?.name || null,
-    });
-  }, [selectedWorker]);
+  const year = selectedDate.getFullYear();
+  const month = selectedDate.getMonth(); // 0-indexed
 
-  const monthNames = [
-    t.months.january,
-    t.months.february,
-    t.months.march,
-    t.months.april,
-    t.months.may,
-    t.months.june,
-    t.months.july,
-    t.months.august,
-    t.months.september,
-    t.months.october,
-    t.months.november,
-    t.months.december,
+  const MONTHS = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
   ];
 
-  const loadPlan = async () => {
-    const auth = await storage.getAuth();
-    setCurrentPlan(auth?.plan || "free");
-  };
+  const daysInMonth = useMemo(() => {
+    return new Date(year, month + 1, 0).getDate();
+  }, [year, month]);
 
+  // Load Data
   const loadData = async (silent = false) => {
-    if (!silent) setIsLoading(true);
     try {
-      let loadedWorkers = await storage.getWorkers();
-      const loadedAttendance = await storage.getAttendanceForMonth(
-        selectedYear,
-        selectedMonth,
-      );
-      if (user?.role === "supervisor") {
-        const assignedProjects = user?.assignedProjects || [];
-        loadedWorkers = loadedWorkers.filter(
-          (w) => w.projectId && assignedProjects.includes(w.projectId),
-        );
-      }
-      setWorkers(loadedWorkers);
-      setAttendance(loadedAttendance);
+      if (!silent) setLoading(true);
+      
+      // Load active project/site details if any
+      const sitesResult = await storage.getSites();
+      const rawSites = sitesResult.sites || [];
+      const projects: Project[] = rawSites.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        location: s.address || s.location,
+        status: (s.status === "Completed" || s.status === "On Hold") ? "inactive" : "active",
+        startDate: s.startDate,
+        endDate: s.endDate,
+        clientName: s.clientName,
+      })) as any[];
+
+      const activeProj = passedSiteId 
+        ? (projects.find((p) => p.id === passedSiteId) || projects[0] || null)
+        : (projects.find((p) => p.status === "active") || projects[0] || null);
+      
+      setActiveSite(activeProj);
+
+      // Load workers
+      const loadedWorkers = await storage.getWorkers();
+      // Filter workers assigned to the active site/project
+      const siteWorkers = activeProj 
+        ? loadedWorkers.filter((w) => w.projectId === activeProj.id)
+        : loadedWorkers;
+      setWorkers(siteWorkers);
+
+      // Load month attendance
+      const monthAttendance = await storage.getAttendanceForMonth(year, month);
+      setAttendance(monthAttendance);
+    } catch (e) {
+      console.warn("Failed to load attendance grid data:", e);
     } finally {
-      if (!silent) setIsLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useFocusEffect(
     useCallback(() => {
-      loadPlan();
       loadData();
-      appContextTracker.setContext({
-        currentScreen: "Attendance",
-        selectedWorkerId: null,
-        selectedWorkerName: null,
-        selectedMonth: selectedMonth,
-        selectedYear: selectedYear,
-      });
-    }, [selectedMonth, selectedYear, user]),
+    }, [selectedDate, passedSiteId, user])
   );
 
   useEffect(() => {
     connectSocket();
-  }, []);
-
-  useEffect(() => {
-    const handleUpdate = () => {
-      loadData(true);
-    };
-
+    const handleUpdate = () => loadData(true);
     socket.on("admin_dashboard_update", handleUpdate);
     socket.on("admin_activity", handleUpdate);
-
-    const sub = DeviceEventEmitter.addListener("refreshData", () => {
-      loadData();
-    });
-
+    const sub = DeviceEventEmitter.addListener("refreshData", () => loadData(true));
     return () => {
       socket.off("admin_dashboard_update", handleUpdate);
       socket.off("admin_activity", handleUpdate);
@@ -398,2164 +154,1078 @@ export default function AttendanceScreen() {
     };
   }, [socket]);
 
-  const getAttendanceValue = (
-    workerId: string,
-    day: number,
-  ): AttendanceValue | null => {
-    const record = attendance.find(
-      (a) =>
-        a.workerId === workerId &&
-        a.year === selectedYear &&
-        a.month === selectedMonth &&
-        a.day === day,
+  // Sync scroll
+  const handleScroll = (event: any) => {
+    const y = event.nativeEvent.contentOffset.y;
+    leftScrollRef.current?.scrollTo({ y, animated: false });
+  };
+
+  const getAttendanceValueForDay = (workerId: string, dayNum: number): AttendanceValue | null => {
+    const rec = attendance.find(
+      (r) => r.workerId === workerId && r.year === year && r.month === month && r.day === dayNum
     );
-    return record?.value ?? null;
+    return rec?.value ?? null;
   };
 
-  const getAttendanceRecord = (
-    workerId: string,
-    day: number,
-  ): AttendanceRecord | null => {
-    const record = attendance.find(
-      (a) =>
-        a.workerId === workerId &&
-        a.year === selectedYear &&
-        a.month === selectedMonth &&
-        a.day === day,
+  const deleteAttendanceLocally = async (workerId: string, yr: number, mo: number, dy: number) => {
+    const allRecords = await storage.getAttendance();
+    const filtered = allRecords.filter(
+      (r) => !(r.workerId === workerId && r.year === yr && r.month === mo && r.day === dy)
     );
-    return record ?? null;
+    await storage.setAttendance(filtered);
   };
 
-  const handleCellPress = (workerId: string, day: number) => {
-    setSelectedCell({ workerId, day });
-    const record = getAttendanceRecord(workerId, day);
-    if (record) {
-      setTempStatus(record.value as any);
-      setTempCustomWage(
-        record.customWage !== undefined && record.customWage !== null
-          ? record.customWage.toString()
-          : "",
-      );
-      if (record.overtimeWage !== undefined && record.overtimeWage !== null) {
-        if (record.overtimeHours === 1) {
-          setTempOvertimeType("1x");
-          setTempOvertimeCustomAmount("");
-        } else if (record.overtimeHours === 2) {
-          setTempOvertimeType("2x");
-          setTempOvertimeCustomAmount("");
-        } else {
-          setTempOvertimeType("custom");
-          setTempOvertimeCustomAmount(record.overtimeWage.toString());
-        }
-      } else {
-        setTempOvertimeType("none");
-        setTempOvertimeCustomAmount("");
-      }
-    } else {
-      setTempStatus(null);
-      setTempCustomWage("");
-      setTempOvertimeType("none");
-      setTempOvertimeCustomAmount("");
-    }
-    setShowInputModal(true);
-    setCapturedLocation(null);
-  };
+  // Cycle status: Unmarked -> P -> A -> H -> OT -> Unmarked
+  const cycleAttendance = async (workerId: string, dayNum: number, currentVal: AttendanceValue | null) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-  const captureGPSLocation = async () => {
-    if (currentPlan === "free") {
-      setShowUpgradeModal(true);
-      return;
-    }
-    if (Platform.OS === "web") {
-      Alert.alert("GPS", "Run in Expo Go to use GPS attendance.");
-      return;
-    }
-    setIsCapturingGPS(true);
-    try {
-      const permission = await requestLocationPermission();
-      if (permission !== "granted") {
-        Alert.alert(t.gps.permissionDenied, t.gps.permissionRequired);
-        return;
-      }
-      const loc = await captureLocation();
-      if (loc) {
-        setCapturedLocation(loc);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        Alert.alert(t.common.error, t.attendance.gpsFailed);
-      }
-    } catch {
-      Alert.alert(t.common.error, t.attendance.gpsFailed);
-    } finally {
-      setIsCapturingGPS(false);
-    }
-  };
-
-  const handleSelectAbsent = async () => {
-    if (!selectedCell) return;
-
-    const worker = workers.find((w) => w.id === selectedCell.workerId);
-    const dailyRate = worker ? worker.dailyRate : 0;
-
-    const record: AttendanceRecord = {
-      workerId: selectedCell.workerId,
-      year: selectedYear,
-      month: selectedMonth,
-      day: selectedCell.day,
-      value: "A",
-      dailyRate: dailyRate,
-      customWage: undefined,
-      finalPay: 0,
-      location: capturedLocation ?? undefined,
-      timestamp: Date.now(),
-    };
-
-    await storage.setAttendanceRecord(record);
-    await loadData();
-    setShowInputModal(false);
-    setSelectedCell(null);
-    setCapturedLocation(null);
-    setTempStatus(null);
-    setTempCustomWage("");
-    setTempOvertimeType("none");
-    setTempOvertimeCustomAmount("");
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  };
-
-  const handleConfirmAttendance = async () => {
-    if (!selectedCell || !tempStatus) return;
-
-    const worker = workers.find((w) => w.id === selectedCell.workerId);
-    const dailyRate = worker ? worker.dailyRate : 0;
-
-    let customWage: number | undefined = undefined; // Advance
-    let overtimeWage: number | undefined = undefined;
-    let overtimeHours: number | undefined = undefined;
-    let finalPay = 0;
-
-    // Resolve Advance (customWage)
-    if (tempStatus === "P" || tempStatus === "H" || tempStatus === "OT") {
-      if (tempCustomWage.trim() !== "") {
-        const amount = parseInt(tempCustomWage, 10);
-        if (!isNaN(amount) && amount >= 0) {
-          customWage = amount;
-        } else {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert(t.common.error, t.attendance.invalidAmount);
-          return;
-        }
-      }
-    }
-
-    // Resolve Overtime
-    if (tempStatus === "P" || tempStatus === "H" || tempStatus === "OT") {
-      if (tempOvertimeType === "1x") {
-        overtimeWage = dailyRate;
-        overtimeHours = 1;
-      } else if (tempOvertimeType === "2x") {
-        overtimeWage = dailyRate * 2;
-        overtimeHours = 2;
-      } else if (tempOvertimeType === "custom") {
-        const amount = parseInt(tempOvertimeCustomAmount, 10);
-        if (!isNaN(amount) && amount >= 0) {
-          overtimeWage = amount;
-          overtimeHours = 0;
-        } else {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert(t.common.error, t.attendance.invalidAmount);
-          return;
-        }
-      }
-    }
-
-    const advanceAmount = customWage ?? 0;
-    const otAmount = overtimeWage ?? 0;
-
-    if (tempStatus === "P" || tempStatus === "OT") {
-      finalPay = dailyRate + advanceAmount + otAmount;
-    } else if (tempStatus === "H") {
-      finalPay = (dailyRate / 2) + advanceAmount + otAmount;
-    } else if (tempStatus === "A") {
-      finalPay = 0; // strictly 0 for Absent
-      customWage = undefined; // reset fields for A status
-      overtimeWage = undefined;
-      overtimeHours = undefined;
-    }
-
-    const record: AttendanceRecord = {
-      workerId: selectedCell.workerId,
-      year: selectedYear,
-      month: selectedMonth,
-      day: selectedCell.day,
-      value: tempStatus,
-      dailyRate: dailyRate,
-      customWage: customWage,
-      finalPay: finalPay,
-      overtimeHours: overtimeHours,
-      overtimeWage: overtimeWage,
-      location: capturedLocation ?? undefined,
-      timestamp: Date.now(),
-    };
-
-    await storage.setAttendanceRecord(record);
-    await loadData();
-    setShowInputModal(false);
-    setSelectedCell(null);
-    setCapturedLocation(null);
-    setTempStatus(null);
-    setTempCustomWage("");
-    setTempOvertimeType("none");
-    setTempOvertimeCustomAmount("");
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  };
-
-  const handleUpgrade = async (plan: "pro" | "business") => {
-    const amount = plan === "pro" ? 299 : 999;
-    const planName = plan === "pro" ? "Professional" : "Business";
-
-    // Razorpay pre-configured payment links for each plan
-    const paymentLinks = {
-      pro: "https://rzp.io/rzp/6bP0p3Q", // Replace this with your Pro plan Razorpay link
-      business: "https://rzp.io/rzp/6bP0p3Q", // Replace this with your Business plan Razorpay link
-    };
-
-    const baseLink = paymentLinks[plan];
-    const emailStr = user?.phone || "";
-    const paymentUrl = `${baseLink}?email=${encodeURIComponent(emailStr)}&name=${encodeURIComponent(user?.name || "")}`;
+    let nextVal: AttendanceValue | null = null;
+    if (currentVal === null) nextVal = "P";
+    else if (currentVal === "P") nextVal = "A";
+    else if (currentVal === "A") nextVal = "H";
+    else if (currentVal === "H") nextVal = "OT";
+    else if (currentVal === "OT") nextVal = null;
 
     try {
-      setShowUpgradeModal(false);
-      const result = await WebBrowser.openBrowserAsync(paymentUrl);
+      const worker = workers.find((w) => w.id === workerId);
+      const dailyRate = worker?.dailyRate ?? 0;
+      let finalPay = 0;
+      if (nextVal === "P" || nextVal === "OT") finalPay = dailyRate;
+      else if (nextVal === "H") finalPay = dailyRate / 2;
 
-      if (result.type === "cancel") {
-        Alert.alert(
-          "Payment Cancelled",
-          "You cancelled the subscription process.",
+      if (nextVal === null) {
+        await deleteAttendanceLocally(workerId, year, month, dayNum);
+        setAttendance((prev) =>
+          prev.filter(
+            (r) => !(r.workerId === workerId && r.year === year && r.month === month && r.day === dayNum)
+          )
         );
       } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          "Success",
-          `Thank you for upgrading! Your Haajari ${planName} Plan is now active.`,
-        );
+        const newRecord: AttendanceRecord = {
+          workerId,
+          projectId: activeSite?.id || undefined,
+          year,
+          month,
+          day: dayNum,
+          value: nextVal,
+          dailyRate,
+          finalPay,
+          timestamp: Date.now(),
+        };
+        await storage.setAttendanceRecord(newRecord);
+
+        setAttendance((prev) => {
+          const idx = prev.findIndex(
+            (r) => r.workerId === workerId && r.year === year && r.month === month && r.day === dayNum
+          );
+          const updated = [...prev];
+          if (idx !== -1) {
+            updated[idx] = newRecord;
+          } else {
+            updated.push(newRecord);
+          }
+          return updated;
+        });
       }
-    } catch (error) {
-      console.warn("Failed to open Razorpay:", error);
-      Alert.alert(
-        "Error",
-        "Could not open payment checkout. Please try again.",
-      );
+    } catch (e) {
+      console.warn("Failed to cycle attendance status:", e);
     }
   };
 
-  const handleVerticalScroll = (y: number) => {
-    namesScrollRef.current?.scrollTo({ y, animated: false });
+  // Open Tap Options Modal
+  const openTapModal = (worker: Worker, dayNum: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedTapWorker(worker);
+    setSelectedTapDayNum(dayNum);
+    setTapModalVisible(true);
   };
 
-  if (isLoading) {
-    return (
-      <ThemedView
-        style={[
-          styles.emptyContainer,
-          { paddingTop: headerHeight + Spacing.xl },
-        ]}
-      >
-        <ActivityIndicator size="large" color={theme.primary} />
-      </ThemedView>
-    );
-  }
+  // Save Tap Attendance status
+  const saveTapAttendance = async (status: AttendanceValue | null) => {
+    if (!selectedTapWorker) return;
+    try {
+      const workerId = selectedTapWorker.id;
+      const dayNum = selectedTapDayNum;
+      
+      const dailyRate = selectedTapWorker.dailyRate ?? 0;
+      let finalPay = 0;
+      if (status === "P" || status === "OT") finalPay = dailyRate;
+      else if (status === "H") finalPay = dailyRate / 2;
 
-  if (workers.length === 0) {
-    return (
-      <ThemedView
-        style={[
-          styles.emptyContainer,
-          {
-            paddingTop: headerHeight + Spacing.xl,
-            paddingBottom: tabBarHeight + Spacing.xl,
-          },
-        ]}
-      >
-        <Feather
-          name="users"
-          size={64}
-          color={theme.textSecondary}
-          style={styles.emptyIcon}
-        />
-        <ThemedText type="h3" style={styles.emptyTitle}>
-          {t.attendance.noWorkers}
-        </ThemedText>
-        <ThemedText
-          type="body"
-          style={[styles.emptySubtitle, { color: theme.textSecondary }]}
-        >
-          {t.attendance.addWorkerFirst}
-        </ThemedText>
-      </ThemedView>
-    );
-  }
+      if (status === null) {
+        await deleteAttendanceLocally(workerId, year, month, dayNum);
+        setAttendance((prev) =>
+          prev.filter(
+            (r) => !(r.workerId === workerId && r.year === year && r.month === month && r.day === dayNum)
+          )
+        );
+      } else {
+        const newRecord: AttendanceRecord = {
+          workerId,
+          projectId: activeSite?.id || undefined,
+          year,
+          month,
+          day: dayNum,
+          value: status,
+          dailyRate,
+          finalPay,
+          timestamp: Date.now(),
+        };
+        await storage.setAttendanceRecord(newRecord);
 
-  const cellsHeight = gridHeight > 0 ? gridHeight - CELL_SIZE : undefined;
-  const ORANGE = "#F97316";
-  const EMERALD = "#22C55E";
-  const AMBER = "#F59E0B";
-  const RED = "#EF4444";
+        setAttendance((prev) => {
+          const idx = prev.findIndex(
+            (r) => r.workerId === workerId && r.year === year && r.month === month && r.day === dayNum
+          );
+          const updated = [...prev];
+          if (idx !== -1) {
+            updated[idx] = newRecord;
+          } else {
+            updated.push(newRecord);
+          }
+          return updated;
+        });
+      }
+      setTapModalVisible(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      console.warn("Failed to save tap options attendance:", e);
+    }
+  };
+
+  // Open detailed popup modal
+  const openDetailedModal = (worker: Worker, dayNum: number, currentVal: AttendanceValue | null) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const rec = attendance.find(
+      (r) => r.workerId === worker.id && r.year === year && r.month === month && r.day === dayNum
+    );
+
+    setSelectedWorker(worker);
+    setSelectedDayNum(dayNum);
+    setModalStatus(currentVal ?? "");
+    setModalAdvance(rec?.customWage ? String(rec.customWage) : "");
+    setModalOvertimeHours(rec?.overtimeHours ? String(rec.overtimeHours) : "");
+    setModalOvertimeWage(rec?.overtimeWage ? String(rec.overtimeWage) : "");
+    setCellModalVisible(true);
+  };
+
+  // Save detailed record
+  const saveDetailedRecord = async () => {
+    if (!selectedWorker) return;
+    try {
+      const dailyRate = selectedWorker.dailyRate ?? 0;
+      const adv = modalAdvance ? parseFloat(modalAdvance) : undefined;
+      const otH = modalOvertimeHours ? parseFloat(modalOvertimeHours) : undefined;
+      const otW = modalOvertimeWage ? parseFloat(modalOvertimeWage) : undefined;
+
+      let finalPay = 0;
+      if (modalStatus === "P" || modalStatus === "OT") finalPay = dailyRate;
+      else if (modalStatus === "H") finalPay = dailyRate / 2;
+
+      if (modalStatus === "") {
+        await deleteAttendanceLocally(selectedWorker.id, year, month, selectedDayNum);
+        setAttendance((prev) =>
+          prev.filter(
+            (r) => !(r.workerId === selectedWorker.id && r.year === year && r.month === month && r.day === selectedDayNum)
+          )
+        );
+      } else {
+        const record: AttendanceRecord = {
+          workerId: selectedWorker.id,
+          projectId: activeSite?.id || undefined,
+          year,
+          month,
+          day: selectedDayNum,
+          value: modalStatus as AttendanceValue,
+          dailyRate,
+          finalPay,
+          customWage: adv,
+          overtimeHours: otH,
+          overtimeWage: otW,
+          timestamp: Date.now(),
+        };
+        await storage.setAttendanceRecord(record);
+
+        setAttendance((prev) => {
+          const idx = prev.findIndex(
+            (r) => r.workerId === selectedWorker.id && r.year === year && r.month === month && r.day === selectedDayNum
+          );
+          const updated = [...prev];
+          if (idx !== -1) {
+            updated[idx] = record;
+          } else {
+            updated.push(record);
+          }
+          return updated;
+        });
+      }
+
+      setCellModalVisible(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      console.warn("Failed to save detailed cell info:", e);
+    }
+  };
+
+  // Filter workers by search query
+  const filteredWorkers = useMemo(() => {
+    if (!searchQuery) return workers;
+    return workers.filter((w) => w.name?.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [workers, searchQuery]);
+
+  // Colors
+  const bgCard = isDark ? "#1E293B" : "#FFFFFF";
+  const bgRoot = isDark ? "#0F172A" : "#F8FAFC";
+  const borderCol = isDark ? "#334155" : "#E2E8F0";
 
   return (
-    <ThemedView style={styles.container}>
-      {/* Month selector */}
-      <Pressable
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          setShowMonthPicker(true);
-        }}
-        style={[
-          styles.monthSelector,
-          {
-            top: headerHeight + Spacing.sm,
-            backgroundColor: isDark
-              ? "rgba(30, 41, 59, 0.45)"
-              : "rgba(255, 255, 255, 0.9)",
-            borderColor: isDark
-              ? "rgba(255, 255, 255, 0.06)"
-              : "rgba(0, 0, 0, 0.05)",
-            borderWidth: 1,
-          },
-        ]}
-      >
-        <Feather name="calendar" size={16} color={theme.primary} />
-        <ThemedText type="h4" style={{ fontWeight: "700" }}>
-          {monthNames[selectedMonth]} {selectedYear}
-        </ThemedText>
-        <Feather name="chevron-down" size={16} color={theme.textSecondary} />
-      </Pressable>
+    <View style={[styles.root, { backgroundColor: bgRoot }]}>
+      {/* 1. Header (Matches design rules: back icon left, title center, action right) */}
+      <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: isDark ? "#0F172A" : "#F97316" }]}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
+          <Feather name="arrow-left" size={22} color="#FFFFFF" />
+        </Pressable>
+        <ThemedText style={styles.headerTitle}>Attendance</ThemedText>
+        <Pressable onPress={() => navigation.navigate("Workers")} style={styles.headerAddBtn}>
+          <Feather name="user-plus" size={20} color="#FFFFFF" />
+        </Pressable>
+      </View>
 
-      {/* Grid container */}
-      <View
-        style={[
-          styles.gridContainer,
-          {
-            marginTop: headerHeight + Spacing["4xl"] + Spacing.sm,
-            marginBottom: tabBarHeight,
-          },
-        ]}
-        onLayout={(e) => setGridHeight(e.nativeEvent.layout.height)}
-      >
-        <View style={styles.gridInner}>
-          {/* ── Frozen left column (worker names) ── */}
-          <View style={styles.frozenCol}>
-            {/* Corner cell */}
-            <View
-              style={[
-                styles.cornerCell,
-                {
-                  backgroundColor: theme.primaryDark,
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.06)"
-                    : "rgba(255,255,255,0.15)",
-                },
-              ]}
-            >
-              <ThemedText style={styles.cornerText}>
-                {t.workers.title}
-              </ThemedText>
+      {/* 2. Calendar Month Selector banner */}
+      <View style={styles.monthSelectorWrap}>
+        <Pressable
+          onPress={() => {
+            setPickerYear(year);
+            setShowMonthPicker(true);
+          }}
+          style={[styles.monthSelectorBtn, { backgroundColor: bgCard, borderColor: borderCol }]}
+        >
+          <Feather name="calendar" size={18} color="#F97316" style={{ marginRight: 10 }} />
+          <ThemedText style={[styles.monthText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>
+            {MONTHS[month]} {year}
+          </ThemedText>
+          <Feather name="chevron-down" size={16} color={isDark ? "#94A3B8" : "#64748B"} style={{ marginLeft: 8 }} />
+        </Pressable>
+      </View>
+
+      {/* 3. Search Bar filter (Optional styling to keep layout clean) */}
+      <View style={styles.searchBarContainer}>
+        <View style={[styles.searchBarWrap, { backgroundColor: bgCard, borderColor: borderCol }]}>
+          <Feather name="search" size={15} color={isDark ? "#94A3B8" : "#64748B"} style={{ marginRight: 8 }} />
+          <TextInput
+            placeholder="Search worker by name..."
+            placeholderTextColor={isDark ? "#64748B" : "#94A3B8"}
+            style={[styles.searchInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery ? (
+            <Pressable onPress={() => setSearchQuery("")}>
+              <Feather name="x" size={14} color={isDark ? "#94A3B8" : "#64748B"} />
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#F97316" />
+        </View>
+      ) : (
+        /* 4. Grid register sheet */
+        <View style={[styles.gridContainer, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
+          {/* Left frozen column (Worker Names) */}
+          <View style={[styles.frozenColumn, { borderRightColor: borderCol }]}>
+            {/* Frozen Orange Column Header */}
+            <View style={[styles.columnHeader, { backgroundColor: "#EA580C", borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.1)" }]}>
+              <Text style={styles.columnHeaderText}>WORKERS</Text>
             </View>
 
-            {/* Worker name cells — scroll controlled by right side */}
             <ScrollView
-              ref={namesScrollRef}
+              ref={leftScrollRef}
               scrollEnabled={false}
               showsVerticalScrollIndicator={false}
-              style={cellsHeight ? { height: cellsHeight } : { flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 100 }}
             >
-              {workers.map((worker) => (
-                <View
-                  key={worker.id}
-                  style={[
-                    styles.workerNameCell,
-                    {
-                      backgroundColor: isDark
-                        ? "rgba(30, 41, 59, 0.3)"
-                        : "#F8FAFC",
-                      borderColor: isDark
-                        ? "rgba(255,255,255,0.05)"
-                        : "rgba(0,0,0,0.05)",
-                    },
-                  ]}
-                >
-                  {worker.photoUri ? (
-                    <Image
-                      source={{ uri: worker.photoUri }}
-                      style={styles.workerAvatar}
-                    />
-                  ) : (
-                    <LinearGradient
-                      colors={[theme.primary, "#FF8C35"]}
-                      style={styles.workerAvatarPlaceholder}
-                    >
-                      <ThemedText style={styles.workerAvatarInitial}>
-                        {(translateWorkerName(worker.name, language) || "?").charAt(0).toUpperCase()}
-                      </ThemedText>
-                    </LinearGradient>
-                  )}
-                  <ThemedText
-                    type="small"
-                    style={[styles.workerNameText, { color: theme.text }]}
-                    numberOfLines={2}
-                  >
-                    {translateWorkerName(worker.name, language)}
-                  </ThemedText>
-                </View>
-              ))}
+              {filteredWorkers.map((worker, idx) => {
+                const initials = (worker.name || "W")
+                  .split(" ")
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase();
+                const avatarBg = ["#F97316", "#3B82F6", "#22C55E", "#A855F7", "#EF4444", "#F59E0B"][idx % 6];
+                return (
+                  <View key={worker.id} style={[styles.frozenRow, { borderBottomColor: borderCol, backgroundColor: isDark ? "#1E293B" : "#F8FAFC" }]}>
+                    <View style={[styles.avatarCircle, { backgroundColor: avatarBg }]}>
+                      <Text style={styles.avatarText}>{initials}</Text>
+                    </View>
+                    <ThemedText numberOfLines={1} style={styles.workerNameText}>
+                      {worker.name}
+                    </ThemedText>
+                  </View>
+                );
+              })}
             </ScrollView>
           </View>
 
-          {/* ── Right scrollable area (single horizontal ScrollView) ── */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={true}
-            bounces={false}
-            style={{ flex: 1 }}
-          >
+          {/* Right scrollable grid cells (Date cells horizontally + vertically scrollable) */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={true} bounces={false}>
             <View>
-              {/* Days header row — always visible at top */}
-              <View style={styles.daysHeaderRow}>
+              {/* Days Header Orange Row */}
+              <View style={{ flexDirection: "row", height: 44, backgroundColor: "#EA580C" }}>
                 {Array.from({ length: daysInMonth }, (_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.dayCell,
-                      {
-                        backgroundColor: theme.primaryDark,
-                        borderColor: isDark
-                          ? "rgba(255,255,255,0.06)"
-                          : "rgba(255,255,255,0.15)",
-                      },
-                    ]}
-                  >
-                    <ThemedText style={styles.dayText}>{i + 1}</ThemedText>
+                  <View key={i} style={[styles.dayHeaderCell, { borderRightColor: "rgba(255,255,255,0.15)" }]}>
+                    <Text style={styles.dayHeaderText}>{i + 1}</Text>
                   </View>
                 ))}
               </View>
 
-              {/* Attendance cells — vertically scrollable, drives left column */}
+              {/* Grid cells vertical ScrollView */}
               <ScrollView
-                ref={cellsScrollRef}
-                showsVerticalScrollIndicator={false}
+                ref={rightScrollRef}
+                onScroll={handleScroll}
                 scrollEventThrottle={16}
-                bounces={false}
-                style={cellsHeight ? { height: cellsHeight } : { flex: 1 }}
-                onScroll={(e) =>
-                  handleVerticalScroll(e.nativeEvent.contentOffset.y)
-                }
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 100 }}
               >
-                {workers.map((worker) => (
-                  <View key={worker.id} style={styles.attendanceCellRow}>
-                    {Array.from({ length: daysInMonth }, (_, i) => (
-                      <AttendanceCell
-                        key={i}
-                        record={getAttendanceRecord(worker.id, i + 1)}
-                        onPress={() => handleCellPress(worker.id, i + 1)}
-                        theme={theme}
-                        isDark={isDark}
-                      />
-                    ))}
+                {filteredWorkers.map((worker) => (
+                  <View key={worker.id} style={{ flexDirection: "row", height: 56 }}>
+                    {Array.from({ length: daysInMonth }, (_, i) => {
+                      const dayNum = i + 1;
+                      const value = getAttendanceValueForDay(worker.id, dayNum);
+
+                      let bg = "transparent";
+                      let textLabel = "";
+                      let boxBorder = isDark ? "#334155" : "#E2E8F0";
+
+                      if (value === "P") { bg = "#22C55E"; textLabel = "P"; boxBorder = "#22C55E"; }
+                      else if (value === "A") { bg = "#EF4444"; textLabel = "A"; boxBorder = "#EF4444"; }
+                      else if (value === "H") { bg = "#F59E0B"; textLabel = "½"; boxBorder = "#F59E0B"; }
+                      else if (value === "OT") { bg = "#A855F7"; textLabel = "OT"; boxBorder = "#A855F7"; }
+
+                      return (
+                        <Pressable
+                          key={i}
+                          onPress={() => openTapModal(worker, dayNum)}
+                          onLongPress={() => openDetailedModal(worker, dayNum, value)}
+                          delayLongPress={350}
+                          style={[styles.gridCell, { borderRightColor: borderCol, borderBottomColor: borderCol }]}
+                        >
+                          <View style={[styles.statusBox, { backgroundColor: bg, borderColor: boxBorder }]}>
+                            <Text style={[styles.statusBoxText, { color: value ? "#FFFFFF" : (isDark ? "#475569" : "#94A3B8") }]}>
+                              {textLabel}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
                   </View>
                 ))}
               </ScrollView>
             </View>
           </ScrollView>
         </View>
-      </View>
+      )}
 
-      {/* ── SELECT MONTH DIALOG ── */}
-      <GlassModal
-        visible={showMonthPicker}
-        onClose={() => setShowMonthPicker(false)}
-        title="Select Month"
-        theme={theme}
-        isDark={isDark}
+      {/* ── Tap Cell Options Modal (Image 1 Popup) ──────────────────── */}
+      <Modal
+        visible={tapModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setTapModalVisible(false)}
       >
-        <View style={styles.yearSelector}>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setSelectedYear(selectedYear - 1);
-            }}
-            style={styles.yearArrow}
-          >
-            <Feather name="chevron-left" size={24} color={theme.text} />
-          </Pressable>
-          <ThemedText type="h3" style={{ fontWeight: "700" }}>
-            {selectedYear}
-          </ThemedText>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setSelectedYear(selectedYear + 1);
-            }}
-            style={styles.yearArrow}
-          >
-            <Feather name="chevron-right" size={24} color={theme.text} />
-          </Pressable>
-        </View>
-
-        <View style={styles.monthGrid}>
-          {monthNames.map((month, index) => (
-            <Pressable
-              key={index}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setSelectedMonth(index);
-                setShowMonthPicker(false);
-              }}
-              style={[
-                styles.monthItem,
-                {
-                  backgroundColor:
-                    selectedMonth === index ? theme.primary : "transparent",
-                },
-              ]}
-            >
-              <ThemedText
-                type="small"
-                style={{
-                  color: selectedMonth === index ? "#FFFFFF" : theme.text,
-                  fontWeight: selectedMonth === index ? "700" : "500",
-                }}
-              >
-                {month.substring(0, 3)}
-              </ThemedText>
-            </Pressable>
-          ))}
-        </View>
-      </GlassModal>
-
-      {/* ── MARK ATTENDANCE INPUT DIALOG ── */}
-      <GlassModal
-        visible={showInputModal}
-        onClose={() => setShowInputModal(false)}
-        title={t.attendance.tapToMark}
-        theme={theme}
-        isDark={isDark}
-      >
-        {selectedWorker && (
-          <View style={{ marginBottom: Spacing.md, alignItems: "center" }}>
-            <ThemedText type="h3" style={{ fontWeight: "700" }}>
-              {selectedWorker.name}
-            </ThemedText>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginTop: 4,
-              }}
-            >
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                {t.workers.dailyRate}:{" "}
-              </ThemedText>
-              <View
-                style={{
-                  backgroundColor: "#1E293B",
-                  paddingHorizontal: 8,
-                  paddingVertical: 2,
-                  borderRadius: 6,
-                }}
-              >
-                <ThemedText
-                  type="small"
-                  style={{ color: "#FFFFFF", fontWeight: "700" }}
-                >
-                  ₹{selectedWorker.dailyRate}
-                </ThemedText>
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBgPress} onPress={() => setTapModalVisible(false)} />
+          <View style={[styles.tapOptionsCard, { backgroundColor: isDark ? "#121B2A" : "#FFFFFF" }]}>
+            <ThemedText style={styles.tapOptionsTitle}>Tap cell to mark attendance</ThemedText>
+            <ThemedText style={styles.tapOptionsWorkerName}>{selectedTapWorker?.name}</ThemedText>
+            
+            {/* Daily rate badge */}
+            <View style={styles.rateBadgeContainer}>
+              <View style={[styles.rateBadge, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
+                <Text style={[styles.rateBadgeText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>
+                  Daily Rate: ₹{selectedTapWorker?.dailyRate ?? 0}
+                </Text>
               </View>
             </View>
-          </View>
-        )}
-        <View style={styles.quickOptions}>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setTempStatus("P");
-            }}
-            style={[
-              styles.quickOption,
-              {
-                backgroundColor:
-                  tempStatus === "P"
-                    ? EMERALD
-                    : isDark
-                      ? "rgba(255,255,255,0.05)"
-                      : "rgba(0,0,0,0.03)",
-                borderColor: tempStatus === "P" ? EMERALD : theme.border,
-                borderWidth: 1,
-              },
-            ]}
-          >
-            <Feather
-              name="check"
-              size={16}
-              color={tempStatus === "P" ? "#FFFFFF" : theme.text}
-              style={{ marginBottom: 4 }}
-            />
-            <ThemedText
-              style={[
-                styles.quickOptionText,
-                { color: tempStatus === "P" ? "#FFFFFF" : theme.text },
-              ]}
-            >
-              {t.attendance.present} (P)
-            </ThemedText>
-          </Pressable>
 
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setTempStatus("A");
-            }}
-            style={[
-              styles.quickOption,
-              {
-                backgroundColor:
-                  tempStatus === "A"
-                    ? RED
-                    : isDark
-                      ? "rgba(255,255,255,0.05)"
-                      : "rgba(0,0,0,0.03)",
-                borderColor: tempStatus === "A" ? RED : theme.border,
-                borderWidth: 1,
-              },
-            ]}
-          >
-            <Feather
-              name="x"
-              size={16}
-              color={tempStatus === "A" ? "#FFFFFF" : theme.text}
-              style={{ marginBottom: 4 }}
-            />
-            <ThemedText
-              style={[
-                styles.quickOptionText,
-                { color: tempStatus === "A" ? "#FFFFFF" : theme.text },
-              ]}
-            >
-              {t.attendance.absent} (A)
-            </ThemedText>
-          </Pressable>
-        </View>
-
-        <View style={[styles.quickOptions, { marginTop: Spacing.sm }]}>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setTempStatus("H");
-            }}
-            style={[
-              styles.quickOption,
-              {
-                backgroundColor:
-                  tempStatus === "H"
-                    ? AMBER
-                    : isDark
-                      ? "rgba(255,255,255,0.05)"
-                      : "rgba(0,0,0,0.03)",
-                borderColor: tempStatus === "H" ? AMBER : theme.border,
-                borderWidth: 1,
-              },
-            ]}
-          >
-            <Feather
-              name="clock"
-              size={16}
-              color={tempStatus === "H" ? "#FFFFFF" : theme.text}
-              style={{ marginBottom: 4 }}
-            />
-            <ThemedText
-              style={[
-                styles.quickOptionText,
-                { color: tempStatus === "H" ? "#FFFFFF" : theme.text },
-              ]}
-            >
-              {t.attendance.halfDay} (1/2)
-            </ThemedText>
-          </Pressable>
-
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setTempStatus("OT");
-              setTempOvertimeType("1x"); // Default to 1x
-              setTempOvertimeCustomAmount("");
-              setShowOvertimeModal(true); // Open overtime dialog immediately
-            }}
-            style={[
-              styles.quickOption,
-              {
-                backgroundColor:
-                  tempStatus === "OT"
-                    ? "#A855F7"
-                    : isDark
-                      ? "rgba(255,255,255,0.05)"
-                      : "rgba(0,0,0,0.03)",
-                borderColor: tempStatus === "OT" ? "#A855F7" : theme.border,
-                borderWidth: 1,
-              },
-            ]}
-          >
-            <Feather
-              name="trending-up"
-              size={16}
-              color={tempStatus === "OT" ? "#FFFFFF" : theme.text}
-              style={{ marginBottom: 4 }}
-            />
-            <ThemedText
-              style={[
-                styles.quickOptionText,
-                { color: tempStatus === "OT" ? "#FFFFFF" : theme.text },
-              ]}
-            >
-              Overtime (OT)
-            </ThemedText>
-          </Pressable>
-        </View>
-
-        {(tempStatus === "P" ||
-          tempStatus === "H" ||
-          tempStatus === "OT") && (
-          <View
-            style={[styles.customAmountContainer, { marginTop: Spacing.md }]}
-          >
-            <ThemedText
-              type="small"
-              style={{ color: theme.textSecondary, marginBottom: 6 }}
-            >
-              {t.payment.advance} (Optional)
-            </ThemedText>
-            <View
-              style={[
-                styles.customInputRow,
-                {
-                  borderColor: theme.border,
-                  backgroundColor: theme.backgroundSecondary,
-                },
-              ]}
-            >
-              <ThemedText
-                type="body"
-                style={{ color: theme.textSecondary, fontWeight: "700" }}
+            {/* 2x2 grid of options */}
+            <View style={styles.tapGrid}>
+              {/* Present button */}
+              <Pressable
+                onPress={() => saveTapAttendance("P")}
+                style={({ pressed }) => [
+                  styles.tapGridBtn,
+                  { borderColor: borderCol, backgroundColor: pressed ? "rgba(255,255,255,0.05)" : "transparent" }
+                ]}
               >
-                ₹
-              </ThemedText>
+                <Feather name="check" size={20} color="#22C55E" style={{ marginBottom: 6 }} />
+                <Text style={[styles.tapGridBtnText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>P (P)</Text>
+              </Pressable>
+
+              {/* Absent button */}
+              <Pressable
+                onPress={() => saveTapAttendance("A")}
+                style={({ pressed }) => [
+                  styles.tapGridBtn,
+                  { borderColor: borderCol, backgroundColor: pressed ? "rgba(255,255,255,0.05)" : "transparent" }
+                ]}
+              >
+                <Feather name="x" size={20} color="#EF4444" style={{ marginBottom: 6 }} />
+                <Text style={[styles.tapGridBtnText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>A (A)</Text>
+              </Pressable>
+
+              {/* Half Day button */}
+              <Pressable
+                onPress={() => saveTapAttendance("H")}
+                style={({ pressed }) => [
+                  styles.tapGridBtn,
+                  { borderColor: borderCol, backgroundColor: pressed ? "rgba(255,255,255,0.05)" : "transparent" }
+                ]}
+              >
+                <Feather name="clock" size={20} color="#F59E0B" style={{ marginBottom: 6 }} />
+                <Text style={[styles.tapGridBtnText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>1/2 (1/2)</Text>
+              </Pressable>
+
+              {/* Overtime button */}
+              <Pressable
+                onPress={() => saveTapAttendance("OT")}
+                style={({ pressed }) => [
+                  styles.tapGridBtn,
+                  { borderColor: borderCol, backgroundColor: pressed ? "rgba(255,255,255,0.05)" : "transparent" }
+                ]}
+              >
+                <Feather name="trending-up" size={20} color="#A855F7" style={{ marginBottom: 6 }} />
+                <Text style={[styles.tapGridBtnText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>Overtime (OT)</Text>
+              </Pressable>
+            </View>
+
+            {/* GPS Premium row */}
+            <Pressable
+              onPress={() => {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                Alert.alert("Premium Feature", "GPS auto check-in is a premium subscription feature.");
+              }}
+              style={({ pressed }) => [
+                styles.gpsPremiumBtn,
+                {
+                  borderColor: borderCol,
+                  opacity: pressed ? 0.8 : 1,
+                  backgroundColor: isDark ? "#1E293B" : "#F8FAFC"
+                }
+              ]}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Feather name="lock" size={15} color={isDark ? "#94A3B8" : "#64748B"} style={{ marginRight: 10 }} />
+                <Text style={[styles.gpsPremiumText, { color: isDark ? "#94A3B8" : "#64748B" }]}>
+                  GPS Capture (Premium)
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={isDark ? "#94A3B8" : "#64748B"} />
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Month Selector Modal ────────────────────────────────────── */}
+      <Modal
+        visible={showMonthPicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowMonthPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBgPress} onPress={() => setShowMonthPicker(false)} />
+          <View style={[styles.monthPickerCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]}>
+            <View style={styles.pickerHeader}>
+              <Pressable onPress={() => setPickerYear(pickerYear - 1)} style={styles.pickerYearArrow}>
+                <Feather name="chevron-left" size={20} color={isDark ? "#FFFFFF" : "#1E293B"} />
+              </Pressable>
+              <ThemedText style={styles.pickerYearText}>{pickerYear}</ThemedText>
+              <Pressable onPress={() => setPickerYear(pickerYear + 1)} style={styles.pickerYearArrow}>
+                <Feather name="chevron-right" size={20} color={isDark ? "#FFFFFF" : "#1E293B"} />
+              </Pressable>
+            </View>
+
+            <View style={styles.monthsGrid}>
+              {MONTHS.map((m, idx) => {
+                const isSelected = selectedDate.getMonth() === idx && selectedDate.getFullYear() === pickerYear;
+                return (
+                  <Pressable
+                    key={m}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSelectedDate(new Date(pickerYear, idx, 1));
+                      setShowMonthPicker(false);
+                    }}
+                    style={[
+                      styles.monthGridBtn,
+                      { borderColor: borderCol },
+                      isSelected && { backgroundColor: "#F97316" }
+                    ]}
+                  >
+                    <Text style={[styles.monthGridText, { color: isSelected ? "#FFFFFF" : (isDark ? "#FFFFFF" : "#1E293B") }]}>
+                      {m.substring(0, 3)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Cell Detailed Marks Modal (Image 2) ─────────────────────── */}
+      <Modal
+        visible={cellModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setCellModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBgPress} onPress={() => setCellModalVisible(false)} />
+          <View style={[styles.detailsModalCard, { backgroundColor: isDark ? "#121B2A" : "#FFFFFF" }]}>
+            <View style={styles.detailsModalHeader}>
+              <View>
+                <ThemedText style={styles.detailsModalTitle}>{selectedWorker?.name}</ThemedText>
+                <Text style={[styles.detailsModalSub, { color: isDark ? "#94A3B8" : "#64748B" }]}>
+                  Choose status and configure special parameters for today
+                </Text>
+              </View>
+              <Pressable onPress={() => setCellModalVisible(false)} style={styles.detailsCloseBtn}>
+                <Feather name="x" size={20} color={isDark ? "#FFFFFF" : "#1E293B"} />
+              </Pressable>
+            </View>
+
+            {/* Status options row */}
+            <Text style={[styles.fieldLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>Status</Text>
+            <View style={styles.statusButtonsRow}>
+              {[
+                { val: "P", label: "Present", color: "#10B981" },
+                { val: "A", label: "Absent", color: "#EF4444" },
+                { val: "H", label: "Half-Day", color: "#F59E0B" },
+                { val: "OT", label: "Overtime", color: "#A855F7" },
+                { val: "", label: "Unmark", color: "#64748B" },
+              ].map((opt) => {
+                const isActive = modalStatus === opt.val;
+                return (
+                  <Pressable
+                    key={opt.label}
+                    onPress={() => setModalStatus(opt.val as any)}
+                    style={[
+                      styles.statusToggleBtn,
+                      {
+                        backgroundColor: isDark ? "#1E293B" : "#F8FAFC",
+                        borderColor: isActive ? opt.color : borderCol,
+                        borderWidth: isActive ? 2 : 1,
+                      }
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusToggleText,
+                        {
+                          color: isActive ? opt.color : (isDark ? "#94A3B8" : "#64748B"),
+                          fontWeight: isActive ? "700" : "500",
+                        }
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Advance / Custom Wage (₹) */}
+            <Text style={[styles.fieldLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>
+              Advance / Custom Wage (₹)
+            </Text>
+            <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
+              <Text style={[styles.currencyPrefix, { color: isDark ? "#94A3B8" : "#64748B" }]}>₹</Text>
               <TextInput
-                style={[styles.customAmountInput, { color: theme.text }]}
-                placeholder={t.payment.advance + " amount"}
-                placeholderTextColor={theme.textSecondary}
-                value={tempCustomWage}
-                onChangeText={setTempCustomWage}
                 keyboardType="numeric"
+                placeholder="e.g. 100 (optional)"
+                placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
+                style={[styles.modalInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
+                value={modalAdvance}
+                onChangeText={setModalAdvance}
               />
             </View>
-          </View>
-        )}
 
-        {(tempStatus === "P" ||
-          tempStatus === "H" ||
-          tempStatus === "OT") && (
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowOvertimeModal(true);
-            }}
-            style={[
-              styles.customAmountContainer,
-              {
-                marginTop: Spacing.md,
-                padding: Spacing.md,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: theme.border,
-                backgroundColor: theme.backgroundSecondary,
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-              },
-            ]}
-          >
-            <View>
-              <ThemedText
-                type="small"
-                style={{ color: theme.textSecondary, marginBottom: 2 }}
-              >
-                Overtime (Optional)
-              </ThemedText>
-              <ThemedText type="body" style={{ fontWeight: "700" }}>
-                {tempOvertimeType === "none"
-                  ? "No Overtime"
-                  : tempOvertimeType === "1x"
-                    ? `1× (₹${selectedWorker?.dailyRate})`
-                    : tempOvertimeType === "2x"
-                      ? `2× (₹${(selectedWorker?.dailyRate ?? 0) * 2})`
-                      : `Custom (₹${tempOvertimeCustomAmount})`}
-              </ThemedText>
-            </View>
-            <Feather name="edit-2" size={14} color="#FF6B35" />
-          </Pressable>
-        )}
-
-        {tempStatus && (
-          <View
-            style={{
-              marginTop: Spacing.md,
-              padding: Spacing.md,
-              borderRadius: 14,
-              backgroundColor: isDark
-                ? "rgba(255, 255, 255, 0.02)"
-                : "rgba(0, 0, 0, 0.02)",
-              borderWidth: 1,
-              borderColor: theme.border,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 6,
-              }}
-            >
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                Status:
-              </ThemedText>
-              <ThemedText
-                type="small"
-                style={{
-                  fontWeight: "800",
-                  color:
-                    tempStatus === "P"
-                      ? EMERALD
-                      : tempStatus === "H"
-                        ? AMBER
-                        : tempStatus === "A"
-                          ? RED
-                          : "#A855F7",
-                }}
-              >
-                {tempStatus === "P"
-                  ? (t.summary.present || "Present")
-                  : tempStatus === "H"
-                    ? (t.summary.halfDay || "Half Day")
-                    : tempStatus === "A"
-                      ? (t.summary.absent || "Absent")
-                      : (t.summary.overtime || "Overtime")}
-              </ThemedText>
-            </View>
-
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 6,
-              }}
-            >
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                Daily Rate:
-              </ThemedText>
-              <View
-                style={{
-                  backgroundColor: "#1E293B",
-                  paddingHorizontal: 8,
-                  paddingVertical: 2,
-                  borderRadius: 6,
-                }}
-              >
-                <ThemedText
-                  type="small"
-                  style={{ fontWeight: "800", color: "#FFFFFF" }}
-                >
-                  ₹{selectedWorker?.dailyRate ?? 0}
-                </ThemedText>
-              </View>
-            </View>
-
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 6,
-              }}
-            >
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                {t.payment.advance}:
-              </ThemedText>
-              <ThemedText
-                type="small"
-                style={{
-                  fontWeight: "800",
-                  color:
-                    tempCustomWage.trim() !== ""
-                      ? "#FF6B35"
-                      : theme.textSecondary,
-                }}
-              >
-                {tempCustomWage.trim() !== ""
-                  ? `₹${tempCustomWage}`
-                  : "Not Applied"}
-              </ThemedText>
-            </View>
-
-            {tempOvertimeType !== "none" && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: 6,
-                }}
-              >
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  Overtime Amount:
-                </ThemedText>
-                <ThemedText
-                  type="small"
-                  style={{
-                    fontWeight: "800",
-                    color: "#A855F7",
-                  }}
-                >
-                  ₹
-                  {tempOvertimeType === "1x"
-                    ? (selectedWorker?.dailyRate ?? 0)
-                    : tempOvertimeType === "2x"
-                      ? (selectedWorker?.dailyRate ?? 0) * 2
-                      : tempOvertimeCustomAmount || "0"}
-                </ThemedText>
-              </View>
-            )}
-
-            <View
-              style={{
-                height: 1,
-                backgroundColor: theme.border,
-                marginVertical: 6,
-              }}
-            />
-
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <ThemedText
-                type="small"
-                style={{ color: theme.textSecondary, fontWeight: "700" }}
-              >
-                Final Today's Pay:
-              </ThemedText>
-              <ThemedText
-                type="body"
-                style={{ fontWeight: "800", color: "#10B981" }}
-              >
-                ₹
-                {(() => {
-                  const baseRate = selectedWorker?.dailyRate ?? 0;
-                  let advance = 0;
-                  if (tempCustomWage.trim() !== "") {
-                    const parsed = parseInt(tempCustomWage, 10);
-                    if (!isNaN(parsed) && parsed >= 0) {
-                      advance = parsed;
-                    }
-                  }
-                  let overtime = 0;
-                  if (tempOvertimeType === "1x") {
-                    overtime = baseRate;
-                  } else if (tempOvertimeType === "2x") {
-                    overtime = baseRate * 2;
-                  } else if (tempOvertimeType === "custom") {
-                    const parsed = parseInt(tempOvertimeCustomAmount, 10);
-                    if (!isNaN(parsed) && parsed >= 0) {
-                      overtime = parsed;
-                    }
-                  }
-
-                  if (tempStatus === "P" || tempStatus === "OT") {
-                    return baseRate + advance + overtime;
-                  }
-                  if (tempStatus === "H") {
-                    return (baseRate / 2) + advance + overtime;
-                  }
-                  if (tempStatus === "A") {
-                    return 0; // strictly 0 for Absent
-                  }
-                  return advance + overtime;
-                })()}
-              </ThemedText>
-            </View>
-          </View>
-        )}
-
-        <Pressable
-          onPress={captureGPSLocation}
-          disabled={currentPlan !== "free" && isCapturingGPS}
-          style={[
-            styles.gpsButton,
-            {
-              backgroundColor:
-                currentPlan === "free"
-                  ? isDark
-                    ? "rgba(255,255,255,0.02)"
-                    : "rgba(0,0,0,0.02)"
-                  : capturedLocation
-                    ? EMERALD + "10"
-                    : theme.backgroundSecondary,
-              borderColor:
-                currentPlan === "free"
-                  ? theme.border
-                  : capturedLocation
-                    ? EMERALD
-                    : theme.border,
-              opacity: currentPlan === "free" ? 0.75 : 1,
-              marginTop: Spacing.md,
-            },
-          ]}
-        >
-          {currentPlan === "free" ? (
-            <Feather name="lock" size={14} color={theme.textSecondary} />
-          ) : (
-            <Feather
-              name="map-pin"
-              size={14}
-              color={capturedLocation ? EMERALD : theme.textSecondary}
-            />
-          )}
-          <ThemedText
-            type="small"
-            style={{
-              color:
-                currentPlan === "free"
-                  ? theme.textSecondary
-                  : capturedLocation
-                    ? EMERALD
-                    : theme.textSecondary,
-              marginLeft: 6,
-              fontWeight: "600",
-            }}
-          >
-            {currentPlan === "free"
-              ? "GPS Capture (Premium)"
-              : isCapturingGPS
-                ? t.attendance.gpsCapturing
-                : capturedLocation
-                  ? t.attendance.gpsCaptured
-                  : t.attendance.captureGPS}
-          </ThemedText>
-          {currentPlan === "free" ? (
-            <Feather
-              name="chevron-right"
-              size={14}
-              color={theme.textSecondary}
-              style={{ marginLeft: "auto" }}
-            />
-          ) : isCapturingGPS ? (
-            <ActivityIndicator
-              size="small"
-              color={theme.textSecondary}
-              style={{ marginLeft: "auto" }}
-            />
-          ) : capturedLocation ? (
-            <Feather
-              name="check-circle"
-              size={14}
-              color={EMERALD}
-              style={{ marginLeft: "auto" }}
-            />
-          ) : null}
-        </Pressable>
-
-        {tempStatus && (
-          <Pressable
-            onPress={handleConfirmAttendance}
-            style={[
-              styles.gpsButton,
-              {
-                backgroundColor: theme.primary,
-                borderColor: theme.primary,
-                marginTop: Spacing.md,
-                justifyContent: "center",
-              },
-            ]}
-          >
-            <Feather
-              name="check-circle"
-              size={16}
-              color="#FFFFFF"
-              style={{ marginRight: 6 }}
-            />
-            <ThemedText
-              type="body"
-              style={{ color: "#FFFFFF", fontWeight: "700" }}
-            >
-              ✔ Confirm / Sign
-            </ThemedText>
-          </Pressable>
-        )}
-      </GlassModal>
-
-      {/* ── OVERTIME DIALOG MODAL ── */}
-      <Modal
-        visible={showOvertimeModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowOvertimeModal(false)}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowOvertimeModal(false)}
-        >
-          <Pressable
-            style={[
-              styles.modalContentCard,
-              {
-                backgroundColor: isDark ? "#1E1E2A" : "#FFFFFF",
-                borderColor: theme.border,
-                borderWidth: 1,
-                width: 320,
-                padding: Spacing.xl,
-                borderRadius: 16,
-              },
-            ]}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <ThemedText type="h3" style={{ marginBottom: Spacing.md, textAlign: "center", fontWeight: "700" }}>
-              Select Overtime Option
-            </ThemedText>
-
-            {/* Option 1: 1x Overtime */}
-            <Pressable
-              onPress={() => {
-                setTempOvertimeType("1x");
-                setTempOvertimeCustomAmount("");
-              }}
-              style={[
-                styles.overtimeOptionBtn,
-                {
-                  borderColor: tempOvertimeType === "1x" ? "#FF6B35" : theme.border,
-                  backgroundColor: tempOvertimeType === "1x" ? "rgba(255, 107, 53, 0.1)" : "transparent",
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: Spacing.md,
-                  marginBottom: Spacing.sm,
-                },
-              ]}
-            >
-              <ThemedText type="body" style={{ fontWeight: "700" }}>
-                1× Overtime
-              </ThemedText>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                Amount: ₹{selectedWorker?.dailyRate ?? 0}
-              </ThemedText>
-            </Pressable>
-
-            {/* Option 2: 2x Overtime */}
-            <Pressable
-              onPress={() => {
-                setTempOvertimeType("2x");
-                setTempOvertimeCustomAmount("");
-              }}
-              style={[
-                styles.overtimeOptionBtn,
-                {
-                  borderColor: tempOvertimeType === "2x" ? "#FF6B35" : theme.border,
-                  backgroundColor: tempOvertimeType === "2x" ? "rgba(255, 107, 53, 0.1)" : "transparent",
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: Spacing.md,
-                  marginBottom: Spacing.sm,
-                },
-              ]}
-            >
-              <ThemedText type="body" style={{ fontWeight: "700" }}>
-                2× Overtime
-              </ThemedText>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                Amount: ₹{(selectedWorker?.dailyRate ?? 0) * 2}
-              </ThemedText>
-            </Pressable>
-
-            {/* Option 3: Custom Overtime */}
-            <Pressable
-              onPress={() => {
-                setTempOvertimeType("custom");
-              }}
-              style={[
-                styles.overtimeOptionBtn,
-                {
-                  borderColor: tempOvertimeType === "custom" ? "#FF6B35" : theme.border,
-                  backgroundColor: tempOvertimeType === "custom" ? "rgba(255, 107, 53, 0.1)" : "transparent",
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: Spacing.md,
-                  marginBottom: Spacing.sm,
-                },
-              ]}
-            >
-              <ThemedText type="body" style={{ fontWeight: "700", marginBottom: 4 }}>
-                Custom Overtime
-              </ThemedText>
-              {tempOvertimeType === "custom" ? (
-                <View style={{ flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "#FF6B35", marginTop: 4 }}>
-                  <ThemedText type="body" style={{ marginRight: 4, color: theme.text }}>₹</ThemedText>
+            {/* Overtime Wage & Hours (side-by-side columns) */}
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.fieldLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>OT Wage (₹)</Text>
+                <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
+                  <Text style={[styles.currencyPrefix, { color: isDark ? "#94A3B8" : "#64748B" }]}>₹</Text>
                   <TextInput
-                    style={{ flex: 1, height: 36, paddingHorizontal: 4, fontSize: 14, color: theme.text }}
-                    placeholder="Enter manual amount"
-                    placeholderTextColor={theme.textSecondary}
-                    value={tempOvertimeCustomAmount}
-                    onChangeText={setTempOvertimeCustomAmount}
                     keyboardType="numeric"
-                    autoFocus
+                    placeholder="OT amount"
+                    placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
+                    style={[styles.modalInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
+                    value={modalOvertimeWage}
+                    onChangeText={setModalOvertimeWage}
                   />
                 </View>
-              ) : (
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  Enter custom amount
-                </ThemedText>
-              )}
-            </Pressable>
-
-            {/* Option 4: None */}
-            <Pressable
-              onPress={() => {
-                setTempOvertimeType("none");
-                setTempOvertimeCustomAmount("");
-              }}
-              style={[
-                styles.overtimeOptionBtn,
-                {
-                  borderColor: theme.border,
-                  backgroundColor: tempOvertimeType === "none" ? "rgba(0, 0, 0, 0.05)" : "transparent",
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: Spacing.md,
-                  marginBottom: Spacing.sm,
-                  marginTop: Spacing.sm,
-                },
-              ]}
-            >
-              <ThemedText type="body" style={{ color: theme.textSecondary }}>
-                No Overtime
-              </ThemedText>
-            </Pressable>
-
-            {/* Actions */}
-            <View style={{ flexDirection: "row", gap: Spacing.md, marginTop: Spacing.lg }}>
-              <Pressable
-                onPress={() => {
-                  setShowOvertimeModal(false);
-                  if (tempStatus === "OT" && tempOvertimeType === "none") {
-                    setTempStatus("P");
-                  }
-                }}
-                style={[styles.paymentCancelBtn, { flex: 1, height: 44, justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.border }]}
-              >
-                <ThemedText type="body">Cancel</ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (tempOvertimeType === "custom") {
-                    const amt = parseFloat(tempOvertimeCustomAmount);
-                    if (isNaN(amt) || amt < 0) {
-                      Alert.alert("Error", "Please enter a valid amount");
-                      return;
-                    }
-                  }
-                  setShowOvertimeModal(false);
-                }}
-                style={[{ flex: 1, backgroundColor: "#FF6B35", height: 44, justifyContent: "center", alignItems: "center", borderRadius: 10 }]}
-              >
-                <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "700" }}>
-                  Confirm
-                </ThemedText>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-
-
-      {/* ── UPGRADE PRICING MODAL ── */}
-      <Modal
-        visible={showUpgradeModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowUpgradeModal(false)}
-      >
-        <BlurView
-          intensity={isDark ? 80 : 90}
-          tint={isDark ? "dark" : "light"}
-          style={StyleSheet.absoluteFill}
-        >
-          <ThemedView
-            style={[
-              styles.modalWrapper,
-              {
-                marginTop: insets.top + 20,
-                marginBottom: insets.bottom + 20,
-                backgroundColor: theme.backgroundDefault,
-              },
-            ]}
-          >
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <View style={{ flex: 1, marginRight: Spacing.sm }}>
-                <ThemedText
-                  type="h2"
-                  style={{ fontWeight: "800", color: theme.primary }}
-                >
-                  Choose Your Plan
-                </ThemedText>
-                <ThemedText
-                  type="small"
-                  style={{ color: theme.textSecondary, marginTop: 4 }}
-                >
-                  Select a subscription plan that fits your business
-                </ThemedText>
               </View>
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowUpgradeModal(false);
-                }}
-                style={[
-                  styles.closeModalBtn,
-                  {
-                    backgroundColor: isDark
-                      ? "rgba(255,255,255,0.08)"
-                      : "rgba(0,0,0,0.04)",
-                  },
-                ]}
-              >
-                <Feather name="x" size={20} color={theme.text} />
-              </Pressable>
+              
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.fieldLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>OT Hours</Text>
+                <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
+                  <TextInput
+                    keyboardType="numeric"
+                    placeholder="Hours"
+                    placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
+                    style={[styles.modalInput, { color: isDark ? "#FFFFFF" : "#1E293B", paddingLeft: 12 }]}
+                    value={modalOvertimeHours}
+                    onChangeText={setModalOvertimeHours}
+                  />
+                </View>
+              </View>
             </View>
 
-            {/* Scrollable Plan List */}
-            <ScrollView
-              contentContainerStyle={styles.planScrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* PLAN 1: FREE */}
-              <View
-                style={[
-                  styles.planCard,
-                  {
-                    backgroundColor: isDark
-                      ? "rgba(255,255,255,0.03)"
-                      : "#FFFFFF",
-                    borderColor: theme.border,
-                  },
+            {/* Cancel / Save CTA Row */}
+            <View style={styles.ctaButtonRow}>
+              <Pressable
+                onPress={() => setCellModalVisible(false)}
+                style={({ pressed }) => [
+                  styles.cancelBtn,
+                  { borderColor: borderCol, opacity: pressed ? 0.8 : 1 }
                 ]}
               >
-                <View style={styles.planCardHeader}>
-                  <View>
-                    <ThemedText type="h3" style={{ fontWeight: "700" }}>
-                      Free
-                    </ThemedText>
-                    <ThemedText
-                      type="body"
-                      style={{ color: theme.textSecondary, marginTop: 2 }}
-                    >
-                      For small teams
-                    </ThemedText>
-                  </View>
-                  <ThemedText
-                    type="h2"
-                    style={{ fontWeight: "800", color: theme.text }}
-                  >
-                    ₹0
-                  </ThemedText>
-                </View>
-                <View style={styles.featureDivider} />
-                <View style={styles.featureList}>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#10B981" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      5 workers limit
-                    </ThemedText>
-                  </View>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#10B981" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      Basic attendance marking
-                    </ThemedText>
-                  </View>
-                </View>
-                <Pressable
-                  onPress={() => {
-                    Haptics.notificationAsync(
-                      Haptics.NotificationFeedbackType.Success,
-                    );
-                    Alert.alert(
-                      "Plan Activated",
-                      "You are currently on the Free plan.",
-                    );
-                  }}
-                  style={[
-                    styles.planActionBtn,
-                    { backgroundColor: theme.border },
-                  ]}
-                >
-                  <ThemedText
-                    style={[styles.planActionText, { color: theme.text }]}
-                  >
-                    Current Plan
-                  </ThemedText>
-                </Pressable>
-              </View>
+                <Text style={[styles.cancelBtnText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>Cancel</Text>
+              </Pressable>
 
-              {/* PLAN 2: PROFESSIONAL (RECOMMENDED) */}
-              <View
-                style={[
-                  styles.planCard,
-                  {
-                    backgroundColor: isDark
-                      ? "rgba(79, 70, 229, 0.05)"
-                      : "#F5F3FF",
-                    borderColor: "#7C3AED",
-                    borderWidth: 2,
-                  },
+              <Pressable
+                onPress={saveDetailedRecord}
+                style={({ pressed }) => [
+                  styles.saveBtn,
+                  { opacity: pressed ? 0.9 : 1 }
                 ]}
               >
-                {/* Popular badge */}
-                <View style={styles.popularBadge}>
-                  <ThemedText style={styles.popularBadgeText}>
-                    MOST POPULAR
-                  </ThemedText>
-                </View>
-                <View style={styles.planCardHeader}>
-                  <View>
-                    <ThemedText
-                      type="h3"
-                      style={{ fontWeight: "700", color: "#7C3AED" }}
-                    >
-                      Professional
-                    </ThemedText>
-                    <ThemedText
-                      type="body"
-                      style={{ color: theme.textSecondary, marginTop: 2 }}
-                    >
-                      For growing businesses
-                    </ThemedText>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <ThemedText
-                      type="h2"
-                      style={{ fontWeight: "800", color: "#7C3AED" }}
-                    >
-                      ₹299
-                    </ThemedText>
-                    <ThemedText
-                      type="small"
-                      style={{ color: theme.textSecondary }}
-                    >
-                      /month
-                    </ThemedText>
-                  </View>
-                </View>
-                <View
-                  style={[
-                    styles.featureDivider,
-                    { backgroundColor: "#7C3AED25" },
-                  ]}
-                />
-                <View style={styles.featureList}>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#7C3AED" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      Unlimited workers
-                    </ThemedText>
-                  </View>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#7C3AED" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      Attendance tracking
-                    </ThemedText>
-                  </View>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#7C3AED" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      Payroll & salary calculations
-                    </ThemedText>
-                  </View>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#7C3AED" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      Advanced PDF/CSV reports
-                    </ThemedText>
-                  </View>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#7C3AED" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      Hindi & English languages
-                    </ThemedText>
-                  </View>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#7C3AED" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      Dark mode interface
-                    </ThemedText>
-                  </View>
-                </View>
-                <Pressable
-                  onPress={() => handleUpgrade("pro")}
-                  style={{ marginTop: Spacing.md }}
+                <LinearGradient
+                  colors={["#2563EB", "#1D4ED8"]}
+                  style={styles.saveBtnGrad}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
                 >
-                  <LinearGradient
-                    colors={["#7C3AED", "#EC4899"]}
-                    style={styles.planActionBtnPrimary}
-                  >
-                    <ThemedText style={styles.planActionTextPrimary}>
-                      Upgrade to Pro
-                    </ThemedText>
-                  </LinearGradient>
-                </Pressable>
-              </View>
-
-              {/* PLAN 3: BUSINESS */}
-              <View
-                style={[
-                  styles.planCard,
-                  {
-                    backgroundColor: isDark
-                      ? "rgba(255,255,255,0.03)"
-                      : "#FFFFFF",
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <View style={styles.planCardHeader}>
-                  <View>
-                    <ThemedText
-                      type="h3"
-                      style={{ fontWeight: "700", color: "#FF6B35" }}
-                    >
-                      Business
-                    </ThemedText>
-                    <ThemedText
-                      type="body"
-                      style={{ color: theme.textSecondary, marginTop: 2 }}
-                    >
-                      For enterprises
-                    </ThemedText>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <ThemedText
-                      type="h2"
-                      style={{ fontWeight: "800", color: "#FF6B35" }}
-                    >
-                      ₹999
-                    </ThemedText>
-                    <ThemedText
-                      type="small"
-                      style={{ color: theme.textSecondary }}
-                    >
-                      /month
-                    </ThemedText>
-                  </View>
-                </View>
-                <View style={styles.featureDivider} />
-                <View style={styles.featureList}>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#FF6B35" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      GPS location attendance
-                    </ThemedText>
-                  </View>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#FF6B35" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      Real-time Cloud Sync & backup
-                    </ThemedText>
-                  </View>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#FF6B35" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      Multi-device operation
-                    </ThemedText>
-                  </View>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#FF6B35" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      Multi-user role management
-                    </ThemedText>
-                  </View>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#FF6B35" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      Advanced business analytics
-                    </ThemedText>
-                  </View>
-                  <View style={styles.featureRow}>
-                    <Feather name="check" size={14} color="#FF6B35" />
-                    <ThemedText type="body" style={styles.featureText}>
-                      24/7 Priority VIP support
-                    </ThemedText>
-                  </View>
-                </View>
-                <Pressable
-                  onPress={() => handleUpgrade("business")}
-                  style={{ marginTop: Spacing.md }}
-                >
-                  <LinearGradient
-                    colors={["#FF6B35", "#FF8C35"]}
-                    style={styles.planActionBtnPrimary}
-                  >
-                    <ThemedText style={styles.planActionTextPrimary}>
-                      Upgrade to Business
-                    </ThemedText>
-                  </LinearGradient>
-                </Pressable>
-              </View>
-            </ScrollView>
-          </ThemedView>
-        </BlurView>
+                  <Text style={styles.saveBtnText}>Save Attendance</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </View>
       </Modal>
-    </ThemedView>
+    </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: Spacing.xl,
-  },
-  emptyIcon: {
-    marginBottom: Spacing.lg,
-    opacity: 0.5,
-  },
-  emptyTitle: {
-    textAlign: "center",
-    marginBottom: Spacing.sm,
-  },
-  emptySubtitle: {
-    textAlign: "center",
-  },
-  monthSelector: {
-    position: "absolute",
-    left: Spacing.lg,
-    right: Spacing.lg,
+  root: { flex: 1 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+
+  // Header styling (orange in light mode, dark slate in dark mode)
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: 14,
-    gap: Spacing.xs,
-    zIndex: 10,
-    height: 46,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    height: Platform.OS === "ios" ? 90 : 80,
+  },
+  headerBackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    textAlign: "center",
+  },
+  headerAddBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "flex-end",
   },
 
-  // ─ Grid Layout ──────────────────────────────────────
+  // Month selector card
+  monthSelectorWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+  },
+  monthSelectorBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  monthText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  // Search input
+  searchBarContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  searchBarWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 42,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    paddingVertical: 4,
+  },
+
+  // Grid Register layout container
   gridContainer: {
     flex: 1,
-  },
-  gridInner: {
-    flex: 1,
     flexDirection: "row",
   },
 
-  // ─ Frozen Left Column ───────────────────────────────
-  frozenCol: {
-    width: NAME_COLUMN_WIDTH,
-  },
-  cornerCell: {
-    width: NAME_COLUMN_WIDTH,
-    height: CELL_SIZE,
-    justifyContent: "center",
-    alignItems: "center",
+  // Left frozen names list column
+  frozenColumn: {
+    width: 140,
     borderRightWidth: 1,
-    borderBottomWidth: 1,
+    zIndex: 10,
   },
-  cornerText: {
+  columnHeader: {
+    height: 44,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  columnHeaderText: {
+    fontSize: 11,
+    fontWeight: "800",
     color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  workerNameCell: {
-    width: NAME_COLUMN_WIDTH,
-    height: CELL_SIZE,
+  frozenRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    gap: Spacing.xs,
-    borderRightWidth: 1,
+    height: 56,
+    paddingHorizontal: 10,
     borderBottomWidth: 1,
   },
-  workerAvatar: {
+  avatarCircle: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
   },
-  workerAvatarPlaceholder: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  avatarText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  workerNameText: {
+    fontSize: 12,
+    fontWeight: "700",
+    flex: 1,
+  },
+
+  // Day columns (horizontally scrollable cells)
+  dayHeaderCell: {
+    width: 48,
+    height: 44,
     justifyContent: "center",
     alignItems: "center",
-    flexShrink: 0,
+    borderRightWidth: 1,
   },
-  workerAvatarInitial: {
+  dayHeaderText: {
     fontSize: 12,
     fontWeight: "800",
     color: "#FFFFFF",
   },
-  workerNameText: {
-    flex: 1,
-    fontWeight: "600",
-    fontSize: 11,
-  },
-
-  // ─ Days Header Row ──────────────────────────────────
-  daysHeaderRow: {
-    flexDirection: "row",
-  },
-  dayCell: {
-    width: CELL_SIZE,
-    height: CELL_SIZE,
+  gridCell: {
+    width: 48,
+    height: 56,
     justifyContent: "center",
     alignItems: "center",
     borderRightWidth: 1,
     borderBottomWidth: 1,
   },
-  dayText: {
-    color: "#FFFFFF",
+  statusBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  statusBoxText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+
+  // Picker Modal styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  modalBgPress: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  monthPickerCard: {
+    width: SCREEN_WIDTH - 48,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  pickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  pickerYearArrow: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "rgba(150,150,150,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pickerYearText: {
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  monthsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  monthGridBtn: {
+    width: (SCREEN_WIDTH - 112) / 3,
+    height: 42,
+    borderWidth: 1,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  monthGridText: {
     fontSize: 13,
     fontWeight: "700",
   },
 
-  // ─ Attendance Cell Grid ─────────────────────────────
-  attendanceCellRow: {
-    flexDirection: "row",
-  },
-  cellWrapper: {
-    width: CELL_SIZE,
-    height: CELL_SIZE,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 3,
-  },
-  cell: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  cellText: {
-    fontSize: 12,
-  },
-
-  // ─── Modal Sheet Styles ────────────
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContainer: {
-    width: "90%",
-    maxWidth: 350,
+  // Detailed marks modal styles (Image 2)
+  detailsModalCard: {
+    width: SCREEN_WIDTH - 32,
     borderRadius: 24,
-    overflow: "hidden",
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  modalBlur: {
-    borderRadius: 24,
-  },
-  modalContentCard: {
-    padding: Spacing.xl,
-  },
-  modalTitleText: {
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: Spacing.lg,
-  },
-
-  // ─ Month Picker ───────────────────
-  yearSelector: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.md,
-  },
-  yearArrow: { padding: Spacing.sm },
-  monthGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  monthItem: {
-    width: "30%",
-    paddingVertical: Spacing.md,
-    alignItems: "center",
-    borderRadius: 10,
-    marginBottom: Spacing.sm,
-  },
-
-  // ─ Input modal marking options ────
-  quickOptions: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  quickOption: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quickOptionText: {
-    color: "#FFFFFF",
-    fontWeight: "800",
-    fontSize: 12.5,
-  },
-  customAmountContainer: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-    alignItems: "center",
-  },
-  customInputRow: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: Spacing.md,
-    height: 48,
-    gap: Spacing.xs,
-  },
-  customAmountInput: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  customAmountBtnWrap: {
-    borderRadius: 14,
-    overflow: "hidden",
-  },
-  customAmountButton: {
-    width: 48,
-    height: 48,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  gpsButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    marginTop: Spacing.xs,
-    height: 48,
-  },
-  // ── Upgrade Modal ──────────────────
-  modalWrapper: {
-    flex: 1,
-    borderRadius: 24,
-    marginHorizontal: 16,
-    overflow: "hidden",
-    padding: Spacing.lg,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.lg,
-  },
-  closeModalBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  planScrollContent: {
-    paddingBottom: 40,
-    gap: Spacing.md,
-  },
-  planCard: {
-    borderRadius: 16,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    position: "relative",
-    overflow: "hidden",
-    marginBottom: Spacing.md,
-  },
-  planCardHeader: {
+  detailsModalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    marginBottom: 16,
   },
-  featureDivider: {
-    height: 1,
-    backgroundColor: "rgba(0,0,0,0.06)",
-    marginVertical: Spacing.md,
-  },
-  featureList: {
-    gap: 8,
-  },
-  featureRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  featureText: {
-    fontSize: 13,
-  },
-  planActionBtn: {
-    height: 44,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: Spacing.md,
-  },
-  planActionText: {
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  planActionBtnPrimary: {
-    height: 44,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  planActionTextPrimary: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  popularBadge: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    backgroundColor: "#7C3AED",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderBottomLeftRadius: 10,
-  },
-  popularBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 8,
+  detailsModalTitle: {
+    fontSize: 20,
     fontWeight: "800",
   },
-  overtimeOptionBtn: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  detailsModalSub: {
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 16,
   },
-  paymentCancelBtn: {},
-  planSwitchRow: {
+  detailsCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(150,150,150,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    marginBottom: 6,
+    marginTop: 16,
+    letterSpacing: 0.3,
+  },
+  statusButtonsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
+  },
+  statusToggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusToggleText: {
+    fontSize: 12,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 46,
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  currencyPrefix: {
+    fontSize: 14,
+    fontWeight: "700",
+    paddingLeft: 12,
+    marginRight: -4,
+  },
+  modalInput: {
+    flex: 1,
+    height: "100%",
+    paddingHorizontal: 12,
+    fontSize: 14,
+  },
+  ctaButtonRow: {
     flexDirection: "row",
     gap: 12,
-    marginBottom: 20,
+    marginTop: 24,
+    width: "100%",
   },
-  planOptionCard: {
+  cancelBtn: {
     flex: 1,
-    borderWidth: 2,
-    borderRadius: 16,
-    padding: 12,
-  },
-  subSectionTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    marginBottom: 8,
-  },
-  paymentMethodsSection: {
-    marginBottom: 20,
-  },
-  paymentMethodTabs: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
-  },
-  paymentTabBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  cardForm: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
-    gap: 10,
-    marginBottom: 10,
+  cancelBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
-  cardTypeRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 4,
+  saveBtn: {
+    flex: 1.5,
+    height: 46,
+    borderRadius: 12,
+    overflow: "hidden",
   },
-  cardTypeBtn: {
+  saveBtnGrad: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 6,
     alignItems: "center",
     justifyContent: "center",
   },
-  paymentInput: {
-    height: 40,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    fontSize: 13,
-  },
-  subModalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    maxHeight: "85%",
-  },
-  subModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  subModalTitle: {
-    fontSize: 20,
-    fontWeight: "900",
-  },
-  closeBtn: {
-    padding: 4,
-  },
-  subModalScroll: {
-    paddingBottom: 40,
-  },
-  subInfoBox: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-  },
-  subInfoLabel: {
-    fontSize: 12,
-    opacity: 0.6,
-    textTransform: "uppercase",
-    fontWeight: "700",
-  },
-  subInfoValue: {
-    fontSize: 22,
-    fontWeight: "900",
-    marginTop: 4,
-  },
-  subExpiryText: {
-    fontSize: 12,
-    marginTop: 6,
-    fontWeight: "600",
-  },
-  priceContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  priceLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  priceVal: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#F59E0B",
-  },
-  benefitsContainer: {
-    marginBottom: 24,
-  },
-  benefitsTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    marginBottom: 12,
-  },
-  benefitRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  benefitText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  upgradeBtn: {
-    paddingVertical: 14,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  upgradeBtnText: {
+  saveBtnText: {
     color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  renewBtn: {
-    paddingVertical: 14,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    marginBottom: 24,
-  },
-  renewBtnText: {
     fontSize: 14,
     fontWeight: "700",
   },
-  detailSection: {
+
+  // Tap Cell Options Modal styles (Image 1)
+  tapOptionsCard: {
+    width: SCREEN_WIDTH - 48,
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+    alignItems: "center",
+  },
+  tapOptionsTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    opacity: 0.8,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  tapOptionsWorkerName: {
+    fontSize: 22,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  rateBadgeContainer: {
+    marginBottom: 20,
+    alignItems: "center",
+  },
+  rateBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  rateBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  tapGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    width: "100%",
     marginBottom: 20,
   },
-  detailSectionTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    marginBottom: 6,
-  },
-  detailSectionText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  historyRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  tapGridBtn: {
+    width: "48%",
+    height: 72,
+    borderRadius: 14,
+    borderWidth: 1,
     alignItems: "center",
-    paddingVertical: 8,
-    borderBottomWidth: 0.5,
-    borderColor: "rgba(0,0,0,0.1)",
+    justifyContent: "center",
   },
-  historyDate: {
+  tapGridBtnText: {
     fontSize: 12,
-    opacity: 0.6,
-  },
-  historyDesc: {
-    fontSize: 12,
-    flex: 1,
-    marginLeft: 12,
-    fontWeight: "600",
-  },
-  historyAmount: {
-    fontSize: 13,
     fontWeight: "700",
+  },
+  gpsPremiumBtn: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  gpsPremiumText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

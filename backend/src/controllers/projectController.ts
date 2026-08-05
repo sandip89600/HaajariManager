@@ -2,6 +2,7 @@ import { Response } from "express";
 import { Project, AuditLog, Worker, User, Expense, MBEntry, DelayLog } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { broadcastAdminActivity } from "../utils/socket";
+import { logActivity } from "../services/activityLogger";
 
 export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -59,16 +60,13 @@ export const createProject = async (req: AuthenticatedRequest, res: Response) =>
 
     await project.save();
 
-    const auditLog = new AuditLog({
-      tenantId,
-      userId: req.user?.id,
-      action: "CREATE_PROJECT",
-      targetType: "Project",
+    await logActivity({
+      req,
+      action: "SITE_CREATED", // projects/sites are equivalent
+      targetType: "SITE",
       targetId: project._id.toString(),
-      changes: { after: { name: project.name } },
+      changes: { after: { name: project.name } }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     res.status(201).json(project);
   } catch (error: any) {
@@ -104,6 +102,8 @@ export const updateProject = async (req: AuthenticatedRequest, res: Response) =>
       return res.status(404).json({ error: "Project not found" });
     }
 
+    const before = project.toObject();
+
     if (name) project.name = name;
     if (location !== undefined) project.location = location;
     if (status) project.status = status;
@@ -122,6 +122,15 @@ export const updateProject = async (req: AuthenticatedRequest, res: Response) =>
     if (phases !== undefined) project.phases = phases;
 
     await project.save();
+
+    await logActivity({
+      req,
+      action: "SITE_UPDATED",
+      targetType: "SITE",
+      targetId: id,
+      changes: { before, after: project.toObject() }
+    });
+
     res.json(project);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -148,16 +157,13 @@ export const deleteProject = async (req: AuthenticatedRequest, res: Response) =>
     );
 
     // Log the delete action
-    const auditLog = new AuditLog({
-      tenantId,
-      userId: req.user?.id,
-      action: "DELETE",
-      targetType: "PROJECT",
+    await logActivity({
+      req,
+      action: "SITE_DELETED",
+      targetType: "SITE",
       targetId: id,
-      changes: { before: { name: project.name } },
+      changes: { before: { name: project.name } }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     res.json({ success: true, message: "Project deleted successfully" });
   } catch (error: any) {

@@ -49,6 +49,7 @@ import {
   downloadAndSharePDF,
   downloadAndShareCSV,
   fetchAndPrintHTML,
+  generateAndSharePaymentReceipt,
 } from "@/utils/export";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
 
@@ -734,6 +735,34 @@ const SummaryCard = memo(function SummaryCard({
                               </ThemedText>
                             </View>
                             <Pressable
+                              onPress={async () => {
+                                Haptics.impactAsync(
+                                  Haptics.ImpactFeedbackStyle.Light,
+                                );
+                                try {
+                                  const authObj = await storage.getAuth();
+                                  let company = "Haajari Manager";
+                                  if (authObj && authObj.userId) {
+                                    const userObj = await storage.getUserById(authObj.userId);
+                                    if (userObj && userObj.companyName) {
+                                      company = userObj.companyName;
+                                    }
+                                  }
+                                  const workerName = summary.worker.name;
+                                  await generateAndSharePaymentReceipt(payment, workerName, company, t);
+                                } catch (e) {
+                                  console.warn("Failed to share payment receipt", e);
+                                }
+                              }}
+                              style={[styles.timelineDeleteBtn, { marginRight: 8 }]}
+                            >
+                              <Feather
+                                name="share-2"
+                                size={13}
+                                color={theme.primary}
+                              />
+                            </Pressable>
+                            <Pressable
                               onPress={() => {
                                 Haptics.impactAsync(
                                   Haptics.ImpactFeedbackStyle.Medium,
@@ -970,9 +999,14 @@ export default function SummaryScreen() {
   );
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<
-    "Cash" | "UPI" | "Bank Transfer"
+    "Cash" | "UPI" | "Bank Transfer" | "Cheque" | "Other"
   >("Cash");
   const [paymentNote, setPaymentNote] = useState("");
+  const [paymentTransactionId, setPaymentTransactionId] = useState("");
+  const [paymentReferenceNumber, setPaymentReferenceNumber] = useState("");
+  const [paymentPaidBy, setPaymentPaidBy] = useState("");
+  const [paymentReceivedBy, setPaymentReceivedBy] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState<"Pending" | "Completed" | "Failed">("Completed");
 
   const monthNames = [
     t.months.january,
@@ -1098,6 +1132,11 @@ export default function SummaryScreen() {
       paidAt: Date.now(),
       method: paymentMethod,
       note: paymentNote.trim() || undefined,
+      transactionId: paymentTransactionId.trim() || undefined,
+      referenceNumber: paymentReferenceNumber.trim() || undefined,
+      paidByName: paymentPaidBy.trim() || undefined,
+      receivedByName: paymentReceivedBy.trim() || undefined,
+      status: paymentStatus,
     };
 
     await storage.addPayment(payment);
@@ -1106,6 +1145,11 @@ export default function SummaryScreen() {
     setPaymentAmount("");
     setPaymentMethod("Cash");
     setPaymentNote("");
+    setPaymentTransactionId("");
+    setPaymentReferenceNumber("");
+    setPaymentPaidBy("");
+    setPaymentReceivedBy("");
+    setPaymentStatus("Completed");
     setPaymentWorker(null);
     loadSummaries();
   };
@@ -1988,8 +2032,8 @@ export default function SummaryScreen() {
         >
           Payment Method
         </ThemedText>
-        <View style={styles.methodSelectorRow}>
-          {(["Cash", "UPI", "Bank Transfer"] as const).map((method) => {
+        <View style={[styles.methodSelectorRow, { flexWrap: "wrap", gap: 6, marginBottom: 12 }]}>
+          {(["Cash", "UPI", "Bank Transfer", "Cheque", "Other"] as const).map((method) => {
             const isSelected = paymentMethod === method;
             return (
               <Pressable
@@ -2007,6 +2051,7 @@ export default function SummaryScreen() {
                         ? "rgba(255,255,255,0.05)"
                         : "rgba(0,0,0,0.03)",
                     borderColor: isSelected ? theme.primary : theme.border,
+                    minWidth: 70,
                   },
                 ]}
               >
@@ -2019,6 +2064,116 @@ export default function SummaryScreen() {
                   }}
                 >
                   {method}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Transaction ID & Ref Number */}
+        <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", marginBottom: 6 }}>
+              Transaction ID
+            </ThemedText>
+            <View style={[styles.noteInputWrapper, { borderColor: theme.border, backgroundColor: theme.backgroundSecondary, height: 42, paddingHorizontal: 10, justifyContent: "center" }]}>
+              <TextInput
+                style={[styles.noteInput, { color: theme.text, height: 40 }]}
+                value={paymentTransactionId}
+                onChangeText={setPaymentTransactionId}
+                placeholder="TXN12345..."
+                placeholderTextColor={theme.textSecondary}
+              />
+            </View>
+          </View>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", marginBottom: 6 }}>
+              Ref Number
+            </ThemedText>
+            <View style={[styles.noteInputWrapper, { borderColor: theme.border, backgroundColor: theme.backgroundSecondary, height: 42, paddingHorizontal: 10, justifyContent: "center" }]}>
+              <TextInput
+                style={[styles.noteInput, { color: theme.text, height: 40 }]}
+                value={paymentReferenceNumber}
+                onChangeText={setPaymentReferenceNumber}
+                placeholder="Ref No."
+                placeholderTextColor={theme.textSecondary}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Paid By & Received By */}
+        <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", marginBottom: 6 }}>
+              Paid By
+            </ThemedText>
+            <View style={[styles.noteInputWrapper, { borderColor: theme.border, backgroundColor: theme.backgroundSecondary, height: 42, paddingHorizontal: 10, justifyContent: "center" }]}>
+              <TextInput
+                style={[styles.noteInput, { color: theme.text, height: 40 }]}
+                value={paymentPaidBy}
+                onChangeText={setPaymentPaidBy}
+                placeholder="Sender Name"
+                placeholderTextColor={theme.textSecondary}
+              />
+            </View>
+          </View>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", marginBottom: 6 }}>
+              Received By
+            </ThemedText>
+            <View style={[styles.noteInputWrapper, { borderColor: theme.border, backgroundColor: theme.backgroundSecondary, height: 42, paddingHorizontal: 10, justifyContent: "center" }]}>
+              <TextInput
+                style={[styles.noteInput, { color: theme.text, height: 40 }]}
+                value={paymentReceivedBy}
+                onChangeText={setPaymentReceivedBy}
+                placeholder="Receiver Name"
+                placeholderTextColor={theme.textSecondary}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Status Selector */}
+        <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", marginBottom: 6 }}>
+          Status
+        </ThemedText>
+        <View style={[styles.methodSelectorRow, { gap: 6, marginBottom: 16 }]}>
+          {(["Completed", "Pending", "Failed"] as const).map((status) => {
+            const isSelected = paymentStatus === status;
+            return (
+              <Pressable
+                key={status}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setPaymentStatus(status);
+                }}
+                style={[
+                  styles.methodItemBtn,
+                  {
+                    backgroundColor: isSelected
+                      ? status === "Failed"
+                        ? "#EF4444"
+                        : status === "Pending"
+                          ? "#F59E0B"
+                          : "#10B981"
+                      : isDark
+                        ? "rgba(255,255,255,0.05)"
+                        : "rgba(0,0,0,0.03)",
+                    borderColor: isSelected ? "transparent" : theme.border,
+                    minWidth: 80,
+                  },
+                ]}
+              >
+                <ThemedText
+                  type="small"
+                  style={{
+                    color: isSelected ? "#FFFFFF" : theme.text,
+                    fontWeight: "700",
+                    fontSize: 11,
+                  }}
+                >
+                  {status}
                 </ThemedText>
               </Pressable>
             );

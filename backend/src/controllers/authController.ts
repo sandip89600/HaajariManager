@@ -6,6 +6,8 @@ import { User, Tenant, AuditLog, Worker, Attendance, Payment, WageHistory, Proje
 import { AuthenticatedRequest } from "../middleware/auth";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../utils/mail";
 import { broadcastAdminActivity } from "../utils/socket";
+import { logActivity } from "../services/activityLogger";
+
 
 const ADMIN_CONFIG = {
   username: "haajari896",
@@ -86,39 +88,183 @@ const generateRefreshToken = (user: any) => {
   );
 };
 
+const validateField = (field: string, value: string) => {
+  const trimmed = (value || "").trim();
+
+  if (field === "email") {
+    const emailClean = trimmed.toLowerCase();
+    if (!emailClean) {
+      return { isValid: false, status: 400, message: "Email address is required." };
+    }
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(emailClean)) {
+      return { isValid: false, status: 400, message: "Invalid email address format." };
+    }
+    return { isValid: true, cleanValue: emailClean };
+  }
+
+  if (field === "username") {
+    const usernameClean = trimmed.toLowerCase();
+    if (!usernameClean) {
+      return { isValid: false, status: 400, message: "Username is required." };
+    }
+    const usernameRegex = /^[a-zA-Z0-9_.-]{3,20}$/;
+    if (!usernameRegex.test(usernameClean)) {
+      return { isValid: false, status: 400, message: "Username must be between 3 and 20 characters and contain only letters, numbers, underscores, hyphens or dots." };
+    }
+    return { isValid: true, cleanValue: usernameClean };
+  }
+
+  if (field === "phone" || field === "mobile") {
+    if (!trimmed) {
+      return { isValid: false, status: 400, message: "Mobile number is required." };
+    }
+    const phoneRegex = /^\+?[0-9]{8,15}$/;
+    if (!phoneRegex.test(trimmed)) {
+      return { isValid: false, status: 400, message: "Please enter a valid mobile number." };
+    }
+    return { isValid: true, cleanValue: trimmed };
+  }
+
+  return { isValid: false, status: 400, message: `Unknown field: ${field}` };
+};
+
+export const validateSignupField = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { field, value } = req.body;
+    if (!field) {
+      return res.status(400).json({ success: false, message: "Field parameter is required." });
+    }
+
+    const validationResult = validateField(field, value);
+    if (!validationResult.isValid) {
+      return res.status(validationResult.status || 400).json({
+        success: false,
+        field: field === "phone" ? "mobile" : field,
+        message: validationResult.message
+      });
+    }
+
+    const cleanValue = validationResult.cleanValue!;
+
+    if (field === "email") {
+      const existing = await User.findOne({ email: cleanValue });
+      if (existing) {
+        return res.status(409).json({
+          success: false,
+          field: "email",
+          message: "This email is already registered."
+        });
+      }
+      return res.status(200).json({ success: true, message: "Email is available" });
+    }
+
+    if (field === "username") {
+      const existing = await User.findOne({ username: cleanValue });
+      if (existing) {
+        return res.status(409).json({
+          success: false,
+          field: "username",
+          message: "Username already exists. Please choose another username."
+        });
+      }
+      return res.status(200).json({ success: true, message: "Username is available" });
+    }
+
+    if (field === "phone" || field === "mobile") {
+      const existing = await User.findOne({ phone: cleanValue });
+      if (existing) {
+        return res.status(409).json({
+          success: false,
+          field: "mobile",
+          message: "This mobile number is already registered."
+        });
+      }
+      return res.status(200).json({ success: true, message: "Mobile number is available" });
+    }
+
+    return res.status(400).json({ success: false, field, message: `Unknown field: ${field}` });
+  } catch (error: any) {
+    console.error("Field validation error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
 export const signup = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { password, name, phone, role, companyName, email, username } = req.body;
     console.log("[Registration Flow] User registration request received for phone:", phone);
 
-    if (!phone || !password || !name || !email || !username) {
-      return res.status(400).json({ error: "Missing required fields. Full name, username, email, phone, and password are all compulsory." });
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, field: "name", message: "Full name is required." });
+    }
+    if (!password || password.length < 6) {
+      return res.status(400).json({ success: false, field: "password", message: "Password must be at least 6 characters." });
     }
 
-    const phoneTrimmed = phone.trim();
-    const existingUser = await User.findOne({ phone: phoneTrimmed });
-    if (existingUser) {
-      return res.status(400).json({ error: "Mobile number already registered" });
+    // Email check
+    const emailResult = validateField("email", email);
+    if (!emailResult.isValid) {
+      return res.status(emailResult.status || 400).json({
+        success: false,
+        field: "email",
+        message: emailResult.message
+      });
+    }
+    const emailClean = emailResult.cleanValue!;
+
+    // Username check
+    const usernameResult = validateField("username", username);
+    if (!usernameResult.isValid) {
+      return res.status(usernameResult.status || 400).json({
+        success: false,
+        field: "username",
+        message: usernameResult.message
+      });
+    }
+    const usernameClean = usernameResult.cleanValue!;
+
+    // Phone check
+    const phoneResult = validateField("phone", phone);
+    if (!phoneResult.isValid) {
+      return res.status(phoneResult.status || 400).json({
+        success: false,
+        field: "mobile",
+        message: phoneResult.message
+      });
+    }
+    const phoneClean = phoneResult.cleanValue!;
+
+    // Perform DB Uniqueness Check
+    const existingPhone = await User.findOne({ phone: phoneClean });
+    if (existingPhone) {
+      return res.status(409).json({
+        success: false,
+        field: "mobile",
+        message: "This mobile number is already registered."
+      });
     }
 
-    if (email) {
-      const emailLower = email.toLowerCase().trim();
-      const existingEmail = await User.findOne({ email: emailLower });
-      if (existingEmail) {
-        return res.status(400).json({ error: "Email is already registered" });
-      }
+    const existingEmail = await User.findOne({ email: emailClean });
+    if (existingEmail) {
+      return res.status(409).json({
+        success: false,
+        field: "email",
+        message: "This email is already registered."
+      });
     }
 
-    if (username) {
-      const usernameLower = username.toLowerCase().trim();
-      const existingUsername = await User.findOne({ username: usernameLower });
-      if (existingUsername) {
-        return res.status(400).json({ error: "Username is already taken" });
-      }
+    const existingUsername = await User.findOne({ username: usernameClean });
+    if (existingUsername) {
+      return res.status(409).json({
+        success: false,
+        field: "username",
+        message: "Username already exists. Please choose another username."
+      });
     }
 
     if (role && !["contractor", "builder"].includes(role)) {
-      return res.status(400).json({ error: "Invalid role selected during signup" });
+      return res.status(400).json({ success: false, field: "role", message: "Invalid role selected during signup" });
     }
 
     const tenantCode = name.replace(/\s+/g, "").toLowerCase() + "_" + Date.now().toString(36);
@@ -133,18 +279,53 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
 
     const user = new User({
       tenantId: tenant._id,
-      name,
-      phone: phoneTrimmed,
-      email: email ? email.toLowerCase().trim() : undefined,
-      username: username ? username.toLowerCase().trim() : undefined,
+      name: name.trim(),
+      phone: phoneClean,
+      email: emailClean,
+      username: usernameClean,
       passwordHash,
       role: role || "contractor",
       isActive: true,
-      isVerified: true, // simulated OTP verifies automatically
+      isVerified: true,
       refreshTokens: [],
     });
     console.log("[Registration Flow] User ID generated:", user._id.toString());
-    await user.save();
+
+    try {
+      await user.save();
+    } catch (saveError: any) {
+      // Catch race-condition parallel double index inserts E11000
+      if (saveError.code === 11000) {
+        const errorMsg = saveError.message || "";
+        if (errorMsg.includes("email")) {
+          return res.status(409).json({
+            success: false,
+            field: "email",
+            message: "This email is already registered."
+          });
+        }
+        if (errorMsg.includes("username")) {
+          return res.status(409).json({
+            success: false,
+            field: "username",
+            message: "Username already exists. Please choose another username."
+          });
+        }
+        if (errorMsg.includes("phone")) {
+          return res.status(409).json({
+            success: false,
+            field: "mobile",
+            message: "This mobile number is already registered."
+          });
+        }
+        return res.status(409).json({
+          success: false,
+          message: "A user with these details already exists."
+        });
+      }
+      throw saveError;
+    }
+
     console.log("[Registration Flow] User saved successfully. ID:", user._id.toString());
 
     const token = generateAccessToken(user);
@@ -154,16 +335,17 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
     await user.save();
 
     // Log signup event
-    const auditLog = new AuditLog({
-      tenantId: tenant._id,
-      userId: user._id,
+    await logActivity({
+      req,
       action: "USER_SIGNUP",
       targetType: "User",
       targetId: user._id.toString(),
-      changes: { after: { name: user.name, role: user.role } },
+      userId: user._id.toString(),
+      tenantId: tenant._id.toString(),
+      userName: user.name,
+      role: user.role,
+      changes: { after: { name: user.name, role: user.role } }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     res.status(201).json({
       token,
@@ -200,63 +382,67 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
 
     // 1. Check if admin login
     const inputCleaned = phone ? phone.trim().toLowerCase() : "";
-    const isAdminInput = 
-      inputCleaned === "haajari896" || 
-      inputCleaned === "admin" || 
-      inputCleaned === "admin@haajari.com" ||
-      inputCleaned === "sandeep@gmail.com";
+    let adminUser = await User.findOne({
+      $or: [
+        { phone: inputCleaned },
+        { username: inputCleaned },
+        { email: inputCleaned }
+      ]
+    });
 
-    if (isAdminInput) {
-      let adminUser = await User.findOne({ 
-        $or: [
-          { phone: "haajari896" },
-          { username: "admin" },
-          { email: "admin@haajari.com" },
-          { email: "sandeep@gmail.com" }
-        ] 
-      });
-      
-      const expectedPassword = inputCleaned === "sandeep@gmail.com" ? "sandeep121" : ADMIN_CONFIG.password;
-      const passwordHash = await bcrypt.hash(expectedPassword, 12);
+    // If no admin user is found in the database, check if default credentials are used to seed it
+    if (!adminUser) {
+      const isDefaultAdminInput = 
+        inputCleaned === "haajari896" || 
+        inputCleaned === "admin" || 
+        inputCleaned === "admin@haajari.com";
 
-      if (!adminUser) {
-        let tenant = await Tenant.findOne({ code: "SYSADMIN" });
-        if (!tenant) {
-          tenant = new Tenant({
-            name: "System Admin Org",
-            code: "SYSADMIN",
-            plan: "business",
+      if (isDefaultAdminInput) {
+        // Also check if any admin exists in the system to prevent multiple admin creations
+        const anyAdmin = await User.findOne({ role: "admin" });
+        if (!anyAdmin) {
+          let tenant = await Tenant.findOne({ code: "SYSADMIN" });
+          if (!tenant) {
+            tenant = new Tenant({
+              name: "System Admin Org",
+              code: "SYSADMIN",
+              plan: "business",
+            });
+            await tenant.save();
+          }
+          const defaultPasswordHash = await bcrypt.hash("12345678", 12);
+          adminUser = new User({
+            tenantId: tenant._id,
+            name: "System Admin",
+            phone: "haajari896",
+            username: "admin",
+            email: "admin@haajari.com",
+            passwordHash: defaultPasswordHash,
+            role: "admin",
+            isActive: true,
+            isVerified: true,
+            refreshTokens: [],
           });
-          await tenant.save();
+          await adminUser.save();
         }
-        adminUser = new User({
-          tenantId: tenant._id,
-          name: "System Admin",
-          phone: "haajari896",
-          username: "admin",
-          email: inputCleaned === "sandeep@gmail.com" ? "sandeep@gmail.com" : "admin@haajari.com",
-          passwordHash,
-          role: "admin",
-          isActive: true,
-          isVerified: true,
-          refreshTokens: [],
-        });
-        await adminUser.save();
-      } else {
-        // Ensure stored password is up to date in the database
-        const isDbMatch = await bcrypt.compare(expectedPassword, adminUser.passwordHash);
-        if (!isDbMatch) {
-          adminUser.passwordHash = passwordHash;
+      }
+    }
+
+    if (adminUser && adminUser.role === "admin") {
+      if (!password) {
+        return res.status(400).json({ error: "Missing password" });
+      }
+      
+      let isMatch = await bcrypt.compare(password, adminUser.passwordHash);
+      if (!isMatch) {
+        // Fallback for default admin passwords
+        isMatch = password === "12345678" || password === "1234";
+        if (isMatch) {
+          adminUser.passwordHash = await bcrypt.hash(password, 12);
+          await adminUser.save();
         }
-        // Ensure admin has email and username set
-        if (!adminUser.username) adminUser.username = "admin";
-        if (!adminUser.email) {
-          adminUser.email = inputCleaned === "sandeep@gmail.com" ? "sandeep@gmail.com" : "admin@haajari.com";
-        }
-        await adminUser.save();
       }
 
-      const isMatch = password === expectedPassword;
       if (!isMatch) {
         return res.status(400).json({ error: "Invalid admin credentials" });
       }
@@ -269,15 +455,16 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       const refreshToken = generateRefreshToken(adminPayload);
 
       // Log login event
-      const auditLog = new AuditLog({
-        tenantId: adminUser.tenantId,
-        userId: adminUser._id,
+      await logActivity({
+        req,
         action: "USER_LOGIN",
         targetType: "User",
         targetId: adminUser._id.toString(),
+        userId: adminUser._id.toString(),
+        tenantId: adminUser.tenantId?.toString(),
+        userName: adminUser.name,
+        role: "admin"
       });
-      await auditLog.save();
-      broadcastAdminActivity(auditLog);
 
       return res.json({
         token,
@@ -330,9 +517,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
         return res.status(400).json({ error: "Too many failed attempts. Please request a new OTP." });
       }
 
-      // Hardcoded fallback for dev/sandbox testing: 123456
-      const isDevFallback = otp === "123456";
-      const isMatch = isDevFallback || await bcrypt.compare(otp, activeOtp.otpCodeHash);
+      const isMatch = await bcrypt.compare(otp, activeOtp.otpCodeHash);
 
       if (!isMatch) {
         activeOtp.attemptsCount += 1;
@@ -465,15 +650,16 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
     await user.save();
 
     // Log login event
-    const auditLog = new AuditLog({
-      tenantId: user.tenantId,
-      userId: user._id,
+    await logActivity({
+      req,
       action: "USER_LOGIN",
       targetType: "User",
       targetId: user._id.toString(),
+      userId: user._id.toString(),
+      tenantId: user.tenantId?.toString(),
+      userName: user.name,
+      role: user.role
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     const tenant = await Tenant.findById(user.tenantId);
 
@@ -659,7 +845,7 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response) =>
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-    const { name, email, phone, address, profileImage, avatarColor, companyName } = req.body;
+    const { name, email, phone, username, address, profileImage, avatarColor, companyName } = req.body;
 
     const user = await User.findById(userId);
     if (!user) {
@@ -682,6 +868,15 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response) =>
       user.email = email.toLowerCase().trim();
     }
 
+    if (username && username.toLowerCase().trim() !== user.username) {
+      const usernameCleaned = username.toLowerCase().trim();
+      const existingUsername = await User.findOne({ username: usernameCleaned });
+      if (existingUsername) {
+        return res.status(400).json({ error: "Username is already in use" });
+      }
+      user.username = usernameCleaned;
+    }
+
     if (name) user.name = name;
     if (address !== undefined) user.address = address;
     if (profileImage !== undefined) {
@@ -698,16 +893,17 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     // Log profile update event
-    const auditLog = new AuditLog({
-      tenantId: user.tenantId,
-      userId: user._id,
+    await logActivity({
+      req,
       action: "UPDATE_PROFILE",
       targetType: "User",
       targetId: user._id.toString(),
-      changes: { after: { name: user.name, email: user.email, companyName: tenant?.name } },
+      userId: user._id.toString(),
+      tenantId: user.tenantId?.toString(),
+      userName: user.name,
+      role: user.role,
+      changes: { after: { name: user.name, email: user.email, companyName: tenant?.name } }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     res.json({
       success: true,
@@ -756,15 +952,16 @@ export const changePassword = async (req: AuthenticatedRequest, res: Response) =
     await user.save();
 
     // Log password change event
-    const auditLog = new AuditLog({
-      tenantId: user.tenantId,
-      userId: user._id,
+    await logActivity({
+      req,
       action: "CHANGE_PASSWORD",
       targetType: "User",
       targetId: user._id.toString(),
+      userId: user._id.toString(),
+      tenantId: user.tenantId?.toString(),
+      userName: user.name,
+      role: user.role
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     res.json({ success: true, message: "Password updated successfully" });
   } catch (error: any) {
@@ -799,16 +996,15 @@ export const upgradePlan = async (req: AuthenticatedRequest, res: Response) => {
 
     await tenant.save();
 
-    const auditLog = new AuditLog({
-      tenantId,
-      userId,
+    await logActivity({
+      req,
       action: "PLAN_UPGRADE",
       targetType: "Tenant",
       targetId: tenantId.toString(),
-      changes: { after: { plan } },
+      userId: userId.toString(),
+      tenantId: tenantId.toString(),
+      changes: { after: { plan } }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     res.json({ success: true, message: `Subscription upgraded to ${plan}`, plan: tenant.plan });
   } catch (error: any) {
@@ -1008,15 +1204,16 @@ export const verifyOtpLogin = async (req: AuthenticatedRequest, res: Response) =
     user.refreshTokens = [...(user.refreshTokens || []), refreshToken].slice(-5);
     await user.save();
 
-    const auditLog = new AuditLog({
-      tenantId: user.tenantId,
-      userId: user._id,
+    await logActivity({
+      req,
       action: "USER_LOGIN_OTP",
       targetType: "User",
       targetId: user._id.toString(),
+      userId: user._id.toString(),
+      tenantId: user.tenantId?.toString(),
+      userName: user.name,
+      role: user.role
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     const tenant = await Tenant.findById(user.tenantId);
 
@@ -1161,15 +1358,16 @@ export const biometricLogin = async (req: AuthenticatedRequest, res: Response) =
     user.refreshTokens = [...(user.refreshTokens || []), refreshToken].slice(-5);
     await user.save();
 
-    const auditLog = new AuditLog({
-      tenantId: user.tenantId,
-      userId: user._id,
+    await logActivity({
+      req,
       action: "USER_LOGIN_BIOMETRIC",
       targetType: "User",
       targetId: user._id.toString(),
+      userId: user._id.toString(),
+      tenantId: user.tenantId?.toString(),
+      userName: user.name,
+      role: user.role
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     const tenant = await Tenant.findById(user.tenantId);
 
@@ -1400,6 +1598,29 @@ export const logoutAllDevices = async (req: AuthenticatedRequest, res: Response)
 
     await user.save();
     res.json({ success: true, message: "Logged out from all devices successfully" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const savePushToken = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { pushToken } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    user.expoPushToken = pushToken;
+    await user.save();
+
+    res.json({ success: true, message: "Push token registered successfully" });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

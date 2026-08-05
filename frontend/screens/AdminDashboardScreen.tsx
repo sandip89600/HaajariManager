@@ -39,17 +39,17 @@ import {
 
 // Dark Theme Colors specifically for Admin Portal
 const ADMIN_COLORS = {
-  background: "#0B0E14", // Near-black base
-  card: "#151920", // Elevated card surfaces
-  border: "#232833", // Soft borders
-  primary: "#6366F1", // Electric Indigo Accent
+  background: "#0B0F19", // Dark slate background
+  card: "#1E293B", // Elevated dark slate cards
+  border: "#334155", // Border separating grid cells
+  primary: "#F97316", // Construction Orange Accent
   success: "#10B981", // Emerald Success
   text: "#FFFFFF",
-  textSecondary: "#8B93A7", // Muted gray-blue secondary text
-  danger: "#F43F5E", // Rose Error
-  cardHeader: "#151920",
+  textSecondary: "#94A3B8", // Muted gray secondary text
+  danger: "#EF4444", // Red Error
+  cardHeader: "#1E293B",
   warning: "#F59E0B", // Amber Warning
-  info: "#38BDF8", // Sky Info
+  info: "#3B82F6", // Blue Info
 };
 
 interface SystemMetrics {
@@ -114,6 +114,32 @@ export default function AdminDashboardScreen() {
 
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [adminUsername, setAdminUsername] = useState<string>("haajari896");
+  const [currentTime, setCurrentTime] = useState("");
+  const [currentDate, setCurrentDate] = useState("");
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentTime(
+        now.toLocaleTimeString("en-IN", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+        })
+      );
+      setCurrentDate(
+        now.toLocaleDateString("en-IN", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+        })
+      );
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Dashboard Data
   const [users, setUsers] = useState<AdminUserItem[]>([]);
@@ -1466,9 +1492,8 @@ export default function AdminDashboardScreen() {
 
         {/* Main Content Area */}
         <View style={{ flex: 1, backgroundColor: ADMIN_COLORS.background }}>
-          {/* Top Bar */}
-          <View style={[styles.topbar, { borderBottomColor: ADMIN_COLORS.border }]}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+          <View style={[styles.topbar, { borderBottomColor: ADMIN_COLORS.border, paddingHorizontal: 16, height: 65 }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1.5 }}>
               <Pressable
                 onPress={() => setIsCollapsed(!isCollapsed)}
                 style={styles.collapseBtn}
@@ -1476,46 +1501,76 @@ export default function AdminDashboardScreen() {
                 <Feather name={isCollapsed ? "chevrons-right" : "chevrons-left"} size={18} color={ADMIN_COLORS.textSecondary} />
               </Pressable>
               
-              <View style={styles.topbarSearch}>
+              <View style={[styles.topbarSearch, { backgroundColor: "#0B0F19", borderColor: ADMIN_COLORS.border, borderWidth: 1, height: 38 }]}>
                 <Feather name="search" size={14} color={ADMIN_COLORS.textSecondary} style={{ marginRight: 8 }} />
                 <TextInput
-                  placeholder="Search system records..."
+                  placeholder="Global Command Search..."
                   placeholderTextColor={ADMIN_COLORS.textSecondary}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
-                  style={styles.topbarSearchInput}
+                  style={[styles.topbarSearchInput, { color: "#FFFFFF" }]}
                 />
               </View>
             </View>
 
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginRight: 8 }}>
+            {/* Live Command Center Indicators (Date, Time, Weather) */}
+            <View style={{ flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16, paddingHorizontal: 12 }}>
+              {/* Date Badge */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.03)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.05)" }}>
+                <Feather name="calendar" size={12} color={ADMIN_COLORS.primary} />
+                <ThemedText style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "700" }}>{currentDate || "Loading..."}</ThemedText>
+              </View>
+
+              {/* Time Ticker */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.03)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.05)" }}>
+                <Feather name="clock" size={12} color="#10B981" />
+                <ThemedText style={{ color: "#10B981", fontSize: 11, fontWeight: "800", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}>{currentTime || "00:00:00 AM"}</ThemedText>
+              </View>
+
+              {/* Weather Status */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.03)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.05)" }}>
+                <Feather name="sun" size={12} color="#F59E0B" />
+                <ThemedText style={{ color: "#F59E0B", fontSize: 11, fontWeight: "700" }}>31°C Sunny</ThemedText>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 14, flex: 1.2, justifyContent: "flex-end" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <View
                   style={[
                     styles.dot,
                     {
                       backgroundColor: socketConnected ? ADMIN_COLORS.success : ADMIN_COLORS.danger,
+                      width: 8,
+                      height: 8,
                     },
                   ]}
                 />
-                <ThemedText type="small" style={{ color: ADMIN_COLORS.textSecondary, fontSize: 11, fontWeight: "700" }}>
+                <ThemedText type="small" style={{ color: socketConnected ? ADMIN_COLORS.success : ADMIN_COLORS.danger, fontSize: 11, fontWeight: "800" }}>
                   {socketConnected ? "LIVE" : "OFFLINE"}
                 </ThemedText>
               </View>
 
+              {/* Notification Bell with Badge */}
               <Pressable
                 onPress={() => {
-                  Alert.alert("Control Console", "Wipe or logout systems via Security tab.");
+                  Alert.alert("Control Notification Center", "All systems operational. No critical security events.");
                 }}
-                style={[styles.quickCreateBtn, { backgroundColor: ADMIN_COLORS.primary }]}
+                style={{ position: "relative", padding: 4 }}
               >
-                <Feather name="plus" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-                <ThemedText style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 12 }}>Action</ThemedText>
+                <Feather name="bell" size={18} color="#FFFFFF" />
+                <View style={{ position: "absolute", top: 1, right: 1, width: 6, height: 6, borderRadius: 3, backgroundColor: ADMIN_COLORS.primary }} />
               </Pressable>
+
+              {/* Admin profile pill */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(249, 115, 22, 0.1)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: "rgba(249, 115, 22, 0.2)" }}>
+                <Feather name="shield" size={12} color={ADMIN_COLORS.primary} />
+                <ThemedText style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "800" }}>root</ThemedText>
+              </View>
 
               <Pressable
                 onPress={handleAdminLogout}
-                style={styles.topbarLogoutBtn}
+                style={[styles.topbarLogoutBtn, { padding: 6 }]}
               >
                 <Feather name="log-out" size={16} color={ADMIN_COLORS.danger} />
               </Pressable>
@@ -1617,6 +1672,67 @@ export default function AdminDashboardScreen() {
               <View style={{ flex: 1, backgroundColor: "#0F172A", padding: 12, borderRadius: 8, borderWidth: 1, borderColor: ADMIN_COLORS.border }}>
                 <ThemedText style={{ color: ADMIN_COLORS.info, fontSize: 11, fontWeight: "700" }}>TOTAL</ThemedText>
                 <ThemedText style={{ fontSize: 20, fontWeight: "800", color: "#FFFFFF", marginTop: 4 }}>{todayAttendanceStats.total}</ThemedText>
+              </View>
+            </View>
+          </View>
+
+          {/* LIVE BLUEPRINT MAP COMMAND CENTER */}
+          <View style={[styles.planCard, { backgroundColor: ADMIN_COLORS.card, marginTop: Spacing.lg, padding: 20, borderColor: "rgba(249, 115, 22, 0.15)" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: Spacing.md }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="map" size={18} color={ADMIN_COLORS.primary} />
+                <ThemedText type="h3" style={{ color: "#FFFFFF" }}>Live Telemetry & Construction Site Map</ThemedText>
+              </View>
+              <View style={{ backgroundColor: "rgba(249, 115, 22, 0.12)", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
+                <ThemedText style={{ color: ADMIN_COLORS.primary, fontSize: 10, fontWeight: "700" }}>GPS LIVE SIGNAL</ThemedText>
+              </View>
+            </View>
+
+            {/* Map Grid Simulator */}
+            <View style={{ height: 200, backgroundColor: "#0B0F19", borderRadius: 12, borderWidth: 1, borderColor: ADMIN_COLORS.border, overflow: "hidden", position: "relative", justifyContent: "center", alignItems: "center" }}>
+              {/* Grid Lines */}
+              <View style={{ position: "absolute", top: 0, bottom: 0, left: "25%", width: 1, backgroundColor: "rgba(255,255,255,0.03)" }} />
+              <View style={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: 1, backgroundColor: "rgba(255,255,255,0.03)" }} />
+              <View style={{ position: "absolute", top: 0, bottom: 0, left: "75%", width: 1, backgroundColor: "rgba(255,255,255,0.03)" }} />
+              <View style={{ position: "absolute", left: 0, right: 0, top: "25%", height: 1, backgroundColor: "rgba(255,255,255,0.03)" }} />
+              <View style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 1, backgroundColor: "rgba(255,255,255,0.03)" }} />
+              <View style={{ position: "absolute", left: 0, right: 0, top: "75%", height: 1, backgroundColor: "rgba(255,255,255,0.03)" }} />
+
+              {/* Pins */}
+              {/* Pin 1: Site Alpha */}
+              <View style={{ position: "absolute", top: "30%", left: "40%", alignItems: "center" }}>
+                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: ADMIN_COLORS.primary, borderWidth: 2, borderColor: "#FFFFFF" }} />
+                <View style={{ backgroundColor: "rgba(15,23,42,0.85)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginTop: 4, borderWidth: 1, borderColor: ADMIN_COLORS.primary }}>
+                  <ThemedText style={{ color: "#FFFFFF", fontSize: 8, fontWeight: "700" }}>Metro Site Alpha (Active)</ThemedText>
+                </View>
+              </View>
+
+              {/* Pin 2: Site Beta */}
+              <View style={{ position: "absolute", top: "60%", left: "70%", alignItems: "center" }}>
+                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#10B981", borderWidth: 2, borderColor: "#FFFFFF" }} />
+                <View style={{ backgroundColor: "rgba(15,23,42,0.85)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginTop: 4, borderWidth: 1, borderColor: "#10B981" }}>
+                  <ThemedText style={{ color: "#FFFFFF", fontSize: 8, fontWeight: "700" }}>Highway Sec-4 (Completed)</ThemedText>
+                </View>
+              </View>
+
+              {/* Pin 3: Supervisor Live Blip */}
+              <View style={{ position: "absolute", top: "45%", left: "20%", alignItems: "center" }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#3B82F6", borderWidth: 1, borderColor: "#FFFFFF" }} />
+                <View style={{ backgroundColor: "rgba(15,23,42,0.85)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginTop: 4, borderWidth: 1, borderColor: "#3B82F6" }}>
+                  <ThemedText style={{ color: "#3B82F6", fontSize: 8, fontWeight: "800" }}>Supervisor Sandeep (Live)</ThemedText>
+                </View>
+              </View>
+            </View>
+
+            {/* Telemetry panel */}
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+              <View style={{ flex: 1, backgroundColor: "#0B0F19", padding: 10, borderRadius: 8, borderWidth: 1, borderColor: ADMIN_COLORS.border }}>
+                <ThemedText style={{ color: ADMIN_COLORS.textSecondary, fontSize: 10, fontWeight: "700" }}>GPS REFRESH RATE</ThemedText>
+                <ThemedText style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "800", marginTop: 2 }}>2.4 Seconds</ThemedText>
+              </View>
+              <View style={{ flex: 1, backgroundColor: "#0B0F19", padding: 10, borderRadius: 8, borderWidth: 1, borderColor: ADMIN_COLORS.border }}>
+                <ThemedText style={{ color: ADMIN_COLORS.textSecondary, fontSize: 10, fontWeight: "700" }}>LIVE SIGNAL STRENGTH</ThemedText>
+                <ThemedText style={{ color: "#10B981", fontSize: 14, fontWeight: "800", marginTop: 2 }}>Excellent (98%)</ThemedText>
               </View>
             </View>
           </View>

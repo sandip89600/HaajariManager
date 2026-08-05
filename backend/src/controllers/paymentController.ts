@@ -2,6 +2,7 @@ import { Response } from "express";
 import { Payment, AuditLog } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { broadcastAdminActivity } from "../utils/socket";
+import { logActivity } from "../services/activityLogger";
 
 export const getPaymentsForMonth = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -27,7 +28,19 @@ export const addPayment = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
     const userId = req.user?.id;
-    const { workerId, year, month, amount, note, method } = req.body;
+    const {
+      workerId,
+      year,
+      month,
+      amount,
+      note,
+      method,
+      transactionId,
+      referenceNumber,
+      paidByName,
+      receivedByName,
+      status,
+    } = req.body;
 
     if (!workerId || year === undefined || month === undefined || amount === undefined) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -42,20 +55,22 @@ export const addPayment = async (req: AuthenticatedRequest, res: Response) => {
       note,
       method: method || "Cash",
       createdBy: userId,
+      transactionId,
+      referenceNumber,
+      paidByName,
+      receivedByName,
+      status: status || "Completed",
     });
     await payment.save();
     await payment.populate("createdBy", "name");
 
-    const auditLog = new AuditLog({
-      tenantId,
-      userId,
-      action: "CREATE",
+    await logActivity({
+      req,
+      action: "PAYMENT_ADDED",
       targetType: "PAYMENT",
       targetId: payment._id.toString(),
-      changes: { after: payment.toObject() },
+      changes: { after: payment.toObject() }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     res.status(201).json(payment);
   } catch (error: any) {
@@ -77,16 +92,13 @@ export const deletePayment = async (req: AuthenticatedRequest, res: Response) =>
     const before = payment.toObject();
     await Payment.deleteOne({ _id: id, tenantId });
 
-    const auditLog = new AuditLog({
-      tenantId,
-      userId,
-      action: "DELETE",
+    await logActivity({
+      req,
+      action: "PAYMENT_DELETED",
       targetType: "PAYMENT",
       targetId: id,
-      changes: { before },
+      changes: { before }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     res.json({ success: true, message: "Payment record deleted successfully" });
   } catch (error: any) {

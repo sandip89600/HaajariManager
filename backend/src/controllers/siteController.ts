@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from "../middleware/auth";
 import { SiteService } from "../services/siteService";
 import { AuditLog, Site, Worker, Attendance } from "../models";
 import { broadcastAdminActivity } from "../utils/socket";
+import { logActivity } from "../services/activityLogger";
 
 /**
  * Create a new Site
@@ -24,17 +25,13 @@ export const createSite = async (req: AuthenticatedRequest, res: Response) => {
 
     const site = await SiteService.createSite(siteData);
 
-    // Audit Log
-    const auditLog = new AuditLog({
-      tenantId,
-      userId,
-      action: "CREATE",
+    await logActivity({
+      req,
+      action: "SITE_CREATED",
       targetType: "SITE",
       targetId: site._id.toString(),
       changes: { after: site.toObject() }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     return res.status(201).json(site);
   } catch (error: any) {
@@ -113,11 +110,9 @@ export const updateSite = async (req: AuthenticatedRequest, res: Response) => {
 
     const site = await SiteService.updateSite(tenantId.toString(), id, req.body);
 
-    // Audit Log
-    const auditLog = new AuditLog({
-      tenantId,
-      userId,
-      action: "UPDATE",
+    await logActivity({
+      req,
+      action: "SITE_UPDATED",
       targetType: "SITE",
       targetId: id,
       changes: { 
@@ -125,8 +120,6 @@ export const updateSite = async (req: AuthenticatedRequest, res: Response) => {
         after: site ? site.toObject() : null 
       }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     return res.json(site);
   } catch (error: any) {
@@ -154,11 +147,9 @@ export const archiveSite = async (req: AuthenticatedRequest, res: Response) => {
 
     const site = await SiteService.updateSite(tenantId.toString(), id, { isArchived: true } as any);
 
-    // Audit Log
-    const auditLog = new AuditLog({
-      tenantId,
-      userId,
-      action: "ARCHIVE",
+    await logActivity({
+      req,
+      action: "SITE_UPDATED", // Archiving is an update to status
       targetType: "SITE",
       targetId: id,
       changes: { 
@@ -166,8 +157,6 @@ export const archiveSite = async (req: AuthenticatedRequest, res: Response) => {
         after: site ? site.toObject() : null 
       }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     return res.json(site);
   } catch (error: any) {
@@ -198,11 +187,9 @@ export const deleteSite = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(404).json({ error: "Site not found or already deleted" });
     }
 
-    // Audit Log
-    const auditLog = new AuditLog({
-      tenantId,
-      userId,
-      action: "DELETE",
+    await logActivity({
+      req,
+      action: "SITE_DELETED",
       targetType: "SITE",
       targetId: id,
       changes: { 
@@ -210,8 +197,6 @@ export const deleteSite = async (req: AuthenticatedRequest, res: Response) => {
         after: { isDeleted: true }
       }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     return res.json({ message: "Site deleted successfully" });
   } catch (error: any) {

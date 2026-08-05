@@ -1,13 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   StyleSheet,
   TextInput,
   Pressable,
-  Image,
   Alert,
   ScrollView,
   Platform,
+  ActivityIndicator,
+  Text,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -26,6 +27,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
 import { RootNavigatorParamList } from "@/navigation/RootNavigator";
+import { API_URL } from "@/utils/storage";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -58,6 +60,28 @@ export default function SignupScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
+  // Validation States
+  const [usernameState, setUsernameState] = useState<"idle" | "checking" | "available" | "error">("idle");
+  const [usernameMsg, setUsernameMsg] = useState("");
+
+  const [emailState, setEmailState] = useState<"idle" | "checking" | "available" | "error">("idle");
+  const [emailMsg, setEmailMsg] = useState("");
+
+  const [phoneState, setPhoneState] = useState<"idle" | "checking" | "available" | "error">("idle");
+  const [phoneMsg, setPhoneMsg] = useState("");
+
+  const usernameTimer = useRef<NodeJS.Timeout | null>(null);
+  const emailTimer = useRef<NodeJS.Timeout | null>(null);
+  const phoneTimer = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (usernameTimer.current) clearTimeout(usernameTimer.current);
+      if (emailTimer.current) clearTimeout(emailTimer.current);
+      if (phoneTimer.current) clearTimeout(phoneTimer.current);
+    };
+  }, []);
+
   // OTP Fields
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
@@ -70,13 +94,143 @@ export default function SignupScreen() {
     transform: [{ scale: buttonScale.value }],
   }));
 
-  const handleSendOTP = () => {
-    if (!phone.trim()) {
-      Alert.alert("Error", "Please enter your mobile number");
+  const runFieldValidation = async (field: "username" | "email" | "phone", val: string) => {
+    const trimmed = val.trim();
+    if (!trimmed) {
+      if (field === "username") { setUsernameState("idle"); setUsernameMsg(""); }
+      if (field === "email") { setEmailState("idle"); setEmailMsg(""); }
+      if (field === "phone") { setPhoneState("idle"); setPhoneMsg(""); }
       return;
     }
-    if (!/^\d{10}$/.test(phone.trim())) {
-      Alert.alert("Error", "Please enter a valid 10-digit mobile number");
+
+    if (field === "username") {
+      if (trimmed.length < 3) {
+        setUsernameState("error");
+        setUsernameMsg("Username must be at least 3 characters.");
+        return;
+      }
+      if (!/^[a-zA-Z0-9_.-]+$/.test(trimmed)) {
+        setUsernameState("error");
+        setUsernameMsg("Only letters, numbers, underscores, hyphens, and dots allowed.");
+        return;
+      }
+      setUsernameState("checking");
+      setUsernameMsg("Checking username availability...");
+    } else if (field === "email") {
+      if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed)) {
+        setEmailState("error");
+        setEmailMsg("Invalid email address format.");
+        return;
+      }
+      setEmailState("checking");
+      setEmailMsg("Checking email availability...");
+    } else if (field === "phone") {
+      if (!/^\d{10}$/.test(trimmed)) {
+        setPhoneState("error");
+        setPhoneMsg("Please enter a valid 10-digit mobile number.");
+        return;
+      }
+      setPhoneState("checking");
+      setPhoneMsg("Checking mobile availability...");
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/auth/validate-signup-field`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field, value: trimmed }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (field === "username") {
+          setUsernameState("available");
+          setUsernameMsg("Username is available");
+        } else if (field === "email") {
+          setEmailState("available");
+          setEmailMsg("Email is available");
+        } else if (field === "phone") {
+          setPhoneState("available");
+          setPhoneMsg("Mobile number is available");
+        }
+      } else {
+        if (field === "username") {
+          setUsernameState("error");
+          setUsernameMsg(data.message || "Username already exists.");
+        } else if (field === "email") {
+          setEmailState("error");
+          setEmailMsg(data.message || "Email is already registered.");
+        } else if (field === "phone") {
+          setPhoneState("error");
+          setPhoneMsg(data.message || "Mobile number is already registered.");
+        }
+      }
+    } catch (err) {
+      if (field === "username") {
+        setUsernameState("error");
+        setUsernameMsg("Verification server unreachable.");
+      } else if (field === "email") {
+        setEmailState("error");
+        setEmailMsg("Verification server unreachable.");
+      } else if (field === "phone") {
+        setPhoneState("error");
+        setPhoneMsg("Verification server unreachable.");
+      }
+    }
+  };
+
+  const handleUsernameChange = (val: string) => {
+    setUsername(val);
+    const cleaned = val.trim();
+    if (!cleaned) {
+      setUsernameState("idle");
+      setUsernameMsg("");
+      return;
+    }
+    setUsernameState("checking");
+    setUsernameMsg("Typing...");
+    if (usernameTimer.current) clearTimeout(usernameTimer.current);
+    usernameTimer.current = setTimeout(() => {
+      runFieldValidation("username", cleaned);
+    }, 500);
+  };
+
+  const handleEmailChange = (val: string) => {
+    setEmail(val);
+    const cleaned = val.trim();
+    if (!cleaned) {
+      setEmailState("idle");
+      setEmailMsg("");
+      return;
+    }
+    setEmailState("checking");
+    setEmailMsg("Typing...");
+    if (emailTimer.current) clearTimeout(emailTimer.current);
+    emailTimer.current = setTimeout(() => {
+      runFieldValidation("email", cleaned);
+    }, 500);
+  };
+
+  const handlePhoneChange = (val: string) => {
+    setPhone(val);
+    setOtpSent(false);
+    setOtpVerified(false);
+    const cleaned = val.trim();
+    if (!cleaned) {
+      setPhoneState("idle");
+      setPhoneMsg("");
+      return;
+    }
+    setPhoneState("checking");
+    setPhoneMsg("Typing...");
+    if (phoneTimer.current) clearTimeout(phoneTimer.current);
+    phoneTimer.current = setTimeout(() => {
+      runFieldValidation("phone", cleaned);
+    }, 500);
+  };
+
+  const handleSendOTP = () => {
+    if (phoneState !== "available") {
+      Alert.alert("Error", phoneMsg || "Please enter a valid, unregistered mobile number");
       return;
     }
 
@@ -125,6 +279,8 @@ export default function SignupScreen() {
   };
 
   const handleSignup = async () => {
+    if (isLoading) return; // Guard against multiple taps
+
     if (!name.trim()) {
       Alert.alert("Error", "Please enter your full name");
       return;
@@ -133,16 +289,12 @@ export default function SignupScreen() {
       Alert.alert("Error", "Please enter a username");
       return;
     }
-    if (username.trim().length < 3) {
-      Alert.alert("Error", "Username must be at least 3 characters");
+    if (usernameState !== "available") {
+      Alert.alert("Error", usernameMsg || "Please choose a valid available username");
       return;
     }
-    if (!email.trim()) {
-      Alert.alert("Error", "Please enter your email address");
-      return;
-    }
-    if (!email.trim().includes("@")) {
-      Alert.alert("Error", "Please enter a valid email address");
+    if (emailState !== "available") {
+      Alert.alert("Error", emailMsg || "Please enter a valid available email address");
       return;
     }
     if (!phone.trim()) {
@@ -171,25 +323,65 @@ export default function SignupScreen() {
 
     setIsLoading(true);
     try {
-      const success = await signup(
+      const result = await signup(
         name.trim(),
         phone.trim(),
         password,
         selectedRole as "contractor" | "builder",
         companyName.trim(),
-        email.trim() || undefined,
-        username.trim() || undefined,
+        email.trim(),
+        username.trim(),
       );
-      if (!success) {
-        Alert.alert(
-          "Error",
-          "This mobile number, email, or username is already registered.",
-        );
+
+      if (!result.success) {
+        if (result.field === "email") {
+          setEmailState("error");
+          setEmailMsg(`❌ ${result.message}`);
+        } else if (result.field === "username") {
+          setUsernameState("error");
+          setUsernameMsg(`❌ ${result.message}`);
+        } else if (result.field === "mobile" || result.field === "phone") {
+          setPhoneState("error");
+          setPhoneMsg(`❌ ${result.message}`);
+        }
+        Alert.alert("Error", result.message || "Signup failed.");
       }
     } finally {
       setIsLoading(false);
     }
   };
+
+  const getValidationColor = (state: "idle" | "checking" | "available" | "error") => {
+    if (state === "error") return "#EF4444";
+    if (state === "available") return "#22C55E";
+    if (state === "checking") return "#F59E0B";
+    return theme.textSecondary;
+  };
+
+  const getValidationBorderColor = (state: "idle" | "checking" | "available" | "error") => {
+    if (state === "error") return "#EF4444";
+    if (state === "available") return "#22C55E";
+    if (state === "checking") return "#F59E0B";
+    return theme.border;
+  };
+
+  const isSubmitDisabled =
+    isLoading ||
+    usernameState === "checking" ||
+    usernameState === "error" ||
+    emailState === "checking" ||
+    emailState === "error" ||
+    phoneState === "checking" ||
+    phoneState === "error" ||
+    !name.trim() ||
+    !username.trim() ||
+    !email.trim() ||
+    !phone.trim() ||
+    !otpVerified ||
+    !companyName.trim() ||
+    !password.trim() ||
+    password.length < 6 ||
+    !agreedToTerms;
 
   const ScrollContainer =
     Platform.OS === "web" ? ScrollView : KeyboardAwareScrollView;
@@ -215,11 +407,10 @@ export default function SignupScreen() {
           >
             <Feather name="arrow-left" size={24} color={theme.text} />
           </Pressable>
-          <ThemedText type="h1" style={styles.title}>
+          <ThemedText style={styles.title}>
             {step === 1 ? "Create Account" : "Enter Details"}
           </ThemedText>
           <ThemedText
-            type="body"
             style={[styles.subtitle, { color: theme.textSecondary }]}
           >
             {step === 1
@@ -248,7 +439,7 @@ export default function SignupScreen() {
         {step === 1 ? (
           /* Step 1: Role Selection */
           <View style={styles.stepContent}>
-            <ThemedText type="h2" style={styles.questionText}>
+            <ThemedText style={styles.questionText}>
               Who are you?
             </ThemedText>
 
@@ -269,16 +460,15 @@ export default function SignupScreen() {
               ]}
             >
               <View style={styles.roleCardHeader}>
-                <ThemedText type="h2" style={styles.roleEmoji}>
+                <ThemedText style={styles.roleEmoji}>
                   👷
                 </ThemedText>
                 <View style={styles.roleCardInfo}>
-                  <ThemedText type="h3" style={styles.roleTitle}>
+                  <ThemedText style={styles.roleTitle}>
                     Contractor
                   </ThemedText>
                   <ThemedText
-                    type="small"
-                    style={{ color: theme.textSecondary }}
+                    style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}
                   >
                     Primary customer: Manage workers, attendance, payments, and
                     supervisors.
@@ -302,16 +492,15 @@ export default function SignupScreen() {
               ]}
             >
               <View style={styles.roleCardHeader}>
-                <ThemedText type="h2" style={styles.roleEmoji}>
+                <ThemedText style={styles.roleEmoji}>
                   🏗️
                 </ThemedText>
                 <View style={styles.roleCardInfo}>
-                  <ThemedText type="h3" style={styles.roleTitle}>
+                  <ThemedText style={styles.roleTitle}>
                     Builder / Company Owner
                   </ThemedText>
                   <ThemedText
-                    type="small"
-                    style={{ color: theme.textSecondary }}
+                    style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}
                   >
                     Enterprise customer: Manage projects, contractors,
                     analytics, and workforce.
@@ -338,23 +527,22 @@ export default function SignupScreen() {
               ]}
             >
               <View style={styles.roleCardHeader}>
-                <ThemedText type="h2" style={styles.roleEmoji}>
+                <ThemedText style={styles.roleEmoji}>
                   👨💼
                 </ThemedText>
                 <View style={styles.roleCardInfo}>
                   <View style={styles.badgeRow}>
-                    <ThemedText type="h3" style={styles.roleTitle}>
+                    <ThemedText style={styles.roleTitle}>
                       Supervisor
                     </ThemedText>
                     <View style={styles.inviteBadge}>
-                      <ThemedText type="small" style={styles.inviteBadgeText}>
+                      <ThemedText style={styles.inviteBadgeText}>
                         Invite Only
                       </ThemedText>
                     </View>
                   </View>
                   <ThemedText
-                    type="small"
-                    style={{ color: theme.textSecondary }}
+                    style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}
                   >
                     Mark attendance, view assigned workers and projects.
                     Accounts created by owner.
@@ -370,7 +558,7 @@ export default function SignupScreen() {
                   size={18}
                   color={Colors.light.error}
                 />
-                <ThemedText type="small" style={styles.errorAlertText}>
+                <ThemedText style={styles.errorAlertText}>
                   Supervisors cannot register themselves. Ask your Contractor or
                   Builder to add you from their settings dashboard.
                 </ThemedText>
@@ -390,7 +578,7 @@ export default function SignupScreen() {
               ]}
               disabled={!selectedRole || selectedRole === "supervisor"}
             >
-              <ThemedText type="body" style={styles.nextButtonText}>
+              <ThemedText style={styles.nextButtonText}>
                 Continue
               </ThemedText>
               <Feather name="arrow-right" size={18} color="#FFFFFF" />
@@ -440,7 +628,7 @@ export default function SignupScreen() {
                   styles.inputWrapper,
                   {
                     backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
+                    borderColor: getValidationBorderColor(usernameState),
                   },
                 ]}
               >
@@ -455,11 +643,23 @@ export default function SignupScreen() {
                   placeholder="Username"
                   placeholderTextColor={theme.textSecondary}
                   value={username}
-                  onChangeText={setUsername}
+                  onChangeText={handleUsernameChange}
+                  onBlur={() => {
+                    if (usernameTimer.current) clearTimeout(usernameTimer.current);
+                    runFieldValidation("username", username);
+                  }}
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
+                {usernameState === "checking" && (
+                  <ActivityIndicator size="small" color={theme.primary} />
+                )}
               </View>
+              {usernameMsg !== "" && (
+                <Text style={[styles.validationMsg, { color: getValidationColor(usernameState) }]}>
+                  {usernameMsg}
+                </Text>
+              )}
             </View>
 
             {/* Email Address */}
@@ -472,7 +672,7 @@ export default function SignupScreen() {
                   styles.inputWrapper,
                   {
                     backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
+                    borderColor: getValidationBorderColor(emailState),
                   },
                 ]}
               >
@@ -487,12 +687,24 @@ export default function SignupScreen() {
                   placeholder="Email Address"
                   placeholderTextColor={theme.textSecondary}
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={handleEmailChange}
+                  onBlur={() => {
+                    if (emailTimer.current) clearTimeout(emailTimer.current);
+                    runFieldValidation("email", email);
+                  }}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
+                {emailState === "checking" && (
+                  <ActivityIndicator size="small" color={theme.primary} />
+                )}
               </View>
+              {emailMsg !== "" && (
+                <Text style={[styles.validationMsg, { color: getValidationColor(emailState) }]}>
+                  {emailMsg}
+                </Text>
+              )}
             </View>
 
             {/* Mobile Number & Send OTP */}
@@ -507,7 +719,7 @@ export default function SignupScreen() {
                     styles.phoneInputWrapper,
                     {
                       backgroundColor: theme.backgroundDefault,
-                      borderColor: theme.border,
+                      borderColor: getValidationBorderColor(phoneState),
                     },
                   ]}
                 >
@@ -522,15 +734,18 @@ export default function SignupScreen() {
                     placeholder="Mobile Number"
                     placeholderTextColor={theme.textSecondary}
                     value={phone}
-                    onChangeText={(val) => {
-                      setPhone(val);
-                      setOtpSent(false);
-                      setOtpVerified(false);
+                    onChangeText={handlePhoneChange}
+                    onBlur={() => {
+                      if (phoneTimer.current) clearTimeout(phoneTimer.current);
+                      runFieldValidation("phone", phone);
                     }}
                     keyboardType="phone-pad"
                     maxLength={10}
                     editable={!otpVerified}
                   />
+                  {phoneState === "checking" && (
+                    <ActivityIndicator size="small" color={theme.primary} />
+                  )}
                 </View>
 
                 <Pressable
@@ -539,18 +754,23 @@ export default function SignupScreen() {
                     styles.otpButton,
                     {
                       backgroundColor:
-                        phone.trim().length === 10 && !otpVerified
+                        phone.trim().length === 10 && !otpVerified && phoneState === "available"
                           ? theme.primary
                           : theme.border,
                     },
                   ]}
-                  disabled={phone.trim().length !== 10 || otpVerified}
+                  disabled={phone.trim().length !== 10 || otpVerified || phoneState !== "available"}
                 >
-                  <ThemedText type="small" style={styles.otpButtonText}>
+                  <ThemedText style={styles.otpButtonText}>
                     {otpSent ? "Resend" : "Send OTP"}
                   </ThemedText>
                 </Pressable>
               </View>
+              {phoneMsg !== "" && (
+                <Text style={[styles.validationMsg, { color: getValidationColor(phoneState) }]}>
+                  {phoneMsg}
+                </Text>
+              )}
             </View>
 
             {/* OTP Code Verification */}
@@ -594,7 +814,7 @@ export default function SignupScreen() {
                       { backgroundColor: theme.success },
                     ]}
                   >
-                    <ThemedText type="small" style={styles.otpButtonText}>
+                    <ThemedText style={styles.otpButtonText}>
                       Verify
                     </ThemedText>
                   </Pressable>
@@ -607,7 +827,6 @@ export default function SignupScreen() {
               <View style={styles.verifiedContainer}>
                 <Feather name="check-circle" size={16} color={theme.success} />
                 <ThemedText
-                  type="body"
                   style={[styles.verifiedText, { color: theme.success }]}
                 >
                   Mobile number verified successfully
@@ -710,7 +929,7 @@ export default function SignupScreen() {
                   <Feather name="check" size={14} color="#FFFFFF" />
                 )}
               </View>
-              <ThemedText type="body" style={styles.termsText}>
+              <ThemedText style={styles.termsText}>
                 I agree to the Terms & Conditions
               </ThemedText>
             </Pressable>
@@ -720,14 +939,14 @@ export default function SignupScreen() {
               onPress={handleSignup}
               onPressIn={() => (buttonScale.value = withSpring(0.96))}
               onPressOut={() => (buttonScale.value = withSpring(1))}
-              disabled={isLoading}
+              disabled={isSubmitDisabled}
               style={[
                 styles.signupButton,
-                { backgroundColor: theme.primary },
+                { backgroundColor: isSubmitDisabled ? theme.border : theme.primary },
                 animatedButtonStyle,
               ]}
             >
-              <ThemedText type="body" style={styles.signupButtonText}>
+              <ThemedText style={styles.signupButtonText}>
                 {isLoading ? t.common.loading : t.auth.signUp}
               </ThemedText>
             </AnimatedPressable>
@@ -933,5 +1152,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "600",
     fontSize: 16,
+  },
+  validationMsg: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
+    marginLeft: 4,
   },
 });

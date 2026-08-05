@@ -26,6 +26,8 @@ import {
   disableSuspiciousDevice,
   deleteAllUsers,
   logoutAllUsers,
+  getActivityLogs,
+  getActivityStats,
 } from "../controllers/adminController";
 import { authenticateJWT, requireAdmin } from "../middleware/auth";
 
@@ -76,5 +78,9 @@ router.get("/security/sessions", getActiveSessions as any);
 router.post("/security/force-logout", forceLogoutUser as any);
 router.post("/security/disable-device", disableSuspiciousDevice as any);
 router.post("/security/logout-all", logoutAllUsers as any);
+
+// Live Activity & Operational Control Analytics
+router.get("/activity", getActivityLogs as any);
+router.get("/activity/stats", getActivityStats as any);
 
 export default router;

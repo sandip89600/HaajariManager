@@ -5,11 +5,11 @@ import {
   Pressable,
   Alert,
   FlatList,
-  Image,
-  ActivityIndicator,
   Platform,
   Modal,
   DeviceEventEmitter,
+  ScrollView,
+  Text,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import {
@@ -20,7 +20,6 @@ import {
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import Animated, {
   useAnimatedStyle,
@@ -36,18 +35,31 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { translateWorkerName } from "@/utils/transliteration";
-import { storage, Worker, WorkerCategory } from "@/utils/storage";
+import { storage, Worker, WorkerCategory, AttendanceRecord, AttendanceValue } from "@/utils/storage";
 import { appContextTracker } from "@/utils/appContextTracker";
 import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/MainTabNavigator";
 import { useAuth } from "@/hooks/useAuth";
 
+import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SearchBar } from "@/components/ui/SearchBar";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { Badge } from "@/components/ui/Badge";
+import { Avatar } from "@/components/ui/Avatar";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { KPICard } from "@/components/ui/KPICard";
+
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface WorkerCardProps {
   worker: Worker;
+  todayStatus: AttendanceValue | null;
+  siteName: string;
+  onView: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onMarkAttendance: () => void;
   theme: typeof Colors.light;
   isDark: boolean;
   t: any;
@@ -57,8 +69,12 @@ interface WorkerCardProps {
 
 const WorkerCard = React.memo(function WorkerCard({
   worker,
+  todayStatus,
+  siteName,
+  onView,
   onEdit,
   onDelete,
+  onMarkAttendance,
   theme,
   isDark,
   t,
@@ -73,39 +89,37 @@ const WorkerCard = React.memo(function WorkerCard({
     transform: [{ scale: scale.value }],
   }));
 
-  const getCategoryColor = (category: WorkerCategory) => {
-    const colors: Record<WorkerCategory, string> = {
-      labour: "#10B981", // Emerald
-      bai: "#EC4899", // Pink
-      mistri: "#6366F1", // Indigo
-      bandkam: "#8B5CF6", // Violet
-      plaster: "#06B6D4", // Cyan
-      tiles: "#3B82F6", // Blue
-      sutar: "#F59E0B", // Amber
-    };
-    return colors[category] || theme.primary;
-  };
+  let badgeVariant: "success" | "warning" | "error" | "info" | "neutral" = "neutral";
+  let statusLabel = "Unmarked";
+  let borderHighlight = isDark ? "#475569" : "#CBD5E1";
 
-  const initials =
-    translatedName
-      .split(" ")
-      .filter((w) => w.length > 0)
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2) || "?";
-
-  const catColor = getCategoryColor(worker.category);
+  if (todayStatus === "P") {
+    badgeVariant = "success";
+    statusLabel = "Present";
+    borderHighlight = "#22C55E";
+  } else if (todayStatus === "A") {
+    badgeVariant = "error";
+    statusLabel = "Absent";
+    borderHighlight = "#EF4444";
+  } else if (todayStatus === "H") {
+    badgeVariant = "warning";
+    statusLabel = "Half Day";
+    borderHighlight = "#F59E0B";
+  } else if (todayStatus === "OT") {
+    badgeVariant = "info";
+    statusLabel = "Overtime";
+    borderHighlight = "#A855F7";
+  }
 
   return (
-    <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
+    <Animated.View entering={FadeInDown.delay(Math.min(index * 50, 500)).springify()}>
       <AnimatedPressable
         onPress={() => {
-          if (role !== "supervisor") onEdit();
+          if (role !== "supervisor") onView();
         }}
         onPressIn={() => {
           if (role !== "supervisor")
-            scale.value = withSpring(0.96, { damping: 15 });
+            scale.value = withSpring(0.97, { damping: 15 });
         }}
         onPressOut={() => {
           if (role !== "supervisor")
@@ -114,114 +128,54 @@ const WorkerCard = React.memo(function WorkerCard({
         style={[
           styles.workerCard,
           {
-            backgroundColor: isDark
-              ? "rgba(30, 41, 59, 0.45)"
-              : "rgba(255, 255, 255, 0.9)",
-            borderColor: isDark
-              ? "rgba(255, 255, 255, 0.06)"
-              : "rgba(0, 0, 0, 0.05)",
+            backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+            borderColor: isDark ? "#334155" : "#E2E8F0",
             borderWidth: 1,
           },
           animatedStyle,
         ]}
       >
-        {/* Avatar */}
-        {worker.photoUri ? (
-          <Image
-            source={{ uri: worker.photoUri }}
-            style={styles.workerAvatar}
-          />
-        ) : (
-          <LinearGradient
-            colors={[catColor, catColor + "cc"]}
-            style={styles.workerAvatarPlaceholder}
-          >
-            <ThemedText style={styles.workerAvatarInitials}>
-              {initials}
+        <View style={styles.cardHeader}>
+          <View style={[styles.avatarBorder, { borderColor: borderHighlight }]}>
+            <Avatar name={worker.name} imageUri={worker.photoUri} size="lg" />
+          </View>
+          
+          <View style={styles.cardHeaderText}>
+            <ThemedText style={styles.workerName}>
+              {translatedName}
             </ThemedText>
-          </LinearGradient>
-        )}
-
-        <View style={styles.workerInfo}>
-          <ThemedText type="h3" style={{ fontWeight: "700" }}>
-            {translatedName}
-          </ThemedText>
-          <View style={styles.workerDetails}>
-            <View
-              style={[
-                styles.categoryBadge,
-                {
-                  backgroundColor: catColor + "12",
-                  borderColor: catColor + "25",
-                  borderWidth: 1,
-                },
-              ]}
-            >
-              <ThemedText
-                type="small"
-                style={[styles.categoryText, { color: catColor }]}
-              >
-                {t.categories[worker.category]}
+            <ThemedText style={[styles.workerRole, { color: theme.textSecondary }]}>
+              {t.categories[worker.category] || worker.category.toUpperCase()}
+            </ThemedText>
+            <View style={styles.siteIndicator}>
+              <Feather name="map-pin" size={12} color={theme.textSecondary} style={{ marginRight: 4 }} />
+              <ThemedText style={[styles.siteText, { color: theme.textSecondary }]} numberOfLines={1}>
+                {siteName || "Unassigned"}
               </ThemedText>
             </View>
-            <ThemedText
-              type="body"
-              style={[
-                styles.rateText,
-                { color: theme.textSecondary, fontWeight: "600" },
-              ]}
-            >
-              {t.common.currency}
-              {worker.dailyRate}
-              {t.workers.perDay}
+          </View>
+
+          <View style={styles.statusSection}>
+            <Badge label={statusLabel} variant={badgeVariant} />
+            <ThemedText style={[styles.wageText, { color: theme.primary }]}>
+              {t.common.currency}{worker.dailyRate}/day
             </ThemedText>
           </View>
-          {worker.phone ? (
-            <View style={styles.phoneRow}>
-              <Feather name="phone" size={11} color={theme.textSecondary} />
-              <ThemedText
-                type="small"
-                style={[styles.phoneText, { color: theme.textSecondary }]}
-              >
-                {worker.phone}
-              </ThemedText>
-            </View>
-          ) : null}
         </View>
 
         {role !== "supervisor" && (
-          <View style={styles.workerActions}>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onEdit();
-              }}
-              style={[
-                styles.actionButton,
-                {
-                  backgroundColor: theme.primary + "12",
-                  borderColor: theme.primary + "25",
-                  borderWidth: 1,
-                },
-              ]}
-            >
-              <Feather name="edit-3" size={16} color={theme.primary} />
+          <View style={[styles.cardActions, { borderTopColor: isDark ? '#334155' : '#E2E8F0' }]}>
+            <Pressable style={styles.actionBtn} onPress={onEdit}>
+              <Feather name="edit-2" size={14} color={theme.textSecondary} />
+              <Text style={[styles.actionText, { color: theme.textSecondary, marginLeft: 6 }]}>Edit</Text>
             </Pressable>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                onDelete();
-              }}
-              style={[
-                styles.actionButton,
-                {
-                  backgroundColor: theme.error + "12",
-                  borderColor: theme.error + "25",
-                  borderWidth: 1,
-                },
-              ]}
-            >
-              <Feather name="trash-2" size={16} color={theme.error} />
+            <Pressable style={styles.actionBtn} onPress={onDelete}>
+              <Feather name="trash-2" size={14} color="#EF4444" />
+              <Text style={[styles.actionText, { color: "#EF4444", marginLeft: 6 }]}>Delete</Text>
+            </Pressable>
+            <Pressable style={[styles.actionBtnPrimary, { backgroundColor: theme.primary + "15" }]} onPress={onMarkAttendance}>
+              <Feather name="calendar" size={14} color={theme.primary} />
+              <Text style={[styles.actionText, { color: theme.primary, marginLeft: 6 }]}>Mark Attendance</Text>
             </Pressable>
           </View>
         )}
@@ -234,10 +188,9 @@ export default function WorkersScreen() {
   const { theme, isDark } = useTheme();
   const { t, language } = useLanguage();
   const { user } = useAuth();
-  const role = user?.role; // contractor, builder, supervisor
+  const role = user?.role;
 
-  const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const insets = useSafeAreaInsets();
   const rawHeaderHeight = useHeaderHeight();
@@ -245,29 +198,57 @@ export default function WorkersScreen() {
   const tabBarHeight = insets.bottom + 60;
 
   const [workers, setWorkers] = useState<Worker[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showUpgradeLimitModal, setShowUpgradeLimitModal] = useState(false);
-  const [currentPlan, setCurrentPlan] = useState<
-    "free" | "starter" | "professional" | "business"
-  >("free");
+  const [currentPlan, setCurrentPlan] = useState<"free" | "starter" | "professional" | "business">("free");
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filter, setFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("Date Added");
 
   const route = useRoute<any>();
   const voiceSearchQuery = route.params?.voiceSearchQuery || "";
 
+  useEffect(() => {
+    if (voiceSearchQuery) {
+      setSearchQuery(voiceSearchQuery);
+    }
+  }, [voiceSearchQuery]);
+
   const handleClearSearch = () => {
-    navigation.setParams({ voiceSearchQuery: undefined } as any);
+    setSearchQuery("");
+    if (route.params?.voiceSearchQuery) {
+      navigation.setParams({ voiceSearchQuery: undefined } as any);
+    }
   };
 
-  const filteredWorkers =
-    voiceSearchQuery.trim() !== ""
-      ? workers.filter((w) => {
-          const transName = translateWorkerName(w.name, language);
-          return (
-            w.name.toLowerCase().includes(voiceSearchQuery.toLowerCase()) ||
-            transName.toLowerCase().includes(voiceSearchQuery.toLowerCase())
-          );
-        })
-      : workers;
+  const filteredWorkers = workers.filter((w) => {
+    const transName = translateWorkerName(w.name, language);
+    const matchesSearch =
+      searchQuery === "" ||
+      w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      transName.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const today = new Date();
+    const todayRec = attendanceRecords.find(
+      (r) =>
+        r.workerId === w.id &&
+        r.year === today.getFullYear() &&
+        r.month === today.getMonth() &&
+        r.day === today.getDate()
+    );
+    const todayStatus = todayRec?.value ?? null;
+
+    let matchesFilter = true;
+    if (filter === "Present") matchesFilter = todayStatus === "P";
+    else if (filter === "Absent") matchesFilter = todayStatus === "A";
+    else if (filter === "Half Day") matchesFilter = todayStatus === "H";
+    else if (filter === "On Leave") matchesFilter = todayStatus === "OT"; // OT maps to On Leave in this UI context
+
+    return matchesSearch && matchesFilter;
+  });
 
   const loadWorkers = useCallback(async () => {
     setIsLoading(true);
@@ -283,7 +264,22 @@ export default function WorkersScreen() {
 
       setWorkers(loadedWorkers.sort((a, b) => b.createdAt - a.createdAt));
 
-      // Fetch user's active subscription plan from storage
+      const today = new Date();
+      try {
+        const attendance = await storage.getAttendanceForMonth(today.getFullYear(), today.getMonth());
+        setAttendanceRecords(attendance);
+      } catch (e) {
+        console.warn("Failed loading attendance for workers summary:", e);
+      }
+
+      try {
+        const sitesResult = await storage.getSites();
+        const rawSites = sitesResult.sites || [];
+        setProjects(rawSites);
+      } catch (e) {
+        console.warn("Failed loading sites for workers summary:", e);
+      }
+
       const auth = await storage.getAuth();
       setCurrentPlan(auth?.plan || "free");
     } finally {
@@ -325,20 +321,6 @@ export default function WorkersScreen() {
     return () => sub.remove();
   }, [loadWorkers]);
 
-  useEffect(() => {
-    navigation.setOptions({
-      headerRight: () =>
-        role !== "supervisor" ? (
-          <Pressable
-            onPress={handleAddWorker}
-            style={{ marginRight: Spacing.md, padding: 4 }}
-          >
-            <Feather name="plus" size={24} color={theme.primary} />
-          </Pressable>
-        ) : null,
-    });
-  }, [navigation, role, theme.primary, handleAddWorker]);
-
   const handleEditWorker = (worker: Worker) => {
     appContextTracker.setContext({
       selectedWorkerId: worker.id,
@@ -347,19 +329,23 @@ export default function WorkersScreen() {
     navigation.navigate("AddWorker", { workerId: worker.id });
   };
 
+  const handleViewWorker = (worker: Worker) => {
+    handleEditWorker(worker);
+  };
+
+  const handleMarkAttendance = (worker: Worker) => {
+    navigation.navigate("AttendanceDetail", { siteId: worker.projectId });
+  };
+
   const handleDeleteWorker = (worker: Worker) => {
     appContextTracker.setContext({
       selectedWorkerId: worker.id,
       selectedWorkerName: worker.name,
     });
     if (Platform.OS === "web") {
-      const confirmed = window.confirm(
-        `${t.workers.delete}? ${t.workers.deleteConfirm}`,
-      );
+      const confirmed = window.confirm(`${t.workers.delete}? ${t.workers.deleteConfirm}`);
       if (confirmed) {
-        // Immediately remove from local state so UI updates instantly
         setWorkers((prev) => prev.filter((w) => w.id !== worker.id));
-        // Then call backend delete in background
         storage.deleteWorker(worker.id).catch((err) => {
           console.error("Failed to delete worker:", err);
         });
@@ -373,166 +359,151 @@ export default function WorkersScreen() {
         text: t.common.delete,
         style: "destructive",
         onPress: async () => {
-          // Immediately remove from local state so UI updates instantly
           setWorkers((prev) => prev.filter((w) => w.id !== worker.id));
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          // Then call backend delete in background
           await storage.deleteWorker(worker.id);
         },
       },
     ]);
   };
 
-  const getWarningText = () => {
-    const count = workers.length;
-    if (currentPlan === "free") {
-      if (count === 10) {
-        return "⚠️ You have used 10 of 15 worker slots.";
-      }
-      if (count === 14) {
-        return "🚨 Only 1 worker slot remaining.\nUpgrade now to avoid interruption.";
-      }
-    } else if (currentPlan === "professional") {
-      if (count === 95) {
-        return "🚨 You are close to your worker limit.\nCurrent Usage: 95 / 100";
-      }
-    }
-    return null;
+  const renderFilterChips = () => {
+    const filters = ["All", "Present", "Absent", "Half Day", "On Leave"];
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContainer}>
+        {filters.map((f) => {
+          const isSelected = filter === f;
+          return (
+            <Pressable
+              key={f}
+              onPress={() => setFilter(f)}
+              style={[
+                styles.filterChip,
+                { backgroundColor: isSelected ? theme.primary : (isDark ? '#1E293B' : '#F1F5F9') },
+              ]}
+            >
+              <Text style={[styles.filterChipText, { color: isSelected ? '#FFFFFF' : (isDark ? '#94A3B8' : '#64748B') }]}>
+                {f}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    );
+  };
+
+  const renderStats = () => {
+    const presentCount = workers.filter(w => {
+      const today = new Date();
+      const rec = attendanceRecords.find(r => r.workerId === w.id && r.year === today.getFullYear() && r.month === today.getMonth() && r.day === today.getDate());
+      return rec?.value === "P";
+    }).length;
+
+    const onLeaveCount = workers.filter(w => {
+      const today = new Date();
+      const rec = attendanceRecords.find(r => r.workerId === w.id && r.year === today.getFullYear() && r.month === today.getMonth() && r.day === today.getDate());
+      return rec?.value === "OT";
+    }).length;
+
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsContainer}>
+        <View style={{ width: 140 }}>
+          <KPICard title="Total Workers" value={workers.length} icon="users" color="#3B82F6" />
+        </View>
+        <View style={{ width: 140 }}>
+          <KPICard title="Active" value={presentCount} icon="check-circle" color="#10B981" />
+        </View>
+        <View style={{ width: 140 }}>
+          <KPICard title="On Leave" value={onLeaveCount} icon="clock" color="#F59E0B" />
+        </View>
+        <View style={{ width: 140 }}>
+          <KPICard title="New This Month" value={workers.length} icon="user-plus" color="#8B5CF6" />
+        </View>
+      </ScrollView>
+    );
   };
 
   const renderHeader = () => {
-    const text = getWarningText();
     return (
-      <View style={{ gap: Spacing.sm }}>
-        {text ? (
-          <View
-            style={[
-              styles.warningBanner,
-              {
-                backgroundColor: text.includes("🚨")
-                  ? "rgba(239, 68, 68, 0.1)"
-                  : "rgba(245, 158, 11, 0.1)",
-                borderColor: text.includes("🚨")
-                  ? "rgba(239, 68, 68, 0.2)"
-                  : "rgba(245, 158, 11, 0.2)",
-              },
-            ]}
-          >
-            <ThemedText
-              style={[
-                styles.warningText,
-                { color: text.includes("🚨") ? theme.error : "#D97706" },
-              ]}
-            >
-              {text}
-            </ThemedText>
-          </View>
-        ) : null}
-
-        {voiceSearchQuery.trim() !== "" ? (
-          <View
-            style={[
-              styles.warningBanner,
-              {
-                backgroundColor: theme.primary + "12",
-                borderColor: theme.primary + "30",
-                borderWidth: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                paddingVertical: Spacing.xs + 2,
-                borderRadius: BorderRadius.md,
-              },
-            ]}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Feather
-                name="search"
-                size={14}
-                color={theme.primary}
-                style={{ marginRight: 6 }}
-              />
-              <ThemedText
-                style={{
-                  color: theme.primary,
-                  fontWeight: "700",
-                  fontSize: 13,
-                }}
-              >
-                Search: {"\""}{voiceSearchQuery}{"\""}
-              </ThemedText>
+      <View style={{ gap: Spacing.md, paddingBottom: Spacing.md }}>
+        {renderStats()}
+        <View style={{ paddingHorizontal: Spacing.lg }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <ThemedText style={{ fontSize: 20, fontWeight: "800" }}>Workers</ThemedText>
+              <Badge label={workers.length.toString()} variant="info" />
             </View>
-            <Pressable onPress={handleClearSearch} style={{ padding: 4 }}>
-              <Feather name="x-circle" size={16} color={theme.primary} />
+            <Pressable style={styles.sortButton} onPress={() => setSortBy(sortBy === "Name A-Z" ? "Date Added" : "Name A-Z")}>
+              <Feather name="bar-chart-2" size={16} color={theme.primary} style={{ transform: [{ rotate: '90deg' }] }} />
+              <Text style={{ color: theme.primary, fontWeight: '600', fontSize: 12 }}>Sort</Text>
             </Pressable>
           </View>
-        ) : null}
+          <SearchBar
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search workers by name..."
+            onClear={handleClearSearch}
+          />
+        </View>
+        {renderFilterChips()}
       </View>
     );
   };
 
-  const renderWorker = ({ item, index }: { item: Worker; index: number }) => (
-    <WorkerCard
-      worker={item}
-      onEdit={() => handleEditWorker(item)}
-      onDelete={() => handleDeleteWorker(item)}
-      theme={theme}
-      isDark={isDark}
-      t={t}
-      index={index}
-      role={role}
-    />
-  );
+  const renderWorker = ({ item, index }: { item: Worker; index: number }) => {
+    const today = new Date();
+    const todayRec = attendanceRecords.find(
+      (r) =>
+        r.workerId === item.id &&
+        r.year === today.getFullYear() &&
+        r.month === today.getMonth() &&
+        r.day === today.getDate()
+    );
+    const todayStatus = todayRec?.value ?? null;
+    const project = projects.find((p) => p.id === item.projectId);
+    const siteName = project?.name || "";
+
+    return (
+      <WorkerCard
+        worker={item}
+        todayStatus={todayStatus}
+        siteName={siteName}
+        onView={() => handleViewWorker(item)}
+        onEdit={() => handleEditWorker(item)}
+        onDelete={() => handleDeleteWorker(item)}
+        onMarkAttendance={() => handleMarkAttendance(item)}
+        theme={theme}
+        isDark={isDark}
+        t={t}
+        index={index}
+        role={role}
+      />
+    );
+  };
 
   const renderEmpty = () => {
-    if (isLoading) return null;
-    return (
-      <View style={styles.emptyContainer}>
-        <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: theme.backgroundSecondary, justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
-          <Feather name="users" size={32} color={theme.primary} />
+    if (isLoading) {
+      return (
+        <View style={{ paddingHorizontal: Spacing.lg, gap: Spacing.md }}>
+          <SkeletonLoader width="100%" height={120} borderRadius={16} />
+          <SkeletonLoader width="100%" height={120} borderRadius={16} />
+          <SkeletonLoader width="100%" height={120} borderRadius={16} />
         </View>
-        <ThemedText style={{ fontSize: 18, fontWeight: "800", marginBottom: 8, color: theme.text }}>
-          {t.workers.noWorkers}
-        </ThemedText>
-        <ThemedText
-          style={{ fontSize: 14, textAlign: "center", color: theme.textSecondary, marginBottom: 20, paddingHorizontal: 24 }}
-        >
-          {role === "supervisor"
-            ? "No workers assigned to your projects yet."
-            : t.workers.addFirst}
-        </ThemedText>
-        {role !== "supervisor" && (
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              navigation.navigate("AddWorker");
-            }}
-            style={{
-              paddingHorizontal: 20,
-              paddingVertical: 10,
-              backgroundColor: theme.primary,
-              borderRadius: BorderRadius.xs
-            }}
-          >
-            <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Add Worker</ThemedText>
-          </Pressable>
-        )}
-      </View>
+      );
+    }
+    return (
+      <EmptyState
+        icon="users"
+        title="No Workers Found"
+        subtitle={role === "supervisor" ? "No workers assigned to your projects yet." : t.workers.addFirst}
+        actionLabel={role !== "supervisor" ? "Add First Worker" : undefined}
+        onAction={role !== "supervisor" ? handleAddWorker : undefined}
+      />
     );
   };
 
   return (
     <ThemedView style={styles.container}>
-      {isLoading ? (
-        <View
-          style={[
-            styles.loadingContainer,
-            { paddingTop: headerHeight + Spacing.xl },
-          ]}
-        >
-          <ActivityIndicator size="large" color={theme.primary} />
-        </View>
-      ) : null}
       <FlatList
         data={isLoading ? [] : filteredWorkers}
         renderItem={renderWorker}
@@ -540,14 +511,14 @@ export default function WorkersScreen() {
         contentContainerStyle={[
           styles.listContent,
           {
-            paddingTop: headerHeight + Spacing.xl,
+            paddingTop: headerHeight,
             paddingBottom: tabBarHeight + Spacing.xl,
           },
         ]}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
         showsVerticalScrollIndicator={false}
-        refreshing={false}
+        refreshing={isLoading}
         onRefresh={loadWorkers}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         initialNumToRender={10}
@@ -556,6 +527,18 @@ export default function WorkersScreen() {
         removeClippedSubviews={Platform.OS === "android"}
       />
 
+      {role !== "supervisor" && (
+        <AnimatedPressable
+          entering={FadeInDown.springify()}
+          style={[styles.fabContainer, { bottom: tabBarHeight + Spacing.md }]}
+          onPress={handleAddWorker}
+        >
+          <LinearGradient colors={['#F97316', '#EA580C']} style={styles.fabGradient}>
+            <Feather name="plus" size={24} color="#FFFFFF" />
+          </LinearGradient>
+        </AnimatedPressable>
+      )}
+
       {/* Professional Upgrade Modal */}
       <Modal
         visible={showUpgradeLimitModal}
@@ -563,80 +546,30 @@ export default function WorkersScreen() {
         animationType="fade"
         onRequestClose={() => setShowUpgradeLimitModal(false)}
       >
-        <BlurView
-          intensity={isDark ? 80 : 90}
-          tint={isDark ? "dark" : "light"}
-          style={StyleSheet.absoluteFill}
-        >
+        <BlurView intensity={isDark ? 80 : 90} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill}>
           <View style={styles.modalCenteredView}>
-            <ThemedView
-              style={[
-                styles.upgradeModalContent,
-                {
-                  backgroundColor: theme.backgroundDefault,
-                  borderColor: theme.border,
-                  borderWidth: 1,
-                },
-              ]}
-            >
+            <ThemedView style={[styles.upgradeModalContent, { backgroundColor: theme.backgroundDefault, borderColor: theme.border, borderWidth: 1 }]}>
               <View style={styles.modalIconContainer}>
                 <ThemedText style={{ fontSize: 48 }}>🚀</ThemedText>
               </View>
-
-              <ThemedText type="h2" style={styles.modalTitle}>
-                🚀 Upgrade Required
-              </ThemedText>
-
-              <ThemedText
-                type="body"
-                style={[styles.modalMessage, { color: theme.textSecondary }]}
-              >
+              <ThemedText type="h2" style={styles.modalTitle}>🚀 Upgrade Required</ThemedText>
+              <ThemedText type="body" style={[styles.modalMessage, { color: theme.textSecondary }]}>
                 You have reached the maximum worker limit for your current plan.
                 {"\n\n"}
-                {currentPlan === "free"
-                  ? "Free Plan allows up to 15 workers."
-                  : "Professional Plan allows up to 100 workers."}
+                {currentPlan === "free" ? "Free Plan allows up to 15 workers." : "Professional Plan allows up to 100 workers."}
                 {"\n\n"}
-                Upgrade to Pro or Business to add more workers and unlock
-                advanced features.
+                Upgrade to Pro or Business to add more workers and unlock advanced features.
               </ThemedText>
-
               <View style={styles.modalBtnContainer}>
-                <Pressable
+                <PrimaryButton
+                  label="Upgrade Now"
                   onPress={() => {
                     setShowUpgradeLimitModal(false);
-                    navigation.navigate(
-                      "MainTabs" as any,
-                      {
-                        screen: "SettingsTab",
-                        params: { openUpgrade: true },
-                      } as any,
-                    );
+                    navigation.navigate("MainTabs" as any, { screen: "SettingsTab", params: { openUpgrade: true } } as any);
                   }}
-                  style={styles.upgradeNowBtn}
-                >
-                  <LinearGradient
-                    colors={[theme.primary, "#FF8C35"]}
-                    style={styles.gradientBtn}
-                  >
-                    <ThemedText style={styles.upgradeNowText}>
-                      Upgrade Now
-                    </ThemedText>
-                  </LinearGradient>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => setShowUpgradeLimitModal(false)}
-                  style={[
-                    styles.maybeLaterBtn,
-                    { borderColor: theme.border, borderWidth: 1 },
-                  ]}
-                >
-                  <ThemedText
-                    style={[styles.maybeLaterText, { color: theme.text }]}
-                  >
-                    Maybe Later
-                  </ThemedText>
+                />
+                <Pressable onPress={() => setShowUpgradeLimitModal(false)} style={[styles.maybeLaterBtn, { borderColor: theme.border, borderWidth: 1 }]}>
+                  <ThemedText style={[styles.maybeLaterText, { color: theme.text }]}>Maybe Later</ThemedText>
                 </Pressable>
               </View>
             </ThemedView>
@@ -647,194 +580,68 @@ export default function WorkersScreen() {
   );
 }
 
-const CARD_RADIUS = 20;
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  listContent: {
-    paddingHorizontal: Spacing.lg,
-  },
+  container: { flex: 1 },
+  listContent: { paddingBottom: Spacing.xl },
+  statsContainer: { gap: 12, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm },
+  filterContainer: { gap: 8, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs },
+  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+  filterChipText: { fontSize: 13, fontWeight: "600" },
+  sortButton: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(249,115,22,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  
   workerCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.lg,
-    borderRadius: CARD_RADIUS,
-    gap: Spacing.md,
-  },
-  workerAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-  },
-  workerAvatarPlaceholder: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  workerAvatarInitials: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#FFFFFF",
-  },
-  workerInfo: {
-    flex: 1,
-  },
-  workerName: {
-    marginBottom: Spacing.xs,
-  },
-  workerDetails: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    marginTop: 2,
-  },
-  phoneRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 6,
-  },
-  phoneText: {
-    fontSize: 12,
-  },
-  categoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
     borderRadius: 20,
+    padding: 16,
+    marginHorizontal: Spacing.lg,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
   },
-  categoryText: {
-    fontWeight: "700",
-    fontSize: 10,
-    textTransform: "uppercase",
+  cardHeader: { flexDirection: 'row', alignItems: 'center' },
+  avatarBorder: {
+    padding: 2,
+    borderWidth: 2,
+    borderRadius: 1000,
   },
-  rateText: {
-    fontSize: 13.5,
+  cardHeaderText: { flex: 1, marginLeft: 12 },
+  workerName: { fontSize: 16, fontWeight: "800", marginBottom: 2 },
+  workerRole: { fontSize: 11, fontWeight: "600", textTransform: 'uppercase' },
+  siteIndicator: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  siteText: { fontSize: 11, fontWeight: "500", flex: 1 },
+  
+  statusSection: { alignItems: 'flex-end', gap: 4 },
+  wageText: { fontSize: 12, fontWeight: "700" },
+  
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingTop: 12,
+    borderWidth: 0,
+    borderTopWidth: 1,
   },
-  workerActions: {
-    flexDirection: "row",
-    gap: Spacing.sm,
+  actionBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10 },
+  actionBtnPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
   },
-  actionButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  separator: {
-    height: Spacing.sm,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingTop: Spacing["5xl"],
-  },
-  emptyIcon: {
-    marginBottom: Spacing.lg,
-    opacity: 0.5,
-  },
-  emptyTitle: {
-    textAlign: "center",
-    marginBottom: Spacing.sm,
-  },
-  emptySubtitle: {
-    textAlign: "center",
-  },
-  fabContainer: {
-    position: "absolute",
-    right: Spacing.lg,
-  },
-  fab: {
-    width: Spacing.fabSize,
-    height: Spacing.fabSize,
-    borderRadius: Spacing.fabSize / 2,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  warningBanner: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    marginBottom: Spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  warningText: {
-    fontSize: 14,
-    fontWeight: "700",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  modalCenteredView: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: Spacing.xl,
-  },
-  upgradeModalContent: {
-    width: "100%",
-    maxWidth: 340,
-    borderRadius: 24,
-    padding: Spacing.xl,
-    alignItems: "center",
-    ...Shadows.md,
-  },
-  modalIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  modalTitle: {
-    fontWeight: "800",
-    textAlign: "center",
-    marginBottom: Spacing.md,
-  },
-  modalMessage: {
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: Spacing.xl,
-  },
-  modalBtnContainer: {
-    width: "100%",
-    gap: Spacing.md,
-  },
-  upgradeNowBtn: {
-    width: "100%",
-    borderRadius: 14,
-    overflow: "hidden",
-  },
-  gradientBtn: {
-    paddingVertical: Spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  upgradeNowText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  maybeLaterBtn: {
-    width: "100%",
-    paddingVertical: Spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-  },
-  maybeLaterText: {
-    fontWeight: "600",
-    fontSize: 16,
-  },
+  actionText: { fontSize: 12, fontWeight: "700" },
+  
+  separator: { height: 12 },
+  fabContainer: { position: "absolute", right: Spacing.lg, zIndex: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  fabGradient: { width: 56, height: 56, borderRadius: 28, justifyContent: "center", alignItems: "center" },
+  modalCenteredView: { flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl },
+  upgradeModalContent: { width: "100%", maxWidth: 340, borderRadius: 24, padding: Spacing.xl, alignItems: "center", ...Shadows.md },
+  modalIconContainer: { width: 80, height: 80, borderRadius: 40, justifyContent: "center", alignItems: "center", marginBottom: Spacing.md },
+  modalTitle: { fontWeight: "800", textAlign: "center", marginBottom: Spacing.md },
+  modalMessage: { textAlign: "center", lineHeight: 22, marginBottom: Spacing.xl },
+  modalBtnContainer: { width: "100%", gap: Spacing.md },
+  maybeLaterBtn: { width: "100%", paddingVertical: Spacing.md, alignItems: "center", justifyContent: "center", borderRadius: 14 },
+  maybeLaterText: { fontWeight: "600", fontSize: 16 },
 });

@@ -2,6 +2,7 @@ import { Response } from "express";
 import { Worker, WageHistory, AuditLog, User } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { broadcastAdminActivity } from "../utils/socket";
+import { logActivity } from "../services/activityLogger";
 
 export const getWorkers = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -58,16 +59,13 @@ export const addWorker = async (req: AuthenticatedRequest, res: Response) => {
     });
     await wageHistory.save();
 
-    const auditLog = new AuditLog({
-      tenantId,
-      userId,
-      action: "CREATE",
+    await logActivity({
+      req,
+      action: "WORKER_CREATED",
       targetType: "WORKER",
       targetId: worker._id.toString(),
-      changes: { after: worker.toObject() },
+      changes: { after: worker.toObject() }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     res.status(201).json(worker);
   } catch (error: any) {
@@ -116,16 +114,13 @@ export const updateWorker = async (req: AuthenticatedRequest, res: Response) => 
 
     await worker.save();
 
-    const auditLog = new AuditLog({
-      tenantId,
-      userId,
-      action: "UPDATE",
+    await logActivity({
+      req,
+      action: "WORKER_UPDATED",
       targetType: "WORKER",
       targetId: worker._id.toString(),
-      changes: { before, after: worker.toObject() },
+      changes: { before, after: worker.toObject() }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     res.json(worker);
   } catch (error: any) {
@@ -148,16 +143,13 @@ export const deleteWorker = async (req: AuthenticatedRequest, res: Response) => 
     worker.isArchived = true;
     await worker.save();
 
-    const auditLog = new AuditLog({
-      tenantId,
-      userId,
-      action: "SOFT_DELETE",
+    await logActivity({
+      req,
+      action: "WORKER_DELETED",
       targetType: "WORKER",
       targetId: worker._id.toString(),
-      changes: { before, after: worker.toObject() },
+      changes: { before, after: worker.toObject() }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     res.json({ success: true, message: "Worker soft deleted successfully" });
   } catch (error: any) {

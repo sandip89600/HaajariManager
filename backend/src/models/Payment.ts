@@ -10,6 +10,11 @@ export interface IPayment extends Document {
   note?: string;
   createdBy: mongoose.Types.ObjectId;
   method?: string;
+  transactionId?: string;
+  referenceNumber?: string;
+  paidByName?: string;
+  receivedByName?: string;
+  status?: string;
 }
 
 const PaymentSchema = new Schema<IPayment>({
@@ -21,7 +26,12 @@ const PaymentSchema = new Schema<IPayment>({
   paidAt: { type: Date, default: Date.now },
   note: { type: String },
   createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
-  method: { type: String, enum: ["Cash", "UPI", "Bank Transfer"], default: "Cash" },
+  method: { type: String, enum: ["Cash", "UPI", "Bank Transfer", "Cheque", "Other"], default: "Cash" },
+  transactionId: { type: String },
+  referenceNumber: { type: String },
+  paidByName: { type: String },
+  receivedByName: { type: String },
+  status: { type: String, enum: ["Pending", "Completed", "Failed"], default: "Completed" },
 });
 
 PaymentSchema.index({ tenantId: 1, workerId: 1, year: 1, month: 1 });

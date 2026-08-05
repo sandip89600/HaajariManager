@@ -2,6 +2,7 @@ import { Response } from "express";
 import { Attendance, AuditLog, User, Worker, Tenant } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { broadcastAdminActivity } from "../utils/socket";
+import { logActivity } from "../services/activityLogger";
 
 export const getAttendanceForMonth = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -109,16 +110,13 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
       { new: true, upsert: true }
     );
 
-    const auditLog = new AuditLog({
-      tenantId,
-      userId,
-      action: before ? "UPDATE" : "CREATE",
+    await logActivity({
+      req,
+      action: before ? "ATTENDANCE_UPDATED" : "ATTENDANCE_MARKED",
       targetType: "ATTENDANCE",
       targetId: record._id.toString(),
-      changes: { before, after: record.toObject() },
+      changes: { before, after: record.toObject() }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     res.json(record);
   } catch (error: any) {
@@ -225,16 +223,13 @@ export const deleteAttendanceRecord = async (req: AuthenticatedRequest, res: Res
     const before = attendance.toObject();
     await Attendance.findByIdAndDelete(id);
 
-    const auditLog = new AuditLog({
-      tenantId,
-      userId,
-      action: "DELETE",
+    await logActivity({
+      req,
+      action: "ATTENDANCE_DELETED",
       targetType: "ATTENDANCE",
       targetId: id,
-      changes: { before },
+      changes: { before }
     });
-    await auditLog.save();
-    broadcastAdminActivity(auditLog);
 
     res.json({ success: true, message: "Attendance record deleted successfully" });
   } catch (error: any) {

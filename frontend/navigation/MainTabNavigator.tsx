@@ -41,7 +41,7 @@ export type MainTabParamList = {
 
 export type AttendanceStackParamList = {
   Dashboard: undefined;
-  AttendanceDetail: undefined;
+  AttendanceDetail: { siteId?: string } | undefined;
   Workers: undefined;
   Summary: undefined;
 };
@@ -64,7 +64,7 @@ export type RootStackParamList = {
   EnterpriseCollaboration: undefined;
 
   // Root stack fallbacks
-  AttendanceDetail: undefined;
+  AttendanceDetail: { siteId?: string } | undefined;
   Workers: undefined;
   Summary: undefined;
 };

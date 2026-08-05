@@ -1,10 +1,11 @@
 import { Router } from "express";
-import { signup, login, refresh, verifyEmail, forgotPassword, resetPassword, getProfile, updateProfile, changePassword, upgradePlan, deleteAccount, sendOtp, verifyOtpLogin, registerBiometric, biometricLogin, updatePrivacySettings, toggleOtpSetting, toggleBiometricsSetting, getUserSessions, logoutDevice, logoutAllDevices } from "../controllers/authController";
+import { signup, login, refresh, verifyEmail, forgotPassword, resetPassword, getProfile, updateProfile, changePassword, upgradePlan, deleteAccount, sendOtp, verifyOtpLogin, registerBiometric, biometricLogin, updatePrivacySettings, toggleOtpSetting, toggleBiometricsSetting, getUserSessions, logoutDevice, logoutAllDevices, savePushToken, validateSignupField } from "../controllers/authController";
 import { authenticateJWT } from "../middleware/auth";
 
 const router = Router();
 
 router.post("/signup", signup as any);
+router.post("/validate-signup-field", validateSignupField as any);
 router.post("/login", login as any);
 router.post("/refresh", refresh as any);
 router.get("/verify-email/:token", verifyEmail as any);
@@ -27,5 +28,6 @@ router.put("/security/privacy", authenticateJWT as any, updatePrivacySettings as
 router.get("/security/sessions", authenticateJWT as any, getUserSessions as any);
 router.post("/security/logout-device", authenticateJWT as any, logoutDevice as any);
 router.post("/security/logout-all", authenticateJWT as any, logoutAllDevices as any);
+router.post("/push-token", authenticateJWT as any, savePushToken as any);
 
 export default router;

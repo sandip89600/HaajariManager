@@ -1,4 +1,5 @@
 import React from "react";
+import "./global.css";
 import { StyleSheet, View, ActivityIndicator, Platform } from "react-native";
 import {
   NavigationContainer,

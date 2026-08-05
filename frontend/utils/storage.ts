@@ -122,6 +122,10 @@ function mapPayment(doc: any): PaymentRecord {
       doc.createdBy && typeof doc.createdBy === "object"
         ? doc.createdBy.name
         : doc.paidByName,
+    receivedByName: doc.receivedByName,
+    transactionId: doc.transactionId,
+    referenceNumber: doc.referenceNumber,
+    status: doc.status || "Completed",
   };
 }
 
@@ -285,8 +289,12 @@ export interface PaymentRecord {
   amount: number;
   paidAt: number;
   note?: string;
-  method?: string;
+  method?: "Cash" | "UPI" | "Bank Transfer" | "Cheque" | "Other";
   paidByName?: string;
+  receivedByName?: string;
+  transactionId?: string;
+  referenceNumber?: string;
+  status?: "Pending" | "Completed" | "Failed";
 }
 
 export type ThemeMode = "light" | "dark" | "system";
@@ -1080,6 +1088,11 @@ export const storage = {
               amount: payment.amount,
               note: payment.note,
               method: payment.method,
+              transactionId: payment.transactionId,
+              referenceNumber: payment.referenceNumber,
+              paidByName: payment.paidByName,
+              receivedByName: payment.receivedByName,
+              status: payment.status || "Completed",
             }),
           });
           if (res.ok) {

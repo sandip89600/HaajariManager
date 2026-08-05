@@ -565,3 +565,100 @@ export async function fetchAndPrintHTML(url: string): Promise<boolean> {
     return false;
   }
 }
+
+export async function generateAndSharePaymentReceipt(
+  payment: any,
+  workerName: string,
+  companyName: string,
+  t: any,
+): Promise<boolean> {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Payment Receipt</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 30px; color: #1E293B; background: #F8FAFC; }
+        .receipt-box { border: 1px solid #E2E8F0; padding: 30px; border-radius: 16px; max-width: 500px; margin: auto; background: #FFFFFF; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
+        .header { text-align: center; border-bottom: 2px solid #F1F5F9; padding-bottom: 20px; margin-bottom: 20px; }
+        .header h1 { font-size: 22px; color: #0F172A; margin: 0; font-weight: 800; }
+        .header p { font-size: 13px; color: #64748B; margin: 6px 0 0 0; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+        .row { display: flex; justify-content: space-between; margin-bottom: 14px; font-size: 14px; line-height: 20px; }
+        .row .label { color: #64748B; font-weight: 500; }
+        .row .value { color: #0F172A; font-weight: 700; }
+        .amount-box { background: #FFF7ED; border: 1px solid #FFEDD5; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0; }
+        .amount-title { font-size: 11px; color: #EA580C; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+        .amount-val { font-size: 32px; color: #EA580C; font-weight: 900; }
+        .footer { text-align: center; font-size: 11px; color: #94A3B8; margin-top: 30px; border-top: 1px solid #F1F5F9; padding-top: 16px; font-weight: 500; }
+      </style>
+    </head>
+    <body>
+      <div class="receipt-box">
+        <div class="header">
+          <h1>${companyName || "Haajari Manager"}</h1>
+          <p>Payment Receipt / भुगतान रसीद</p>
+        </div>
+        
+        <div class="row">
+          <span class="label">Worker Name:</span>
+          <span class="value">${workerName}</span>
+        </div>
+        <div class="row">
+          <span class="label">Date:</span>
+          <span class="value">${new Date(payment.paidAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+        </div>
+        <div class="row">
+          <span class="label">Payment Method:</span>
+          <span class="value">${payment.method || "Cash"}</span>
+        </div>
+        ${payment.transactionId ? `
+        <div class="row">
+          <span class="label">Transaction ID:</span>
+          <span class="value">${payment.transactionId}</span>
+        </div>
+        ` : ""}
+        ${payment.referenceNumber ? `
+        <div class="row">
+          <span class="label">Ref Number:</span>
+          <span class="value">${payment.referenceNumber}</span>
+        </div>
+        ` : ""}
+        ${payment.paidByName ? `
+        <div class="row">
+          <span class="label">Paid By:</span>
+          <span class="value">${payment.paidByName}</span>
+        </div>
+        ` : ""}
+        ${payment.receivedByName ? `
+        <div class="row">
+          <span class="label">Received By:</span>
+          <span class="value">${payment.receivedByName}</span>
+        </div>
+        ` : ""}
+        <div class="row">
+          <span class="label">Status:</span>
+          <span class="value" style="color: ${payment.status === "Failed" ? "#EF4444" : payment.status === "Pending" ? "#F59E0B" : "#10B981"}">${payment.status || "Completed"}</span>
+        </div>
+
+        <div class="amount-box">
+          <div class="amount-title">Amount Paid</div>
+          <div class="amount-val">₹ ${payment.amount}</div>
+        </div>
+
+        ${payment.note ? `
+        <div style="font-size: 13px; color: #475569; background: #F8FAFC; padding: 12px; border-radius: 8px; margin-top: 16px; border: 1px solid #E2E8F0; line-height: 18px;">
+          <strong>Notes:</strong> ${payment.note}
+        </div>
+        ` : ""}
+
+        <div class="footer">
+          Generated via Haajari Manager — AI-Powered Construction Site Assistant.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  return exportToPDF(html, `receipt_${payment.id || Date.now()}.pdf`);
+}

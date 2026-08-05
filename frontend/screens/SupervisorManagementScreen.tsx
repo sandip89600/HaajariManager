@@ -659,7 +659,7 @@ export default function SupervisorManagementScreen() {
             <Pressable
               onPress={() => {
                 setUpgradeModalVisible(false);
-                navigation.navigate("SettingsTab" as any);
+                navigation.navigate("MainTabs" as any, { screen: "SettingsTab" } as any);
               }}
               style={[
                 styles.upgradeActionBtn,
