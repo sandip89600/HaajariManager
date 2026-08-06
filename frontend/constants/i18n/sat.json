@@ -6,7 +6,7 @@
   "auth": {
     "welcome": "Welcome Back",
     "email": "Email or Mobile",
-    "password": "Password or PIN",
+    "password": "Password",
     "login": "Login",
     "rememberMe": "Remember me",
     "invalidCredentials": "Invalid email or password",

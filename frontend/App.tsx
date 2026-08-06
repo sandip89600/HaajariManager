@@ -27,8 +27,6 @@ const linking = {
   prefixes: [prefix, "haajari://", "http://localhost:8081"],
   config: {
     screens: {
-      AdminLogin: "haajariappadmin/login-deprecated",
-      AdminDashboard: "haajariappadmin/adminone",
       Login: "login",
       Signup: "signup",
       TermsAndConditions: "terms",
@@ -40,7 +38,7 @@ const linking = {
     const lowerPath = path.toLowerCase();
     if (
       lowerPath.includes("hardyadmin") ||
-      lowerPath.includes("haajariappadmin/login") ||
+      lowerPath.includes("haajariappadmin") ||
       lowerPath === "admin" ||
       lowerPath === "admin/login"
     ) {
@@ -53,7 +51,7 @@ const linking = {
         const lowerHashPath = hashPath.toLowerCase();
         if (
           lowerHashPath.includes("hardyadmin") ||
-          lowerHashPath.includes("haajariappadmin/login") ||
+          lowerHashPath.includes("haajariappadmin") ||
           lowerHashPath === "admin" ||
           lowerHashPath === "admin/login"
         ) {

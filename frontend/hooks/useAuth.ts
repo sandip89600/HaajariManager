@@ -111,13 +111,26 @@ export function useAuthProvider() {
 
       // 1. Try server login
       try {
-        const res = await fetch(`${API_URL}/auth/login`, {
+        const url = otp ? `${API_URL}/auth/verify-otp-login` : `${API_URL}/auth/login`;
+        const payload = otp ? { phone: phoneTrimmed, otp } : { phone: phoneTrimmed, password };
+
+        const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: phoneTrimmed, password, otp }),
+          body: JSON.stringify(payload),
         });
-        if (res.ok) {
-          const data = await res.json();
+
+        let data: any = null;
+        let isJson = false;
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          try {
+            data = await res.json();
+            isJson = true;
+          } catch {}
+        }
+
+        if (res.ok && isJson && data) {
           if (data.requiresOtp) {
             return { requiresOtp: true, phone: data.phone };
           }
@@ -194,9 +207,19 @@ export function useAuthProvider() {
           });
 
           return true;
+        } else {
+          // If the server explicitly returned an error JSON, propagate it
+          const errorMsg = isJson && data ? data.error || data.message : null;
+          if (errorMsg) {
+            throw new Error(errorMsg);
+          }
         }
-      } catch (e) {
+      } catch (e: any) {
         console.warn("Backend login failed, attempting local fallback", e);
+        // If it was an explicit server validation/auth error, propagate it directly
+        if (e && e.message && !e.message.includes("Network request failed") && !e.message.includes("Failed to fetch") && !e.message.includes("JSON Parse")) {
+          throw e;
+        }
       }
 
       // 2. Local Fallback for offline support (using their real stored password)

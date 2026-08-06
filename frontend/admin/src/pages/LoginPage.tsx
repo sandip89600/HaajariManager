@@ -1,145 +1,163 @@
 import React, { useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { motion } from 'framer-motion';
-import { User, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
-import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ShieldCheck, Lock, Eye, EyeOff, Loader2, AlertCircle, User } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
+import { api } from '../utils/api';
+import toast from 'react-hot-toast';
 
 interface LoginFormInputs {
-  phone: string;
+  phone: string; // Map internally to API's "phone" string parameter which accepts email/username
   password: string;
 }
 
 const LoginPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { isAuthenticated, login } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  
+  const navigate = useNavigate();
+  const login = useAuthStore((state) => state.login);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<LoginFormInputs>();
+  const { register, handleSubmit, formState: { errors } } = useForm<LoginFormInputs>();
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const onSubmit = async (data: LoginFormInputs) => {
+  const onLoginSubmit = async (data: LoginFormInputs) => {
+    setIsLoading(true);
     setAuthError(null);
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/login`, {
+      const response = await api.post('/auth/login', {
         phone: data.phone,
         password: data.password,
       });
 
-      const { user, token } = response.data;
+      const { user, token, refreshToken } = response.data;
 
       if (user.role !== 'admin') {
-        setAuthError('Access denied. Admin privileges required.');
+        setAuthError('Access denied. Administrator credentials required.');
+        setIsLoading(false);
         return;
       }
 
-      login(user, token);
+      login(token, refreshToken || '', user);
+      toast.success(`Welcome back, ${user.name}!`);
       navigate('/dashboard');
     } catch (err: any) {
-      if (err.response && err.response.data && err.response.data.message) {
+      setIsLoading(false);
+      if (err.response && err.response.data && err.response.data.error) {
+        setAuthError(err.response.data.error);
+      } else if (err.response && err.response.data && err.response.data.message) {
         setAuthError(err.response.data.message);
       } else {
-        setAuthError('An error occurred during login. Please try again.');
+        setAuthError('Invalid credentials. Please verify your email/username and password.');
       }
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col justify-center items-center p-4">
+    <div className="relative min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 overflow-hidden">
+      {/* Decorative blurred background lights */}
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-orange-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="w-full max-w-md bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-700 shadow-2xl overflow-hidden"
+        className="w-full max-w-md glass-card rounded-2xl border border-slate-850 p-8 shadow-2xl relative z-10 space-y-6"
       >
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">Haajari Manager</h1>
-            <p className="text-slate-400">Admin Portal</p>
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center p-3 bg-gradient-to-tr from-orange-500 to-amber-500 rounded-2xl shadow-lg shadow-orange-500/10 mb-4">
+            <ShieldCheck className="w-8 h-8 text-white" />
           </div>
+          <h2 className="text-2xl font-extrabold tracking-tight text-white font-display">Haajari Manager</h2>
+          <p className="text-slate-400 text-sm mt-1.5 font-medium">Enterprise Web Administrator Portal</p>
+        </div>
 
+        <AnimatePresence>
           {authError && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-lg flex items-start gap-3"
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs rounded-xl flex items-start gap-2.5"
             >
-              <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-              <p className="text-sm text-red-400">{authError}</p>
+              <AlertCircle className="w-4.5 h-4.5 text-rose-400 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">{authError}</div>
             </motion.div>
           )}
+        </AnimatePresence>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-slate-500" />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Username or Phone"
-                  className={`block w-full pl-10 pr-3 py-3 border ${errors.phone ? 'border-red-500' : 'border-slate-600'} rounded-lg bg-slate-900 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors`}
-                  {...register('phone', { required: 'Phone/Username is required' })}
-                />
-              </div>
-              {errors.phone && (
-                <p className="mt-1 text-sm text-red-500">{errors.phone.message}</p>
-              )}
+        <form onSubmit={handleSubmit(onLoginSubmit)} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-400 block ml-1">Username or Email</label>
+            <div className="relative">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Enter username or email"
+                {...register('phone', { required: 'Username or email is required' })}
+                className={`premium-input pl-11 py-2.5 text-sm ${errors.phone ? 'border-rose-500 focus:ring-rose-500/35 focus:border-rose-500' : ''}`}
+              />
             </div>
+            {errors.phone && (
+              <span className="text-[10px] text-rose-400 block ml-1">{errors.phone.message}</span>
+            )}
+          </div>
 
-            <div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-slate-500" />
-                </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Password"
-                  className={`block w-full pl-10 pr-10 py-3 border ${errors.password ? 'border-red-500' : 'border-slate-600'} rounded-lg bg-slate-900 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors`}
-                  {...register('password', { required: 'Password is required' })}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-500">{errors.password.message}</p>
-              )}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-400 block ml-1">Password</label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter password"
+                {...register('password', { required: 'Password is required' })}
+                className={`premium-input pl-11 pr-11 py-2.5 text-sm ${errors.password ? 'border-rose-500 focus:ring-rose-500/35 focus:border-rose-500' : ''}`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-330 transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+              </button>
             </div>
+            {errors.password && (
+              <span className="text-[10px] text-rose-400 block ml-1">{errors.password.message}</span>
+            )}
+          </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" />
-                  Signing in...
-                </>
-              ) : (
-                'Sign In'
-              )}
-            </button>
-          </form>
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full premium-btn-primary py-2.5 text-xs flex items-center justify-center gap-2 mt-2"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                Signing in...
+              </>
+            ) : (
+              'Sign In to Dashboard'
+            )}
+          </button>
+        </form>
+
+        <div className="text-center pt-3 border-t border-slate-850/40">
+          <Link
+            to="/signup"
+            className="text-xs text-orange-500 hover:text-orange-400 font-bold transition-colors"
+          >
+            Don't have an admin account? Sign Up
+          </Link>
         </div>
       </motion.div>
-      <div className="mt-8 text-slate-500 text-sm">
-        &copy; {new Date().getFullYear()} Haajari Manager. All rights reserved.
-      </div>
     </div>
   );
 };

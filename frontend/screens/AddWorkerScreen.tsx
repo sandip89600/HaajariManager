@@ -8,6 +8,7 @@ import {
   Image,
   Platform,
   ScrollView,
+  Modal,
 } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -103,6 +104,8 @@ export default function AddWorkerScreen() {
   const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [limitModalVisible, setLimitModalVisible] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [categorySearchQuery, setCategorySearchQuery] = useState("");
 
   // Projects State
   const [projects, setProjects] = useState<Project[]>([]);
@@ -409,52 +412,43 @@ export default function AddWorkerScreen() {
           />
         </View>
 
-        {/* Category Selection Grid */}
+        {/* Category Selection Selector */}
         <View style={styles.formGroup}>
           <ThemedText type="h4" style={styles.label}>
             {t.workers.category}
           </ThemedText>
-          <View style={styles.categoryGrid}>
-            {CATEGORIES.map((cat) => {
-              const details = CATEGORY_DETAILS[cat];
-              const isSelected = category === cat;
-              const activeColor = details ? details.color : theme.primary;
-              return (
-                <Pressable
-                  key={cat}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setCategory(cat);
-                  }}
-                  style={[
-                    styles.categoryItem,
-                    {
-                      backgroundColor: isSelected
-                        ? activeColor + "12"
-                        : theme.backgroundDefault,
-                      borderColor: isSelected
-                        ? activeColor
-                        : theme.border,
-                    },
-                  ]}
-                >
-                  <ThemedText style={{ fontSize: 20 }}>
-                    {details ? details.emoji : "🛠️"}
-                  </ThemedText>
-                  <ThemedText
-                    type="body"
-                    style={{
-                      color: isSelected ? activeColor : theme.text,
-                      fontWeight: "700",
-                      fontSize: 14,
-                    }}
-                  >
-                    {t.categories[cat]}
-                  </ThemedText>
-                </Pressable>
-              );
-            })}
-          </View>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowCategoryModal(true);
+            }}
+            style={[
+              styles.dropdownSelector,
+              {
+                backgroundColor: theme.backgroundSecondary || (theme.backgroundDefault + "90"),
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <View style={styles.dropdownLeft}>
+              <View
+                style={[
+                  styles.categoryCircleBadge,
+                  {
+                    backgroundColor: (CATEGORY_DETAILS[category]?.color || theme.primary) + "22",
+                  },
+                ]}
+              >
+                <ThemedText style={{ fontSize: 20 }}>
+                  {CATEGORY_DETAILS[category]?.emoji || "👷‍♂️"}
+                </ThemedText>
+              </View>
+              <ThemedText style={[styles.dropdownValueText, { color: theme.text }]}>
+                {t.categories[category]}
+              </ThemedText>
+            </View>
+            <Feather name="chevron-down" size={20} color={theme.textSecondary} />
+          </Pressable>
         </View>
 
         {/* Daily Rate */}
@@ -778,6 +772,147 @@ export default function AddWorkerScreen() {
         onClose={() => setLimitModalVisible(false)}
         resourceType="workers"
       />
+
+      {/* Category Selection Bottom Sheet Modal */}
+      <Modal
+        visible={showCategoryModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCategoryModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowCategoryModal(false)}
+        >
+          <View
+            style={[
+              styles.bottomSheetContainer,
+              {
+                backgroundColor: theme.backgroundSecondary || theme.backgroundDefault,
+                paddingBottom: insets.bottom + Spacing.lg,
+              },
+            ]}
+          >
+            {/* Top Sheet indicator handle bar */}
+            <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
+
+            {/* Header */}
+            <View style={styles.sheetHeader}>
+              <ThemedText type="h3" style={{ color: theme.text }}>
+                Select Category
+              </ThemedText>
+              <Pressable
+                onPress={() => setShowCategoryModal(false)}
+                style={[styles.closeButton, { backgroundColor: theme.border + "40" }]}
+                hitSlop={12}
+              >
+                <Feather name="x" size={18} color={theme.text} />
+              </Pressable>
+            </View>
+
+            {/* Search Input Bar */}
+            <View
+              style={[
+                styles.sheetSearchContainer,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <Feather name="search" size={16} color={theme.textSecondary} style={{ marginRight: 8 }} />
+              <TextInput
+                style={[styles.sheetSearchInput, { color: theme.text }]}
+                placeholder="Search categories..."
+                placeholderTextColor={theme.textSecondary}
+                value={categorySearchQuery}
+                onChangeText={setCategorySearchQuery}
+                autoCorrect={false}
+              />
+              {categorySearchQuery.length > 0 && (
+                <Pressable onPress={() => setCategorySearchQuery("")} hitSlop={8}>
+                  <Feather name="x-circle" size={16} color={theme.textSecondary} />
+                </Pressable>
+              )}
+            </View>
+
+            {/* List of Categories */}
+            <ScrollView
+              style={styles.sheetList}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {CATEGORIES.filter((cat) =>
+                t.categories[cat].toLowerCase().includes(categorySearchQuery.toLowerCase())
+              ).map((cat) => {
+                const details = CATEGORY_DETAILS[cat];
+                const isSelected = category === cat;
+                const activeColor = details ? details.color : theme.primary;
+
+                return (
+                  <Pressable
+                    key={cat}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setCategory(cat);
+                      setShowCategoryModal(false);
+                      setCategorySearchQuery("");
+                    }}
+                    style={[
+                      styles.sheetItemRow,
+                      {
+                        backgroundColor: isSelected
+                          ? activeColor + "10"
+                          : "transparent",
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <View style={styles.sheetItemLeft}>
+                      <View
+                        style={[
+                          styles.sheetEmojiCircle,
+                          {
+                            backgroundColor: activeColor + "20",
+                          },
+                        ]}
+                      >
+                        <ThemedText style={{ fontSize: 22 }}>
+                          {details ? details.emoji : "🛠️"}
+                        </ThemedText>
+                      </View>
+                      <ThemedText
+                        style={[
+                          styles.sheetItemLabel,
+                          {
+                            color: isSelected ? activeColor : theme.text,
+                            fontWeight: isSelected ? "700" : "500",
+                          },
+                        ]}
+                      >
+                        {t.categories[cat]}
+                      </ThemedText>
+                    </View>
+
+                    {isSelected && (
+                      <View
+                        style={[
+                          styles.checkmarkCircle,
+                          {
+                            backgroundColor: activeColor,
+                          },
+                        ]}
+                      >
+                        <Feather name="check" size={12} color="#FFFFFF" />
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -862,21 +997,112 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     fontSize: 16,
   },
-  categoryGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    rowGap: Spacing.md,
-  },
-  categoryItem: {
+  dropdownSelector: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 1.8,
+    paddingHorizontal: Spacing.md,
+  },
+  dropdownLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  categoryCircleBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dropdownValueText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    justifyContent: "flex-end",
+  },
+  bottomSheetContainer: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+  },
+  sheetHandle: {
+    width: 42,
+    height: 5,
+    borderRadius: 2.5,
+    alignSelf: "center",
+    marginBottom: Spacing.md,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sheetSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1.8,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  sheetSearchInput: {
+    flex: 1,
+    fontSize: 15,
+    height: "100%",
+    padding: 0,
+  },
+  sheetList: {
+    maxHeight: 350,
+  },
+  sheetItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: Spacing.md - 2,
     paddingHorizontal: Spacing.md,
-    borderRadius: 14,
-    borderWidth: 1.8,
-    flexBasis: "48%",
-    gap: Spacing.sm,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    marginBottom: Spacing.xs,
+  },
+  sheetItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  sheetEmojiCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sheetItemLabel: {
+    fontSize: 16,
+  },
+  checkmarkCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
   projectListSelect: {
     marginTop: Spacing.xs,

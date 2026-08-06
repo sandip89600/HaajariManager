@@ -60,6 +60,14 @@ export default function SignupScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
+  // Real-time password validation criteria
+  const isMinLength = password.length >= 8;
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasLowercase = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[^A-Za-z0-9]/.test(password);
+  const isPasswordStrong = isMinLength && hasUppercase && hasLowercase && hasNumber && hasSpecial;
+
   // Validation States
   const [usernameState, setUsernameState] = useState<"idle" | "checking" | "available" | "error">("idle");
   const [usernameMsg, setUsernameMsg] = useState("");
@@ -309,8 +317,11 @@ export default function SignupScreen() {
       Alert.alert("Error", "Please enter your company name");
       return;
     }
-    if (!password.trim() || password.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters");
+    if (!isPasswordStrong) {
+      Alert.alert(
+        "Error",
+        "Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, one number, and one special character."
+      );
       return;
     }
     if (!agreedToTerms) {
@@ -379,8 +390,7 @@ export default function SignupScreen() {
     !phone.trim() ||
     !otpVerified ||
     !companyName.trim() ||
-    !password.trim() ||
-    password.length < 6 ||
+    !isPasswordStrong ||
     !agreedToTerms;
 
   const ScrollContainer =
@@ -907,6 +917,62 @@ export default function SignupScreen() {
                   />
                 </Pressable>
               </View>
+
+              {/* Password Validation Requirements */}
+              {password.length > 0 && (
+                <View style={styles.passwordRulesContainer}>
+                  <View style={styles.ruleRow}>
+                    <Feather
+                      name={isMinLength ? "check-circle" : "circle"}
+                      size={14}
+                      color={isMinLength ? "#22C55E" : theme.textSecondary}
+                    />
+                    <ThemedText style={[styles.ruleText, { color: isMinLength ? "#22C55E" : theme.textSecondary }]}>
+                      Minimum 8 characters
+                    </ThemedText>
+                  </View>
+                  <View style={styles.ruleRow}>
+                    <Feather
+                      name={hasUppercase ? "check-circle" : "circle"}
+                      size={14}
+                      color={hasUppercase ? "#22C55E" : theme.textSecondary}
+                    />
+                    <ThemedText style={[styles.ruleText, { color: hasUppercase ? "#22C55E" : theme.textSecondary }]}>
+                      One uppercase letter
+                    </ThemedText>
+                  </View>
+                  <View style={styles.ruleRow}>
+                    <Feather
+                      name={hasLowercase ? "check-circle" : "circle"}
+                      size={14}
+                      color={hasLowercase ? "#22C55E" : theme.textSecondary}
+                    />
+                    <ThemedText style={[styles.ruleText, { color: hasLowercase ? "#22C55E" : theme.textSecondary }]}>
+                      One lowercase letter
+                    </ThemedText>
+                  </View>
+                  <View style={styles.ruleRow}>
+                    <Feather
+                      name={hasNumber ? "check-circle" : "circle"}
+                      size={14}
+                      color={hasNumber ? "#22C55E" : theme.textSecondary}
+                    />
+                    <ThemedText style={[styles.ruleText, { color: hasNumber ? "#22C55E" : theme.textSecondary }]}>
+                      One number
+                    </ThemedText>
+                  </View>
+                  <View style={styles.ruleRow}>
+                    <Feather
+                      name={hasSpecial ? "check-circle" : "circle"}
+                      size={14}
+                      color={hasSpecial ? "#22C55E" : theme.textSecondary}
+                    />
+                    <ThemedText style={[styles.ruleText, { color: hasSpecial ? "#22C55E" : theme.textSecondary }]}>
+                      One special character
+                    </ThemedText>
+                  </View>
+                </View>
+              )}
             </View>
 
             {/* Terms and Conditions */}
@@ -1158,5 +1224,18 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 4,
     marginLeft: 4,
+  },
+  passwordRulesContainer: {
+    marginTop: 8,
+    paddingHorizontal: 4,
+    gap: 4,
+  },
+  ruleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  ruleText: {
+    fontSize: 12,
   },
 });

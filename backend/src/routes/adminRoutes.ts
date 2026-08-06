@@ -28,6 +28,14 @@ import {
   logoutAllUsers,
   getActivityLogs,
   getActivityStats,
+  getAllTenantsAdmin,
+  getAllMaterialsAdmin,
+  getAllExpensesAdmin,
+  getAllSalariesAdmin,
+  getAllNotificationsAdmin,
+  getAllSubscriptionsAdmin,
+  getAllSupportTicketsAdmin,
+  getAllDevicesAdmin,
 } from "../controllers/adminController";
 import { authenticateJWT, requireAdmin } from "../middleware/auth";
 
@@ -82,5 +90,15 @@ router.post("/security/logout-all", logoutAllUsers as any);
 // Live Activity & Operational Control Analytics
 router.get("/activity", getActivityLogs as any);
 router.get("/activity/stats", getActivityStats as any);
+
+// Catalog catalogs & detailed admin metrics
+router.get("/tenants", getAllTenantsAdmin as any);
+router.get("/materials", getAllMaterialsAdmin as any);
+router.get("/expenses", getAllExpensesAdmin as any);
+router.get("/salary", getAllSalariesAdmin as any);
+router.get("/notifications", getAllNotificationsAdmin as any);
+router.get("/subscriptions", getAllSubscriptionsAdmin as any);
+router.get("/support", getAllSupportTicketsAdmin as any);
+router.get("/devices", getAllDevicesAdmin as any);
 
 export default router;

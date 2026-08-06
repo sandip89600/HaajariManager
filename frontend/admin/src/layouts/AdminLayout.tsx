@@ -1,290 +1,212 @@
-import { useState, useEffect } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
-import {
-  LayoutDashboard,
-  BarChart3,
-  Users,
-  HardHat,
-  CalendarCheck,
-  Building2,
-  CreditCard,
-  FileText,
-  Settings,
-  UserCircle,
-  Search,
-  Bell,
-  Menu,
-  ChevronLeft,
-  ChevronRight,
-  LogOut,
-  Wifi,
-  WifiOff
+import React, { useState } from 'react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { 
+  LayoutDashboard, Users, CalendarDays, Building2, 
+  DollarSign, FileSpreadsheet, BarChart3, Settings, 
+  LogOut, Menu, X, Bell, User, HardHat, ShieldCheck,
+  Building, UserCheck, Package, CreditCard, TrendingDown,
+  Coins, Gem, HelpCircle, FileText, Smartphone
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../stores/authStore';
-import { useSocket } from '../hooks/useSocket';
 
-const navGroups = [
-  {
-    title: 'OVERVIEW',
-    items: [
-      { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-      { name: 'Analytics', path: '/analytics', icon: BarChart3 },
-    ],
-  },
-  {
-    title: 'MANAGEMENT',
-    items: [
-      { name: 'Users', path: '/users', icon: Users },
-      { name: 'Workers', path: '/workers', icon: HardHat },
-      { name: 'Attendance', path: '/attendance', icon: CalendarCheck },
-      { name: 'Sites', path: '/sites', icon: Building2 },
-    ],
-  },
-  {
-    title: 'FINANCE',
-    items: [
-      { name: 'Payments', path: '/payments', icon: CreditCard },
-      { name: 'Reports', path: '/reports', icon: FileText },
-    ],
-  },
-  {
-    title: 'SYSTEM',
-    items: [
-      { name: 'Settings', path: '/settings', icon: Settings },
-      { name: 'Profile', path: '/profile', icon: UserCircle },
-    ],
-  },
-];
-
-export default function AdminLayout() {
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+const AdminLayout: React.FC = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showNotifications, setShowNotifications] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  
-  const { user, logout } = useAuthStore();
-  const { isConnected } = useSocket();
+  const logout = useAuthStore((state) => state.logout);
+  const adminUser = useAuthStore((state) => state.user);
 
-  // Close mobile menu on route change
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [location]);
+  const menuItems = [
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Analytics', path: '/analytics', icon: BarChart3 },
+    { name: 'Organizations', path: '/organizations', icon: Building },
+    { name: 'Users', path: '/users', icon: UserCheck },
+    { name: 'Workers', path: '/workers', icon: HardHat },
+    { name: 'Attendance', path: '/attendance', icon: CalendarDays },
+    { name: 'Sites', path: '/sites', icon: Building2 },
+    { name: 'Materials', path: '/materials', icon: Package },
+    { name: 'Payments', path: '/payments', icon: CreditCard },
+    { name: 'Expenses', path: '/expenses', icon: TrendingDown },
+    { name: 'Salary', path: '/salary', icon: Coins },
+    { name: 'Reports', path: '/reports', icon: FileSpreadsheet },
+    { name: 'Notifications', path: '/notifications', icon: Bell },
+    { name: 'Subscriptions', path: '/subscriptions', icon: Gem },
+    { name: 'Support', path: '/support', icon: HelpCircle },
+    { name: 'Activity Logs', path: '/activity-logs', icon: FileText },
+    { name: 'Device Mgmt', path: '/devices', icon: Smartphone },
+    { name: 'Settings', path: '/settings', icon: Settings },
+  ];
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const getPageTitle = () => {
-    const currentPath = location.pathname;
-    for (const group of navGroups) {
-      const match = group.items.find(item => item.path === currentPath);
-      if (match) return match.name;
-    }
-    return 'Dashboard';
-  };
-
   return (
-    <div className="flex h-screen w-full bg-slate-900 text-slate-100 overflow-hidden font-sans selection:bg-orange-500/30 selection:text-orange-200">
-      {/* Mobile Backdrop */}
-      <AnimatePresence>
-        {mobileOpen && (
+    <div className="min-h-screen bg-slate-950 flex flex-col md:flex-row">
+      {/* Mobile Header Bar */}
+      <div className="md:hidden flex items-center justify-between bg-slate-900 border-b border-slate-800 px-4 py-3 text-white">
+        <div className="flex items-center gap-2">
+          <div className="bg-orange-500 p-1.5 rounded-lg">
+            <ShieldCheck className="w-5 h-5 text-white" />
+          </div>
+          <span className="font-bold font-display text-lg tracking-tight">Haajari Admin</span>
+        </div>
+        <button 
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
+        >
+          {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </div>
+
+      {/* Sidebar navigation */}
+      <AnimatePresence mode="wait">
+        {sidebarOpen && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setMobileOpen(false)}
-            className="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm lg:hidden"
-          />
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 280, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            className="w-full md:w-72 bg-slate-900/40 backdrop-blur-md border-r border-slate-850/80 flex flex-col text-slate-300 md:h-screen fixed md:sticky top-0 z-40"
+          >
+            {/* Desktop Brand Header */}
+            <div className="hidden md:flex items-center gap-3 px-6 py-6 border-b border-slate-850/40">
+              <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-2 rounded-xl shadow-md shadow-orange-500/10">
+                <ShieldCheck className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <span className="font-bold text-lg text-white font-display tracking-tight">Haajari Manager</span>
+                <span className="block text-[10px] text-slate-500 font-medium tracking-widest uppercase">Admin System</span>
+              </div>
+            </div>
+
+            {/* Nav Menu */}
+            <div className="flex-1 px-4 py-4 overflow-y-auto space-y-1">
+              {menuItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-xl font-medium text-xs transition-all duration-150 ${
+                      isActive 
+                        ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' 
+                        : 'hover:bg-slate-850/50 hover:text-white border border-transparent'
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-orange-500' : 'text-slate-400'}`} />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* User card & Log out */}
+            <div className="p-4 border-t border-slate-850/40 bg-slate-900/20">
+              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-850/20 border border-slate-850/50 mb-3">
+                <div className="bg-slate-850 p-1.5 rounded-full border border-slate-750">
+                  <User className="w-3.5 h-3.5 text-slate-300" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-white truncate">{adminUser?.name || 'Admin User'}</p>
+                  <p className="text-[9px] text-slate-500 truncate">{adminUser?.phone}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 rounded-xl font-semibold text-xs transition-all duration-200"
+              >
+                <LogOut className="w-4.5 h-4.5 text-slate-400 hover:text-rose-400" />
+                Log Out
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
-      <motion.aside
-        initial={false}
-        animate={{
-          width: collapsed ? 72 : 260,
-          x: mobileOpen ? 0 : -260,
-        }}
-        className="fixed inset-y-0 left-0 z-50 flex flex-col bg-slate-800 border-r border-slate-700/50 shadow-2xl transition-all duration-300 lg:static lg:translate-x-0"
-        style={{ x: mobileOpen ? 0 : 'var(--sidebar-x, 0)' }}
-      >
-        <style>{`
-          @media (min-width: 1024px) {
-            aside { transform: none !important; }
-          }
-        `}</style>
-        
-        {/* Brand */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-slate-700/50 shrink-0">
-          <div className="flex items-center gap-3 overflow-hidden whitespace-nowrap">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-orange-500/20 text-orange-500 shrink-0">
-              <HardHat size={24} strokeWidth={2.5} />
-            </div>
-            {!collapsed && (
-              <span className="text-xl font-bold bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-                Haajari Admin
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Nav Items */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin py-4 px-3 space-y-6">
-          {navGroups.map((group, i) => (
-            <div key={i} className="flex flex-col gap-1">
-              {!collapsed ? (
-                <div className="px-3 text-xs font-semibold text-slate-400 mb-2 tracking-wider">
-                  {group.title}
-                </div>
-              ) : (
-                <div className="h-6 w-full flex justify-center mb-2">
-                  <div className="w-4 border-b border-slate-700"></div>
-                </div>
-              )}
-              {group.items.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  title={collapsed ? item.name : undefined}
-                  className={({ isActive }) => `
-                    flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative
-                    ${isActive 
-                      ? 'bg-orange-500/10 text-orange-500' 
-                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-slate-100'}
-                  `}
-                >
-                  {({ isActive }) => (
-                    <>
-                      {isActive && (
-                        <motion.div 
-                          layoutId="activeNav"
-                          className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-orange-500 rounded-r-full"
-                        />
-                      )}
-                      <item.icon size={20} className={`shrink-0 ${isActive ? 'text-orange-500' : 'text-slate-400 group-hover:text-slate-300'}`} />
-                      {!collapsed && <span className="font-medium whitespace-nowrap">{item.name}</span>}
-                    </>
-                  )}
-                </NavLink>
-              ))}
-            </div>
-          ))}
-        </div>
-
-        {/* Collapse Toggle */}
-        <div className="h-16 flex items-center px-4 border-t border-slate-700/50 shrink-0 hidden lg:flex">
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="flex items-center justify-center w-full p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition-colors"
-          >
-            {collapsed ? <ChevronRight size={20} /> : <div className="flex items-center gap-2 w-full"><ChevronLeft size={20} /><span className="text-sm font-medium">Collapse</span></div>}
-          </button>
-        </div>
-      </motion.aside>
-
-      {/* Main Container */}
-      <div className="flex flex-col flex-1 min-w-0 h-full">
-        {/* Topbar */}
-        <header className="h-16 bg-slate-800 border-b border-slate-700/50 flex items-center justify-between px-4 lg:px-8 shrink-0 z-10 relative shadow-sm">
+      {/* Main Page Area */}
+      <div className="flex-1 flex flex-col overflow-y-auto max-h-screen">
+        {/* Top Navbar header */}
+        <header className="bg-slate-950 border-b border-slate-850/40 h-16 flex items-center justify-between px-6 sticky top-0 z-30">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setMobileOpen(true)}
-              className="p-2 -ml-2 text-slate-400 hover:text-slate-200 rounded-lg lg:hidden"
+            <button 
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="hidden md:flex p-1.5 hover:bg-slate-850 rounded-lg text-slate-400 hover:text-white transition-colors"
             >
-              <Menu size={24} />
+              <Menu className="w-5 h-5" />
             </button>
-            <h1 className="text-xl font-semibold hidden sm:block text-slate-100">{getPageTitle()}</h1>
+            <div className="text-slate-400 text-xs font-medium">
+              Enterprise Dashboard &bull; Live Monitor
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4 md:gap-6">
-            <div className="relative hidden md:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="w-64 bg-slate-900 border border-slate-700 rounded-full py-2 pl-10 pr-4 text-sm text-slate-200 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all placeholder-slate-500"
-              />
-            </div>
-
-            <div className="flex items-center gap-3 border-l border-slate-700 pl-4 sm:pl-6">
-              <div 
-                className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-900 border border-slate-700 text-xs font-medium cursor-help"
-                title={isConnected ? 'Connected to server' : 'Disconnected from server'}
+          <div className="flex items-center gap-4">
+            {/* Notification triggers */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative p-2 bg-slate-900 border border-slate-850 hover:bg-slate-800 hover:text-white text-slate-400 rounded-xl transition-all"
               >
-                {isConnected ? <Wifi size={14} className="text-emerald-500" /> : <WifiOff size={14} className="text-rose-500" />}
-                <span className="hidden sm:inline-block text-slate-300">{isConnected ? 'Live' : 'Offline'}</span>
-              </div>
-
-              <button className="relative p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-full transition-colors">
-                <Bell size={20} />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full ring-2 ring-slate-800"></span>
+                <Bell className="w-4 h-4" />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-orange-500 rounded-full"></span>
               </button>
 
-              <div className="relative">
-                <button 
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="flex items-center gap-2 p-1 pl-2 pr-3 bg-slate-900 border border-slate-700 rounded-full hover:border-slate-600 transition-colors"
-                >
-                  <div className="w-8 h-8 bg-gradient-to-tr from-orange-600 to-orange-400 rounded-full flex items-center justify-center text-white font-bold shadow-inner">
-                    {user?.name?.charAt(0) || 'A'}
-                  </div>
-                  <span className="text-sm font-medium text-slate-300 hidden sm:block">{user?.name || 'Admin'}</span>
-                </button>
-
-                <AnimatePresence>
-                  {dropdownOpen && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)}></div>
-                      <motion.div
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 shadow-xl rounded-xl overflow-hidden z-50 py-1"
-                      >
-                        <div className="px-4 py-3 border-b border-slate-700/50 mb-1">
-                          <p className="text-sm text-slate-100 font-medium truncate">{user?.name || 'Admin User'}</p>
-                          <p className="text-xs text-slate-400 truncate">{user?.email || 'admin@haajari.com'}</p>
+              {/* Notification Overlay Panel */}
+              <AnimatePresence>
+                {showNotifications && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 15 }}
+                    className="absolute right-0 mt-3 w-80 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 z-50 space-y-3"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <span className="font-bold text-sm text-white">Live Alerts</span>
+                      <span className="text-[10px] bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded-full font-semibold">Active</span>
+                    </div>
+                    <div className="space-y-2.5 max-h-64 overflow-y-auto">
+                      <div className="p-2.5 hover:bg-slate-850/30 rounded-xl border border-slate-850/50 transition-colors">
+                        <div className="flex items-center gap-1.5 text-xs text-orange-400 font-bold mb-1">
+                          <span className="w-1.5 h-1.5 bg-orange-500 rounded-full"></span>
+                          Subscription Limit Alert
                         </div>
-                        <button 
-                          onClick={() => { setDropdownOpen(false); navigate('/profile'); }}
-                          className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-slate-100 flex items-center gap-2"
-                        >
-                          <UserCircle size={16} /> Profile
-                        </button>
-                        <button 
-                          onClick={handleLogout}
-                          className="w-full text-left px-4 py-2 text-sm text-rose-400 hover:bg-slate-700 hover:text-rose-300 flex items-center gap-2"
-                        >
-                          <LogOut size={16} /> Logout
-                        </button>
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
+                        <p className="text-[11px] text-slate-400 leading-normal">Client Organization 'Shree Builders' reached limit of 20 workers.</p>
+                      </div>
+                      <div className="p-2.5 hover:bg-slate-850/30 rounded-xl border border-slate-850/50 transition-colors">
+                        <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold mb-1">
+                          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                          Plan Upgraded Success
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-normal">Client 'Vikas Constructions' upgraded to Premium Plan (Annual).</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            
+            <div className="h-8 w-px bg-slate-850"></div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-300 hidden sm:inline">{adminUser?.name || 'Administrator'}</span>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 flex items-center justify-center font-bold text-xs text-white">
+                {adminUser?.name ? adminUser.name.substring(0, 2).toUpperCase() : 'AD'}
               </div>
             </div>
           </div>
         </header>
 
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6 scrollbar-thin relative bg-slate-900">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-              className="max-w-7xl mx-auto w-full"
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
+        {/* Dynamic content rendering */}
+        <main className="flex-1 bg-slate-950 p-6 md:p-8">
+          <Outlet />
         </main>
       </div>
     </div>
   );
-}
+};
+
+export default AdminLayout;

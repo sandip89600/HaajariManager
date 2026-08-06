@@ -7,8 +7,6 @@ import LoginScreen from "@/screens/LoginScreen";
 import SignupScreen from "@/screens/SignupScreen";
 import TermsAndConditionsScreen from "@/screens/TermsAndConditionsScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
-import AdminLoginScreen from "@/screens/AdminLoginScreen";
-import AdminDashboardScreen from "@/screens/AdminDashboardScreen";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import FirstTimeSetupScreen from "@/screens/FirstTimeSetupScreen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -21,14 +19,12 @@ export type RootNavigatorParamList = {
   TermsAndConditions: undefined;
   PrivacyPolicy: undefined;
   Main: undefined;
-  AdminLogin: undefined;
-  AdminDashboard: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootNavigatorParamList>();
 
 export default function RootNavigator() {
-  const { isLoggedIn, isGuest, isLoading, userType } = useAuth();
+  const { isLoggedIn, isGuest, isLoading } = useAuth();
   const { theme, isDark } = useTheme();
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
 
@@ -68,8 +64,6 @@ export default function RootNavigator() {
             />
           )}
         </Stack.Screen>
-      ) : isLoggedIn && userType === "admin" ? (
-        <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
       ) : hasAccess ? (
         <Stack.Screen name="Main" component={MainTabNavigator} />
       ) : (
@@ -83,10 +77,6 @@ export default function RootNavigator() {
         component={TermsAndConditionsScreen}
       />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
-      <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
-      {(!isLoggedIn || userType !== "admin") && (
-        <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
-      )}
     </Stack.Navigator>
   );
 }

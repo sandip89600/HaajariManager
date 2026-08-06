@@ -4,10 +4,10 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 export interface User {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   phone: string;
   role: string;
-  tenantId: string;
+  tenantId?: string;
 }
 
 export interface AuthState {

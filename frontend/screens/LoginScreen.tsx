@@ -223,12 +223,7 @@ export default function LoginScreen() {
 
         if (loginSuccess) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          // Redirect to appropriate dashboard based on credentials
-          if (savedPhone === "haajari896") {
-            navigationProp.replace("AdminDashboard");
-          } else {
-            navigationProp.replace("Main");
-          }
+          navigationProp.replace("Main");
         } else {
           setError("Biometric login failed. Please enter password.");
         }
@@ -253,24 +248,38 @@ export default function LoginScreen() {
 
   const handleSendOtp = async () => {
     if (!phone) {
-      setError("Please enter a valid mobile number.");
+      setError("Please enter a valid mobile number or username.");
       return;
     }
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_URL}/auth/otp/send`, {
+      const response = await fetch(`${API_URL}/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone }),
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to send OTP");
+
+      let data: any = null;
+      let isJson = false;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        try {
+          data = await response.json();
+          isJson = true;
+        } catch {}
       }
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("This mobile number is not registered.");
+        }
+        throw new Error(isJson && data?.error ? data.error : "Failed to send OTP");
+      }
+
       setShowOtpVerification(true);
       setOtpCountdown(60);
-      Alert.alert("OTP Sent", `An verification code was sent to ${phone}`);
+      Alert.alert("OTP Sent", "A verification code was sent to your registered mobile number");
     } catch (err: any) {
       setError(err.message || "Something went wrong sending OTP");
     } finally {
@@ -317,11 +326,7 @@ export default function LoginScreen() {
           await SecureStore.setItemAsync("biometric_phone", phone);
         }
 
-        if (phone.trim() === "haajari896" || phone.trim() === "admin") {
-          navigationProp.replace("AdminDashboard");
-        } else {
-          navigationProp.replace("Main");
-        }
+        navigationProp.replace("Main");
       } else {
         setError("Invalid credentials.");
       }
@@ -543,17 +548,7 @@ export default function LoginScreen() {
         <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.bottomNavRow}>
           <Pressable onPress={() => navigationProp.push("Signup" as any)}>
             <ThemedText style={{ color: theme.primary, fontWeight: "700", fontSize: 14 }}>
-              Register Organization
-            </ThemedText>
-          </Pressable>
-
-          <Pressable
-            style={[styles.adminBtn, { backgroundColor: theme.primary + "15" }]}
-            onPress={() => navigationProp.push("AdminLogin" as any)}
-          >
-            <Feather name="shield" size={14} color={theme.primary} />
-            <ThemedText style={{ color: theme.primary, fontWeight: "700", fontSize: 12, marginLeft: 6 }}>
-              Administrator Console
+              Register User
             </ThemedText>
           </Pressable>
         </Animated.View>

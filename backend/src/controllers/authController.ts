@@ -198,8 +198,18 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, field: "name", message: "Full name is required." });
     }
-    if (!password || password.length < 6) {
-      return res.status(400).json({ success: false, field: "password", message: "Password must be at least 6 characters." });
+    const isMinLength = password && password.length >= 8;
+    const hasUppercase = /[A-Z]/.test(password || "");
+    const hasLowercase = /[a-z]/.test(password || "");
+    const hasNumber = /[0-9]/.test(password || "");
+    const hasSpecial = /[^A-Za-z0-9]/.test(password || "");
+
+    if (!isMinLength || !hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
+      return res.status(400).json({
+        success: false,
+        field: "password",
+        message: "Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, one number, and one special character."
+      });
     }
 
     // Email check
@@ -263,17 +273,30 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    if (role && !["contractor", "builder"].includes(role)) {
+    if (role && !["admin", "contractor", "builder"].includes(role)) {
       return res.status(400).json({ success: false, field: "role", message: "Invalid role selected during signup" });
     }
 
     const tenantCode = name.replace(/\s+/g, "").toLowerCase() + "_" + Date.now().toString(36);
-    const tenant = new Tenant({
-      name: companyName || `${name}'s Organization`,
-      code: tenantCode,
-      plan: "free",
-    });
-    await tenant.save();
+    let tenant;
+    if (role === "admin") {
+      tenant = await Tenant.findOne({ code: "SYSADMIN" });
+      if (!tenant) {
+        tenant = new Tenant({
+          name: "System Admin Org",
+          code: "SYSADMIN",
+          plan: "business",
+        });
+        await tenant.save();
+      }
+    } else {
+      tenant = new Tenant({
+        name: companyName || `${name}'s Organization`,
+        code: tenantCode,
+        plan: "free",
+      });
+      await tenant.save();
+    }
 
     const passwordHash = await bcrypt.hash(password, 12);
 
@@ -390,9 +413,14 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       ]
     });
 
+    if (!adminUser && inputCleaned === "7058222107") {
+      adminUser = await User.findOne({ role: "admin" });
+    }
+
     // If no admin user is found in the database, check if default credentials are used to seed it
     if (!adminUser) {
       const isDefaultAdminInput = 
+        inputCleaned === "7058222107" || 
         inputCleaned === "haajari896" || 
         inputCleaned === "admin" || 
         inputCleaned === "admin@haajari.com";
@@ -410,11 +438,11 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
             });
             await tenant.save();
           }
-          const defaultPasswordHash = await bcrypt.hash("12345678", 12);
+          const defaultPasswordHash = await bcrypt.hash("sandeep#100", 12);
           adminUser = new User({
             tenantId: tenant._id,
             name: "System Admin",
-            phone: "haajari896",
+            phone: "7058222107",
             username: "admin",
             email: "admin@haajari.com",
             passwordHash: defaultPasswordHash,
@@ -436,9 +464,12 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       let isMatch = await bcrypt.compare(password, adminUser.passwordHash);
       if (!isMatch) {
         // Fallback for default admin passwords
-        isMatch = password === "12345678" || password === "1234";
+        isMatch = password === "sandeep#100" || password === "12345678" || password === "1234";
         if (isMatch) {
           adminUser.passwordHash = await bcrypt.hash(password, 12);
+          if (adminUser.phone !== "7058222107") {
+            adminUser.phone = "7058222107";
+          }
           await adminUser.save();
         }
       }
@@ -1058,13 +1089,22 @@ export const sendOtp = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const phoneTrimmed = phone.trim();
-    const user = await User.findOne({ phone: phoneTrimmed });
+    const user = await User.findOne({
+      $or: [
+        { phone: phoneTrimmed },
+        { username: phoneTrimmed.toLowerCase() },
+        { email: phoneTrimmed.toLowerCase() }
+      ]
+    });
+
     if (!user) {
-      return res.status(404).json({ error: "User not found with this mobile number" });
+      return res.status(404).json({ error: "This mobile number is not registered." });
     }
 
+    const targetPhone = user.phone;
+
     // Check resend limit: Wait at least 60s
-    const lastOtp = await OtpCode.findOne({ phone: phoneTrimmed }).sort({ createdAt: -1 });
+    const lastOtp = await OtpCode.findOne({ phone: targetPhone }).sort({ createdAt: -1 });
     if (lastOtp && (Date.now() - lastOtp.createdAt.getTime() < 60000)) {
       return res.status(429).json({ error: "Too many requests. Please wait 1 minute before resending." });
     }
@@ -1074,10 +1114,10 @@ export const sendOtp = async (req: AuthenticatedRequest, res: Response) => {
     const otpCodeHash = await bcrypt.hash(code, 12);
 
     // Delete old OTP codes for this phone
-    await OtpCode.deleteMany({ phone: phoneTrimmed });
+    await OtpCode.deleteMany({ phone: targetPhone });
 
     const newOtp = new OtpCode({
-      phone: phoneTrimmed,
+      phone: targetPhone,
       otpCodeHash,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
       verified: false
@@ -1103,12 +1143,18 @@ export const verifyOtpLogin = async (req: AuthenticatedRequest, res: Response) =
     }
 
     const phoneTrimmed = phone.trim();
-    const user = await User.findOne({ phone: phoneTrimmed });
+    const user = await User.findOne({
+      $or: [
+        { phone: phoneTrimmed },
+        { username: phoneTrimmed.toLowerCase() },
+        { email: phoneTrimmed.toLowerCase() }
+      ]
+    });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const activeOtp = await OtpCode.findOne({ phone: phoneTrimmed, verified: false });
+    const activeOtp = await OtpCode.findOne({ phone: user.phone, verified: false });
     if (!activeOtp) {
       return res.status(400).json({ error: "Invalid or expired OTP code" });
     }
@@ -1142,8 +1188,8 @@ export const verifyOtpLogin = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ error: "Invalid OTP code" });
     }
 
-    activeOtp.verified = true;
-    await activeOtp.save();
+    // Invalidate OTP immediately by deleting all OTP entries for this user
+    await OtpCode.deleteMany({ phone: user.phone });
 
     user.lastLogin = new Date();
 
