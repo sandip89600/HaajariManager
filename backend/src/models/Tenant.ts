@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface ITenant extends Document {
   name: string;
   code: string;
-  plan: "free" | "professional" | "business";
+  plan: "free" | "professional" | "business" | "basic" | "super" | "premium";
   planExpiresAt?: Date;
   createdAt: Date;
 }
@@ -11,7 +11,7 @@ export interface ITenant extends Document {
 const TenantSchema = new Schema<ITenant>({
   name: { type: String, required: true },
   code: { type: String, required: true, unique: true, lowercase: true, trim: true },
-  plan: { type: String, enum: ["free", "professional", "business"], default: "free" },
+  plan: { type: String, enum: ["free", "professional", "business", "basic", "super", "premium"], default: "basic" },
   planExpiresAt: { type: Date },
   createdAt: { type: Date, default: Date.now },
 });

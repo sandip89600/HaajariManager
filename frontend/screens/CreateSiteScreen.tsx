@@ -21,6 +21,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { storage, API_URL, authenticatedFetch } from "@/utils/storage";
+import LimitReachedModal from "@/components/ui/LimitReachedModal";
 import ContextualTooltip from "@/components/ContextualTooltip";
 
 interface Supervisor {
@@ -49,6 +50,7 @@ export default function CreateSiteScreen() {
   const [isLoadingSupervisors, setIsLoadingSupervisors] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [limitModalVisible, setLimitModalVisible] = useState(false);
 
   const triggerHaptic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -116,7 +118,11 @@ export default function CreateSiteScreen() {
         Alert.alert("Error", "Failed to create site");
       }
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to create site due to duplicate name or database issue.");
+      if (e.message?.includes("LIMIT_EXCEEDED_PROJECTS") || e.message?.toLowerCase().includes("limit reached")) {
+        setLimitModalVisible(true);
+      } else {
+        Alert.alert("Error", e.message || "Failed to create site due to duplicate name or database issue.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -293,6 +299,11 @@ export default function CreateSiteScreen() {
             </View>
           </View>
         </Modal>
+        <LimitReachedModal
+          visible={limitModalVisible}
+          onClose={() => setLimitModalVisible(false)}
+          resourceType="sites"
+        />
       </ThemedView>
     </KeyboardAvoidingView>
   );

@@ -202,7 +202,7 @@ export default function WorkersScreen() {
   const [projects, setProjects] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showUpgradeLimitModal, setShowUpgradeLimitModal] = useState(false);
-  const [currentPlan, setCurrentPlan] = useState<"free" | "starter" | "professional" | "business">("free");
+  const [currentPlan, setCurrentPlan] = useState<"free" | "starter" | "professional" | "business" | "basic" | "super" | "premium">("free");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState("All");

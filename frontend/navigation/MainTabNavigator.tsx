@@ -30,6 +30,9 @@ import CreateSiteScreen from "@/screens/CreateSiteScreen";
 import EditSiteScreen from "@/screens/EditSiteScreen";
 import SiteDetailsScreen from "@/screens/SiteDetailsScreen";
 import EnterpriseCollaborationScreen from "@/screens/EnterpriseCollaborationScreen";
+import SubscriptionScreen from "@/screens/SubscriptionScreen";
+import PaymentStatusScreen from "@/screens/PaymentStatusScreen";
+import BillingHistoryScreen from "@/screens/BillingHistoryScreen";
 
 export type MainTabParamList = {
   AttendanceTab: undefined;
@@ -62,6 +65,9 @@ export type RootStackParamList = {
   EditSite: { siteId: string };
   SiteDetails: { siteId: string };
   EnterpriseCollaboration: undefined;
+  Subscription: undefined;
+  PaymentStatus: { status: "success" | "failed" | "pending"; planName?: string; transactionId?: string };
+  BillingHistory: undefined;
 
   // Root stack fallbacks
   AttendanceDetail: { siteId?: string } | undefined;
@@ -318,6 +324,27 @@ export default function MainTabNavigator() {
       <Stack.Screen
         name="EnterpriseCollaboration"
         component={EnterpriseCollaborationScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="Subscription"
+        component={SubscriptionScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="PaymentStatus"
+        component={PaymentStatusScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="BillingHistory"
+        component={BillingHistoryScreen}
         options={{
           headerShown: false,
         }}

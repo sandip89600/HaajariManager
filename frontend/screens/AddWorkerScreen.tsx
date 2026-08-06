@@ -34,6 +34,7 @@ import {
 } from "@/utils/storage";
 import ContextualTooltip from "@/components/ContextualTooltip";
 import { uploadImageToServer } from "@/utils/upload";
+import LimitReachedModal from "@/components/ui/LimitReachedModal";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/MainTabNavigator";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
@@ -101,6 +102,7 @@ export default function AddWorkerScreen() {
   const [notes, setNotes] = useState("");
   const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
+  const [limitModalVisible, setLimitModalVisible] = useState(false);
 
   // Projects State
   const [projects, setProjects] = useState<Project[]>([]);
@@ -273,26 +275,7 @@ export default function AddWorkerScreen() {
       navigation.goBack();
     } catch (error: any) {
       if (error.message === "LIMIT_EXCEEDED_WORKERS") {
-        Alert.alert(
-          "Worker Limit Reached",
-          "Worker limit reached. Upgrade your plan to add more workers.",
-          [
-            { text: "Maybe Later", style: "cancel" },
-            {
-              text: "Upgrade Now",
-              onPress: () => {
-                navigation.goBack();
-                navigation.navigate(
-                  "MainTabs" as any,
-                  {
-                    screen: "SettingsTab",
-                    params: { openUpgrade: true },
-                  } as any,
-                );
-              },
-            },
-          ],
-        );
+        setLimitModalVisible(true);
       } else {
         Alert.alert(t.common.error, t.workers.saveFailed);
       }
@@ -790,6 +773,11 @@ export default function AddWorkerScreen() {
           </ThemedText>
         </AnimatedPressable>
       </ScreenKeyboardAwareScrollView>
+      <LimitReachedModal
+        visible={limitModalVisible}
+        onClose={() => setLimitModalVisible(false)}
+        resourceType="workers"
+      />
     </ThemedView>
   );
 }

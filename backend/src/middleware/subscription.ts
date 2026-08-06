@@ -1,14 +1,14 @@
 import { Response, NextFunction } from "express";
-import { Tenant, Worker, Project, User } from "../models";
+import { Tenant, Worker, Project, User, Site } from "../models";
 import { AuthenticatedRequest } from "./auth";
 
 export const getTenantPlan = async (tenantId: string) => {
   const tenant = await Tenant.findById(tenantId);
   if (!tenant) {
-    return { plan: "free" as const };
+    return { plan: "basic" as const };
   }
   return {
-    plan: tenant.plan || "free",
+    plan: tenant.plan || "basic",
     planExpiresAt: tenant.planExpiresAt,
   };
 };
@@ -27,56 +27,75 @@ export const checkPlanLimit = (
 
       if (resourceType === "workers") {
         const count = await Worker.countDocuments({ tenantId, isArchived: false });
-        if (plan === "free") {
-          if (count >= 15) {
+        if (plan === "free" || plan === "basic") {
+          if (count >= 20) {
             return res.status(403).json({
               success: false,
-              message: "Worker limit reached. Upgrade your plan to add more workers."
+              limitExceeded: true,
+              limit: 20,
+              plan,
+              message: "Worker limit reached. Upgrade to Super or Premium plan to add more workers."
             });
           }
-        } else if (plan === "professional") {
+        } else if (plan === "professional" || plan === "super") {
           if (count >= 100) {
             return res.status(403).json({
               success: false,
-              message: "Worker limit reached. Upgrade your plan to add more workers."
+              limitExceeded: true,
+              limit: 100,
+              plan,
+              message: "Worker limit reached. Upgrade to Premium plan to add more workers."
             });
           }
         }
       } else if (resourceType === "projects") {
-        if (plan === "free") {
-          const count = await Project.countDocuments({ tenantId });
-          if (count >= 1) {
+        const projectCount = await Project.countDocuments({ tenantId });
+        const siteCount = await Site.countDocuments({ tenantId, isDeleted: false });
+        const count = Math.max(projectCount, siteCount);
+        if (plan === "free" || plan === "basic") {
+          if (count >= 2) {
             return res.status(403).json({
-              error: "Project limit reached. Upgrade to Professional Plan to unlock this feature.",
+              success: false,
+              error: "Site limit reached. Upgrade to Super or Premium plan to add more sites.",
               limitExceeded: true,
-              limit: 1,
+              limit: 2,
+              plan,
+            });
+          }
+        } else if (plan === "professional" || plan === "super") {
+          if (count >= 10) {
+            return res.status(403).json({
+              success: false,
+              error: "Site limit reached (max 10). Upgrade to Premium plan to unlock unlimited sites.",
+              limitExceeded: true,
+              limit: 10,
               plan,
             });
           }
         }
       } else if (resourceType === "supervisors") {
         const count = await User.countDocuments({ tenantId, role: "supervisor" });
-        if (plan === "free") {
+        if (plan === "free" || plan === "basic") {
           return res.status(403).json({
-            error: "Supervisor accounts are not available on the Free Plan. Upgrade to Professional Plan to unlock this feature.",
+            error: "Supervisor accounts are not available on the Basic Plan. Upgrade to Super or Premium Plan to unlock this feature.",
             limitExceeded: true,
             limit: 0,
             plan,
           });
-        } else if (plan === "professional") {
-          if (count >= 2) {
+        } else if (plan === "professional" || plan === "super") {
+          if (count >= 10) {
             return res.status(403).json({
-              error: "Supervisor limit reached (max 2). Upgrade to Business Plan to unlock unlimited supervisors.",
+              error: "Supervisor limit reached (max 10). Upgrade to Premium plan to unlock unlimited supervisors.",
               limitExceeded: true,
-              limit: 2,
+              limit: 10,
               plan,
             });
           }
         }
       } else if (resourceType === "gps") {
-        if (plan === "free") {
+        if (plan === "free" || plan === "basic") {
           return res.status(403).json({
-            error: "GPS attendance is not available on the Free Plan. Upgrade to Professional Plan to unlock this feature.",
+            error: "GPS attendance is not available on the Basic Plan. Upgrade to Super Plan to unlock this feature.",
             limitExceeded: true,
             plan,
           });

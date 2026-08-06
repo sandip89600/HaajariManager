@@ -22,6 +22,7 @@ import {
 } from "../controllers/photoController";
 import { authenticateJWT } from "../middleware/auth";
 import { validateCreateSite, validateUpdateSite } from "../validators/siteValidator";
+import { checkPlanLimit } from "../middleware/subscription";
 
 const router = Router();
 
@@ -29,7 +30,7 @@ const router = Router();
 router.use(authenticateJWT as any);
 
 router.get("/dashboard/stats", getSiteDashboardStats as any);
-router.post("/", validateCreateSite as any, createSite as any);
+router.post("/", checkPlanLimit("projects") as any, validateCreateSite as any, createSite as any);
 router.get("/", getSites as any);
 router.get("/:id", getSiteById as any);
 router.put("/:id", validateUpdateSite as any, updateSite as any);

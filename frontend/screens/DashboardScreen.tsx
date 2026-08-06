@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   FadeInDown,
@@ -108,7 +108,7 @@ export default function DashboardScreen() {
   const [projectsList, setProjectsList] = useState<Project[]>([]);
   const [workersList, setWorkersList] = useState<Worker[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [currentPlan, setCurrentPlan] = useState<"free" | "starter" | "professional" | "business">("free");
+  const [currentPlan, setCurrentPlan] = useState<"free" | "starter" | "professional" | "business" | "basic" | "super" | "premium">("free");
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [showToast, setShowToast] = useState(false);
@@ -473,22 +473,36 @@ export default function DashboardScreen() {
       >
         <View style={styles.headerInner} ref={welcomeRef} onLayout={onLayoutWelcome}>
           <View style={{ flex: 1 }}>
-            <ThemedText style={[styles.greeting, { color: isDark ? "#94A3B8" : "rgba(255,255,255,0.7)" }]}>
-              {greeting},
+            <ThemedText style={{ fontSize: 20, fontWeight: "900", color: "#FFFFFF" }}>
+              Haajari Manager
             </ThemedText>
-            <ThemedText style={[styles.userName, { color: "#FFFFFF" }]}>
-              {user?.name || "Contractor"} 👋
-            </ThemedText>
-            <ThemedText style={[styles.dateText, { color: isDark ? "#64748B" : "rgba(255,255,255,0.7)", marginTop: 4 }]}>
+
+            {/* Small Plan Badge Nudge */}
+            <Pressable
+              onPress={() => { triggerHaptic(); navigation.navigate("Subscription"); }}
+              style={styles.nudgeBadge}
+            >
+              <ThemedText style={styles.nudgeBadgeText}>
+                {currentPlan === "free" || currentPlan === "basic" ? "Basic Plan" : currentPlan === "professional" || currentPlan === "super" ? "Super Plan" : "Premium Plan"}
+              </ThemedText>
+              <View style={styles.nudgeDivider} />
+              <ThemedText style={styles.nudgeBadgeText}>
+                {workersList.length} / {currentPlan === "free" || currentPlan === "basic" ? 20 : currentPlan === "professional" || currentPlan === "super" ? 100 : "Unlimited"} Used
+              </ThemedText>
+              <Feather name="arrow-right" size={10} color="#FFFFFF" style={{ marginLeft: 4 }} />
+            </Pressable>
+
+            <ThemedText style={[styles.dateText, { color: isDark ? "#64748B" : "rgba(255,255,255,0.7)", marginTop: 6 }]}>
               {formattedDate}
             </ThemedText>
           </View>
           <View style={styles.headerActions}>
             <Pressable
-              onPress={() => { triggerHaptic(); setShowSettingsDrawer(true); }}
-              style={[styles.headerBtn, { backgroundColor: isDark ? "#334155" : "rgba(255,255,255,0.2)" }]}
+              onPress={() => { triggerHaptic(); navigation.navigate("Subscription"); }}
+              style={styles.premiumBadgeBtn}
             >
-              <Feather name="settings" size={18} color="#FFFFFF" />
+              <Ionicons name="sparkles" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+              <ThemedText style={styles.premiumBadgeBtnText}>Upgrade</ThemedText>
             </Pressable>
           </View>
         </View>
@@ -924,6 +938,46 @@ const styles = StyleSheet.create({
   userName: { fontSize: 22, fontWeight: "800", letterSpacing: 0.3, marginBottom: 2 },
   dateText: { fontSize: 12 },
   headerActions: { flexDirection: "row", gap: 8 },
+  nudgeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255, 255, 255, 0.16)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginTop: 6,
+  },
+  nudgeBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  nudgeDivider: {
+    width: 1,
+    height: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    marginHorizontal: 8,
+  },
+  premiumBadgeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EA580C",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  premiumBadgeBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
   headerBtn: {
     width: 38,
     height: 38,

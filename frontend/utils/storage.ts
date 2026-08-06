@@ -153,7 +153,7 @@ export interface AuthData {
   token?: string;
   refreshToken?: string;
   tenantId?: string;
-  plan?: "free" | "starter" | "professional" | "business";
+  plan?: "free" | "starter" | "professional" | "business" | "basic" | "super" | "premium";
 }
 
 export interface ProfileData {
@@ -178,7 +178,7 @@ export interface User {
   loginHistory: number[];
   assignedProjects?: string[];
   companyName?: string;
-  plan?: "free" | "starter" | "professional" | "business";
+  plan?: "free" | "starter" | "professional" | "business" | "basic" | "super" | "premium";
   planExpiresAt?: string;
   username?: string;
 }
@@ -487,8 +487,13 @@ export const storage = {
     const auth = await this.getAuth();
     const plan = auth?.plan || "free";
 
-    if (auth?.role !== "guest" && plan === "free" && projects.length >= 1) {
-      throw new Error("LIMIT_EXCEEDED_PROJECTS");
+    if (auth?.role !== "guest") {
+      if ((plan === "free" || plan === "basic") && projects.length >= 2) {
+        throw new Error("LIMIT_EXCEEDED_PROJECTS");
+      }
+      if ((plan === "professional" || plan === "super") && projects.length >= 10) {
+        throw new Error("LIMIT_EXCEEDED_PROJECTS");
+      }
     }
 
     if (auth?.token) {
@@ -809,10 +814,10 @@ export const storage = {
     const plan = auth?.plan || "free";
 
     if (auth?.role !== "guest") {
-      if (plan === "free" && workers.length >= 15) {
+      if ((plan === "free" || plan === "basic") && workers.length >= 20) {
         throw new Error("LIMIT_EXCEEDED_WORKERS");
       }
-      if (plan === "professional" && workers.length >= 100) {
+      if ((plan === "professional" || plan === "super") && workers.length >= 100) {
         throw new Error("LIMIT_EXCEEDED_WORKERS");
       }
     }
