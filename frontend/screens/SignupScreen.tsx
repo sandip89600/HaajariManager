@@ -46,8 +46,8 @@ export default function SignupScreen() {
   const navigation = useNavigation<SignupScreenNavigationProp>();
   const insets = useSafeAreaInsets();
 
-  const [step, setStep] = useState<Step>(1);
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [step, setStep] = useState<Step>(2);
+  const [selectedRole, setSelectedRole] = useState<UserRole | null>("contractor");
 
   // Form Fields
   const [name, setName] = useState("");
@@ -412,38 +412,19 @@ export default function SignupScreen() {
       >
         <View style={styles.header}>
           <Pressable
-            onPress={() => (step === 2 ? setStep(1) : navigation.goBack())}
+            onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
             <Feather name="arrow-left" size={24} color={theme.text} />
           </Pressable>
           <ThemedText style={styles.title}>
-            {step === 1 ? "Create Account" : "Enter Details"}
+            Create Account
           </ThemedText>
           <ThemedText
             style={[styles.subtitle, { color: theme.textSecondary }]}
           >
-            {step === 1
-              ? "Select your workforce role to continue"
-              : `Signing up as a ${selectedRole === "builder" ? "Builder" : "Contractor"}`}
+            Please fill in the fields below to register
           </ThemedText>
-        </View>
-
-        {/* Step Indicator */}
-        <View style={styles.stepIndicatorRow}>
-          <View style={[styles.stepDot, { backgroundColor: theme.primary }]} />
-          <View
-            style={[
-              styles.stepLine,
-              { backgroundColor: step === 2 ? theme.primary : theme.border },
-            ]}
-          />
-          <View
-            style={[
-              styles.stepDot,
-              { backgroundColor: step === 2 ? theme.primary : theme.border },
-            ]}
-          />
         </View>
 
         {step === 1 ? (
