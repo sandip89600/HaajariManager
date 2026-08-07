@@ -118,6 +118,14 @@ if (process.env.NODE_ENV !== "test") {
     .connect(MONGO_URI)
     .then(() => {
       console.log("Connected to MongoDB successfully.");
+      
+      // Programmatically drop any legacy unique index on 'name' in users collection if present
+      if (mongoose.connection.db) {
+        mongoose.connection.db.collection("users").dropIndex("name_1").catch(() => {
+          // Safe to ignore if index does not exist
+        });
+      }
+
       const server = createServer(app);
       initSocket(server);
       server.listen(PORT, () => {

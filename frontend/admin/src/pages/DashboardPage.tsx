@@ -60,21 +60,21 @@ export default function DashboardPage() {
   // Extract nested metrics safely
   const metrics = stats.metrics || {};
   const plans = stats.plans || {};
-  const analytics = stats.analytics || {};
+  const userTrend = stats.userGrowthTrend || [];
   const serverFeed = stats.activityFeed || [];
 
-  const totalOrgs = metrics.totalOrganizations !== undefined ? metrics.totalOrganizations : 4;
-  const totalUsers = metrics.totalUsers !== undefined ? metrics.metrics?.totalUsers || metrics.totalUsers : 18;
-  const totalWorkers = metrics.totalWorkers !== undefined ? metrics.totalWorkers : 189;
-  const presentToday = analytics.todayAttendance !== undefined ? analytics.todayAttendance : 134;
-  const absentToday = totalWorkers - presentToday > 0 ? totalWorkers - presentToday : 42;
-  const halfDayToday = analytics.attendanceBreakdown?.halfDay !== undefined ? analytics.attendanceBreakdown.halfDay : 13;
-  const runningSites = metrics.runningSites !== undefined ? metrics.runningSites : 12;
-  const completedSites = metrics.completedSites !== undefined ? metrics.completedSites : 8;
-  const pendingPayments = metrics.outstandingAmount !== undefined ? metrics.outstandingAmount : 15400;
-  const monthlyRevenue = metrics.totalRevenue !== undefined ? metrics.totalRevenue : 78500;
-  const todaysRevenue = metrics.todaysRevenue !== undefined ? metrics.todaysRevenue : 3200;
-  const activeSubs = metrics.activeSubscriptions !== undefined ? metrics.activeSubscriptions : 3;
+  const totalOrgs = (plans.free || 0) + (plans.basic || 0) + (plans.professional || 0) + (plans.business || 0);
+  const totalUsers = metrics.totalUsers || 0;
+  const totalWorkers = metrics.totalWorkers || 0;
+  const presentToday = metrics.presentToday || 0;
+  const absentToday = metrics.absentToday || 0;
+  const halfDayToday = metrics.halfDayToday || 0;
+  const runningSites = metrics.activeSites || 0;
+  const completedSites = metrics.completedSites || 0;
+  const pendingPayments = metrics.totalPayroll || 0;
+  const monthlyRevenue = metrics.totalRevenue || 0;
+  const todaysRevenue = metrics.advances || 0;
+  const activeSubs = metrics.premiumUsers || 0;
 
   const kpis = [
     { name: 'Total Orgs', val: totalOrgs, sub: 'Client Tenants', icon: Building, color: 'text-orange-500 bg-orange-500/10 border-orange-500/20' },
@@ -91,19 +91,12 @@ export default function DashboardPage() {
     { name: 'Active Subs', val: activeSubs, sub: 'Paid Subscriptions', icon: Gem, color: 'text-purple-500 bg-purple-500/10 border-purple-500/20' },
   ];
 
-  const attendanceHistory = [
-    { name: 'Mon', present: 120, absent: 32 },
-    { name: 'Tue', present: 134, absent: 24 },
-    { name: 'Wed', present: 140, absent: 20 },
-    { name: 'Thu', present: 145, absent: 18 },
-    { name: 'Fri', present: 138, absent: 22 },
-  ];
-
   const planBreakdown = [
-    { name: 'Free', value: plans.free !== undefined ? plans.free : 1 },
-    { name: 'Professional', value: plans.professional !== undefined ? plans.professional : 3 },
-    { name: 'Business', value: plans.business !== undefined ? plans.business : 2 },
-  ].map((entry, index) => ({
+    { name: 'Free', value: plans.free || 0 },
+    { name: 'Basic', value: plans.basic || 0 },
+    { name: 'Professional', value: plans.professional || 0 },
+    { name: 'Business', value: plans.business || 0 }
+  ].filter(p => p.value > 0).map((entry, index) => ({
     ...entry,
     color: COLORS[index % COLORS.length]
   }));
@@ -111,12 +104,7 @@ export default function DashboardPage() {
   // Combine server activities and live socket updates
   const displayActivities = liveActivities.length > 0 
     ? [...liveActivities, ...serverFeed].slice(0, 10)
-    : serverFeed.length > 0 
-      ? serverFeed.slice(0, 10)
-      : [
-          { id: 'mock-1', message: 'System connected. Listening for real-time events.', timestamp: 'Just now' },
-          { id: 'mock-2', message: 'Admin session started successfully.', timestamp: '1 min ago' }
-        ];
+    : serverFeed.slice(0, 10);
 
   return (
     <div className="space-y-6">
@@ -146,23 +134,23 @@ export default function DashboardPage() {
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Attendance Area Chart */}
+        {/* User Activity Area Chart */}
         <div className="lg:col-span-2 glass-card p-6 rounded-2xl border border-slate-850 space-y-4">
-          <h3 className="text-lg font-bold text-white">Labor Attendance Weekly Trend</h3>
+          <h3 className="text-lg font-bold text-white">Daily User Activity Trend (Logins)</h3>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={attendanceHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={userTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="colorPresentGrad" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="colorLoginsGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#f97316" stopOpacity={0.25}/>
                     <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: 11 }} />
+                <XAxis dataKey="date" stroke="#64748b" style={{ fontSize: 11 }} />
                 <YAxis stroke="#64748b" style={{ fontSize: 11 }} />
                 <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f8fafc' }} />
-                <Area type="monotone" dataKey="present" stroke="#f97316" fillOpacity={1} fill="url(#colorPresentGrad)" strokeWidth={2.5} />
+                <Area type="monotone" dataKey="logins" stroke="#f97316" fillOpacity={1} fill="url(#colorLoginsGrad)" strokeWidth={2.5} name="Logins" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

@@ -426,7 +426,7 @@ export const getAdminAnalytics = async (req: AuthenticatedRequest, res: Response
     // 6. PAYMENT & FINANCIALS ANALYTICS
     const payments = await Payment.find();
     const totalPayroll = payments.reduce((sum, p) => sum + p.amount, 0);
-    const advances = payments.filter(p => p.type === "advance").reduce((sum, p) => sum + p.amount, 0);
+    const advances = payments.filter(p => p.note?.toLowerCase().includes("advance")).reduce((sum, p) => sum + p.amount, 0);
 
     const expensesList = await Expense.find();
     const totalExpenses = expensesList.reduce((sum, e) => sum + e.amount, 0);
