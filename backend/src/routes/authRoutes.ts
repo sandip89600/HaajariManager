@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { signup, login, refresh, verifyEmail, forgotPassword, resetPassword, getProfile, updateProfile, changePassword, upgradePlan, deleteAccount, sendOtp, verifyOtpLogin, registerBiometric, biometricLogin, updatePrivacySettings, toggleOtpSetting, toggleBiometricsSetting, getUserSessions, logoutDevice, logoutAllDevices, savePushToken, validateSignupField } from "../controllers/authController";
+import { signup, login, refresh, verifyEmail, resendVerification, forgotPassword, resetPassword, renderResetPasswordPage, getProfile, updateProfile, changePassword, upgradePlan, deleteAccount, sendOtp, verifyOtpLogin, registerBiometric, biometricLogin, updatePrivacySettings, toggleOtpSetting, toggleBiometricsSetting, getUserSessions, logoutDevice, logoutAllDevices, savePushToken, validateSignupField } from "../controllers/authController";
 import { authenticateJWT } from "../middleware/auth";
 
 const router = Router();
@@ -8,9 +8,12 @@ router.post("/signup", signup as any);
 router.post("/validate-signup-field", validateSignupField as any);
 router.post("/login", login as any);
 router.post("/refresh", refresh as any);
+router.get("/verify-email", verifyEmail as any);
 router.get("/verify-email/:token", verifyEmail as any);
+router.post("/resend-verification", resendVerification as any);
 router.post("/forgot-password", forgotPassword as any);
 router.post("/reset-password", resetPassword as any);
+router.get("/reset-password-page", renderResetPasswordPage as any);
 router.get("/profile", authenticateJWT as any, getProfile as any);
 router.put("/profile", authenticateJWT as any, updateProfile as any);
 router.put("/change-password", authenticateJWT as any, changePassword as any);

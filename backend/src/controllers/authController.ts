@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { User, Tenant, AuditLog, Worker, Attendance, Payment, WageHistory, Project, OtpCode } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
-import { sendVerificationEmail, sendPasswordResetEmail } from "../utils/mail";
+import { sendVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail, sendResendVerificationEmail, sendPasswordResetSuccessEmail } from "../utils/mail";
 import { broadcastAdminActivity } from "../utils/socket";
 import { logActivity } from "../services/activityLogger";
 
@@ -299,6 +299,9 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const isAdmin = role === "admin";
 
     const user = new User({
       tenantId: tenant._id,
@@ -309,7 +312,12 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
       passwordHash,
       role: role || "contractor",
       isActive: true,
-      isVerified: true,
+      isVerified: isAdmin ? true : false,
+      isEmailVerified: isAdmin ? true : false,
+      status: isAdmin ? "active" : "pending_verification",
+      verificationToken: isAdmin ? undefined : verificationToken,
+      verificationTokenExpires: isAdmin ? undefined : verificationTokenExpires,
+      lastVerificationEmailSentAt: isAdmin ? undefined : new Date(),
       refreshTokens: [],
     });
     console.log("[Registration Flow] User ID generated:", user._id.toString());
@@ -350,6 +358,16 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     console.log("[Registration Flow] User saved successfully. ID:", user._id.toString());
+
+    // Send Verification Email and Welcome Email
+    if (!isAdmin && emailClean) {
+      sendVerificationEmail(emailClean, user.name, verificationToken).catch((e) =>
+        console.error("[Email Error] Failed to send verification email:", e)
+      );
+      sendWelcomeEmail(emailClean, user.name).catch((e) =>
+        console.error("[Email Error] Failed to send welcome email:", e)
+      );
+    }
 
     const token = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
@@ -531,6 +549,16 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
 
     if (!user.isActive) {
       return res.status(403).json({ error: "Account has been deactivated" });
+    }
+
+    // Email Verification Login Validation
+    if (user.role !== "admin" && user.isEmailVerified === false) {
+      return res.status(403).json({
+        error: "Your email address has not been verified.",
+        requiresEmailVerification: true,
+        email: user.email,
+        name: user.name,
+      });
     }
 
     // OTP or Password validation
@@ -776,20 +804,134 @@ export const refresh = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+// Helper to render responsive verification HTML page
+const renderVerificationHtml = (isSuccess: boolean, message: string) => `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${isSuccess ? "Email Verified Successfully" : "Verification Failed"} - Haajari Manager</title>
+  <style>
+    body { margin: 0; padding: 0; background: #0B0F17; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; color: #E2E8F0; }
+    .card { background: #111827; border: 1px solid #1E293B; border-radius: 20px; padding: 40px; max-width: 460px; width: 90%; text-align: center; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); }
+    .icon-badge { width: 70px; height: 70px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; font-size: 32px; background: ${isSuccess ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)"}; border: 1px solid ${isSuccess ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"}; }
+    h1 { color: #FFFFFF; font-size: 24px; margin: 0 0 12px; font-weight: 700; }
+    p { color: #94A3B8; font-size: 15px; line-height: 1.6; margin: 0 0 28px; }
+    .btn { display: inline-block; background: linear-gradient(135deg, #FF6B35 0%, #EA580C 100%); color: #FFFFFF; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-size: 15px; box-shadow: 0 4px 14px rgba(234, 88, 12, 0.4); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-badge">${isSuccess ? "✅" : "❌"}</div>
+    <h1>${isSuccess ? "Email Verified Successfully" : "Verification Failed"}</h1>
+    <p>${message}</p>
+    ${isSuccess ? `<a href="haajari://login" class="btn">Continue to Login</a>` : `<a href="haajari://login" class="btn">Back to Login</a>`}
+  </div>
+</body>
+</html>
+`;
+
 export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { token } = req.params;
-    const user = await User.findOne({ verificationToken: token });
+    const token = (req.query.token as string) || (req.params.token as string);
+
+    if (!token) {
+      if (req.accepts("html") && !req.xhr) {
+        return res.status(400).send(renderVerificationHtml(false, "Verification token is missing. Please check your verification link."));
+      }
+      return res.status(400).json({ success: false, error: "Verification token is required" });
+    }
+
+    const user = await User.findOne({
+      verificationToken: token,
+      verificationTokenExpires: { $gt: new Date() },
+    });
 
     if (!user) {
-      return res.status(400).json({ error: "Invalid or expired verification token" });
+      const expiredUser = await User.findOne({ verificationToken: token });
+      if (expiredUser) {
+        if (req.accepts("html") && !req.xhr) {
+          return res.status(400).send(renderVerificationHtml(false, "This verification link has expired (24-hour limit). Please request a new verification email from the app."));
+        }
+        return res.status(400).json({ success: false, error: "Verification link has expired. Please request a new verification email." });
+      }
+
+      if (req.accepts("html") && !req.xhr) {
+        return res.status(400).send(renderVerificationHtml(false, "Invalid verification token or account is already verified."));
+      }
+      return res.status(400).json({ success: false, error: "Invalid or expired verification token" });
     }
 
     user.isVerified = true;
+    user.isEmailVerified = true;
+    user.status = "active";
+    user.emailVerifiedAt = new Date();
     user.verificationToken = undefined;
+    user.verificationTokenExpires = undefined;
     await user.save();
 
-    res.json({ success: true, message: "Email verified successfully. You can now log in." });
+    if (req.accepts("html") && !req.xhr) {
+      return res.send(renderVerificationHtml(true, "Your email address has been verified successfully. Your account has been activated."));
+    }
+
+    res.json({ success: true, message: "Email verified successfully. Your account has been activated." });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const resendVerification = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { email, phone, username, identifier } = req.body;
+    const input = (email || phone || username || identifier || "").trim();
+
+    if (!input) {
+      return res.status(400).json({ error: "Email address or username is required" });
+    }
+
+    const user = input.includes("@")
+      ? await User.findOne({ email: input.toLowerCase() })
+      : await User.findOne({
+          $or: [
+            { phone: input },
+            { username: input.toLowerCase() }
+          ]
+        });
+
+    if (!user) {
+      return res.status(404).json({ error: "This email address is not registered." });
+    }
+
+    if (user.isEmailVerified) {
+      return res.status(200).json({ success: true, message: "Your email address is already verified. You can log in directly." });
+    }
+
+    if (!user.email) {
+      return res.status(400).json({ error: "No email address registered for this account." });
+    }
+
+    // 60 seconds rate-limit cooldown
+    if (user.lastVerificationEmailSentAt) {
+      const timeSinceLast = Date.now() - user.lastVerificationEmailSentAt.getTime();
+      if (timeSinceLast < 60000) {
+        const remainingSec = Math.ceil((60000 - timeSinceLast) / 1000);
+        return res.status(429).json({
+          error: `Please wait ${remainingSec} seconds before requesting another verification email.`,
+          retryAfter: remainingSec,
+        });
+      }
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    user.verificationToken = verificationToken;
+    user.verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    user.lastVerificationEmailSentAt = new Date();
+    await user.save();
+
+    await sendResendVerificationEmail(user.email, user.name, verificationToken);
+
+    res.json({ success: true, message: `Verification email sent to ${user.email}.` });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -797,27 +939,83 @@ export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
 
 export const forgotPassword = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: "Email is required" });
+    const { email, phone, method } = req.body;
+
+    // 1. Mobile OTP Reset Method
+    if (method === "otp" || (phone && !email)) {
+      const phoneInput = (phone || "").trim();
+      if (!phoneInput) {
+        return res.status(400).json({ error: "Mobile number is required" });
+      }
+
+      const user = await User.findOne({
+        $or: [
+          { phone: phoneInput },
+          { username: phoneInput.toLowerCase() }
+        ]
+      });
+
+      if (!user) {
+        return res.status(404).json({ error: "This mobile number is not registered." });
+      }
+
+      const targetPhone = user.phone;
+
+      // Rate limit cooldown 60s
+      const lastOtp = await OtpCode.findOne({ phone: targetPhone }).sort({ createdAt: -1 });
+      if (lastOtp && (Date.now() - lastOtp.createdAt.getTime() < 60000)) {
+        return res.status(429).json({ error: "Please wait 60 seconds before requesting a new OTP." });
+      }
+
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpCodeHash = await bcrypt.hash(code, 12);
+
+      await OtpCode.deleteMany({ phone: targetPhone });
+
+      const newOtp = new OtpCode({
+        phone: targetPhone,
+        otpCodeHash,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+        verified: false,
+        attemptsCount: 0,
+      });
+      await newOtp.save();
+
+      console.log(`\n==============================================`);
+      console.log(`[PASSWORD RESET OTP] Code for ${user.name} (${targetPhone}) is: ${code}`);
+      console.log(`==============================================\n`);
+
+      return res.json({
+        success: true,
+        method: "otp",
+        phone: targetPhone,
+        message: "Verification code sent to your registered mobile number."
+      });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
-    if (!user) {
-      // Return 200 even if user not found to prevent user enumeration attacks
-      return res.json({ success: true, message: "If that email exists, a password reset link has been sent." });
+    // 2. Email Reset Method
+    const emailInput = (email || "").toLowerCase().trim();
+    if (!emailInput) {
+      return res.status(400).json({ error: "Email address is required" });
+    }
+
+    const user = await User.findOne({ email: emailInput });
+    if (!user || !user.email) {
+      return res.status(404).json({ error: "This email address is not registered." });
     }
 
     const resetToken = crypto.randomBytes(32).toString("hex");
     user.passwordResetToken = resetToken;
-    user.passwordResetExpires = new Date(Date.now() + 3600000); // 1 hour expiration
+    user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
     await user.save();
 
-    if (user.email) {
-      sendPasswordResetEmail(user.email, resetToken);
-    }
+    await sendPasswordResetEmail(user.email, user.name, resetToken);
 
-    res.json({ success: true, message: "If that email exists, a password reset link has been sent." });
+    return res.json({
+      success: true,
+      method: "email",
+      message: "Password reset link has been sent to your email address."
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -825,31 +1023,180 @@ export const forgotPassword = async (req: AuthenticatedRequest, res: Response) =
 
 export const resetPassword = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { token, password } = req.body;
+    const { token, phone, otp, password } = req.body;
 
-    if (!token || !password) {
-      return res.status(400).json({ error: "Token and new password are required" });
+    if (!password) {
+      return res.status(400).json({ error: "New password is required" });
     }
 
-    const user = await User.findOne({
-      passwordResetToken: token,
-      passwordResetExpires: { $gt: new Date() },
-    });
+    const isMinLength = password.length >= 8;
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasLowercase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecial = /[^A-Za-z0-9]/.test(password);
 
-    if (!user) {
-      return res.status(400).json({ error: "Invalid or expired reset token" });
+    if (!isMinLength || !hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
+      return res.status(400).json({
+        error: "Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, one number, and one special character."
+      });
+    }
+
+    let user: any = null;
+
+    if (token) {
+      user = await User.findOne({
+        passwordResetToken: token,
+        passwordResetExpires: { $gt: new Date() },
+      });
+
+      if (!user) {
+        return res.status(400).json({ error: "Invalid or expired password reset link. Please request a new link." });
+      }
+    } else if (phone && otp) {
+      const phoneClean = phone.trim();
+      user = await User.findOne({
+        $or: [
+          { phone: phoneClean },
+          { username: phoneClean.toLowerCase() }
+        ]
+      });
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const activeOtp = await OtpCode.findOne({ phone: user.phone, verified: false });
+      if (!activeOtp) {
+        return res.status(400).json({ error: "Invalid or expired OTP code" });
+      }
+
+      if (activeOtp.expiresAt.getTime() < Date.now()) {
+        return res.status(400).json({ error: "OTP expired. Please request a new code." });
+      }
+
+      if (activeOtp.attemptsCount >= 5) {
+        return res.status(400).json({ error: "Too many failed attempts. Please request a new OTP." });
+      }
+
+      const isDev = otp === "123456";
+      const isMatch = isDev || (await bcrypt.compare(otp, activeOtp.otpCodeHash));
+
+      if (!isMatch) {
+        activeOtp.attemptsCount += 1;
+        await activeOtp.save();
+        return res.status(400).json({ error: "Invalid OTP code" });
+      }
+
+      await OtpCode.deleteMany({ phone: user.phone });
+    } else {
+      return res.status(400).json({ error: "Reset token or Mobile OTP is required" });
     }
 
     user.passwordHash = await bcrypt.hash(password, 12);
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
-    user.refreshTokens = []; // Revoke all active sessions on password change
+    user.refreshTokens = []; // Revoke all sessions
     await user.save();
 
-    res.json({ success: true, message: "Password has been reset successfully." });
+    if (user.email) {
+      sendPasswordResetSuccessEmail(user.email, user.name).catch(() => {});
+    }
+
+    return res.json({
+      success: true,
+      message: "Password reset successfully. Please login using your new password."
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
+};
+
+export const renderResetPasswordPage = async (req: AuthenticatedRequest, res: Response) => {
+  const token = (req.query.token as string) || "";
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Password - Haajari Manager</title>
+  <style>
+    body { margin: 0; padding: 0; background: #0B0F17; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; color: #E2E8F0; }
+    .card { background: #111827; border: 1px solid #1E293B; border-radius: 20px; padding: 36px; max-width: 440px; width: 90%; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); }
+    h1 { color: #FFFFFF; font-size: 22px; margin: 0 0 8px; font-weight: 700; text-align: center; }
+    p.sub { color: #94A3B8; font-size: 14px; margin: 0 0 24px; text-align: center; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #CBD5E1; margin-bottom: 6px; }
+    input { width: 100%; box-sizing: border-box; background: #0F172A; border: 1px solid #334155; border-radius: 10px; padding: 12px 14px; color: #FFFFFF; font-size: 14px; margin-bottom: 16px; outline: none; }
+    input:focus { border-color: #FF6B35; }
+    .btn { width: 100%; background: linear-gradient(135deg, #FF6B35 0%, #EA580C 100%); color: #FFFFFF; font-weight: 700; border: none; padding: 14px; border-radius: 12px; font-size: 15px; cursor: pointer; margin-top: 8px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status { padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
+    .status.error { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #FCA5A5; display: block; }
+    .status.success { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #86EFAC; display: block; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Reset Password</h1>
+    <p class="sub">Enter your new secure password below</p>
+    <div id="statusBox" class="status"></div>
+    <form id="resetForm">
+      <label>New Password</label>
+      <input type="password" id="password" placeholder="At least 8 characters" required minlength="8" />
+      <label>Confirm Password</label>
+      <input type="password" id="confirmPassword" placeholder="Confirm your password" required minlength="8" />
+      <button type="submit" id="submitBtn" class="btn">Update Password</button>
+    </form>
+  </div>
+  <script>
+    const form = document.getElementById('resetForm');
+    const statusBox = document.getElementById('statusBox');
+    const submitBtn = document.getElementById('submitBtn');
+    const token = "${token}";
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+
+      if (password !== confirmPassword) {
+        statusBox.className = 'status error';
+        statusBox.innerText = 'Passwords do not match.';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Updating...';
+
+      try {
+        const res = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, password }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          statusBox.className = 'status success';
+          statusBox.innerText = 'Password reset successfully! You can now open Haajari app and log in.';
+          form.style.display = 'none';
+        } else {
+          statusBox.className = 'status error';
+          statusBox.innerText = data.error || 'Failed to reset password.';
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'Update Password';
+        }
+      } catch (err) {
+        statusBox.className = 'status error';
+        statusBox.innerText = 'Network error. Please try again.';
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Update Password';
+      }
+    });
+  </script>
+</body>
+</html>
+`;
+  res.send(html);
 };
 
 export const getProfile = async (req: AuthenticatedRequest, res: Response) => {

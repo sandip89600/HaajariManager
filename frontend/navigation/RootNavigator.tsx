@@ -5,6 +5,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { getCommonScreenOptions } from "@/navigation/screenOptions";
 import LoginScreen from "@/screens/LoginScreen";
 import SignupScreen from "@/screens/SignupScreen";
+import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
+import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
 import TermsAndConditionsScreen from "@/screens/TermsAndConditionsScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
@@ -16,6 +18,8 @@ export type RootNavigatorParamList = {
   FirstTimeSetup: undefined;
   Login: undefined;
   Signup: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: { token?: string } | undefined;
   TermsAndConditions: undefined;
   PrivacyPolicy: undefined;
   Main: undefined;
@@ -72,6 +76,14 @@ export default function RootNavigator() {
           <Stack.Screen name="Signup" component={SignupScreen} />
         </>
       )}
+      <Stack.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+      />
+      <Stack.Screen
+        name="ResetPassword"
+        component={ResetPasswordScreen}
+      />
       <Stack.Screen
         name="TermsAndConditions"
         component={TermsAndConditionsScreen}

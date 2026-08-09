@@ -11,9 +11,14 @@ export interface IUser extends Document {
   assignedProjects?: mongoose.Types.ObjectId[];
   isActive: boolean;
   isVerified: boolean;
+  isEmailVerified?: boolean;
+  emailVerifiedAt?: Date;
+  status?: "pending_verification" | "active" | "suspended" | "deactivated";
   verificationToken?: string;
+  verificationTokenExpires?: Date;
   passwordResetToken?: string;
   passwordResetExpires?: Date;
+  lastVerificationEmailSentAt?: Date;
   refreshTokens: string[];
   createdAt: Date;
   lastLogin?: Date;
@@ -75,9 +80,14 @@ const UserSchema = new Schema<IUser>({
   assignedProjects: [{ type: Schema.Types.ObjectId, ref: "Project" }],
   isActive: { type: Boolean, default: true },
   isVerified: { type: Boolean, default: false },
+  isEmailVerified: { type: Boolean, default: false },
+  emailVerifiedAt: { type: Date },
+  status: { type: String, enum: ["pending_verification", "active", "suspended", "deactivated"], default: "pending_verification" },
   verificationToken: { type: String },
+  verificationTokenExpires: { type: Date },
   passwordResetToken: { type: String },
   passwordResetExpires: { type: Date },
+  lastVerificationEmailSentAt: { type: Date },
   refreshTokens: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
   lastLogin: { type: Date },

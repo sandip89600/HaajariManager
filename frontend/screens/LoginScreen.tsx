@@ -420,7 +420,7 @@ export default function LoginScreen() {
                     hasError={!!error && !password}
                   />
                   
-                  {/* Remember me row */}
+                  {/* Remember me & Forgot Password row */}
                   <View style={styles.optionsRow}>
                     <Pressable
                       style={styles.checkboxRow}
@@ -433,6 +433,18 @@ export default function LoginScreen() {
                       />
                       <ThemedText style={[styles.optionsLabel, { color: theme.textSecondary, marginLeft: 8 }]}>
                         Remember me
+                      </ThemedText>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        triggerHaptic();
+                        navigationProp.navigate("ForgotPassword" as any);
+                      }}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    >
+                      <ThemedText style={{ color: theme.primary, fontSize: 13, fontWeight: "600" }}>
+                        Forgot Password?
                       </ThemedText>
                     </Pressable>
                   </View>
@@ -546,9 +558,9 @@ export default function LoginScreen() {
 
         {/* Bottom links */}
         <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.bottomNavRow}>
-          <Pressable onPress={() => navigationProp.push("Signup" as any)}>
-            <ThemedText style={{ color: theme.primary, fontWeight: "700", fontSize: 14 }}>
-              Register User
+          <Pressable onPress={() => navigationProp.push("Signup" as any)} style={{ paddingVertical: 4 }}>
+            <ThemedText style={{ color: theme.textSecondary, fontSize: 14 }}>
+              Don't have an account? <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>Register Here</ThemedText>
             </ThemedText>
           </Pressable>
         </Animated.View>
