@@ -10,6 +10,7 @@ import fs from "fs";
 import { createServer } from "http";
 import apiRoutes from "./routes";
 import { initSocket } from "./utils/socket";
+import { validateEmailConfig } from "./utils/mail";
 
 // Load environment variables
 dotenv.config();
@@ -37,6 +38,9 @@ if (missingEnvVars.length > 0) {
   console.error(errorMsg);
   throw new Error(errorMsg);
 }
+
+// Validate Email service configuration
+validateEmailConfig();
 
 const app = express();
 const PORT = process.env.PORT || 5000;

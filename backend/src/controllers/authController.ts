@@ -929,7 +929,10 @@ export const resendVerification = async (req: AuthenticatedRequest, res: Respons
     user.lastVerificationEmailSentAt = new Date();
     await user.save();
 
-    await sendResendVerificationEmail(user.email, user.name, verificationToken);
+    const emailSent = await sendResendVerificationEmail(user.email, user.name, verificationToken);
+    if (!emailSent) {
+      return res.status(500).json({ error: "Unable to send the email right now. Please try again." });
+    }
 
     res.json({ success: true, message: `Verification email sent to ${user.email}.` });
   } catch (error: any) {
@@ -1009,7 +1012,10 @@ export const forgotPassword = async (req: AuthenticatedRequest, res: Response) =
     user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
     await user.save();
 
-    await sendPasswordResetEmail(user.email, user.name, resetToken);
+    const emailSent = await sendPasswordResetEmail(user.email, user.name, resetToken);
+    if (!emailSent) {
+      return res.status(500).json({ error: "Unable to send the email right now. Please try again." });
+    }
 
     return res.json({
       success: true,

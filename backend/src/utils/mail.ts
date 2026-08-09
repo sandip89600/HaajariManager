@@ -1,23 +1,72 @@
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
 
-// Dynamic Resend client initialization
+// Resend client initialization function
 function getResendClient(): Resend | null {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return null;
   return new Resend(apiKey);
 }
 
-const getSenderEmail = () => process.env.EMAIL_FROM || "onboarding@resend.dev";
+/**
+ * Resolves the sender email address.
+ * In production: Requires a verified-domain sender via EMAIL_FROM.
+ * In development: Falls back to onboarding@resend.dev for local testing if not configured.
+ */
+function getSenderEmail(): string | null {
+  const isProd = process.env.NODE_ENV === "production";
+  const configuredFrom = process.env.EMAIL_FROM?.trim();
+
+  if (configuredFrom) {
+    return configuredFrom;
+  }
+
+  if (isProd) {
+    console.error(
+      "[Email Config Error] EMAIL_FROM is missing in production environment. A verified-domain sender is required (e.g. Haajari Manager <noreply@yourdomain.com>)."
+    );
+    return null;
+  }
+
+  // Development default only
+  return "Haajari Manager <onboarding@resend.dev>";
+}
+
+/**
+ * Resolves the application base URL for verification and password reset links.
+ */
+function getBaseUrl(): string {
+  const isProd = process.env.NODE_ENV === "production";
+  const configuredUrl = (process.env.CLIENT_URL || process.env.BASE_URL)?.trim();
+
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/$/, "");
+  }
+
+  if (isProd) {
+    console.warn(
+      "[Email Config Warning] Neither CLIENT_URL nor BASE_URL is set in production. Links will default to https://haajari.com"
+    );
+    return "https://haajari.com";
+  }
+
+  return "http://localhost:5000";
+}
+
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@haajari.com";
 const APP_NAME = "Haajari Manager";
-const BASE_URL = process.env.CLIENT_URL || process.env.BASE_URL || "http://localhost:5000";
 
 let transporter: nodemailer.Transporter | null = null;
 
-async function getTransporter(): Promise<nodemailer.Transporter> {
+/**
+ * Initializes the Nodemailer SMTP transporter.
+ * In production: Only connects to configured SMTP servers (never uses Ethereal test accounts).
+ * In development: Uses Ethereal test account or console fallback.
+ */
+async function getTransporter(): Promise<nodemailer.Transporter | null> {
   if (transporter) return transporter;
 
+  const isProd = process.env.NODE_ENV === "production";
   const host = process.env.SMTP_HOST;
   const port = parseInt(process.env.SMTP_PORT || "587");
   const user = process.env.SMTP_USER;
@@ -30,45 +79,106 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
       secure: port === 465,
       auth: { user, pass },
     });
-  } else {
-    try {
-      const testAccount = await nodemailer.createTestAccount();
-      transporter = nodemailer.createTransport({
-        host: "smtp.ethereal.email",
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass,
-        },
-      });
-    } catch {
-      // Console fallback
-      transporter = {
-        sendMail: async (mailOptions: any) => {
-          console.log("\n================ [EMAIL FALLBACK CONSOLE] ================");
-          console.log(`FROM: ${mailOptions.from}`);
-          console.log(`TO: ${mailOptions.to}`);
-          console.log(`SUBJECT: ${mailOptions.subject}`);
-          console.log(`HTML LENGTH: ${mailOptions.html?.length || 0} bytes`);
-          console.log("==========================================================\n");
-          return { messageId: `fallback-${Date.now()}` };
-        },
-      } as any;
-    }
+    return transporter;
   }
-  return transporter!;
+
+  if (isProd) {
+    // In production, do not create test accounts if SMTP credentials are not configured
+    console.warn(
+      "[Email] Nodemailer fallback is not configured for production (SMTP_HOST / SMTP_USER / SMTP_PASS not set)."
+    );
+    return null;
+  }
+
+  // Development only: Ethereal test account / local console fallback
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+    transporter = nodemailer.createTransport({
+      host: "smtp.ethereal.email",
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+  } catch {
+    transporter = {
+      sendMail: async (mailOptions: any) => {
+        console.log("\n================ [EMAIL FALLBACK CONSOLE] ================");
+        console.log(`FROM: ${mailOptions.from}`);
+        console.log(`TO: ${mailOptions.to}`);
+        console.log(`SUBJECT: ${mailOptions.subject}`);
+        console.log(`HTML LENGTH: ${mailOptions.html?.length || 0} bytes`);
+        console.log("==========================================================\n");
+        return { messageId: `dev-fallback-${Date.now()}` };
+      },
+    } as any;
+  }
+
+  return transporter;
 }
 
 /**
- * Universal email sender: Attempts Resend first, automatically falls back to Nodemailer SMTP
+ * Validates email environment configuration at server startup.
  */
-async function sendMailUnified(to: string, subject: string, html: string): Promise<boolean> {
+export function validateEmailConfig(): void {
+  const isProd = process.env.NODE_ENV === "production";
+  const resendKey = process.env.RESEND_API_KEY;
+  const emailFrom = process.env.EMAIL_FROM;
+  const baseUrl = process.env.CLIENT_URL || process.env.BASE_URL;
+
+  console.log(`\n================ [EMAIL SERVICE CONFIG] ================`);
+  console.log(`Environment : ${process.env.NODE_ENV || "development"}`);
+  console.log(`Primary     : Resend (${resendKey ? "Configured" : "MISSING"})`);
+  console.log(
+    `Sender From : ${
+      emailFrom
+        ? emailFrom
+        : isProd
+        ? "MISSING (Required in Production)"
+        : "Haajari Manager <onboarding@resend.dev> (Dev Default)"
+    }`
+  );
+  console.log(`Base URL    : ${baseUrl || (isProd ? "NOT CONFIGURED" : "http://localhost:5000 (Dev Default)")}`);
+
+  if (isProd) {
+    if (!resendKey) {
+      console.error("❌ [Email Config Error] RESEND_API_KEY is missing in production environment variables.");
+    }
+    if (!emailFrom) {
+      console.error(
+        "❌ [Email Config Error] EMAIL_FROM is missing in production environment variables. A verified sender is required."
+      );
+    }
+    if (!baseUrl || baseUrl.includes("localhost")) {
+      console.warn("⚠️  [Email Config Warning] BASE_URL/CLIENT_URL is missing or points to localhost in production.");
+    }
+  }
+  console.log(`========================================================\n`);
+}
+
+/**
+ * Centralized Universal Email Sender:
+ * 1. Attempts Resend Primary
+ * 2. If Resend fails, automatically falls back to Nodemailer SMTP
+ * 3. Never exposes secrets or tokens in logs
+ */
+async function sendMailUnified(
+  to: string,
+  subject: string,
+  html: string,
+  emailType: string = "Notification"
+): Promise<boolean> {
   const resend = getResendClient();
   const from = getSenderEmail();
 
+  console.log(`[Email] Type: ${emailType}`);
+  console.log(`[Email] To: ${to}`);
+
   // 1. Try Resend Primary
-  if (resend) {
+  if (resend && from) {
+    console.log(`[Email] Provider: Resend`);
     try {
       const { data, error } = await resend.emails.send({
         from,
@@ -78,34 +188,56 @@ async function sendMailUnified(to: string, subject: string, html: string): Promi
       });
 
       if (!error && data) {
-        console.log(`[Resend Live] ✅ Email sent successfully to ${to}. ID: ${data.id}`);
+        console.log(`[Email] Status: SUCCESS`);
+        console.log(`[Email] Message ID: ${data.id}`);
         return true;
       }
-      console.warn("[Resend] API returned error, falling back to Nodemailer SMTP:", error);
-    } catch (resendErr) {
-      console.warn("[Resend] Exception occurred, falling back to Nodemailer SMTP:", resendErr);
+
+      const safeErrorMsg = error?.message || (typeof error === "string" ? error : JSON.stringify(error));
+      console.warn(`[Email] Resend failed for "${emailType}" to ${to}`);
+      console.warn(`[Email] Error: ${safeErrorMsg}`);
+      console.log(`[Email] Attempting Nodemailer fallback...`);
+    } catch (resendErr: any) {
+      const safeErrorMsg = resendErr?.message || "Unknown error during Resend dispatch";
+      console.warn(`[Email] Resend exception for "${emailType}" to ${to}`);
+      console.warn(`[Email] Error: ${safeErrorMsg}`);
+      console.log(`[Email] Attempting Nodemailer fallback...`);
     }
+  } else if (!resend) {
+    console.warn(`[Email] Resend client not initialized (RESEND_API_KEY missing). Falling back to Nodemailer...`);
+  } else if (!from) {
+    console.warn(`[Email] Valid sender address missing. Falling back to Nodemailer...`);
   }
 
   // 2. Nodemailer Fallback
   try {
     const client = await getTransporter();
+    if (!client) {
+      console.error(`[Email] Both Resend and Nodemailer are unavailable for ${to}.`);
+      return false;
+    }
+
+    const senderAddress = from || "Haajari Manager <no-reply@haajari.com>";
     const info = await client.sendMail({
-      from,
+      from: senderAddress,
       to,
       subject,
       html,
     });
 
+    console.log(`[Email] Provider: Nodemailer`);
+    console.log(`[Email] Status: SUCCESS`);
+    console.log(`[Email] Message ID: ${info.messageId || "delivered"}`);
+
     const previewUrl = nodemailer.getTestMessageUrl(info);
     if (previewUrl) {
-      console.log(`[Nodemailer] Email sent! Ethereal Preview: ${previewUrl}`);
-    } else {
-      console.log(`[Nodemailer] Email sent successfully to ${to}`);
+      console.log(`[Email] Dev Preview URL: ${previewUrl}`);
     }
+
     return true;
-  } catch (smtpErr) {
-    console.error("[Email Error] Failed to send email via SMTP fallback:", smtpErr);
+  } catch (smtpErr: any) {
+    const safeErrorMsg = smtpErr?.message || "Unknown SMTP delivery error";
+    console.error(`[Email] Nodemailer fallback failed for "${emailType}" to ${to}. Error: ${safeErrorMsg}`);
     return false;
   }
 }
@@ -193,15 +325,16 @@ export async function sendWelcomeEmail(email: string, name: string): Promise<boo
     </p>
   `;
 
-  return sendMailUnified(email, subject, getEmailLayout("Welcome to Haajari Manager", content));
+  return sendMailUnified(email, subject, getEmailLayout("Welcome to Haajari Manager", content), "Welcome / Onboarding");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. EMAIL VERIFICATION
 // ─────────────────────────────────────────────────────────────────────────────
 export async function sendVerificationEmail(email: string, name: string, token: string): Promise<boolean> {
+  const baseUrl = getBaseUrl();
   const subject = `Verify your ${APP_NAME} account`;
-  const verificationLink = `${BASE_URL}/api/auth/verify-email?token=${token}`;
+  const verificationLink = `${baseUrl}/api/auth/verify-email?token=${token}`;
 
   const content = `
     <h2 style="color: #F8FAFC; margin-top: 0; font-size: 22px; font-weight: 700;">Verify Your Email Address</h2>
@@ -222,15 +355,16 @@ export async function sendVerificationEmail(email: string, name: string, token: 
     </p>
   `;
 
-  return sendMailUnified(email, subject, getEmailLayout("Verify Your Email", content));
+  return sendMailUnified(email, subject, getEmailLayout("Verify Your Email", content), "Email Verification");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. RESEND VERIFICATION EMAIL
 // ─────────────────────────────────────────────────────────────────────────────
 export async function sendResendVerificationEmail(email: string, name: string, token: string): Promise<boolean> {
+  const baseUrl = getBaseUrl();
   const subject = `New Verification Link - ${APP_NAME}`;
-  const verificationLink = `${BASE_URL}/api/auth/verify-email?token=${token}`;
+  const verificationLink = `${baseUrl}/api/auth/verify-email?token=${token}`;
 
   const content = `
     <h2 style="color: #F8FAFC; margin-top: 0; font-size: 22px; font-weight: 700;">New Email Verification Link</h2>
@@ -250,15 +384,16 @@ export async function sendResendVerificationEmail(email: string, name: string, t
     </p>
   `;
 
-  return sendMailUnified(email, subject, getEmailLayout("New Verification Link", content));
+  return sendMailUnified(email, subject, getEmailLayout("New Verification Link", content), "Resend Verification");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. FORGOT PASSWORD EMAIL
 // ─────────────────────────────────────────────────────────────────────────────
 export async function sendPasswordResetEmail(email: string, name: string, token: string): Promise<boolean> {
+  const baseUrl = getBaseUrl();
   const subject = `Reset your ${APP_NAME} password`;
-  const resetLink = `${BASE_URL}/api/auth/reset-password-page?token=${token}`;
+  const resetLink = `${baseUrl}/api/auth/reset-password-page?token=${token}`;
 
   const content = `
     <h2 style="color: #F8FAFC; margin-top: 0; font-size: 22px; font-weight: 700;">Password Reset Request</h2>
@@ -281,7 +416,7 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
     </p>
   `;
 
-  return sendMailUnified(email, subject, getEmailLayout("Reset Password", content));
+  return sendMailUnified(email, subject, getEmailLayout("Reset Password", content), "Password Reset Request");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -305,5 +440,5 @@ export async function sendPasswordResetSuccessEmail(email: string, name: string)
     </p>
   `;
 
-  return sendMailUnified(email, subject, getEmailLayout("Password Changed", content));
+  return sendMailUnified(email, subject, getEmailLayout("Password Changed", content), "Password Reset Success");
 }
