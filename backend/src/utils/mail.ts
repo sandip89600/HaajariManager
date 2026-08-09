@@ -179,6 +179,7 @@ async function sendMailUnified(
   // 1. Try Resend Primary
   if (resend && from) {
     console.log(`[Email] Provider: Resend`);
+    console.log(`[Email] From: ${from}`);
     try {
       const { data, error } = await resend.emails.send({
         from,

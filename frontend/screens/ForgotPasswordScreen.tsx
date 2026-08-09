@@ -104,25 +104,60 @@ export default function ForgotPasswordScreen() {
 
     setIsLoading(true);
     setError(null);
+    setSuccessMsg(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     try {
       const res = await fetch(`${API_URL}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed, method: "email" }),
+        signal: controller.signal,
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to send reset email.");
+      clearTimeout(timeoutId);
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok || (data && data.success === false)) {
+        const errorMsg =
+          data?.message ||
+          data?.error ||
+          "Unable to send email right now. Please try again later.";
+        throw new Error(errorMsg);
       }
 
       triggerHaptic();
       setEmailSent(true);
-      setSuccessMsg(`Password reset link sent to ${trimmed}. Please check your inbox.`);
+      setSuccessMsg(
+        data?.message || `Password reset link sent to ${trimmed}. Please check your inbox.`
+      );
       setCooldown(60);
     } catch (err: any) {
-      setError(err.message || "Failed to process request. Please try again.");
+      if (err.name === "AbortError") {
+        setError("Unable to reach the server. Please try again.");
+      } else {
+        const msg = err.message || "";
+        if (
+          msg.includes("JSON") ||
+          msg.includes("Unexpected") ||
+          msg.includes("500") ||
+          msg.includes("<!DOCTYPE")
+        ) {
+          setError("Unable to send email right now. Please try again later.");
+        } else {
+          setError(msg || "Unable to send email right now. Please try again later.");
+        }
+      }
     } finally {
+      clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };
@@ -136,16 +171,33 @@ export default function ForgotPasswordScreen() {
 
     setIsLoading(true);
     setError(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     try {
       const res = await fetch(`${API_URL}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: trimmed, method: "otp" }),
+        signal: controller.signal,
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to send verification code.");
+      clearTimeout(timeoutId);
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok || (data && data.success === false)) {
+        const errorMsg =
+          data?.message ||
+          data?.error ||
+          "Unable to send verification code. Please try again later.";
+        throw new Error(errorMsg);
       }
 
       triggerHaptic();
@@ -156,8 +208,13 @@ export default function ForgotPasswordScreen() {
         "A 6-digit OTP code has been sent to your registered mobile number."
       );
     } catch (err: any) {
-      setError(err.message || "Failed to send OTP.");
+      if (err.name === "AbortError") {
+        setError("Unable to reach the server. Please try again.");
+      } else {
+        setError(err.message || "Failed to send OTP. Please try again.");
+      }
     } finally {
+      clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };
@@ -199,6 +256,9 @@ export default function ForgotPasswordScreen() {
     setIsLoading(true);
     setError(null);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     try {
       const res = await fetch(`${API_URL}/auth/reset-password`, {
         method: "POST",
@@ -208,11 +268,20 @@ export default function ForgotPasswordScreen() {
           otp: otpCode,
           password: newPassword,
         }),
+        signal: controller.signal,
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Password reset failed.");
+      clearTimeout(timeoutId);
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok || (data && data.success === false)) {
+        throw new Error(data?.message || data?.error || "Password reset failed.");
       }
 
       triggerHaptic();
@@ -227,8 +296,13 @@ export default function ForgotPasswordScreen() {
         ]
       );
     } catch (err: any) {
-      setError(err.message || "Failed to reset password.");
+      if (err.name === "AbortError") {
+        setError("Unable to reach the server. Please try again.");
+      } else {
+        setError(err.message || "Failed to reset password.");
+      }
     } finally {
+      clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };

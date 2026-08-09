@@ -312,12 +312,9 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
       passwordHash,
       role: role || "contractor",
       isActive: true,
-      isVerified: isAdmin ? true : false,
-      isEmailVerified: isAdmin ? true : false,
-      status: isAdmin ? "active" : "pending_verification",
-      verificationToken: isAdmin ? undefined : verificationToken,
-      verificationTokenExpires: isAdmin ? undefined : verificationTokenExpires,
-      lastVerificationEmailSentAt: isAdmin ? undefined : new Date(),
+      isVerified: true,
+      isEmailVerified: true,
+      status: "active",
       refreshTokens: [],
     });
     console.log("[Registration Flow] User ID generated:", user._id.toString());
@@ -359,11 +356,8 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
 
     console.log("[Registration Flow] User saved successfully. ID:", user._id.toString());
 
-    // Send Verification Email and Welcome Email
-    if (!isAdmin && emailClean) {
-      sendVerificationEmail(emailClean, user.name, verificationToken).catch((e) =>
-        console.error("[Email Error] Failed to send verification email:", e)
-      );
+    // Send Welcome Email (Verification email temporarily disabled as requested)
+    if (emailClean) {
       sendWelcomeEmail(emailClean, user.name).catch((e) =>
         console.error("[Email Error] Failed to send welcome email:", e)
       );
@@ -551,15 +545,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(403).json({ error: "Account has been deactivated" });
     }
 
-    // Email Verification Login Validation
-    if (user.role !== "admin" && user.isEmailVerified === false) {
-      return res.status(403).json({
-        error: "Your email address has not been verified.",
-        requiresEmailVerification: true,
-        email: user.email,
-        name: user.name,
-      });
-    }
+    // (Email verification blocker disabled - all users can log in directly)
 
     // OTP or Password validation
     if (otp) {
@@ -999,31 +985,38 @@ export const forgotPassword = async (req: AuthenticatedRequest, res: Response) =
     // 2. Email Reset Method
     const emailInput = (email || "").toLowerCase().trim();
     if (!emailInput) {
-      return res.status(400).json({ error: "Email address is required" });
+      return res.status(400).json({ success: false, message: "Email address is required" });
     }
+
+    console.log(`[Forgot Password] Email request received`);
 
     const user = await User.findOne({ email: emailInput });
     if (!user || !user.email) {
-      return res.status(404).json({ error: "This email address is not registered." });
+      console.log(`[Forgot Password] Email not found in database`);
+      return res.status(404).json({ success: false, message: "This email address is not registered." });
     }
+
+    console.log(`[Forgot Password] User found`);
 
     const resetToken = crypto.randomBytes(32).toString("hex");
     user.passwordResetToken = resetToken;
     user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
     await user.save();
 
+    console.log(`[Forgot Password] Reset token generated`);
+
     const emailSent = await sendPasswordResetEmail(user.email, user.name, resetToken);
     if (!emailSent) {
-      return res.status(500).json({ error: "Unable to send the email right now. Please try again." });
+      return res.status(500).json({ success: false, message: "Unable to send email right now. Please try again later." });
     }
 
     return res.json({
       success: true,
-      method: "email",
-      message: "Password reset link has been sent to your email address."
+      message: "Password reset email sent successfully. Please check your inbox."
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error("[Forgot Password Error]", error?.message || error);
+    res.status(500).json({ success: false, message: "Unable to send email right now. Please try again later." });
   }
 };
 
