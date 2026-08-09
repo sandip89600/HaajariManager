@@ -28,6 +28,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
 import { RootNavigatorParamList } from "@/navigation/RootNavigator";
 import { API_URL } from "@/utils/storage";
+import * as Haptics from "expo-haptics";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -344,7 +345,11 @@ export default function SignupScreen() {
         username.trim(),
       );
 
-      if (!result.success) {
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert("Success", "Account created successfully!");
+        navigation.replace("Main");
+      } else {
         if (result.field === "email") {
           setEmailState("error");
           setEmailMsg(`❌ ${result.message}`);
