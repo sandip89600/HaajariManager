@@ -1043,32 +1043,35 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response) =>
   try {
     const { token, phone, otp, password } = req.body;
 
-    if (!password) {
-      return res.status(400).json({ error: "New password is required" });
+    if (!password || typeof password !== "string") {
+      return res.status(400).json({ success: false, error: "New password is required" });
     }
 
     const isMinLength = password.length >= 8;
-    const hasUppercase = /[A-Z]/.test(password);
-    const hasLowercase = /[a-z]/.test(password);
     const hasNumber = /[0-9]/.test(password);
     const hasSpecial = /[^A-Za-z0-9]/.test(password);
 
-    if (!isMinLength || !hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
+    if (!isMinLength || !hasNumber || !hasSpecial) {
       return res.status(400).json({
-        error: "Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, one number, and one special character."
+        success: false,
+        error: "Password must be at least 8 characters long and contain at least one number and one special character."
       });
     }
 
     let user: any = null;
 
     if (token) {
+      const cleanToken = token.trim();
       user = await User.findOne({
-        passwordResetToken: token,
+        passwordResetToken: cleanToken,
         passwordResetExpires: { $gt: new Date() },
       });
 
       if (!user) {
-        return res.status(400).json({ error: "Invalid or expired password reset link. Please request a new link." });
+        return res.status(400).json({
+          success: false,
+          error: "Invalid or expired password reset link. Please request a new link from the app."
+        });
       }
     } else if (phone && otp) {
       const phoneClean = phone.trim();
@@ -1080,20 +1083,20 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response) =>
       });
 
       if (!user) {
-        return res.status(404).json({ error: "User not found" });
+        return res.status(404).json({ success: false, error: "User not found" });
       }
 
       const activeOtp = await OtpCode.findOne({ phone: user.phone, verified: false });
       if (!activeOtp) {
-        return res.status(400).json({ error: "Invalid or expired OTP code" });
+        return res.status(400).json({ success: false, error: "Invalid or expired OTP code" });
       }
 
       if (activeOtp.expiresAt.getTime() < Date.now()) {
-        return res.status(400).json({ error: "OTP expired. Please request a new code." });
+        return res.status(400).json({ success: false, error: "OTP expired. Please request a new code." });
       }
 
       if (activeOtp.attemptsCount >= 5) {
-        return res.status(400).json({ error: "Too many failed attempts. Please request a new OTP." });
+        return res.status(400).json({ success: false, error: "Too many failed attempts. Please request a new OTP." });
       }
 
       const isDev = otp === "123456";
@@ -1102,35 +1105,65 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response) =>
       if (!isMatch) {
         activeOtp.attemptsCount += 1;
         await activeOtp.save();
-        return res.status(400).json({ error: "Invalid OTP code" });
+        return res.status(400).json({ success: false, error: "Invalid OTP code" });
       }
 
       await OtpCode.deleteMany({ phone: user.phone });
     } else {
-      return res.status(400).json({ error: "Reset token or Mobile OTP is required" });
+      return res.status(400).json({ success: false, error: "Reset token or Mobile OTP is required" });
     }
 
-    user.passwordHash = await bcrypt.hash(password, 12);
+    // Hash and store new password in database
+    const passwordHash = await bcrypt.hash(password, 12);
+    user.passwordHash = passwordHash;
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
-    user.refreshTokens = []; // Revoke all sessions
+    user.refreshTokens = []; // Revoke active sessions for security
+
+    if (user.securityLogs) {
+      user.securityLogs.push({
+        timestamp: new Date(),
+        eventType: "PASSWORD_RESET_SUCCESS",
+        details: "Password was reset successfully via reset token",
+        ipAddress: (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1"
+      });
+    }
+
     await user.save();
+    console.log(`[Password Reset] Password updated and saved in database for user: ${user.name} (${user.email || user.phone})`);
 
     if (user.email) {
-      sendPasswordResetSuccessEmail(user.email, user.name).catch(() => {});
+      sendPasswordResetSuccessEmail(user.email, user.name).catch((err) =>
+        console.error("[Email Error] Failed to send password reset success email:", err)
+      );
     }
 
     return res.json({
       success: true,
-      message: "Password reset successfully. Please login using your new password."
+      message: "Password reset successfully. You can now log in using your new password."
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error("[Password Reset Error]", error?.message || error);
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
 export const renderResetPasswordPage = async (req: AuthenticatedRequest, res: Response) => {
-  const token = (req.query.token as string) || "";
+  const token = ((req.query.token as string) || (req.params.token as string) || "").trim();
+
+  let isValid = false;
+  let user: any = null;
+
+  if (token) {
+    user = await User.findOne({
+      passwordResetToken: token,
+      passwordResetExpires: { $gt: new Date() },
+    });
+    if (user) {
+      isValid = true;
+    }
+  }
+
   const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -1139,43 +1172,110 @@ export const renderResetPasswordPage = async (req: AuthenticatedRequest, res: Re
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Reset Password - Haajari Manager</title>
   <style>
-    body { margin: 0; padding: 0; background: #0B0F17; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; color: #E2E8F0; }
-    .card { background: #111827; border: 1px solid #1E293B; border-radius: 20px; padding: 36px; max-width: 440px; width: 90%; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 16px; background: #0B0F17; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; color: #E2E8F0; }
+    .card { background: #111827; border: 1px solid #1E293B; border-radius: 24px; padding: 36px 32px; max-width: 460px; width: 100%; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); }
+    .icon-badge { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 28px; background: rgba(255, 107, 53, 0.15); border: 1px solid rgba(255, 107, 53, 0.3); }
+    .icon-badge.error { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); }
+    .icon-badge.success { background: rgba(34, 197, 94, 0.15); border-color: rgba(34, 197, 94, 0.3); }
     h1 { color: #FFFFFF; font-size: 22px; margin: 0 0 8px; font-weight: 700; text-align: center; }
-    p.sub { color: #94A3B8; font-size: 14px; margin: 0 0 24px; text-align: center; }
+    p.sub { color: #94A3B8; font-size: 14px; margin: 0 0 24px; text-align: center; line-height: 1.5; }
+    .form-group { margin-bottom: 18px; }
     label { display: block; font-size: 13px; font-weight: 600; color: #CBD5E1; margin-bottom: 6px; }
-    input { width: 100%; box-sizing: border-box; background: #0F172A; border: 1px solid #334155; border-radius: 10px; padding: 12px 14px; color: #FFFFFF; font-size: 14px; margin-bottom: 16px; outline: none; }
-    input:focus { border-color: #FF6B35; }
-    .btn { width: 100%; background: linear-gradient(135deg, #FF6B35 0%, #EA580C 100%); color: #FFFFFF; font-weight: 700; border: none; padding: 14px; border-radius: 12px; font-size: 15px; cursor: pointer; margin-top: 8px; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .status { padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
+    .input-wrap { position: relative; }
+    input { width: 100%; background: #0F172A; border: 1px solid #334155; border-radius: 12px; padding: 13px 14px; color: #FFFFFF; font-size: 14px; outline: none; transition: border-color 0.2s; }
+    input:focus { border-color: #FF6B35; box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.15); }
+    .requirements { background: #0F172A; border: 1px solid #1E293B; border-radius: 12px; padding: 14px; margin-bottom: 20px; font-size: 12px; }
+    .req-item { display: flex; align-items: center; gap: 8px; color: #94A3B8; margin-bottom: 6px; }
+    .req-item:last-child { margin-bottom: 0; }
+    .req-item.valid { color: #4ADE80; }
+    .req-item.invalid { color: #94A3B8; }
+    .btn { width: 100%; background: linear-gradient(135deg, #FF6B35 0%, #EA580C 100%); color: #FFFFFF; font-weight: 700; border: none; padding: 14px; border-radius: 12px; font-size: 15px; cursor: pointer; transition: transform 0.1s, opacity 0.2s; box-shadow: 0 4px 14px rgba(234, 88, 12, 0.4); text-decoration: none; display: inline-block; text-align: center; }
+    .btn:hover { opacity: 0.95; }
+    .btn:active { transform: scale(0.99); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .status { padding: 14px; border-radius: 12px; font-size: 13px; margin-bottom: 18px; display: none; line-height: 1.5; }
     .status.error { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #FCA5A5; display: block; }
     .status.success { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #86EFAC; display: block; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>Reset Password</h1>
-    <p class="sub">Enter your new secure password below</p>
-    <div id="statusBox" class="status"></div>
-    <form id="resetForm">
-      <label>New Password</label>
-      <input type="password" id="password" placeholder="At least 8 characters" required minlength="8" />
-      <label>Confirm Password</label>
-      <input type="password" id="confirmPassword" placeholder="Confirm your password" required minlength="8" />
-      <button type="submit" id="submitBtn" class="btn">Update Password</button>
-    </form>
+    ${!isValid ? `
+      <div class="icon-badge error">⚠️</div>
+      <h1>Invalid or Expired Link</h1>
+      <p class="sub">This password reset link is invalid or has expired (30-minute limit). Please request a new password reset link from the Haajari Manager app.</p>
+      <a href="haajari://forgot-password" class="btn">Open Haajari App</a>
+    ` : `
+      <div class="icon-badge">🔒</div>
+      <h1>Create New Password</h1>
+      <p class="sub">Set a new password for your account (<strong>${user?.name || "Haajari User"}</strong>)</p>
+      <div id="statusBox" class="status"></div>
+      <form id="resetForm">
+        <div class="form-group">
+          <label>New Password</label>
+          <input type="password" id="password" placeholder="At least 8 characters" required />
+        </div>
+        <div class="form-group">
+          <label>Confirm New Password</label>
+          <input type="password" id="confirmPassword" placeholder="Confirm your new password" required />
+        </div>
+        <div class="requirements">
+          <div id="req-length" class="req-item invalid"><span>⚪</span> Minimum 8 characters</div>
+          <div id="req-number" class="req-item invalid"><span>⚪</span> At least one number (0-9)</div>
+          <div id="req-special" class="req-item invalid"><span>⚪</span> At least one special character (!@#$%^&*...)</div>
+          <div id="req-match" class="req-item invalid"><span>⚪</span> Passwords match</div>
+        </div>
+        <button type="submit" id="submitBtn" class="btn" disabled>Save New Password</button>
+      </form>
+    `}
   </div>
+
+  ${isValid ? `
   <script>
     const form = document.getElementById('resetForm');
+    const pwd = document.getElementById('password');
+    const confirmPwd = document.getElementById('confirmPassword');
     const statusBox = document.getElementById('statusBox');
     const submitBtn = document.getElementById('submitBtn');
     const token = "${token}";
 
+    const reqLength = document.getElementById('req-length');
+    const reqNumber = document.getElementById('req-number');
+    const reqSpecial = document.getElementById('req-special');
+    const reqMatch = document.getElementById('req-match');
+
+    function validate() {
+      const val = pwd.value;
+      const cVal = confirmPwd.value;
+
+      const isLen = val.length >= 8;
+      const isNum = /[0-9]/.test(val);
+      const isSpec = /[^A-Za-z0-9]/.test(val);
+      const isMatch = val.length > 0 && val === cVal;
+
+      reqLength.className = isLen ? 'req-item valid' : 'req-item invalid';
+      reqLength.querySelector('span').innerText = isLen ? '✅' : '⚪';
+
+      reqNumber.className = isNum ? 'req-item valid' : 'req-item invalid';
+      reqNumber.querySelector('span').innerText = isNum ? '✅' : '⚪';
+
+      reqSpecial.className = isSpec ? 'req-item valid' : 'req-item invalid';
+      reqSpecial.querySelector('span').innerText = isSpec ? '✅' : '⚪';
+
+      reqMatch.className = isMatch ? 'req-item valid' : 'req-item invalid';
+      reqMatch.querySelector('span').innerText = isMatch ? '✅' : '⚪';
+
+      submitBtn.disabled = !(isLen && isNum && isSpec && isMatch);
+    }
+
+    pwd.addEventListener('input', validate);
+    confirmPwd.addEventListener('input', validate);
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const password = document.getElementById('password').value;
-      const confirmPassword = document.getElementById('confirmPassword').value;
+      const password = pwd.value;
+      const confirmPassword = confirmPwd.value;
 
       if (password !== confirmPassword) {
         statusBox.className = 'status error';
@@ -1184,7 +1284,7 @@ export const renderResetPasswordPage = async (req: AuthenticatedRequest, res: Re
       }
 
       submitBtn.disabled = true;
-      submitBtn.innerText = 'Updating...';
+      submitBtn.innerText = 'Saving password in database...';
 
       try {
         const res = await fetch('/api/auth/reset-password', {
@@ -1193,24 +1293,25 @@ export const renderResetPasswordPage = async (req: AuthenticatedRequest, res: Re
           body: JSON.stringify({ token, password }),
         });
         const data = await res.json();
-        if (res.ok) {
+        if (res.ok && data.success) {
           statusBox.className = 'status success';
-          statusBox.innerText = 'Password reset successfully! You can now open Haajari app and log in.';
+          statusBox.innerHTML = '<strong>Password Reset Successfully! ✅</strong><br/>Your new password has been saved in the database. You can now log in.';
           form.style.display = 'none';
         } else {
           statusBox.className = 'status error';
-          statusBox.innerText = data.error || 'Failed to reset password.';
+          statusBox.innerText = data.error || data.message || 'Failed to reset password.';
           submitBtn.disabled = false;
-          submitBtn.innerText = 'Update Password';
+          submitBtn.innerText = 'Save New Password';
         }
       } catch (err) {
         statusBox.className = 'status error';
-        statusBox.innerText = 'Network error. Please try again.';
+        statusBox.innerText = 'Network connection error. Please try again.';
         submitBtn.disabled = false;
-        submitBtn.innerText = 'Update Password';
+        submitBtn.innerText = 'Save New Password';
       }
     });
   </script>
+  ` : ''}
 </body>
 </html>
 `;

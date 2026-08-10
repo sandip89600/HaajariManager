@@ -36,18 +36,14 @@ function getSenderEmail(): string | null {
  * Resolves the application base URL for verification and password reset links.
  */
 function getBaseUrl(): string {
-  const isProd = process.env.NODE_ENV === "production";
-  const configuredUrl = (process.env.CLIENT_URL || process.env.BASE_URL)?.trim();
+  const configuredUrl = (process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || process.env.CLIENT_URL)?.trim();
 
   if (configuredUrl) {
     return configuredUrl.replace(/\/$/, "");
   }
 
-  if (isProd) {
-    console.warn(
-      "[Email Config Warning] Neither CLIENT_URL nor BASE_URL is set in production. Links will default to https://haajari.com"
-    );
-    return "https://haajari.com";
+  if (process.env.NODE_ENV === "production") {
+    return "https://haajarimanager.onrender.com";
   }
 
   return "http://localhost:5000";
