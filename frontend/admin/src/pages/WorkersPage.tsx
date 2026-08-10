@@ -175,34 +175,19 @@ export default function WorkersPage() {
                         {!w.isArchived ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right space-x-2">
+                    <td className="px-6 py-4 text-right">
                       <button
                         onClick={() => {
-                          setEditWorker(w);
-                          reset({
-                            name: w.name,
-                            phone: w.phone,
-                            category: w.category,
-                            dailyRate: w.dailyRate,
-                            company: w.tenantId?.name || '',
-                            isActive: !w.isArchived,
-                            address: w.address || '',
-                            notes: w.notes || ''
-                          });
-                        }}
-                        className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 rounded-xl transition-all"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm('Are you sure you want to remove this worker permanently?')) {
+                          if (window.confirm(`Are you sure you want to remove worker "${w.name}" permanently?`)) {
                             deleteWorkerMutation.mutate(w._id);
                           }
                         }}
-                        className="p-2 bg-rose-500/10 hover:bg-rose-500 border border-rose-500/25 hover:border-rose-500 text-rose-400 hover:text-white rounded-xl transition-all"
+                        disabled={deleteWorkerMutation.isPending}
+                        className="bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400 py-1.5 px-3 rounded-xl font-bold text-xs transition-all inline-flex items-center gap-1.5 shadow-sm"
+                        title="Delete Worker"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
                       </button>
                     </td>
                   </tr>

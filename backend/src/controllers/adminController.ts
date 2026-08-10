@@ -1450,6 +1450,29 @@ export const getAllTenantsAdmin = async (req: AuthenticatedRequest, res: Respons
   }
 };
 
+export const deleteTenantAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenant = await Tenant.findById(id);
+    if (!tenant) {
+      return res.status(404).json({ error: "Organization not found" });
+    }
+
+    await Attendance.deleteMany({ tenantId: id });
+    await Payment.deleteMany({ tenantId: id });
+    await WageHistory.deleteMany({ tenantId: id });
+    await Worker.deleteMany({ tenantId: id });
+    await Project.deleteMany({ tenantId: id });
+    await AuditLog.deleteMany({ tenantId: id });
+    await User.deleteMany({ tenantId: id });
+    await Tenant.findByIdAndDelete(id);
+
+    res.json({ success: true, message: "Organization and all related records deleted successfully" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const getAllMaterialsAdmin = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const materials = await Material.find().populate("tenantId", "name");

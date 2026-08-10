@@ -28,15 +28,20 @@ export default function OrganizationsPage() {
     }
   });
 
-  const toggleStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: boolean }) => {
-      return api.post(`/admin/tenants/${id}/toggle-status`, { isActive: status });
+  const deleteOrgMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return api.delete(`/admin/tenants/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
-      toast.success('Organization status updated');
+      toast.success('Organization deleted successfully');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || 'Failed to delete organization');
     }
   });
+
+
 
   const filteredOrgs = orgs.filter((org) => {
     return org.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -160,14 +165,17 @@ export default function OrganizationsPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => toggleStatusMutation.mutate({ id: org._id, status: !org.isActive })}
-                        className={`py-1.5 px-3 rounded-xl font-bold text-xs transition-all border ${
-                          org.isActive
-                            ? 'bg-rose-500/10 border-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400'
-                            : 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500 hover:text-white text-emerald-400'
-                        }`}
+                        onClick={() => {
+                          if (window.confirm(`Are you sure you want to delete organization "${org.name}" and all associated workers, projects, and data?`)) {
+                            deleteOrgMutation.mutate(org._id);
+                          }
+                        }}
+                        disabled={deleteOrgMutation.isPending}
+                        className="bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400 py-1.5 px-3 rounded-xl font-bold text-xs transition-all inline-flex items-center gap-1.5 shadow-sm"
+                        title="Delete Organization"
                       >
-                        {org.isActive ? 'Suspend' : 'Activate'}
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
                       </button>
                     </td>
                   </tr>

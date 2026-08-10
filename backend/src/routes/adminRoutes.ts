@@ -29,6 +29,7 @@ import {
   getActivityLogs,
   getActivityStats,
   getAllTenantsAdmin,
+  deleteTenantAdmin,
   getAllMaterialsAdmin,
   getAllExpensesAdmin,
   getAllSalariesAdmin,
@@ -54,6 +55,7 @@ router.delete("/users-wipe", deleteAllUsers as any);
 
 // Subscription / Tenant Plan Management
 router.put("/tenants/:tenantId/plan", updateTenantPlan as any);
+router.delete("/tenants/:id", deleteTenantAdmin as any);
 
 // Analytics Metrics
 router.get("/analytics", getAdminAnalytics as any);

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, ChevronDown, CheckCircle, ShieldAlert, ArrowUpRight, Clock, Calendar, RefreshCw } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle, ShieldAlert, ArrowUpRight, Clock, Calendar, RefreshCw, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../utils/api';
 
@@ -24,8 +24,6 @@ export default function UsersPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [planFilter, setPlanFilter] = useState<string>('All');
-  const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Fetch users
   const { data: users = [], isLoading } = useQuery<UserRecord[]>({
@@ -36,25 +34,17 @@ export default function UsersPage() {
     }
   });
 
-  // Toggle active/inactive state
-  const toggleActiveMutation = useMutation({
-    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      return api.put(`/admin/users/${id}/status`, { isActive });
+  // Delete user mutation
+  const deleteUserMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return api.delete(`/admin/users/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
-    }
-  });
-
-  // Upgrade plan mutation
-  const upgradePlanMutation = useMutation({
-    mutationFn: async ({ tenantId, plan }: { tenantId: string; plan: string }) => {
-      return api.put(`/admin/tenants/${tenantId}/plan`, { plan });
+      toast.success('User deleted successfully');
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      setShowUpgradeModal(false);
-      setSelectedUser(null);
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || 'Failed to delete user');
     }
   });
 
@@ -205,27 +195,19 @@ export default function UsersPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-right space-x-2">
-                        {user.tenantId?._id && (
-                          <button
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setShowUpgradeModal(true);
-                            }}
-                            className="bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500 hover:text-white text-orange-400 py-1.5 px-3 rounded-xl font-bold text-xs transition-all inline-flex items-center gap-1"
-                          >
-                            Upgrade <ArrowUpRight className="w-3 h-3" />
-                          </button>
-                        )}
+                      <td className="px-6 py-4 text-right">
                         <button
-                          onClick={() => toggleActiveMutation.mutate({ id: user._id, isActive: !user.isActive })}
-                          className={`py-1.5 px-3 rounded-xl font-bold text-xs transition-all border ${
-                            user.isActive
-                              ? 'bg-rose-500/10 border-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400'
-                              : 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500 hover:text-white text-emerald-400'
-                          }`}
+                          onClick={() => {
+                            if (window.confirm(`Are you sure you want to delete user "${user.name}"?`)) {
+                              deleteUserMutation.mutate(user._id);
+                            }
+                          }}
+                          disabled={deleteUserMutation.isPending}
+                          className="bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400 py-1.5 px-3 rounded-xl font-bold text-xs transition-all inline-flex items-center gap-1.5 shadow-sm"
+                          title="Delete User"
                         >
-                          {user.isActive ? 'Suspend' : 'Activate'}
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete</span>
                         </button>
                       </td>
                     </tr>
@@ -243,55 +225,6 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Upgrade Plan Modal */}
-      {showUpgradeModal && selectedUser && selectedUser.tenantId && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="glass-card max-w-md w-full rounded-2xl border border-slate-850 p-6 space-y-6">
-            <div>
-              <h3 className="text-xl font-extrabold text-white">Upgrade Service Tier</h3>
-              <p className="text-slate-400 text-xs mt-1">Select plan for client: <b>{selectedUser.tenantId.name}</b></p>
-            </div>
-
-            <div className="space-y-3">
-              {['free', 'professional', 'business'].map((p) => (
-                <button
-                  key={p}
-                  onClick={() => upgradePlanMutation.mutate({ tenantId: selectedUser.tenantId!._id, plan: p })}
-                  className={`w-full text-left p-4 rounded-xl border flex items-center justify-between transition-all ${
-                    selectedUser.tenantId!.plan === p
-                      ? 'bg-slate-900 border-orange-500 text-white'
-                      : 'bg-slate-950 border-slate-850 hover:bg-slate-900/60 text-slate-300'
-                  }`}
-                >
-                  <div>
-                    <span className="block font-bold text-sm uppercase tracking-wide">{p} Plan</span>
-                    <span className="block text-[10px] text-slate-500">
-                      {p === 'free' ? 'Max 15 workers, free access' :
-                       p === 'professional' ? 'Max 100 workers, 10 sites' :
-                       'Unlimited workers & sites'}
-                    </span>
-                  </div>
-                  {selectedUser.tenantId!.plan === p && (
-                    <span className="bg-orange-500/10 text-orange-500 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Current</span>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex gap-3 justify-end pt-2 border-t border-slate-850/60">
-              <button
-                onClick={() => {
-                  setShowUpgradeModal(false);
-                  setSelectedUser(null);
-                }}
-                className="bg-slate-900 border border-slate-800 text-slate-300 font-bold px-4 py-2 rounded-xl text-xs hover:bg-slate-850"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

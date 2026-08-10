@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Calendar, Search, MapPin, Check, X, ShieldAlert, Award, RefreshCw } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Calendar, Search, MapPin, Check, X, ShieldAlert, Award, RefreshCw, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../utils/api';
 
@@ -40,6 +40,20 @@ export default function AttendancePage() {
     queryFn: async () => {
       const res = await api.get(`/admin/attendance?date=${dateFilter}`);
       return res.data;
+    }
+  });
+
+  // Delete attendance mutation
+  const deleteAttendanceMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return api.delete(`/admin/attendance/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      toast.success('Attendance record deleted successfully');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || 'Failed to delete attendance record');
     }
   });
 
@@ -129,12 +143,13 @@ export default function AttendancePage() {
                 <th className="px-6 py-4.5">Date Filter</th>
                 <th className="px-6 py-4.5">GPS Verification</th>
                 <th className="px-6 py-4.5">Status</th>
+                <th className="px-6 py-4.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-850/30 text-sm text-slate-300">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 text-slate-500 font-semibold text-xs animate-pulse">
+                  <td colSpan={6} className="text-center py-8 text-slate-500 font-semibold text-xs animate-pulse">
                     Syncing live records...
                   </td>
                 </tr>
@@ -181,12 +196,27 @@ export default function AttendancePage() {
                           </span>
                         )}
                       </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Are you sure you want to delete this attendance record for "${wName}"?`)) {
+                              deleteAttendanceMutation.mutate(r._id);
+                            }
+                          }}
+                          disabled={deleteAttendanceMutation.isPending}
+                          className="bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400 py-1.5 px-3 rounded-xl font-bold text-xs transition-all inline-flex items-center gap-1.5 shadow-sm"
+                          title="Delete Attendance Record"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete</span>
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={5} className="text-center py-10 text-slate-500 font-medium">
+                  <td colSpan={6} className="text-center py-10 text-slate-500 font-medium">
                     No attendance records found for this date.
                   </td>
                 </tr>

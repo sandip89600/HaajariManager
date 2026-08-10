@@ -54,8 +54,8 @@ async function runVerificationTest() {
 
   console.log("\n=== TEST 5: Allow Same Full Name for New User ===");
   const phone2 = "99998" + Math.floor(10000 + Math.random() * 90000);
-  const username2 = "testuser2_" + Date.now();
-  const email2 = "test2_" + Date.now() + "@example.com";
+  const username2 = "user2_" + Math.floor(100000 + Math.random() * 900000);
+  const email2 = "test2_" + Math.floor(100000 + Math.random() * 900000) + "@example.com";
 
   const signup2Res = await axios.post("http://localhost:5000/api/auth/signup", {
     name: "Sunil Pandit", // Same full name
