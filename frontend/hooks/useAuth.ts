@@ -274,7 +274,13 @@ export function useAuthProvider() {
       companyName?: string,
       email?: string,
       username?: string,
-    ): Promise<{ success: boolean; field?: string; message?: string }> => {
+    ): Promise<{
+      success: boolean;
+      field?: string;
+      message?: string;
+      requiresEmailVerification?: boolean;
+      email?: string;
+    }> => {
       const phoneTrimmed = phone.trim();
 
       // 1. Try server signup
@@ -296,6 +302,15 @@ export function useAuthProvider() {
         const data = await res.json();
 
         if (res.ok) {
+          if (data.user?.role !== "admin" && data.user?.isEmailVerified === false) {
+            return {
+              success: true,
+              requiresEmailVerification: true,
+              email: data.user.email,
+              message: "Account created! Please check your email to verify your account before logging in.",
+            };
+          }
+
           const authData: AuthData = {
             isLoggedIn: true,
             userId: data.user.id,

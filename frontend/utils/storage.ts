@@ -5,6 +5,31 @@ import Constants from "expo-constants";
 import { Language } from "@/constants/i18n";
 
 const getApiUrl = () => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "");
+  }
+
+  // 1. Web browser environment
+  if (Platform.OS === "web" && typeof window !== "undefined" && window.location) {
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:5000/api";
+    }
+  }
+
+  // 2. Development mode on Metro / Local simulator / LAN
+  if (__DEV__) {
+    const debuggerHost = Constants.expoConfig?.hostUri || (Constants as any).manifest?.debuggerHost;
+    if (debuggerHost) {
+      const ip = debuggerHost.split(":")[0];
+      if (ip && ip !== "localhost" && ip !== "127.0.0.1") {
+        return `http://${ip}:5000/api`;
+      }
+    }
+    return "http://localhost:5000/api";
+  }
+
+  // 3. Standalone production mobile app
   return "https://haajarimanager.onrender.com/api";
 };
 export const API_URL = getApiUrl();

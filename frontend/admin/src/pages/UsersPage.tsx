@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, ChevronDown, CheckCircle, ShieldAlert, ArrowUpRight, Clock, Calendar } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle, ShieldAlert, ArrowUpRight, Clock, Calendar, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { api } from '../utils/api';
 
 interface UserRecord {
@@ -92,6 +93,17 @@ export default function UsersPage() {
           <h1 className="text-3xl font-extrabold text-white">System Users</h1>
           <p className="text-slate-400 text-sm mt-1">Manage user credentials, registration timestamps, organization access, plan scopes, and security states</p>
         </div>
+        <button
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            toast.success('Users list refreshed');
+          }}
+          disabled={isLoading}
+          className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-850 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {/* Filters card */}

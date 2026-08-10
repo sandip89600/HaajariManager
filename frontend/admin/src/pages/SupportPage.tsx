@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { HelpCircle, Search, Mail, MessageSquare, ChevronDown } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { HelpCircle, Search, Mail, MessageSquare, ChevronDown, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { api } from '../utils/api';
 
 interface SupportTicket {
@@ -14,6 +15,7 @@ interface SupportTicket {
 }
 
 export default function SupportPage() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
@@ -40,9 +42,22 @@ export default function SupportPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-extrabold text-white">Support & Customer Tickets</h1>
-        <p className="text-slate-400 text-sm mt-1">Audit active client inquiries, system bugs, and administrative assistance logs</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-extrabold text-white">Support & Customer Tickets</h1>
+          <p className="text-slate-400 text-sm mt-1">Audit active client inquiries, system bugs, and administrative assistance logs</p>
+        </div>
+        <button
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ['supportTicketsList'] });
+            toast.success('Support tickets refreshed');
+          }}
+          disabled={isLoading}
+          className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-850 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

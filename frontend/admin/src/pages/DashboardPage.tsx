@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   Building, Users, HardHat, UserCheck, UserX, Clock, 
-  MapPin, CheckCircle, CreditCard, DollarSign, Gem, Bell
+  MapPin, CheckCircle, CreditCard, DollarSign, Gem, Bell, RefreshCw
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { api } from '../utils/api';
 import { useSocket } from '../hooks/useSocket';
@@ -18,6 +19,7 @@ interface ActivityItem {
 const COLORS = ['#64748B', '#3B82F6', '#F97316', '#8B5CF6']; // Free, Basic, Super, Premium
 
 export default function DashboardPage() {
+  const queryClient = useQueryClient();
   const socket = useSocket();
   const [liveActivities, setLiveActivities] = useState<ActivityItem[]>([]);
 
@@ -108,9 +110,22 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-extrabold text-white">Dashboard Overview</h1>
-        <p className="text-slate-400 text-sm mt-1">Enterprise parameters for Haajari Manager Admin</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-extrabold text-white">Dashboard Overview</h1>
+          <p className="text-slate-400 text-sm mt-1">Enterprise parameters for Haajari Manager Admin</p>
+        </div>
+        <button
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ['dashboardStatsExtended'] });
+            toast.success('Dashboard metrics refreshed');
+          }}
+          disabled={isLoading}
+          className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-850 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {/* KPI Cards Grid */}

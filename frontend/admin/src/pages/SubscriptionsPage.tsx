@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Gem, Search, Calendar, RefreshCw, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { api } from '../utils/api';
 
 interface PlanSubscription {
@@ -15,6 +16,7 @@ interface PlanSubscription {
 }
 
 export default function SubscriptionsPage() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
 
   // Fetch subscriptions
@@ -33,9 +35,22 @@ export default function SubscriptionsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-extrabold text-white">SaaS Subscriptions</h1>
-        <p className="text-slate-400 text-sm mt-1">Audit active service tier subscriptions, auto-renewals, and expirations</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-extrabold text-white">SaaS Subscriptions</h1>
+          <p className="text-slate-400 text-sm mt-1">Audit active service tier subscriptions, auto-renewals, and expirations</p>
+        </div>
+        <button
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ['planSubscriptionsList'] });
+            toast.success('Subscriptions refreshed');
+          }}
+          disabled={isLoading}
+          className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-850 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {/* Stats header */}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { MapPin, Search, Plus, User, Building2, HardHat } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { MapPin, Search, Plus, User, Building2, HardHat, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { api } from '../utils/api';
 
 interface Site {
@@ -16,6 +17,7 @@ interface Site {
 }
 
 export default function SitesPage() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
 
   // Fetch sites
@@ -40,6 +42,17 @@ export default function SitesPage() {
           <h1 className="text-3xl font-extrabold text-white">Construction Sites</h1>
           <p className="text-slate-400 text-sm mt-1">Audit active sites, geofences, and supervisors</p>
         </div>
+        <button
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ['sites'] });
+            toast.success('Sites refreshed');
+          }}
+          disabled={isLoading}
+          className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-850 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {/* Search Filter */}

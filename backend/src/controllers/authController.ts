@@ -312,9 +312,12 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
       passwordHash,
       role: role || "contractor",
       isActive: true,
-      isVerified: true,
-      isEmailVerified: true,
-      status: "active",
+      isVerified: isAdmin ? true : false,
+      isEmailVerified: isAdmin ? true : false,
+      status: isAdmin ? "active" : "pending_verification",
+      verificationToken: isAdmin ? undefined : verificationToken,
+      verificationTokenExpires: isAdmin ? undefined : verificationTokenExpires,
+      lastVerificationEmailSentAt: isAdmin ? undefined : new Date(),
       refreshTokens: [],
     });
     console.log("[Registration Flow] User ID generated:", user._id.toString());
@@ -356,8 +359,15 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
 
     console.log("[Registration Flow] User saved successfully. ID:", user._id.toString());
 
-    // Send Welcome Email (Verification email temporarily disabled as requested)
-    if (emailClean) {
+    // Send Verification Email and Welcome Email
+    if (!isAdmin && emailClean) {
+      sendVerificationEmail(emailClean, user.name, verificationToken).catch((e) =>
+        console.error("[Email Error] Failed to send verification email:", e)
+      );
+      sendWelcomeEmail(emailClean, user.name).catch((e) =>
+        console.error("[Email Error] Failed to send welcome email:", e)
+      );
+    } else if (emailClean) {
       sendWelcomeEmail(emailClean, user.name).catch((e) =>
         console.error("[Email Error] Failed to send welcome email:", e)
       );
@@ -545,7 +555,16 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(403).json({ error: "Account has been deactivated" });
     }
 
-    // (Email verification blocker disabled - all users can log in directly)
+    // Email Verification Login Validation
+    if (user.role !== "admin" && user.isEmailVerified === false) {
+      return res.status(403).json({
+        success: false,
+        error: "Please verify your email before logging in.",
+        requiresEmailVerification: true,
+        email: user.email,
+        name: user.name,
+      });
+    }
 
     // OTP or Password validation
     if (otp) {
@@ -820,13 +839,13 @@ const renderVerificationHtml = (isSuccess: boolean, message: string) => `
 
 export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const token = (req.query.token as string) || (req.params.token as string);
+    const token = ((req.query.token as string) || (req.params.token as string) || "").trim();
 
     if (!token) {
       if (req.accepts("html") && !req.xhr) {
         return res.status(400).send(renderVerificationHtml(false, "Verification token is missing. Please check your verification link."));
       }
-      return res.status(400).json({ success: false, error: "Verification token is required" });
+      return res.status(400).json({ success: false, message: "Verification token is required" });
     }
 
     const user = await User.findOne({
@@ -840,13 +859,13 @@ export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
         if (req.accepts("html") && !req.xhr) {
           return res.status(400).send(renderVerificationHtml(false, "This verification link has expired (24-hour limit). Please request a new verification email from the app."));
         }
-        return res.status(400).json({ success: false, error: "Verification link has expired. Please request a new verification email." });
+        return res.status(400).json({ success: false, message: "This verification link has expired. Please request a new verification email." });
       }
 
       if (req.accepts("html") && !req.xhr) {
-        return res.status(400).send(renderVerificationHtml(false, "Invalid verification token or account is already verified."));
+        return res.status(400).send(renderVerificationHtml(false, "Invalid verification link or account is already verified."));
       }
-      return res.status(400).json({ success: false, error: "Invalid or expired verification token" });
+      return res.status(400).json({ success: false, message: "Invalid verification link." });
     }
 
     user.isVerified = true;
@@ -863,7 +882,7 @@ export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
 
     res.json({ success: true, message: "Email verified successfully. Your account has been activated." });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -1498,6 +1517,17 @@ export const verifyOtpLogin = async (req: AuthenticatedRequest, res: Response) =
     });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    // Email Verification Guard for OTP Login
+    if (user.role !== "admin" && user.isEmailVerified === false) {
+      return res.status(403).json({
+        success: false,
+        error: "Please verify your email before logging in.",
+        requiresEmailVerification: true,
+        email: user.email,
+        name: user.name,
+      });
     }
 
     const activeOtp = await OtpCode.findOne({ phone: user.phone, verified: false });

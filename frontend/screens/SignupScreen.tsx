@@ -347,8 +347,21 @@ export default function SignupScreen() {
 
       if (result.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Success", "Account created successfully!");
-        navigation.replace("Main");
+        if ((result as any).requiresEmailVerification) {
+          Alert.alert(
+            "Verify Your Email ✉️",
+            `We have sent a verification link to ${email.trim()}. Please verify your email address to activate your account.`,
+            [
+              {
+                text: "Go to Login",
+                onPress: () => navigation.replace("Login"),
+              },
+            ]
+          );
+        } else {
+          Alert.alert("Success", "Account created successfully!");
+          navigation.replace("Main");
+        }
       } else {
         if (result.field === "email") {
           setEmailState("error");

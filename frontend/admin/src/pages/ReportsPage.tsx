@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FileSpreadsheet, Download, FileText, CheckCircle, Search, Calendar } from 'lucide-react';
+import { FileSpreadsheet, Download, FileText, CheckCircle, Search, Calendar, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../utils/api';
 
@@ -19,7 +19,7 @@ export default function ReportsPage() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Fetch reports list
-  const { data: reports = [], refetch } = useQuery<SystemReport[]>({
+  const { data: reports = [], refetch, isFetching } = useQuery<SystemReport[]>({
     queryKey: ['systemReports'],
     queryFn: async () => {
       const res = await api.get('/admin/reports');
@@ -46,9 +46,22 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-extrabold text-white">System Reports</h1>
-        <p className="text-slate-400 text-sm mt-1">Generate SaaS metrics, audit logs, and compliance forms</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-extrabold text-white">System Reports</h1>
+          <p className="text-slate-400 text-sm mt-1">Export executive PDF summaries and raw Excel attendance and payroll data sheets</p>
+        </div>
+        <button
+          onClick={() => {
+            refetch();
+            toast.success('Reports list refreshed');
+          }}
+          disabled={isFetching}
+          className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-850 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isFetching ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

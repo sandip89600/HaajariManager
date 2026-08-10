@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building, Search, Plus, Trash2, ShieldAlert, CheckCircle, ArrowUpRight } from 'lucide-react';
+import { Building, Search, Plus, Trash2, ShieldAlert, CheckCircle, ArrowUpRight, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../utils/api';
 
@@ -51,6 +51,17 @@ export default function OrganizationsPage() {
           <h1 className="text-3xl font-extrabold text-white">Client Organizations</h1>
           <p className="text-slate-400 text-sm mt-1">Audit, configure, and onboard client construction tenants</p>
         </div>
+        <button
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ['organizations'] });
+            toast.success('Organizations refreshed');
+          }}
+          disabled={isLoading}
+          className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-850 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {/* Stats header */}

@@ -106,11 +106,15 @@ export default function ForgotPasswordScreen() {
     setError(null);
     setSuccessMsg(null);
 
+    // 60-second timeout to accommodate cold starts on server
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    const targetUrl = `${API_URL}/auth/forgot-password`;
+    console.log(`[Forgot Password API] URL: ${targetUrl}, Method: POST`);
 
     try {
-      const res = await fetch(`${API_URL}/auth/forgot-password`, {
+      const res = await fetch(targetUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed, method: "email" }),
@@ -118,6 +122,7 @@ export default function ForgotPasswordScreen() {
       });
 
       clearTimeout(timeoutId);
+      console.log(`[Forgot Password API] Status: ${res.status}`);
 
       let data: any = null;
       try {
@@ -127,11 +132,14 @@ export default function ForgotPasswordScreen() {
       }
 
       if (!res.ok || (data && data.success === false)) {
-        const errorMsg =
-          data?.message ||
-          data?.error ||
-          "Unable to send email right now. Please try again later.";
-        throw new Error(errorMsg);
+        if (res.status === 404) {
+          throw new Error("This email address is not registered.");
+        } else if (res.status === 429) {
+          throw new Error("Please wait before requesting another reset email.");
+        } else if (res.status >= 500) {
+          throw new Error("Unable to send email right now. Please try again later.");
+        }
+        throw new Error(data?.message || data?.error || "Unable to send email right now. Please try again later.");
       }
 
       triggerHaptic();
@@ -141,14 +149,19 @@ export default function ForgotPasswordScreen() {
       );
       setCooldown(60);
     } catch (err: any) {
+      console.warn(`[Forgot Password API Error]`, err?.message || err);
       if (err.name === "AbortError") {
-        setError("Unable to reach the server. Please try again.");
+        setError("Server took too long to respond. Please check your connection and try again.");
       } else {
         const msg = err.message || "";
         if (
+          msg.includes("Network request failed") ||
+          msg.includes("Failed to fetch")
+        ) {
+          setError("Unable to reach the server. Please check your connection and try again.");
+        } else if (
           msg.includes("JSON") ||
           msg.includes("Unexpected") ||
-          msg.includes("500") ||
           msg.includes("<!DOCTYPE")
         ) {
           setError("Unable to send email right now. Please try again later.");
@@ -173,10 +186,13 @@ export default function ForgotPasswordScreen() {
     setError(null);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    const targetUrl = `${API_URL}/auth/forgot-password`;
+    console.log(`[Forgot Password OTP] URL: ${targetUrl}, Method: POST`);
 
     try {
-      const res = await fetch(`${API_URL}/auth/forgot-password`, {
+      const res = await fetch(targetUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: trimmed, method: "otp" }),
@@ -193,11 +209,12 @@ export default function ForgotPasswordScreen() {
       }
 
       if (!res.ok || (data && data.success === false)) {
-        const errorMsg =
-          data?.message ||
-          data?.error ||
-          "Unable to send verification code. Please try again later.";
-        throw new Error(errorMsg);
+        if (res.status === 404) {
+          throw new Error("This mobile number is not registered.");
+        } else if (res.status === 429) {
+          throw new Error("Please wait 60 seconds before requesting a new OTP.");
+        }
+        throw new Error(data?.message || data?.error || "Unable to send verification code. Please try again.");
       }
 
       triggerHaptic();
@@ -209,7 +226,7 @@ export default function ForgotPasswordScreen() {
       );
     } catch (err: any) {
       if (err.name === "AbortError") {
-        setError("Unable to reach the server. Please try again.");
+        setError("Server took too long to respond. Please check your connection and try again.");
       } else {
         setError(err.message || "Failed to send OTP. Please try again.");
       }
@@ -257,7 +274,7 @@ export default function ForgotPasswordScreen() {
     setError(null);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
       const res = await fetch(`${API_URL}/auth/reset-password`, {
@@ -297,7 +314,7 @@ export default function ForgotPasswordScreen() {
       );
     } catch (err: any) {
       if (err.name === "AbortError") {
-        setError("Unable to reach the server. Please try again.");
+        setError("Server took too long to respond. Please check your connection and try again.");
       } else {
         setError(err.message || "Failed to reset password.");
       }
@@ -458,7 +475,10 @@ export default function ForgotPasswordScreen() {
                   ]}
                 >
                   {isLoading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <ThemedText style={styles.submitButtonText}>Sending Link...</ThemedText>
+                    </View>
                   ) : (
                     <>
                       <ThemedText style={styles.submitButtonText}>Send Reset Link</ThemedText>
