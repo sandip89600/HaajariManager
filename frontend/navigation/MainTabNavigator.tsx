@@ -70,6 +70,7 @@ export type RootStackParamList = {
   BillingHistory: undefined;
 
   // Root stack fallbacks
+  Dashboard: undefined;
   AttendanceDetail: { siteId?: string } | undefined;
   Workers: undefined;
   Summary: undefined;
@@ -351,6 +352,13 @@ export default function MainTabNavigator() {
       />
       
       {/* Fallback stack screen mappings */}
+      <Stack.Screen
+        name="Dashboard"
+        component={DashboardScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
       <Stack.Screen
         name="AttendanceDetail"
         component={AttendanceScreen}

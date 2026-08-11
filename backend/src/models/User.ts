@@ -17,7 +17,9 @@ export interface IUser extends Document {
   verificationToken?: string;
   verificationTokenExpires?: Date;
   passwordResetToken?: string;
+  passwordResetTokenHash?: string;
   passwordResetExpires?: Date;
+  passwordResetRequestedAt?: Date;
   lastVerificationEmailSentAt?: Date;
   refreshTokens: string[];
   createdAt: Date;
@@ -51,8 +53,8 @@ export interface IUser extends Document {
   loginHistory?: Array<{
     loginTime: Date;
     logoutTime?: Date;
-    deviceId: string;
-    deviceName: string;
+    deviceId?: string;
+    deviceName?: string;
     deviceOs?: string;
     deviceBrowser?: string;
     ipAddress?: string;
@@ -61,7 +63,7 @@ export interface IUser extends Document {
   securityLogs?: Array<{
     timestamp: Date;
     eventType: string;
-    details: string;
+    details?: string;
     ipAddress?: string;
     deviceId?: string;
   }>;
@@ -86,7 +88,9 @@ const UserSchema = new Schema<IUser>({
   verificationToken: { type: String },
   verificationTokenExpires: { type: Date },
   passwordResetToken: { type: String },
+  passwordResetTokenHash: { type: String },
   passwordResetExpires: { type: Date },
+  passwordResetRequestedAt: { type: Date },
   lastVerificationEmailSentAt: { type: Date },
   refreshTokens: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },

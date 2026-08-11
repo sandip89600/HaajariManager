@@ -71,9 +71,15 @@ if (!fs.existsSync(uploadsDir)) {
 app.use("/uploads", express.static(uploadsDir));
 
 // Rate limiting
+const isDev = process.env.NODE_ENV !== "production";
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 2000, // accommodate multi-tenant API traffic behind proxies
+  max: isDev ? 100000 : 5000,
+  skip: (req) => {
+    if (isDev) return true;
+    const ip = req.ip || req.socket.remoteAddress || "";
+    return ip === "127.0.0.1" || ip === "::1" || ip.includes("192.168.") || ip.includes("10.") || ip.includes("172.16.");
+  },
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests, please try again after a few minutes." },

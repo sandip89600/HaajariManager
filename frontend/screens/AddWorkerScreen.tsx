@@ -203,6 +203,8 @@ export default function AddWorkerScreen() {
   };
 
   const handleSave = async () => {
+    if (isLoading) return;
+
     if (!name.trim()) {
       Alert.alert(t.common.error, t.workers.enterName);
       return;

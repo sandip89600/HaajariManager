@@ -439,3 +439,34 @@ export async function sendPasswordResetSuccessEmail(email: string, name: string)
 
   return sendMailUnified(email, subject, getEmailLayout("Password Changed", content), "Password Reset Success");
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. PRIVILEGED RECOVERY EMAIL CONFIRMATION
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendEmailConfirmationRecoveryEmail(email: string, name: string, token: string): Promise<boolean> {
+  const baseUrl = getBaseUrl();
+  const subject = `Confirm your ${APP_NAME} password recovery`;
+  const confirmLink = `${baseUrl}/api/recovery/confirm-email?token=${token}`;
+
+  const content = `
+    <h2 style="color: #F8FAFC; margin-top: 0; font-size: 22px; font-weight: 700;">Confirm Password Recovery 🛡️</h2>
+    <p style="color: #CBD5E1; font-size: 15px; line-height: 1.6;">
+      Hello <strong>${name || "User"}</strong>, an account recovery was initiated for your privileged <strong>${APP_NAME}</strong> account. Please confirm this secondary verification request to proceed with setting a new password:
+    </p>
+    <div style="text-align: center; margin: 28px 0;">
+      <a href="${confirmLink}" target="_blank" class="btn-primary">Confirm Password Recovery</a>
+    </div>
+    <div class="info-box">
+      <p style="margin: 0; color: #E2E8F0; font-size: 13px;">
+        ⏱️ <strong>Security Notice:</strong> This confirmation link will expire in <strong>15 minutes</strong>. If you did not initiate this recovery, please change your credentials immediately.
+      </p>
+    </div>
+    <p style="color: #64748B; font-size: 11px; word-break: break-all; margin-top: 20px;">
+      Direct link: <a href="${confirmLink}" style="color: #FF6B35;">${confirmLink}</a>
+    </p>
+  `;
+
+  return sendMailUnified(email, subject, getEmailLayout("Confirm Password Recovery", content), "Privileged Recovery Email Confirmation");
+}
+
+

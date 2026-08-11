@@ -250,11 +250,20 @@ export default function WorkersScreen() {
     return matchesSearch && matchesFilter;
   });
 
-  const loadWorkers = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      let loadedWorkers = await storage.getWorkers();
+  const assignedProjectsKey = user?.assignedProjects?.join(",") || "";
 
+  const loadWorkers = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    try {
+      const today = new Date();
+      const [rawWorkers, attendance, sitesResult, auth] = await Promise.all([
+        storage.getWorkers(),
+        storage.getAttendanceForMonth(today.getFullYear(), today.getMonth()).catch(() => []),
+        storage.getSites().catch(() => ({ sites: [] })),
+        storage.getAuth().catch(() => null),
+      ]);
+
+      let loadedWorkers = rawWorkers;
       if (role === "supervisor") {
         const assignedProjects = user?.assignedProjects || [];
         loadedWorkers = loadedWorkers.filter(
@@ -263,29 +272,15 @@ export default function WorkersScreen() {
       }
 
       setWorkers(loadedWorkers.sort((a, b) => b.createdAt - a.createdAt));
-
-      const today = new Date();
-      try {
-        const attendance = await storage.getAttendanceForMonth(today.getFullYear(), today.getMonth());
-        setAttendanceRecords(attendance);
-      } catch (e) {
-        console.warn("Failed loading attendance for workers summary:", e);
-      }
-
-      try {
-        const sitesResult = await storage.getSites();
-        const rawSites = sitesResult.sites || [];
-        setProjects(rawSites);
-      } catch (e) {
-        console.warn("Failed loading sites for workers summary:", e);
-      }
-
-      const auth = await storage.getAuth();
+      setAttendanceRecords(attendance || []);
+      setProjects(sitesResult?.sites || []);
       setCurrentPlan(auth?.plan || "free");
+    } catch (err) {
+      console.error("Error loading workers:", err);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
-  }, [role, user]);
+  }, [role, user?.id, assignedProjectsKey]);
 
   const handleAddWorker = useCallback(() => {
     if (role !== "supervisor") {
@@ -316,10 +311,11 @@ export default function WorkersScreen() {
 
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener("refreshData", () => {
-      loadWorkers();
+      loadWorkers(true);
     });
     return () => sub.remove();
   }, [loadWorkers]);
+
 
   const handleEditWorker = (worker: Worker) => {
     appContextTracker.setContext({

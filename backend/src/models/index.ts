@@ -17,3 +17,4 @@ export * from "./Material";
 export * from "./MaterialUsage";
 export * from "./WorkPhoto";
 export * from "./SubscriptionTransaction";
+export * from "./RecoverySession";

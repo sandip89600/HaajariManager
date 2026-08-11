@@ -72,13 +72,15 @@ export default function ResetPasswordScreen() {
   const isMatching = password === confirmPassword && confirmPassword.length > 0;
 
   const handleResetPassword = async () => {
+    console.log("[Reset Password] Reset token received:", token ? "YES" : "NO");
+
     if (!token) {
       setError("Reset token is missing. Please request a new password reset email.");
       return;
     }
 
     if (!isPasswordStrong) {
-      setError("Please satisfy all password strength requirements.");
+      setError("Password does not meet the required security requirements.");
       return;
     }
 
@@ -94,12 +96,17 @@ export default function ResetPasswordScreen() {
       const res = await fetch(`${API_URL}/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({
+          token,
+          password,
+          newPassword: password,
+          confirmPassword,
+        }),
       });
 
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to reset password.");
+      if (!res.ok || (data && data.success === false)) {
+        throw new Error(data.message || data.error || "Unable to reset password right now. Please try again.");
       }
 
       if (Platform.OS !== "web") {
@@ -107,8 +114,8 @@ export default function ResetPasswordScreen() {
       }
 
       Alert.alert(
-        "Password Reset Successful ✅",
-        "Your password has been updated. Please log in with your new password.",
+        "Password updated successfully.",
+        "Please log in with your new password.",
         [
           {
             text: "Go to Login",
@@ -117,7 +124,7 @@ export default function ResetPasswordScreen() {
         ]
       );
     } catch (err: any) {
-      setError(err.message || "Failed to reset password.");
+      setError(err.message || "Unable to reset password right now. Please try again.");
     } finally {
       setIsLoading(false);
     }

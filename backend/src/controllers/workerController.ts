@@ -13,14 +13,14 @@ export const getWorkers = async (req: AuthenticatedRequest, res: Response) => {
     let query: any = { tenantId, isArchived: false };
 
     if (role === "supervisor") {
-      const supervisor = await User.findById(userId);
+      const supervisor = await User.findById(userId).select("assignedProjects").lean();
       const assignedProjects = supervisor?.assignedProjects || [];
       query.projectId = { $in: assignedProjects };
     } else if (req.query.projectId) {
       query.projectId = req.query.projectId;
     }
 
-    const workers = await Worker.find(query);
+    const workers = await Worker.find(query).sort({ createdAt: -1 }).lean();
     res.json(workers);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -28,6 +28,7 @@ export const getWorkers = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 export const addWorker = async (req: AuthenticatedRequest, res: Response) => {
+  const startTime = Date.now();
   try {
     const tenantId = req.user?.tenantId;
     const userId = req.user?.id;
@@ -36,6 +37,8 @@ export const addWorker = async (req: AuthenticatedRequest, res: Response) => {
     if (!name || !category || dailyRate === undefined) {
       return res.status(400).json({ error: "Missing required fields" });
     }
+
+    const tAuth = Date.now() - startTime;
 
     const worker = new Worker({
       tenantId,
@@ -49,6 +52,7 @@ export const addWorker = async (req: AuthenticatedRequest, res: Response) => {
       photoUri,
     });
     await worker.save();
+    const tWorker = Date.now() - startTime;
 
     const wageHistory = new WageHistory({
       tenantId,
@@ -58,16 +62,26 @@ export const addWorker = async (req: AuthenticatedRequest, res: Response) => {
       updatedBy: userId,
     });
     await wageHistory.save();
+    const tWage = Date.now() - startTime;
 
-    await logActivity({
+    // Send HTTP response immediately
+    res.status(201).json(worker);
+    const tTotal = Date.now() - startTime;
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[Worker Create] Completed in ${tTotal}ms (Auth/Validation: ${tAuth}ms, WorkerDB: ${tWorker - tAuth}ms, WageDB: ${tWage - tWorker}ms)`);
+    }
+
+    // Run activity logging & socket broadcast non-blockingly in the background
+    logActivity({
       req,
       action: "WORKER_CREATED",
       targetType: "WORKER",
       targetId: worker._id.toString(),
       changes: { after: worker.toObject() }
+    }).catch((logErr) => {
+      console.warn("[Worker Controller] Non-blocking activity log error:", logErr);
     });
-
-    res.status(201).json(worker);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -114,15 +128,18 @@ export const updateWorker = async (req: AuthenticatedRequest, res: Response) => 
 
     await worker.save();
 
-    await logActivity({
+    res.json(worker);
+
+    // Non-blocking activity log
+    logActivity({
       req,
       action: "WORKER_UPDATED",
       targetType: "WORKER",
       targetId: worker._id.toString(),
       changes: { before, after: worker.toObject() }
+    }).catch((logErr) => {
+      console.warn("[Worker Controller] Non-blocking activity log error:", logErr);
     });
-
-    res.json(worker);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -143,16 +160,20 @@ export const deleteWorker = async (req: AuthenticatedRequest, res: Response) => 
     worker.isArchived = true;
     await worker.save();
 
-    await logActivity({
+    res.json({ success: true, message: "Worker soft deleted successfully" });
+
+    // Non-blocking activity log
+    logActivity({
       req,
       action: "WORKER_DELETED",
       targetType: "WORKER",
       targetId: worker._id.toString(),
       changes: { before, after: worker.toObject() }
+    }).catch((logErr) => {
+      console.warn("[Worker Controller] Non-blocking activity log error:", logErr);
     });
-
-    res.json({ success: true, message: "Worker soft deleted successfully" });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 };
+

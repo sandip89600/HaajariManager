@@ -17,7 +17,7 @@ export const getPaymentsForMonth = async (req: AuthenticatedRequest, res: Respon
       tenantId,
       year: parseInt(year as string),
       month: parseInt(month as string),
-    }).populate("createdBy", "name");
+    }).populate("createdBy", "name").lean();
     res.json(payments);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -64,15 +64,18 @@ export const addPayment = async (req: AuthenticatedRequest, res: Response) => {
     await payment.save();
     await payment.populate("createdBy", "name");
 
-    await logActivity({
+    res.status(201).json(payment);
+
+    // Non-blocking activity logging
+    logActivity({
       req,
       action: "PAYMENT_ADDED",
       targetType: "PAYMENT",
       targetId: payment._id.toString(),
       changes: { after: payment.toObject() }
+    }).catch((logErr) => {
+      console.warn("[Payment Controller] Non-blocking activity log error:", logErr);
     });
-
-    res.status(201).json(payment);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -92,15 +95,18 @@ export const deletePayment = async (req: AuthenticatedRequest, res: Response) =>
     const before = payment.toObject();
     await Payment.deleteOne({ _id: id, tenantId });
 
-    await logActivity({
+    res.json({ success: true, message: "Payment record deleted successfully" });
+
+    // Non-blocking activity logging
+    logActivity({
       req,
       action: "PAYMENT_DELETED",
       targetType: "PAYMENT",
       targetId: id,
       changes: { before }
+    }).catch((logErr) => {
+      console.warn("[Payment Controller] Non-blocking activity log error:", logErr);
     });
-
-    res.json({ success: true, message: "Payment record deleted successfully" });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

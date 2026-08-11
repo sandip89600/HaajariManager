@@ -34,33 +34,35 @@ type ForgotPasswordNavigationProp = NativeStackNavigationProp<
   "ForgotPassword"
 >;
 
+type RecoveryStep = "PHONE_INPUT" | "OTP_INPUT" | "NEW_PASSWORD";
+
 export default function ForgotPasswordScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<ForgotPasswordNavigationProp>();
   const insets = useSafeAreaInsets();
 
-  const [method, setMethod] = useState<"email" | "otp">("email");
+  // Recovery Step Flow
+  const [step, setStep] = useState<RecoveryStep>("PHONE_INPUT");
 
-  // Email flow state
-  const [email, setEmail] = useState("");
-  const [emailSent, setEmailSent] = useState(false);
-
-  // OTP flow state
+  // Phone & OTP state
   const [phone, setPhone] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
   const [otpArray, setOtpArray] = useState(["", "", "", "", "", ""]);
   const otpRefs = useRef<Array<TextInput | null>>([]);
   const [cooldown, setCooldown] = useState(0);
 
-  // New Password state (for OTP reset)
+  // Scoped Recovery Session
+  const [recoverySessionToken, setRecoverySessionToken] = useState<string | null>(null);
+  const [requiresEmailConfirmation, setRequiresEmailConfirmation] = useState(false);
+
+  // New Password state
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // UI state
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const buttonScale = useSharedValue(1);
 
@@ -95,87 +97,10 @@ export default function ForgotPasswordScreen() {
     }
   };
 
-  const handleSendEmailReset = async () => {
-    const trimmed = email.trim();
-    if (!trimmed || !trimmed.includes("@")) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    setSuccessMsg(null);
-
-    // 60-second timeout to accommodate cold starts on server
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-    const targetUrl = `${API_URL}/auth/forgot-password`;
-    console.log(`[Forgot Password API] URL: ${targetUrl}, Method: POST`);
-
-    try {
-      const res = await fetch(targetUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed, method: "email" }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-      console.log(`[Forgot Password API] Status: ${res.status}`);
-
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-
-      if (!res.ok || (data && data.success === false)) {
-        if (res.status === 404) {
-          throw new Error("This email address is not registered.");
-        } else if (res.status === 429) {
-          throw new Error("Please wait before requesting another reset email.");
-        } else if (res.status >= 500) {
-          throw new Error("Unable to send email right now. Please try again later.");
-        }
-        throw new Error(data?.message || data?.error || "Unable to send email right now. Please try again later.");
-      }
-
-      triggerHaptic();
-      setEmailSent(true);
-      setSuccessMsg(
-        data?.message || `Password reset link sent to ${trimmed}. Please check your inbox.`
-      );
-      setCooldown(60);
-    } catch (err: any) {
-      console.warn(`[Forgot Password API Error]`, err?.message || err);
-      if (err.name === "AbortError") {
-        setError("Server took too long to respond. Please check your connection and try again.");
-      } else {
-        const msg = err.message || "";
-        if (
-          msg.includes("Network request failed") ||
-          msg.includes("Failed to fetch")
-        ) {
-          setError("Unable to reach the server. Please check your connection and try again.");
-        } else if (
-          msg.includes("JSON") ||
-          msg.includes("Unexpected") ||
-          msg.includes("<!DOCTYPE")
-        ) {
-          setError("Unable to send email right now. Please try again later.");
-        } else {
-          setError(msg || "Unable to send email right now. Please try again later.");
-        }
-      }
-    } finally {
-      clearTimeout(timeoutId);
-      setIsLoading(false);
-    }
-  };
-
-  const handleSendOtpReset = async () => {
+  /**
+   * STEP 1: Find Account & Send Recovery OTP
+   */
+  const handleSendRecoveryCode = async () => {
     const trimmed = phone.trim();
     if (!trimmed || trimmed.length < 8) {
       setError("Please enter a valid mobile number.");
@@ -186,16 +111,13 @@ export default function ForgotPasswordScreen() {
     setError(null);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-    const targetUrl = `${API_URL}/auth/forgot-password`;
-    console.log(`[Forgot Password OTP] URL: ${targetUrl}, Method: POST`);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     try {
-      const res = await fetch(targetUrl, {
+      const res = await fetch(`${API_URL}/recovery/check-phone`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: trimmed, method: "otp" }),
+        body: JSON.stringify({ phone: trimmed }),
         signal: controller.signal,
       });
 
@@ -209,26 +131,22 @@ export default function ForgotPasswordScreen() {
       }
 
       if (!res.ok || (data && data.success === false)) {
-        if (res.status === 404) {
-          throw new Error("This mobile number is not registered.");
-        } else if (res.status === 429) {
-          throw new Error("Please wait 60 seconds before requesting a new OTP.");
+        if (res.status === 429) {
+          throw new Error("Please wait 60 seconds before requesting another code.");
+        } else if (res.status === 403) {
+          throw new Error(data?.message || "Please contact your organization administrator or support to recover this account.");
         }
-        throw new Error(data?.message || data?.error || "Unable to send verification code. Please try again.");
+        throw new Error(data?.message || data?.error || "Unable to send recovery code. Please try again.");
       }
 
       triggerHaptic();
-      setOtpSent(true);
       setCooldown(60);
-      Alert.alert(
-        "Verification Code Sent",
-        "A 6-digit OTP code has been sent to your registered mobile number."
-      );
+      setStep("OTP_INPUT");
     } catch (err: any) {
       if (err.name === "AbortError") {
         setError("Server took too long to respond. Please check your connection and try again.");
       } else {
-        setError(err.message || "Failed to send OTP. Please try again.");
+        setError(err.message || "Failed to send verification code. Please try again.");
       }
     } finally {
       clearTimeout(timeoutId);
@@ -236,6 +154,17 @@ export default function ForgotPasswordScreen() {
     }
   };
 
+  /**
+   * Resend OTP Handler
+   */
+  const handleResendCode = async () => {
+    if (cooldown > 0) return;
+    await handleSendRecoveryCode();
+  };
+
+  /**
+   * OTP Box Input Handling
+   */
   const handleOtpBoxChange = (text: string, index: number) => {
     const newArr = [...otpArray];
     newArr[index] = text;
@@ -253,20 +182,13 @@ export default function ForgotPasswordScreen() {
     }
   };
 
-  const handleResetWithOtp = async () => {
+  /**
+   * STEP 2: Verify OTP & Obtain Scoped Recovery Session
+   */
+  const handleVerifyOtp = async () => {
     const otpCode = otpArray.join("");
     if (otpCode.length < 6) {
-      setError("Please enter the complete 6-digit verification code.");
-      return;
-    }
-
-    if (!isPasswordStrong) {
-      setError("Please satisfy all password strength requirements.");
-      return;
-    }
-
-    if (!isMatching) {
-      setError("Passwords do not match.");
+      setError("Please enter the complete 6-digit code.");
       return;
     }
 
@@ -274,16 +196,15 @@ export default function ForgotPasswordScreen() {
     setError(null);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     try {
-      const res = await fetch(`${API_URL}/auth/reset-password`, {
+      const res = await fetch(`${API_URL}/recovery/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           phone: phone.trim(),
           otp: otpCode,
-          password: newPassword,
         }),
         signal: controller.signal,
       });
@@ -298,13 +219,93 @@ export default function ForgotPasswordScreen() {
       }
 
       if (!res.ok || (data && data.success === false)) {
-        throw new Error(data?.message || data?.error || "Password reset failed.");
+        throw new Error(data?.message || data?.error || "Invalid verification code.");
+      }
+
+      const token = data?.recoverySessionToken;
+      if (!token) {
+        throw new Error("Unable to establish recovery session. Please try again.");
+      }
+
+      setRecoverySessionToken(token);
+      setRequiresEmailConfirmation(!!data?.requiresEmailConfirmation);
+      triggerHaptic();
+
+      if (data?.requiresEmailConfirmation) {
+        Alert.alert(
+          "Secondary Confirmation Required 🛡️",
+          "A security confirmation link has been sent to your registered email. Please click the link to confirm before saving your new password."
+        );
+      }
+
+      setStep("NEW_PASSWORD");
+    } catch (err: any) {
+      if (err.name === "AbortError") {
+        setError("Server took too long to respond. Please check your connection and try again.");
+      } else {
+        setError(err.message || "Invalid verification code.");
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * STEP 3: Reset Password with Scoped Session
+   */
+  const handleResetPassword = async () => {
+    if (!recoverySessionToken) {
+      setError("Your recovery session has expired. Please start again.");
+      setStep("PHONE_INPUT");
+      return;
+    }
+
+    if (!isPasswordStrong) {
+      setError("Password does not meet the required security requirements.");
+      return;
+    }
+
+    if (!isMatching) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const res = await fetch(`${API_URL}/recovery/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recoverySessionToken,
+          newPassword,
+          confirmPassword,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok || (data && data.success === false)) {
+        throw new Error(data?.message || data?.error || "Failed to update password.");
       }
 
       triggerHaptic();
       Alert.alert(
-        "Password Reset Successful ✅",
-        "Your password has been updated. You can now log in with your new password.",
+        "Password updated successfully.",
+        "Please log in using your new password.",
         [
           {
             text: "Go to Login",
@@ -343,73 +344,42 @@ export default function ForgotPasswordScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Pressable
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (step === "NEW_PASSWORD") setStep("OTP_INPUT");
+              else if (step === "OTP_INPUT") setStep("PHONE_INPUT");
+              else navigation.goBack();
+            }}
             style={[styles.backButton, { backgroundColor: theme.backgroundSecondary }]}
           >
             <Feather name="arrow-left" size={22} color={theme.text} />
           </Pressable>
-          <ThemedText style={styles.title}>Forgot Password</ThemedText>
+
+          <View style={styles.iconCircle}>
+            <Feather
+              name={step === "NEW_PASSWORD" ? "lock" : step === "OTP_INPUT" ? "shield" : "smartphone"}
+              size={28}
+              color={theme.primary}
+            />
+          </View>
+
+          <ThemedText style={styles.title}>
+            {step === "PHONE_INPUT"
+              ? "Find Your Account"
+              : step === "OTP_INPUT"
+              ? "Enter 6-Digit Code"
+              : "Choose a New Password"}
+          </ThemedText>
+
           <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Select your preferred recovery method to reset your account password
+            {step === "PHONE_INPUT"
+              ? "Enter your mobile number linked to your Haajari account to receive a 6-digit recovery code."
+              : step === "OTP_INPUT"
+              ? `We sent a 6-digit verification code to +91 ${phone}.`
+              : "Create a new password that is at least 8 characters long with numbers and special symbols."}
           </ThemedText>
         </View>
 
-        {/* Method Selector Tabs */}
-        {!emailSent && !otpSent && (
-          <View style={[styles.tabRow, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-            <Pressable
-              style={[
-                styles.tabBtn,
-                method === "email" && { backgroundColor: theme.primary },
-              ]}
-              onPress={() => {
-                setMethod("email");
-                setError(null);
-              }}
-            >
-              <Feather
-                name="mail"
-                size={16}
-                color={method === "email" ? "#FFFFFF" : theme.textSecondary}
-              />
-              <ThemedText
-                style={[
-                  styles.tabBtnText,
-                  { color: method === "email" ? "#FFFFFF" : theme.textSecondary },
-                ]}
-              >
-                Reset via Email
-              </ThemedText>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.tabBtn,
-                method === "otp" && { backgroundColor: theme.primary },
-              ]}
-              onPress={() => {
-                setMethod("otp");
-                setError(null);
-              }}
-            >
-              <Feather
-                name="smartphone"
-                size={16}
-                color={method === "otp" ? "#FFFFFF" : theme.textSecondary}
-              />
-              <ThemedText
-                style={[
-                  styles.tabBtnText,
-                  { color: method === "otp" ? "#FFFFFF" : theme.textSecondary },
-                ]}
-              >
-                Reset via Mobile OTP
-              </ThemedText>
-            </Pressable>
-          </View>
-        )}
-
-        {/* Error Alert Box */}
+        {/* Error Box */}
         {error ? (
           <View style={styles.errorBox}>
             <Feather name="alert-circle" size={16} color="#EF4444" />
@@ -417,569 +387,477 @@ export default function ForgotPasswordScreen() {
           </View>
         ) : null}
 
-        {/* Success Alert Box */}
-        {successMsg ? (
-          <View style={styles.successBox}>
-            <Feather name="check-circle" size={16} color="#22C55E" />
-            <ThemedText style={styles.successText}>{successMsg}</ThemedText>
-          </View>
-        ) : null}
-
-        {/* 1. EMAIL FLOW */}
-        {method === "email" && (
+        {/* STEP 1: PHONE INPUT */}
+        {step === "PHONE_INPUT" && (
           <View style={styles.formContainer}>
-            {!emailSent ? (
-              <>
-                <View style={styles.inputContainer}>
-                  <ThemedText style={styles.inputLabel}>Registered Email Address</ThemedText>
-                  <View
-                    style={[
-                      styles.inputWrapper,
-                      {
-                        backgroundColor: theme.backgroundDefault,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name="mail"
-                      size={20}
-                      color={theme.textSecondary}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={[styles.input, { color: theme.text }]}
-                      placeholder="Enter your registered email"
-                      placeholderTextColor={theme.textSecondary}
-                      value={email}
-                      onChangeText={(t) => {
-                        setEmail(t);
-                        setError(null);
-                      }}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </View>
+            <View style={styles.inputContainer}>
+              <ThemedText style={styles.inputLabel}>Registered Mobile Number</ThemedText>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.countryCodeBadge}>
+                  <ThemedText style={[styles.countryCodeText, { color: theme.text }]}>+91</ThemedText>
                 </View>
+                <TextInput
+                  style={[styles.input, { color: theme.text }]}
+                  placeholder="Enter 10-digit mobile number"
+                  placeholderTextColor={theme.textSecondary}
+                  value={phone}
+                  onChangeText={(t) => {
+                    setPhone(t.replace(/[^0-9]/g, ""));
+                    setError(null);
+                  }}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  autoFocus
+                />
+              </View>
+            </View>
 
-                <AnimatedPressable
-                  onPress={handleSendEmailReset}
-                  onPressIn={() => (buttonScale.value = withSpring(0.96))}
-                  onPressOut={() => (buttonScale.value = withSpring(1))}
-                  disabled={isLoading || !email.trim()}
-                  style={[
-                    styles.submitButton,
-                    { backgroundColor: email.trim() ? theme.primary : theme.border },
-                    animatedButtonStyle,
-                  ]}
-                >
-                  {isLoading ? (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                      <ThemedText style={styles.submitButtonText}>Sending Link...</ThemedText>
-                    </View>
-                  ) : (
-                    <>
-                      <ThemedText style={styles.submitButtonText}>Send Reset Link</ThemedText>
-                      <Feather name="send" size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
-                    </>
-                  )}
-                </AnimatedPressable>
-              </>
-            ) : (
-              <View style={styles.emailSentCard}>
-                <View style={styles.emailSentIcon}>
-                  <Feather name="mail" size={32} color={theme.primary} />
+            <AnimatedPressable
+              onPress={handleSendRecoveryCode}
+              onPressIn={() => (buttonScale.value = withSpring(0.96))}
+              onPressOut={() => (buttonScale.value = withSpring(1))}
+              disabled={isLoading || phone.trim().length < 10}
+              style={[
+                styles.submitButton,
+                { backgroundColor: phone.trim().length >= 10 ? theme.primary : theme.border },
+                animatedButtonStyle,
+              ]}
+            >
+              {isLoading ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ThemedText style={styles.submitButtonText}>Searching Account...</ThemedText>
                 </View>
-                <ThemedText style={styles.emailSentTitle}>Check Your Inbox</ThemedText>
-                <ThemedText style={[styles.emailSentDesc, { color: theme.textSecondary }]}>
-                  We sent a password reset link to <ThemedText style={{ fontWeight: "700" }}>{email}</ThemedText>.
-                  Please click the link in the email to set your new password.
+              ) : (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <ThemedText style={styles.submitButtonText}>Send Recovery Code</ThemedText>
+                  <Feather name="arrow-right" size={18} color="#FFFFFF" />
+                </View>
+              )}
+            </AnimatedPressable>
+          </View>
+        )}
+
+        {/* STEP 2: OTP INPUT */}
+        {step === "OTP_INPUT" && (
+          <View style={styles.formContainer}>
+            <View style={styles.otpGrid}>
+              {otpArray.map((digit, index) => (
+                <TextInput
+                  key={index}
+                  ref={(ref) => {
+                    otpRefs.current[index] = ref;
+                  }}
+                  style={[
+                    styles.otpBox,
+                    {
+                      backgroundColor: theme.backgroundDefault,
+                      borderColor: digit ? theme.primary : theme.border,
+                      color: theme.text,
+                    },
+                  ]}
+                  value={digit}
+                  onChangeText={(text) => handleOtpBoxChange(text, index)}
+                  onKeyPress={(e) => handleOtpKeyPress(e, index)}
+                  keyboardType="number-pad"
+                  maxLength={1}
+                  selectTextOnFocus
+                  autoFocus={index === 0}
+                />
+              ))}
+            </View>
+
+            {/* Resend Cooldown Timer */}
+            <View style={styles.resendRow}>
+              {cooldown > 0 ? (
+                <ThemedText style={[styles.cooldownText, { color: theme.textSecondary }]}>
+                  Resend code in <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>{cooldown}s</ThemedText>
                 </ThemedText>
+              ) : (
+                <Pressable onPress={handleResendCode} disabled={isLoading}>
+                  <ThemedText style={[styles.resendLink, { color: theme.primary }]}>
+                    Resend Code
+                  </ThemedText>
+                </Pressable>
+              )}
+            </View>
 
-                <View style={styles.infoPill}>
-                  <Feather name="clock" size={14} color="#E2E8F0" />
-                  <ThemedText style={styles.infoPillText}>Link valid for 30 minutes</ThemedText>
+            <AnimatedPressable
+              onPress={handleVerifyOtp}
+              onPressIn={() => (buttonScale.value = withSpring(0.96))}
+              onPressOut={() => (buttonScale.value = withSpring(1))}
+              disabled={isLoading || otpArray.join("").length < 6}
+              style={[
+                styles.submitButton,
+                { backgroundColor: otpArray.join("").length === 6 ? theme.primary : theme.border },
+                animatedButtonStyle,
+              ]}
+            >
+              {isLoading ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ThemedText style={styles.submitButtonText}>Verifying Code...</ThemedText>
                 </View>
+              ) : (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <ThemedText style={styles.submitButtonText}>Continue</ThemedText>
+                  <Feather name="check" size={18} color="#FFFFFF" />
+                </View>
+              )}
+            </AnimatedPressable>
+          </View>
+        )}
 
-                <Pressable
-                  onPress={handleSendEmailReset}
-                  disabled={cooldown > 0 || isLoading}
-                  style={[
-                    styles.resendBtn,
-                    { borderColor: cooldown > 0 ? theme.border : theme.primary },
-                  ]}
-                >
-                  <ThemedText
-                    style={{
-                      color: cooldown > 0 ? theme.textSecondary : theme.primary,
-                      fontSize: 14,
-                      fontWeight: "600",
-                    }}
-                  >
-                    {cooldown > 0 ? `Resend Link in ${cooldown}s` : "Resend Reset Link"}
-                  </ThemedText>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => navigation.navigate("Login")}
-                  style={{ marginTop: 24 }}
-                >
-                  <ThemedText style={{ color: theme.textSecondary, fontSize: 14 }}>
-                    Back to <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>Login</ThemedText>
-                  </ThemedText>
-                </Pressable>
+        {/* STEP 3: NEW PASSWORD */}
+        {step === "NEW_PASSWORD" && (
+          <View style={styles.formContainer}>
+            {requiresEmailConfirmation && (
+              <View style={styles.infoBadge}>
+                <Feather name="mail" size={16} color="#3B82F6" />
+                <ThemedText style={styles.infoBadgeText}>
+                  Secondary email confirmation link sent. Please confirm before submitting.
+                </ThemedText>
               </View>
             )}
+
+            {/* New Password */}
+            <View style={styles.inputContainer}>
+              <ThemedText style={styles.inputLabel}>New Password</ThemedText>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <Feather name="lock" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { color: theme.text }]}
+                  placeholder="Enter new password"
+                  placeholderTextColor={theme.textSecondary}
+                  value={newPassword}
+                  onChangeText={(t) => {
+                    setNewPassword(t);
+                    setError(null);
+                  }}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                  <Feather name={showPassword ? "eye" : "eye-off"} size={18} color={theme.textSecondary} />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Confirm Password */}
+            <View style={styles.inputContainer}>
+              <ThemedText style={styles.inputLabel}>Confirm New Password</ThemedText>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <Feather name="check-circle" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { color: theme.text }]}
+                  placeholder="Re-enter new password"
+                  placeholderTextColor={theme.textSecondary}
+                  value={confirmPassword}
+                  onChangeText={(t) => {
+                    setConfirmPassword(t);
+                    setError(null);
+                  }}
+                  secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeIcon}>
+                  <Feather name={showConfirmPassword ? "eye" : "eye-off"} size={18} color={theme.textSecondary} />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Password Strength Checklist */}
+            <View style={[styles.reqCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+              <View style={styles.reqItem}>
+                <Feather name={isMinLength ? "check-circle" : "circle"} size={14} color={isMinLength ? "#22C55E" : theme.textSecondary} />
+                <ThemedText style={[styles.reqText, { color: isMinLength ? "#22C55E" : theme.textSecondary }]}>
+                  Minimum 8 characters
+                </ThemedText>
+              </View>
+              <View style={styles.reqItem}>
+                <Feather name={hasUppercase ? "check-circle" : "circle"} size={14} color={hasUppercase ? "#22C55E" : theme.textSecondary} />
+                <ThemedText style={[styles.reqText, { color: hasUppercase ? "#22C55E" : theme.textSecondary }]}>
+                  At least one uppercase letter (A-Z)
+                </ThemedText>
+              </View>
+              <View style={styles.reqItem}>
+                <Feather name={hasLowercase ? "check-circle" : "circle"} size={14} color={hasLowercase ? "#22C55E" : theme.textSecondary} />
+                <ThemedText style={[styles.reqText, { color: hasLowercase ? "#22C55E" : theme.textSecondary }]}>
+                  At least one lowercase letter (a-z)
+                </ThemedText>
+              </View>
+              <View style={styles.reqItem}>
+                <Feather name={hasNumber ? "check-circle" : "circle"} size={14} color={hasNumber ? "#22C55E" : theme.textSecondary} />
+                <ThemedText style={[styles.reqText, { color: hasNumber ? "#22C55E" : theme.textSecondary }]}>
+                  At least one number (0-9)
+                </ThemedText>
+              </View>
+              <View style={styles.reqItem}>
+                <Feather name={hasSpecial ? "check-circle" : "circle"} size={14} color={hasSpecial ? "#22C55E" : theme.textSecondary} />
+                <ThemedText style={[styles.reqText, { color: hasSpecial ? "#22C55E" : theme.textSecondary }]}>
+                  At least one special character (!@#$%)
+                </ThemedText>
+              </View>
+              <View style={styles.reqItem}>
+                <Feather name={isMatching ? "check-circle" : "circle"} size={14} color={isMatching ? "#22C55E" : theme.textSecondary} />
+                <ThemedText style={[styles.reqText, { color: isMatching ? "#22C55E" : theme.textSecondary }]}>
+                  Passwords match
+                </ThemedText>
+              </View>
+            </View>
+
+            <AnimatedPressable
+              onPress={handleResetPassword}
+              onPressIn={() => (buttonScale.value = withSpring(0.96))}
+              onPressOut={() => (buttonScale.value = withSpring(1))}
+              disabled={isLoading || !isPasswordStrong || !isMatching}
+              style={[
+                styles.submitButton,
+                { backgroundColor: isPasswordStrong && isMatching ? theme.primary : theme.border },
+                animatedButtonStyle,
+              ]}
+            >
+              {isLoading ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ThemedText style={styles.submitButtonText}>Saving Password...</ThemedText>
+                </View>
+              ) : (
+                <ThemedText style={styles.submitButtonText}>Save New Password</ThemedText>
+              )}
+            </AnimatedPressable>
           </View>
         )}
 
-        {/* 2. OTP FLOW */}
-        {method === "otp" && (
-          <View style={styles.formContainer}>
-            {!otpSent ? (
-              <>
-                <View style={styles.inputContainer}>
-                  <ThemedText style={styles.inputLabel}>Registered Mobile Number</ThemedText>
-                  <View
-                    style={[
-                      styles.inputWrapper,
-                      {
-                        backgroundColor: theme.backgroundDefault,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name="phone"
-                      size={20}
-                      color={theme.textSecondary}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={[styles.input, { color: theme.text }]}
-                      placeholder="e.g. 9876543210"
-                      placeholderTextColor={theme.textSecondary}
-                      value={phone}
-                      onChangeText={(t) => {
-                        setPhone(t);
-                        setError(null);
-                      }}
-                      keyboardType="phone-pad"
-                      maxLength={15}
-                    />
-                  </View>
-                </View>
-
-                <AnimatedPressable
-                  onPress={handleSendOtpReset}
-                  onPressIn={() => (buttonScale.value = withSpring(0.96))}
-                  onPressOut={() => (buttonScale.value = withSpring(1))}
-                  disabled={isLoading || !phone.trim()}
-                  style={[
-                    styles.submitButton,
-                    { backgroundColor: phone.trim() ? theme.primary : theme.border },
-                    animatedButtonStyle,
-                  ]}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <ThemedText style={styles.submitButtonText}>Send OTP Code</ThemedText>
-                      <Feather name="arrow-right" size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
-                    </>
-                  )}
-                </AnimatedPressable>
-              </>
-            ) : (
-              <>
-                {/* OTP Input Boxes */}
-                <View style={styles.inputContainer}>
-                  <ThemedText style={styles.inputLabel}>
-                    Enter 6-Digit OTP Code sent to {phone}
-                  </ThemedText>
-                  <View style={styles.otpBoxesRow}>
-                    {otpArray.map((digit, i) => (
-                      <TextInput
-                        key={i}
-                        ref={(ref) => {
-                          otpRefs.current[i] = ref;
-                        }}
-                        style={[
-                          styles.otpBox,
-                          {
-                            borderColor: digit ? theme.primary : theme.border,
-                            backgroundColor: theme.backgroundDefault,
-                            color: theme.text,
-                          },
-                        ]}
-                        keyboardType="number-pad"
-                        maxLength={1}
-                        value={digit}
-                        onChangeText={(t) => handleOtpBoxChange(t, i)}
-                        onKeyPress={(e) => handleOtpKeyPress(e, i)}
-                      />
-                    ))}
-                  </View>
-                  <View style={styles.resendRow}>
-                    <Pressable
-                      onPress={handleSendOtpReset}
-                      disabled={cooldown > 0 || isLoading}
-                    >
-                      <ThemedText
-                        style={{
-                          color: cooldown > 0 ? theme.textSecondary : theme.primary,
-                          fontSize: 13,
-                          fontWeight: "600",
-                        }}
-                      >
-                        {cooldown > 0 ? `Resend Code in ${cooldown}s` : "Resend OTP Code"}
-                      </ThemedText>
-                    </Pressable>
-                  </View>
-                </View>
-
-                {/* New Password */}
-                <View style={styles.inputContainer}>
-                  <ThemedText style={styles.inputLabel}>New Password</ThemedText>
-                  <View
-                    style={[
-                      styles.inputWrapper,
-                      {
-                        backgroundColor: theme.backgroundDefault,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name="lock"
-                      size={20}
-                      color={theme.textSecondary}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={[styles.input, { color: theme.text }]}
-                      placeholder="Enter new password"
-                      placeholderTextColor={theme.textSecondary}
-                      value={newPassword}
-                      onChangeText={setNewPassword}
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                    />
-                    <Pressable
-                      onPress={() => setShowPassword(!showPassword)}
-                      style={styles.eyeBtn}
-                    >
-                      <Feather
-                        name={showPassword ? "eye-off" : "eye"}
-                        size={18}
-                        color={theme.textSecondary}
-                      />
-                    </Pressable>
-                  </View>
-
-                  {/* Password Strength Checklist */}
-                  {newPassword.length > 0 && (
-                    <View style={styles.rulesCard}>
-                      <View style={styles.ruleItem}>
-                        <Feather
-                          name={isMinLength ? "check-circle" : "circle"}
-                          size={13}
-                          color={isMinLength ? "#22C55E" : theme.textSecondary}
-                        />
-                        <ThemedText
-                          style={[
-                            styles.ruleText,
-                            { color: isMinLength ? "#22C55E" : theme.textSecondary },
-                          ]}
-                        >
-                          Minimum 8 characters
-                        </ThemedText>
-                      </View>
-
-                      <View style={styles.ruleItem}>
-                        <Feather
-                          name={hasUppercase ? "check-circle" : "circle"}
-                          size={13}
-                          color={hasUppercase ? "#22C55E" : theme.textSecondary}
-                        />
-                        <ThemedText
-                          style={[
-                            styles.ruleText,
-                            { color: hasUppercase ? "#22C55E" : theme.textSecondary },
-                          ]}
-                        >
-                          At least one uppercase letter
-                        </ThemedText>
-                      </View>
-
-                      <View style={styles.ruleItem}>
-                        <Feather
-                          name={hasLowercase ? "check-circle" : "circle"}
-                          size={13}
-                          color={hasLowercase ? "#22C55E" : theme.textSecondary}
-                        />
-                        <ThemedText
-                          style={[
-                            styles.ruleText,
-                            { color: hasLowercase ? "#22C55E" : theme.textSecondary },
-                          ]}
-                        >
-                          At least one lowercase letter
-                        </ThemedText>
-                      </View>
-
-                      <View style={styles.ruleItem}>
-                        <Feather
-                          name={hasNumber ? "check-circle" : "circle"}
-                          size={13}
-                          color={hasNumber ? "#22C55E" : theme.textSecondary}
-                        />
-                        <ThemedText
-                          style={[
-                            styles.ruleText,
-                            { color: hasNumber ? "#22C55E" : theme.textSecondary },
-                          ]}
-                        >
-                          At least one number
-                        </ThemedText>
-                      </View>
-
-                      <View style={styles.ruleItem}>
-                        <Feather
-                          name={hasSpecial ? "check-circle" : "circle"}
-                          size={13}
-                          color={hasSpecial ? "#22C55E" : theme.textSecondary}
-                        />
-                        <ThemedText
-                          style={[
-                            styles.ruleText,
-                            { color: hasSpecial ? "#22C55E" : theme.textSecondary },
-                          ]}
-                        >
-                          At least one special character
-                        </ThemedText>
-                      </View>
-                    </View>
-                  )}
-                </View>
-
-                {/* Confirm Password */}
-                <View style={styles.inputContainer}>
-                  <ThemedText style={styles.inputLabel}>Confirm New Password</ThemedText>
-                  <View
-                    style={[
-                      styles.inputWrapper,
-                      {
-                        backgroundColor: theme.backgroundDefault,
-                        borderColor:
-                          confirmPassword && !isMatching ? "#EF4444" : theme.border,
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name="lock"
-                      size={20}
-                      color={theme.textSecondary}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={[styles.input, { color: theme.text }]}
-                      placeholder="Confirm new password"
-                      placeholderTextColor={theme.textSecondary}
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                      secureTextEntry={!showConfirmPassword}
-                      autoCapitalize="none"
-                    />
-                    <Pressable
-                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                      style={styles.eyeBtn}
-                    >
-                      <Feather
-                        name={showConfirmPassword ? "eye-off" : "eye"}
-                        size={18}
-                        color={theme.textSecondary}
-                      />
-                    </Pressable>
-                  </View>
-                  {confirmPassword.length > 0 && !isMatching && (
-                    <ThemedText style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>
-                      Passwords do not match
-                    </ThemedText>
-                  )}
-                </View>
-
-                <AnimatedPressable
-                  onPress={handleResetWithOtp}
-                  onPressIn={() => (buttonScale.value = withSpring(0.96))}
-                  onPressOut={() => (buttonScale.value = withSpring(1))}
-                  disabled={isLoading || !isPasswordStrong || !isMatching || otpArray.join("").length < 6}
-                  style={[
-                    styles.submitButton,
-                    {
-                      backgroundColor:
-                        isPasswordStrong && isMatching && otpArray.join("").length === 6
-                          ? theme.primary
-                          : theme.border,
-                    },
-                    animatedButtonStyle,
-                  ]}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <ThemedText style={styles.submitButtonText}>Reset Password</ThemedText>
-                  )}
-                </AnimatedPressable>
-              </>
-            )}
-          </View>
-        )}
+        {/* Back to Login link */}
+        <Pressable
+          onPress={() => navigation.navigate("Login")}
+          style={styles.backToLoginBtn}
+        >
+          <ThemedText style={[styles.backToLoginText, { color: theme.textSecondary }]}>
+            Remembered your password?{" "}
+            <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>Log In</ThemedText>
+          </ThemedText>
+        </Pressable>
       </ScrollContainer>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollView: { flex: 1 },
-  scrollContent: { flexGrow: 1, paddingHorizontal: Spacing.xl },
-  header: { marginBottom: Spacing.lg },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.md,
-  },
-  title: { fontSize: 28, fontWeight: "bold", marginBottom: Spacing.xs },
-  subtitle: { fontSize: 14, lineHeight: 20 },
-  tabRow: {
-    flexDirection: "row",
-    borderRadius: BorderRadius.lg,
-    padding: 4,
-    borderWidth: 1,
-    marginBottom: Spacing.xl,
-  },
-  tabBtn: {
+  container: {
     flex: 1,
-    flexDirection: "row",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.xl,
+  },
+  header: {
+    marginBottom: Spacing.xl,
+    alignItems: "center",
+  },
+  backButton: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: BorderRadius.md,
+    zIndex: 10,
   },
-  tabBtnText: { fontSize: 13, fontWeight: "600" },
-  formContainer: { flex: 1 },
-  inputContainer: { marginBottom: Spacing.lg },
-  inputLabel: { fontSize: 13, fontWeight: "600", marginBottom: Spacing.xs },
+  iconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "rgba(255, 107, 53, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
+    marginTop: Spacing.md,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: Spacing.xs,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    paddingHorizontal: Spacing.md,
+  },
+  formContainer: {
+    marginTop: Spacing.md,
+  },
+  inputContainer: {
+    marginBottom: Spacing.lg,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: Spacing.xs,
+    letterSpacing: 0.2,
+  },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
     borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
     paddingHorizontal: Spacing.md,
     height: 52,
   },
-  inputIcon: { marginRight: Spacing.sm },
-  input: { flex: 1, fontSize: 15 },
-  eyeBtn: { padding: 4 },
-  submitButton: {
+  countryCodeBadge: {
+    paddingRight: Spacing.sm,
+    borderRightWidth: 1,
+    borderRightColor: "rgba(148, 163, 184, 0.3)",
+    marginRight: Spacing.sm,
+  },
+  countryCodeText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  inputIcon: {
+    marginRight: Spacing.sm,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "500",
+    height: "100%",
+  },
+  eyeIcon: {
+    padding: Spacing.xs,
+  },
+  otpGrid: {
     flexDirection: "row",
-    height: 54,
+    justifyContent: "space-between",
+    marginBottom: Spacing.lg,
+    gap: 8,
+  },
+  otpBox: {
+    flex: 1,
+    height: 56,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    textAlign: "center",
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  resendRow: {
+    alignItems: "center",
+    marginBottom: Spacing.xl,
+  },
+  cooldownText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  resendLink: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  reqCard: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginBottom: Spacing.lg,
+    gap: 8,
+  },
+  reqItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  reqText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  infoBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "rgba(59, 130, 246, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.3)",
+    marginBottom: Spacing.lg,
+  },
+  infoBadgeText: {
+    flex: 1,
+    color: "#93C5FD",
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
+  },
+  submitButton: {
+    height: 52,
     borderRadius: BorderRadius.lg,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: Spacing.md,
+    marginTop: Spacing.sm,
+    boxShadow: "0 4px 14px rgba(255, 107, 53, 0.3)",
   },
-  submitButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
+  submitButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-    borderColor: "rgba(239, 68, 68, 0.2)",
-    borderWidth: 1,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
     gap: 8,
-  },
-  errorText: { color: "#FCA5A5", fontSize: 13, flex: 1 },
-  successBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(34, 197, 94, 0.1)",
-    borderColor: "rgba(34, 197, 94, 0.2)",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
     borderWidth: 1,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
-    gap: 8,
+    borderColor: "rgba(239, 68, 68, 0.3)",
+    marginBottom: Spacing.md,
   },
-  successText: { color: "#86EFAC", fontSize: 13, flex: 1 },
-  emailSentCard: {
+  errorText: {
+    color: "#EF4444",
+    fontSize: 13,
+    flex: 1,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  backToLoginBtn: {
+    marginTop: Spacing["2xl"],
     alignItems: "center",
-    padding: 24,
-    borderRadius: 16,
-    marginTop: 12,
+    paddingVertical: Spacing.sm,
   },
-  emailSentIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(255, 107, 53, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
+  backToLoginText: {
+    fontSize: 14,
   },
-  emailSentTitle: { fontSize: 20, fontWeight: "700", marginBottom: 8 },
-  emailSentDesc: { fontSize: 14, textAlign: "center", lineHeight: 20, marginBottom: 16 },
-  infoPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#1E293B",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    marginBottom: 24,
-  },
-  infoPillText: { color: "#E2E8F0", fontSize: 12, fontWeight: "500" },
-  resendBtn: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    width: "100%",
-    alignItems: "center",
-  },
-  otpBoxesRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginVertical: 12,
-  },
-  otpBox: {
-    width: 46,
-    height: 54,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    textAlign: "center",
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  resendRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 4 },
-  rulesCard: {
-    backgroundColor: "rgba(30, 41, 59, 0.5)",
-    padding: 12,
-    borderRadius: 10,
-    marginTop: 10,
-    gap: 6,
-  },
-  ruleItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-  ruleText: { fontSize: 12 },
 });

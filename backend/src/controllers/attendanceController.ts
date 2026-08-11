@@ -27,7 +27,7 @@ export const getAttendanceForMonth = async (req: AuthenticatedRequest, res: Resp
       query.workerId = { $in: workerIds };
     }
 
-    const records = await Attendance.find(query);
+    const records = await Attendance.find(query).lean();
     res.json(records);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -46,7 +46,7 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
 
     // Check GPS limits
     if (location && (location.latitude || location.longitude)) {
-      const tenant = await Tenant.findById(tenantId);
+      const tenant = await Tenant.findById(tenantId).select("plan").lean();
       if (tenant?.plan === "free") {
         return res.status(403).json({
           error: "GPS attendance is not available on the Free Plan. Upgrade to Professional Plan to unlock this feature.",
@@ -56,7 +56,7 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
       }
     }
 
-    const worker = await Worker.findById(workerId);
+    const worker = await Worker.findById(workerId).select("dailyRate").lean();
     const workerDailyRate = worker ? worker.dailyRate : 0;
 
     const dailyRateResolved = req.body.dailyRate !== undefined ? req.body.dailyRate : workerDailyRate;
@@ -101,24 +101,24 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
       timestamp: new Date(),
     };
 
-    const beforeRecord = await Attendance.findOne(filter);
-    const before = beforeRecord ? beforeRecord.toObject() : null;
-
     const record = await Attendance.findOneAndUpdate(
       filter,
       update,
       { new: true, upsert: true }
     );
 
-    await logActivity({
+    res.json(record);
+
+    // Non-blocking activity logging
+    logActivity({
       req,
-      action: before ? "ATTENDANCE_UPDATED" : "ATTENDANCE_MARKED",
+      action: "ATTENDANCE_MARKED",
       targetType: "ATTENDANCE",
       targetId: record._id.toString(),
-      changes: { before, after: record.toObject() }
+      changes: { after: record.toObject() }
+    }).catch((logErr) => {
+      console.warn("[Attendance Controller] Non-blocking activity log error:", logErr);
     });
-
-    res.json(record);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

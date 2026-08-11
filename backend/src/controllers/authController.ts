@@ -2,11 +2,12 @@ import { Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import { User, Tenant, AuditLog, Worker, Attendance, Payment, WageHistory, Project, OtpCode } from "../models";
+import { User, Tenant, AuditLog, Worker, Attendance, Payment, WageHistory, Project, OtpCode, RecoverySession } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { sendVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail, sendResendVerificationEmail, sendPasswordResetSuccessEmail } from "../utils/mail";
 import { broadcastAdminActivity } from "../utils/socket";
 import { logActivity } from "../services/activityLogger";
+import { logRecoveryEvent } from "../services/recoveryAuditService";
 
 
 const ADMIN_CONFIG = {
@@ -1002,80 +1003,170 @@ export const forgotPassword = async (req: AuthenticatedRequest, res: Response) =
     }
 
     // 2. Email Reset Method
+    console.log("[Password Recovery] Request received");
     const emailInput = (email || "").toLowerCase().trim();
     if (!emailInput) {
       return res.status(400).json({ success: false, message: "Email address is required" });
     }
-
-    console.log(`[Forgot Password] Email request received`);
+    console.log("[Password Recovery] Email normalized");
 
     const user = await User.findOne({ email: emailInput });
+
+    // Anti-enumeration: Return generic safe response whether user exists or not
     if (!user || !user.email) {
-      console.log(`[Forgot Password] Email not found in database`);
-      return res.status(404).json({ success: false, message: "This email address is not registered." });
+      await logRecoveryEvent({
+        eventType: "otp_requested",
+        channel: "email",
+        details: "Password reset requested for unregistered email (Anti-enumeration)"
+      });
+      return res.json({
+        success: true,
+        message: "If this email is registered, password recovery instructions have been sent."
+      });
     }
 
-    console.log(`[Forgot Password] User found`);
+    // Resend Cooldown Check (60 seconds)
+    if (user.passwordResetRequestedAt && (Date.now() - user.passwordResetRequestedAt.getTime() < 60000)) {
+      return res.status(429).json({
+        success: false,
+        message: "Please wait before requesting another reset email."
+      });
+    }
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    user.passwordResetToken = resetToken;
+    // Generate cryptographically secure 32-byte token and store hash
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+    user.passwordResetToken = rawToken;
+    user.passwordResetTokenHash = tokenHash;
     user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+    user.passwordResetRequestedAt = new Date();
     await user.save();
 
-    console.log(`[Forgot Password] Reset token generated`);
+    console.log("[Password Recovery] Reset token generated");
 
-    const emailSent = await sendPasswordResetEmail(user.email, user.name, resetToken);
+    const emailSent = await sendPasswordResetEmail(user.email, user.name, rawToken);
     if (!emailSent) {
-      return res.status(500).json({ success: false, message: "Unable to send email right now. Please try again later." });
+      return res.status(500).json({
+        success: false,
+        message: "Unable to process password recovery right now. Please try again later."
+      });
     }
+
+    console.log("[Password Recovery] Reset email sent");
+
+    await logRecoveryEvent({
+      userId: user._id,
+      tenantId: user.tenantId,
+      userName: user.name,
+      role: user.role,
+      eventType: "otp_requested",
+      channel: "email",
+      phone: user.phone,
+      details: "Password reset email dispatched"
+    });
 
     return res.json({
       success: true,
-      message: "Password reset email sent successfully. Please check your inbox."
+      message: "If this email is registered, password recovery instructions have been sent."
     });
   } catch (error: any) {
-    console.error("[Forgot Password Error]", error?.message || error);
-    res.status(500).json({ success: false, message: "Unable to send email right now. Please try again later." });
+    console.error("[Password Recovery Error]", error?.message || error);
+    res.status(500).json({
+      success: false,
+      message: "Unable to process password recovery right now. Please try again later."
+    });
   }
 };
 
 export const resetPassword = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { token, phone, otp, password } = req.body;
+    const { token, phone, otp, password, newPassword, confirmPassword } = req.body;
+    const finalPassword = password || newPassword;
 
-    if (!password || typeof password !== "string") {
-      return res.status(400).json({ success: false, error: "New password is required" });
-    }
+    const hasToken = !!(token && typeof token === "string" && token.trim().length > 0);
+    const hasOtp = !!(phone && otp);
 
-    const isMinLength = password.length >= 8;
-    const hasNumber = /[0-9]/.test(password);
-    const hasSpecial = /[^A-Za-z0-9]/.test(password);
+    console.log(`[Password Recovery] Token received: ${hasToken || hasOtp ? "YES" : "NO"}`);
 
-    if (!isMinLength || !hasNumber || !hasSpecial) {
+    if (!finalPassword || typeof finalPassword !== "string") {
       return res.status(400).json({
         success: false,
-        error: "Password must be at least 8 characters long and contain at least one number and one special character."
+        message: "Password does not meet the required security requirements."
       });
     }
 
-    let user: any = null;
+    if (confirmPassword !== undefined && finalPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Passwords do not match."
+      });
+    }
 
-    if (token) {
-      const cleanToken = token.trim();
-      user = await User.findOne({
-        passwordResetToken: cleanToken,
-        passwordResetExpires: { $gt: new Date() },
+    // Strict 5-point Password Validation:
+    // • Minimum 8 characters
+    // • Uppercase letter
+    // • Lowercase letter
+    // • Number
+    // • Special character
+    const isMinLength = finalPassword.length >= 8;
+    const hasUppercase = /[A-Z]/.test(finalPassword);
+    const hasLowercase = /[a-z]/.test(finalPassword);
+    const hasNumber = /[0-9]/.test(finalPassword);
+    const hasSpecial = /[^A-Za-z0-9]/.test(finalPassword);
+    const isPasswordStrong = isMinLength && hasUppercase && hasLowercase && hasNumber && hasSpecial;
+
+    if (!isPasswordStrong) {
+      console.log("[Password Recovery] Password validation: FAIL");
+      return res.status(400).json({
+        success: false,
+        message: "Password does not meet the required security requirements."
+      });
+    }
+    console.log("[Password Recovery] Password validation: PASS");
+
+    let targetUserId: string | null = null;
+    let targetUserEmail: string | null = null;
+    let targetUserName: string | null = null;
+    let targetTenantId: any = null;
+    let targetRole: string | undefined = undefined;
+
+    if (hasToken) {
+      const cleanToken = (token as string).trim();
+      const tokenHash = crypto.createHash("sha256").update(cleanToken).digest("hex");
+
+      const user = await User.findOne({
+        $or: [
+          { passwordResetTokenHash: tokenHash },
+          { passwordResetToken: cleanToken }
+        ]
       });
 
       if (!user) {
+        console.log("[Password Recovery] Token valid: NO");
         return res.status(400).json({
           success: false,
-          error: "Invalid or expired password reset link. Please request a new link from the app."
+          message: "This password reset link is invalid or no longer available."
         });
       }
+
+      if (user.passwordResetExpires && user.passwordResetExpires.getTime() < Date.now()) {
+        console.log("[Password Recovery] Token valid: NO (Expired)");
+        return res.status(400).json({
+          success: false,
+          message: "This password reset link has expired."
+        });
+      }
+
+      console.log("[Password Recovery] Token valid: YES");
+      targetUserId = user._id.toString();
+      targetUserEmail = user.email || null;
+      targetUserName = user.name;
+      targetTenantId = user.tenantId;
+      targetRole = user.role;
     } else if (phone && otp) {
-      const phoneClean = phone.trim();
-      user = await User.findOne({
+      const phoneClean = (phone as string).trim();
+      const user = await User.findOne({
         $or: [
           { phone: phoneClean },
           { username: phoneClean.toLowerCase() }
@@ -1083,68 +1174,125 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response) =>
       });
 
       if (!user) {
-        return res.status(404).json({ success: false, error: "User not found" });
+        return res.status(404).json({
+          success: false,
+          message: "User not found"
+        });
       }
 
       const activeOtp = await OtpCode.findOne({ phone: user.phone, verified: false });
       if (!activeOtp) {
-        return res.status(400).json({ success: false, error: "Invalid or expired OTP code" });
+        return res.status(400).json({
+          success: false,
+          message: "Invalid or expired OTP code"
+        });
       }
 
       if (activeOtp.expiresAt.getTime() < Date.now()) {
-        return res.status(400).json({ success: false, error: "OTP expired. Please request a new code." });
+        return res.status(400).json({
+          success: false,
+          message: "OTP expired. Please request a new code."
+        });
       }
 
       if (activeOtp.attemptsCount >= 5) {
-        return res.status(400).json({ success: false, error: "Too many failed attempts. Please request a new OTP." });
+        return res.status(400).json({
+          success: false,
+          message: "Too many failed attempts. Please request a new OTP."
+        });
       }
 
       const isDev = otp === "123456";
-      const isMatch = isDev || (await bcrypt.compare(otp, activeOtp.otpCodeHash));
+      const isMatch = isDev || (await bcrypt.compare(otp as string, activeOtp.otpCodeHash));
 
       if (!isMatch) {
         activeOtp.attemptsCount += 1;
         await activeOtp.save();
-        return res.status(400).json({ success: false, error: "Invalid OTP code" });
+        return res.status(400).json({
+          success: false,
+          message: "Invalid OTP code"
+        });
       }
 
       await OtpCode.deleteMany({ phone: user.phone });
+      targetUserId = user._id.toString();
+      targetUserEmail = user.email || null;
+      targetUserName = user.name;
+      targetTenantId = user.tenantId;
+      targetRole = user.role;
     } else {
-      return res.status(400).json({ success: false, error: "Reset token or Mobile OTP is required" });
-    }
-
-    // Hash and store new password in database
-    const passwordHash = await bcrypt.hash(password, 12);
-    user.passwordHash = passwordHash;
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
-    user.refreshTokens = []; // Revoke active sessions for security
-
-    if (user.securityLogs) {
-      user.securityLogs.push({
-        timestamp: new Date(),
-        eventType: "PASSWORD_RESET_SUCCESS",
-        details: "Password was reset successfully via reset token",
-        ipAddress: (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1"
+      return res.status(400).json({
+        success: false,
+        message: "This password reset link is invalid or no longer available."
       });
     }
 
-    await user.save();
-    console.log(`[Password Reset] Password updated and saved in database for user: ${user.name} (${user.email || user.phone})`);
+    // Hash password with bcrypt (cost factor 12)
+    const passwordHash = await bcrypt.hash(finalPassword, 12);
 
-    if (user.email) {
-      sendPasswordResetSuccessEmail(user.email, user.name).catch((err) =>
-        console.error("[Email Error] Failed to send password reset success email:", err)
+    // Atomic MongoDB update: updates passwordHash, clears reset tokens, invalidates all active sessions (refreshTokens: [])
+    const clientIp = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1";
+    await User.findByIdAndUpdate(
+      targetUserId,
+      {
+        $set: {
+          passwordHash: passwordHash,
+          refreshTokens: []
+        },
+        $unset: {
+          passwordResetToken: "",
+          passwordResetTokenHash: "",
+          passwordResetExpires: "",
+          passwordResetRequestedAt: ""
+        },
+        $push: {
+          securityLogs: {
+            timestamp: new Date(),
+            eventType: "PASSWORD_RESET_SUCCESS",
+            details: "Password was reset successfully via secure reset token",
+            ipAddress: clientIp
+          }
+        }
+      },
+      { new: true }
+    );
+
+    // Invalidate any associated RecoverySession for this user
+    await RecoverySession.updateMany(
+      { userId: targetUserId },
+      { $set: { used: true } }
+    );
+
+    console.log("[Password Recovery] MongoDB update: SUCCESS");
+    console.log("[Password Recovery] Sessions invalidated");
+
+    await logRecoveryEvent({
+      userId: targetUserId,
+      tenantId: targetTenantId,
+      userName: targetUserName,
+      role: targetRole,
+      eventType: "password_reset",
+      channel: hasToken ? "email" : "sms",
+      ipAddress: clientIp,
+      details: "Password reset completed successfully via token"
+    });
+
+    if (targetUserEmail) {
+      sendPasswordResetSuccessEmail(targetUserEmail, targetUserName || "User").catch((err) =>
+        console.error("[Email Error] Failed to send password reset confirmation:", err)
       );
     }
 
     return res.json({
       success: true,
-      message: "Password reset successfully. You can now log in using your new password."
+      message: "Password updated successfully."
     });
   } catch (error: any) {
-    console.error("[Password Reset Error]", error?.message || error);
-    res.status(500).json({ success: false, error: error.message });
+    console.error("[Password Recovery Error]", error?.message || error);
+    res.status(500).json({
+      success: false,
+      message: "Unable to reset password right now. Please try again."
+    });
   }
 };
 
@@ -1152,15 +1300,24 @@ export const renderResetPasswordPage = async (req: AuthenticatedRequest, res: Re
   const token = ((req.query.token as string) || (req.params.token as string) || "").trim();
 
   let isValid = false;
+  let isExpired = false;
   let user: any = null;
 
   if (token) {
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
     user = await User.findOne({
-      passwordResetToken: token,
-      passwordResetExpires: { $gt: new Date() },
+      $or: [
+        { passwordResetTokenHash: tokenHash },
+        { passwordResetToken: token }
+      ]
     });
+
     if (user) {
-      isValid = true;
+      if (user.passwordResetExpires && user.passwordResetExpires.getTime() < Date.now()) {
+        isExpired = true;
+      } else {
+        isValid = true;
+      }
     }
   }
 
@@ -1203,18 +1360,18 @@ export const renderResetPasswordPage = async (req: AuthenticatedRequest, res: Re
   <div class="card">
     ${!isValid ? `
       <div class="icon-badge error">⚠️</div>
-      <h1>Invalid or Expired Link</h1>
-      <p class="sub">This password reset link is invalid or has expired (30-minute limit). Please request a new password reset link from the Haajari Manager app.</p>
-      <a href="haajari://forgot-password" class="btn">Open Haajari App</a>
+      <h1>${isExpired ? "Reset Link Expired" : "Invalid Reset Link"}</h1>
+      <p class="sub">${isExpired ? "This password reset link has expired (30-minute limit). Please request a new password reset link from the Haajari app." : "This password reset link is invalid or has already been used. Please request a new link."}</p>
+      <a href="haajari://forgot-password" class="btn">Request New Reset Link</a>
     ` : `
       <div class="icon-badge">🔒</div>
       <h1>Create New Password</h1>
-      <p class="sub">Set a new password for your account (<strong>${user?.name || "Haajari User"}</strong>)</p>
+      <p class="sub">Set a new secure password for <strong>${user?.name || "Haajari User"}</strong></p>
       <div id="statusBox" class="status"></div>
       <form id="resetForm">
         <div class="form-group">
           <label>New Password</label>
-          <input type="password" id="password" placeholder="At least 8 characters" required />
+          <input type="password" id="password" placeholder="e.g. Haajari@123" required />
         </div>
         <div class="form-group">
           <label>Confirm New Password</label>
@@ -1222,6 +1379,8 @@ export const renderResetPasswordPage = async (req: AuthenticatedRequest, res: Re
         </div>
         <div class="requirements">
           <div id="req-length" class="req-item invalid"><span>⚪</span> Minimum 8 characters</div>
+          <div id="req-upper" class="req-item invalid"><span>⚪</span> At least one uppercase letter (A-Z)</div>
+          <div id="req-lower" class="req-item invalid"><span>⚪</span> At least one lowercase letter (a-z)</div>
           <div id="req-number" class="req-item invalid"><span>⚪</span> At least one number (0-9)</div>
           <div id="req-special" class="req-item invalid"><span>⚪</span> At least one special character (!@#$%^&*...)</div>
           <div id="req-match" class="req-item invalid"><span>⚪</span> Passwords match</div>
@@ -1241,6 +1400,8 @@ export const renderResetPasswordPage = async (req: AuthenticatedRequest, res: Re
     const token = "${token}";
 
     const reqLength = document.getElementById('req-length');
+    const reqUpper = document.getElementById('req-upper');
+    const reqLower = document.getElementById('req-lower');
     const reqNumber = document.getElementById('req-number');
     const reqSpecial = document.getElementById('req-special');
     const reqMatch = document.getElementById('req-match');
@@ -1250,12 +1411,20 @@ export const renderResetPasswordPage = async (req: AuthenticatedRequest, res: Re
       const cVal = confirmPwd.value;
 
       const isLen = val.length >= 8;
+      const isUpper = /[A-Z]/.test(val);
+      const isLower = /[a-z]/.test(val);
       const isNum = /[0-9]/.test(val);
       const isSpec = /[^A-Za-z0-9]/.test(val);
       const isMatch = val.length > 0 && val === cVal;
 
       reqLength.className = isLen ? 'req-item valid' : 'req-item invalid';
       reqLength.querySelector('span').innerText = isLen ? '✅' : '⚪';
+
+      reqUpper.className = isUpper ? 'req-item valid' : 'req-item invalid';
+      reqUpper.querySelector('span').innerText = isUpper ? '✅' : '⚪';
+
+      reqLower.className = isLower ? 'req-item valid' : 'req-item invalid';
+      reqLower.querySelector('span').innerText = isLower ? '✅' : '⚪';
 
       reqNumber.className = isNum ? 'req-item valid' : 'req-item invalid';
       reqNumber.querySelector('span').innerText = isNum ? '✅' : '⚪';
@@ -1266,7 +1435,7 @@ export const renderResetPasswordPage = async (req: AuthenticatedRequest, res: Re
       reqMatch.className = isMatch ? 'req-item valid' : 'req-item invalid';
       reqMatch.querySelector('span').innerText = isMatch ? '✅' : '⚪';
 
-      submitBtn.disabled = !(isLen && isNum && isSpec && isMatch);
+      submitBtn.disabled = !(isLen && isUpper && isLower && isNum && isSpec && isMatch);
     }
 
     pwd.addEventListener('input', validate);
@@ -1284,28 +1453,28 @@ export const renderResetPasswordPage = async (req: AuthenticatedRequest, res: Re
       }
 
       submitBtn.disabled = true;
-      submitBtn.innerText = 'Saving password in database...';
+      submitBtn.innerText = 'Updating password...';
 
       try {
         const res = await fetch('/api/auth/reset-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, password }),
+          body: JSON.stringify({ token, password, confirmPassword }),
         });
         const data = await res.json();
         if (res.ok && data.success) {
           statusBox.className = 'status success';
-          statusBox.innerHTML = '<strong>Password Reset Successfully! ✅</strong><br/>Your new password has been saved in the database. You can now log in.';
+          statusBox.innerHTML = '<h3 style="margin: 0 0 6px; color: #86EFAC; font-size: 16px;">Password updated successfully.</h3><p style="margin: 0 0 16px; color: #E2E8F0; font-size: 13px;">Please log in with your new password.</p><a href="haajari://login" class="btn" style="display: block; margin-top: 10px;">Go to Login</a>';
           form.style.display = 'none';
         } else {
           statusBox.className = 'status error';
-          statusBox.innerText = data.error || data.message || 'Failed to reset password.';
+          statusBox.innerText = data.message || data.error || 'Unable to reset password right now. Please try again.';
           submitBtn.disabled = false;
           submitBtn.innerText = 'Save New Password';
         }
       } catch (err) {
         statusBox.className = 'status error';
-        statusBox.innerText = 'Network connection error. Please try again.';
+        statusBox.innerText = 'Unable to reset password right now. Please try again.';
         submitBtn.disabled = false;
         submitBtn.innerText = 'Save New Password';
       }

@@ -35,5 +35,6 @@ const PaymentSchema = new Schema<IPayment>({
 });
 
 PaymentSchema.index({ tenantId: 1, workerId: 1, year: 1, month: 1 });
+PaymentSchema.index({ tenantId: 1, year: 1, month: 1 });
 
 export const Payment = mongoose.model<IPayment>("Payment", PaymentSchema);

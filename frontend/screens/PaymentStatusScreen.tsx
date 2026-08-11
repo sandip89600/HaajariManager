@@ -31,7 +31,16 @@ export default function PaymentStatusScreen() {
           color: "#22C55E",
           icon: "checkmark-circle",
           btnText: "Go to Dashboard",
-          action: () => navigation.navigate("Dashboard"),
+          action: () => {
+            if (navigation.canGoBack()) {
+              navigation.popToTop();
+            } else {
+              navigation.navigate("MainTabs", {
+                screen: "AttendanceTab",
+                params: { screen: "Dashboard" },
+              });
+            }
+          },
         };
       case "failed":
         return {

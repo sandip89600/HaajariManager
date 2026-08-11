@@ -1023,45 +1023,14 @@ export default function SummaryScreen() {
     t.months.december,
   ];
 
-  useFocusEffect(
-    useCallback(() => {
-      loadSummaries();
-      appContextTracker.setContext({
-        currentScreen: "Summary",
-        selectedMonth: selectedMonth,
-        selectedYear: selectedYear,
-      });
-    }, [selectedMonth, selectedYear]),
-  );
-
-  useEffect(() => {
-    appContextTracker.registerCallback(
-      "exportPDF",
-      (type: "attendance" | "summary") => {
-        handleExportPDF(type || "summary");
-      },
-    );
-    const sub = DeviceEventEmitter.addListener("refreshData", () => {
-      loadSummaries();
-    });
-    return () => {
-      appContextTracker.unregisterCallback("exportPDF");
-      sub.remove();
-    };
-  }, [selectedMonth, selectedYear, summaries]);
-
-  const loadSummaries = async () => {
-    setIsLoading(true);
+  const loadSummaries = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
-      const loadedWorkers = await storage.getWorkers();
-      const loadedAttendance = await storage.getAttendanceForMonth(
-        selectedYear,
-        selectedMonth,
-      );
-      const loadedPayments = await storage.getPaymentsForMonth(
-        selectedYear,
-        selectedMonth,
-      );
+      const [loadedWorkers, loadedAttendance, loadedPayments] = await Promise.all([
+        storage.getWorkers(),
+        storage.getAttendanceForMonth(selectedYear, selectedMonth),
+        storage.getPaymentsForMonth(selectedYear, selectedMonth),
+      ]);
 
       setWorkers(loadedWorkers);
       setAttendance(loadedAttendance);
@@ -1089,6 +1058,8 @@ export default function SummaryScreen() {
           ),
           payments: workerPayments,
           records: workerRecords,
+          totalAdvanceAmount: summary.totalAdvanceAmount || 0,
+          totalOvertimeAmount: summary.totalOvertimeAmount || 0,
         };
       });
 
@@ -1098,12 +1069,26 @@ export default function SummaryScreen() {
         workerSummaries.reduce((sum, s) => sum + s.totalPaid, 0),
       );
       setGrandTotalAdvance(
-        workerSummaries.reduce((sum, s) => sum + s.customAmount, 0),
+        workerSummaries.reduce((sum, s) => sum + (s.customAmount || 0), 0),
       );
+    } catch (error) {
+      console.error("Error loading summaries:", error);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
-  };
+  }, [selectedMonth, selectedYear]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadSummaries();
+      appContextTracker.setContext({
+        currentScreen: "Summary",
+        selectedMonth: selectedMonth,
+        selectedYear: selectedYear,
+      });
+    }, [loadSummaries, selectedMonth, selectedYear]),
+  );
+
 
   const handleMarkPaid = (summary: WorkerSummary) => {
     setPaymentWorker(summary);
@@ -1201,6 +1186,23 @@ export default function SummaryScreen() {
       setShowExportModal(false);
     }
   };
+
+  useEffect(() => {
+    appContextTracker.registerCallback(
+      "exportPDF",
+      (type: "attendance" | "summary") => {
+        handleExportPDF(type || "summary");
+      },
+    );
+    const sub = DeviceEventEmitter.addListener("refreshData", () => {
+      loadSummaries(true);
+    });
+    return () => {
+      appContextTracker.unregisterCallback("exportPDF");
+      sub.remove();
+    };
+  }, [handleExportPDF, loadSummaries]);
+
 
   const handleExportCSV = async () => {
     if (workers.length === 0) {

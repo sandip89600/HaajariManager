@@ -34,6 +34,20 @@ const getApiUrl = () => {
 };
 export const API_URL = getApiUrl();
 
+const inflightRequests = new Map<string, Promise<any>>();
+
+export function dedupeRequest<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  const existing = inflightRequests.get(key);
+  if (existing) {
+    return existing as Promise<T>;
+  }
+  const promise = fetcher().finally(() => {
+    inflightRequests.delete(key);
+  });
+  inflightRequests.set(key, promise);
+  return promise;
+}
+
 async function getHeaders(): Promise<HeadersInit> {
   try {
     const data = await AsyncStorage.getItem("@haajari/auth");
@@ -658,40 +672,43 @@ export const storage = {
   },
 
   async getSites(params?: { search?: string; status?: string; sortBy?: string; page?: number; limit?: number }): Promise<{ sites: Site[]; pagination?: any }> {
-    try {
-      const auth = await this.getAuth();
-      if (auth?.token) {
-        try {
-          let url = `${API_URL}/sites?`;
-          if (params) {
-            const queryParams = [];
-            if (params.search) queryParams.push(`search=${encodeURIComponent(params.search)}`);
-            if (params.status) queryParams.push(`status=${encodeURIComponent(params.status)}`);
-            if (params.sortBy) queryParams.push(`sortBy=${encodeURIComponent(params.sortBy)}`);
-            if (params.page) queryParams.push(`page=${params.page}`);
-            if (params.limit) queryParams.push(`limit=${params.limit}`);
-            url += queryParams.join("&");
+    const key = `sites_${JSON.stringify(params || {})}`;
+    return dedupeRequest(key, async () => {
+      try {
+        const auth = await this.getAuth();
+        if (auth?.token) {
+          try {
+            let url = `${API_URL}/sites?`;
+            if (params) {
+              const queryParams = [];
+              if (params.search) queryParams.push(`search=${encodeURIComponent(params.search)}`);
+              if (params.status) queryParams.push(`status=${encodeURIComponent(params.status)}`);
+              if (params.sortBy) queryParams.push(`sortBy=${encodeURIComponent(params.sortBy)}`);
+              if (params.page) queryParams.push(`page=${params.page}`);
+              if (params.limit) queryParams.push(`limit=${params.limit}`);
+              url += queryParams.join("&");
+            }
+            
+            const res = await authenticatedFetch(url);
+            if (res.ok) {
+              const data = await res.json();
+              const serverSites = (data.sites || []).map(mapSite);
+              await AsyncStorage.setItem(
+                STORAGE_KEYS.SITES,
+                JSON.stringify(serverSites),
+              );
+              return { sites: serverSites, pagination: data.pagination };
+            }
+          } catch (e) {
+            console.log("Failed to fetch sites from backend, using cache", e);
           }
-          
-          const res = await authenticatedFetch(url);
-          if (res.ok) {
-            const data = await res.json();
-            const serverSites = data.sites.map(mapSite);
-            await AsyncStorage.setItem(
-              STORAGE_KEYS.SITES,
-              JSON.stringify(serverSites),
-            );
-            return { sites: serverSites, pagination: data.pagination };
-          }
-        } catch (e) {
-          console.log("Failed to fetch sites from backend, using cache", e);
         }
+        const data = await AsyncStorage.getItem(STORAGE_KEYS.SITES);
+        return { sites: data ? JSON.parse(data) : [] };
+      } catch {
+        return { sites: [] };
       }
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.SITES);
-      return { sites: data ? JSON.parse(data) : [] };
-    } catch {
-      return { sites: [] };
-    }
+    });
   },
 
   async getSiteById(siteId: string): Promise<Site | null> {
@@ -799,29 +816,31 @@ export const storage = {
 
   // Worker methods
   async getWorkers(): Promise<Worker[]> {
-    try {
-      const auth = await this.getAuth();
-      if (auth?.token) {
-        try {
-          const res = await authenticatedFetch(`${API_URL}/workers`);
-          if (res.ok) {
-            const data = await res.json();
-            const serverWorkers = data.map(mapWorker);
-            await AsyncStorage.setItem(
-              STORAGE_KEYS.WORKERS,
-              JSON.stringify(serverWorkers),
-            );
-            return serverWorkers;
+    return dedupeRequest("workers", async () => {
+      try {
+        const auth = await this.getAuth();
+        if (auth?.token) {
+          try {
+            const res = await authenticatedFetch(`${API_URL}/workers`);
+            if (res.ok) {
+              const data = await res.json();
+              const serverWorkers = data.map(mapWorker);
+              await AsyncStorage.setItem(
+                STORAGE_KEYS.WORKERS,
+                JSON.stringify(serverWorkers),
+              );
+              return serverWorkers;
+            }
+          } catch (e) {
+            console.log("Failed to fetch workers from backend, using cache", e);
           }
-        } catch (e) {
-          console.log("Failed to fetch workers from backend, using cache", e);
         }
+        const data = await AsyncStorage.getItem(STORAGE_KEYS.WORKERS);
+        return data ? JSON.parse(data) : [];
+      } catch {
+        return [];
       }
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.WORKERS);
-      return data ? JSON.parse(data) : [];
-    } catch {
-      return [];
-    }
+    });
   },
 
   async setWorkers(workers: Worker[]): Promise<void> {
@@ -834,7 +853,8 @@ export const storage = {
   },
 
   async addWorker(worker: Worker): Promise<void> {
-    const workers = await this.getWorkers();
+    const rawData = await AsyncStorage.getItem(STORAGE_KEYS.WORKERS);
+    const workers: Worker[] = rawData ? JSON.parse(rawData) : [];
     const auth = await this.getAuth();
     const plan = auth?.plan || "free";
 
@@ -868,7 +888,7 @@ export const storage = {
         });
         if (res.ok) {
           const saved = await res.json();
-          worker.id = saved._id || saved.id;
+          worker.id = saved._id || saved.id || worker.id;
         } else if (res.status === 403) {
           throw new Error("LIMIT_EXCEEDED_WORKERS");
         }
@@ -877,8 +897,9 @@ export const storage = {
         console.warn("Failed to add worker on backend, saving locally", e);
       }
     }
-    workers.push(worker);
-    await this.setWorkers(workers);
+    workers.unshift(worker);
+    await AsyncStorage.setItem(STORAGE_KEYS.WORKERS, JSON.stringify(workers));
+    DeviceEventEmitter.emit("refreshData");
   },
 
   async updateWorker(updatedWorker: Worker): Promise<void> {
@@ -1007,37 +1028,44 @@ export const storage = {
     year: number,
     month: number,
   ): Promise<AttendanceRecord[]> {
-    try {
-      const auth = await this.getAuth();
-      if (auth?.token) {
-        try {
-          const res = await authenticatedFetch(
-            `${API_URL}/attendance/month?year=${year}&month=${month}`,
-          );
-          if (res.ok) {
-            const data = await res.json();
-            const serverAttendance = data.map(mapAttendance);
-            const localRecords = await this.getAttendance();
-            const filteredLocal = localRecords.filter(
-              (r) => !(r.year === year && r.month === month),
+    return dedupeRequest(`attendance_${year}_${month}`, async () => {
+      try {
+        const auth = await this.getAuth();
+        if (auth?.token) {
+          try {
+            const res = await authenticatedFetch(
+              `${API_URL}/attendance/month?year=${year}&month=${month}`,
             );
-            const merged = [...filteredLocal, ...serverAttendance];
-            await this.setAttendance(merged);
-            return serverAttendance;
+            if (res.ok) {
+              const data = await res.json();
+              const serverAttendance = data.map(mapAttendance);
+              const localRecords = await this.getAttendance();
+              const filteredLocal = localRecords.filter(
+                (r) => !(r.year === year && r.month === month),
+              );
+              const merged = [...filteredLocal, ...serverAttendance];
+              // Write directly to storage cache without triggering refreshData event loop
+              await AsyncStorage.setItem(
+                STORAGE_KEYS.ATTENDANCE,
+                JSON.stringify(merged),
+              );
+              return serverAttendance;
+            }
+          } catch (e) {
+            console.warn(
+              "Failed to fetch attendance from backend, using cache",
+              e,
+            );
           }
-        } catch (e) {
-          console.warn(
-            "Failed to fetch attendance from backend, using cache",
-            e,
-          );
         }
+      } catch (e) {
+        console.error(e);
       }
-    } catch (e) {
-      console.error(e);
-    }
-    const records = await this.getAttendance();
-    return records.filter((r) => r.year === year && r.month === month);
+      const records = await this.getAttendance();
+      return records.filter((r) => r.year === year && r.month === month);
+    });
   },
+
 
   // Settings methods
   async getSettings(): Promise<Settings> {
@@ -1182,36 +1210,38 @@ export const storage = {
     year: number,
     month: number,
   ): Promise<PaymentRecord[]> {
-    try {
-      const auth = await this.getAuth();
-      if (auth?.token) {
-        try {
-          const res = await authenticatedFetch(
-            `${API_URL}/payments/month?year=${year}&month=${month}`,
-          );
-          if (res.ok) {
-            const data = await res.json();
-            const serverPayments = data.map(mapPayment);
-            const localPayments = await this.getPayments();
-            const filteredLocal = localPayments.filter(
-              (p) => !(p.year === year && p.month === month),
+    return dedupeRequest(`payments_${year}_${month}`, async () => {
+      try {
+        const auth = await this.getAuth();
+        if (auth?.token) {
+          try {
+            const res = await authenticatedFetch(
+              `${API_URL}/payments/month?year=${year}&month=${month}`,
             );
-            const merged = [...filteredLocal, ...serverPayments];
-            await AsyncStorage.setItem(
-              STORAGE_KEYS_EXT.PAYMENTS,
-              JSON.stringify(merged),
-            );
-            return serverPayments;
+            if (res.ok) {
+              const data = await res.json();
+              const serverPayments = data.map(mapPayment);
+              const localPayments = await this.getPayments();
+              const filteredLocal = localPayments.filter(
+                (p) => !(p.year === year && p.month === month),
+              );
+              const merged = [...filteredLocal, ...serverPayments];
+              await AsyncStorage.setItem(
+                STORAGE_KEYS_EXT.PAYMENTS,
+                JSON.stringify(merged),
+              );
+              return serverPayments;
+            }
+          } catch (e) {
+            console.log("Failed to fetch payments from backend, using cache", e);
           }
-        } catch (e) {
-          console.log("Failed to fetch payments from backend, using cache", e);
         }
+      } catch (e) {
+        console.error(e);
       }
-    } catch (e) {
-      console.error(e);
-    }
-    const payments = await this.getPayments();
-    return payments.filter((p) => p.year === year && p.month === month);
+      const payments = await this.getPayments();
+      return payments.filter((p) => p.year === year && p.month === month);
+    });
   },
 
   async getPaymentsForWorkerMonth(
@@ -1475,7 +1505,7 @@ function onRefreshed(token: string) {
 
 export async function authenticatedFetch(
   url: string,
-  options: RequestInit & { _retry?: boolean } = {},
+  options: RequestInit & { _retry?: boolean; timeoutMs?: number } = {},
 ): Promise<Response> {
   const auth = await storage.getAuth();
 
@@ -1488,12 +1518,26 @@ export async function authenticatedFetch(
   }
   options.headers = headers;
 
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs || 15000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   let res: Response;
   try {
-    res = await fetch(url, options);
-  } catch (netError) {
+    res = await fetch(url, {
+      ...options,
+      signal: options.signal || controller.signal,
+    });
+  } catch (netError: any) {
+    clearTimeout(timeoutId);
+    if (netError.name === "AbortError") {
+      console.warn(`Request to ${url} timed out after ${timeoutMs}ms`);
+      throw new Error("Request timed out. Please try again.");
+    }
     console.log("Network request failed in authenticatedFetch:", netError);
     throw netError;
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (res.status === 401 && !options._retry) {

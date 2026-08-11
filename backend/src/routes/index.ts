@@ -12,10 +12,12 @@ import exportRoutes from "./exportRoutes";
 import voiceRoutes from "./voiceRoutes";
 import siteRoutes from "./siteRoutes";
 import subscriptionRoutes from "./subscriptionRoutes";
+import recoveryRoutes from "./recoveryRoutes";
 
 const router = Router();
 
 router.use("/auth", authRoutes);
+router.use("/recovery", recoveryRoutes);
 router.use("/workers", workerRoutes);
 router.use("/attendance", attendanceRoutes);
 router.use("/payments", paymentRoutes);
