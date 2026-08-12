@@ -144,6 +144,10 @@ export function useAuthProvider() {
             userType: uType,
             role: role,
             phone: data.user.phone,
+            email: data.user.email,
+            username: data.user.username,
+            isEmailVerified: !!data.user.isEmailVerified,
+            isPhoneVerified: !!data.user.isPhoneVerified,
             rememberMe,
             token: data.token,
             refreshToken: data.refreshToken,
@@ -175,6 +179,9 @@ export function useAuthProvider() {
             name: data.user.name,
             phone: data.user.phone || "",
             email: data.user.email || "",
+            username: data.user.username || "",
+            isEmailVerified: !!data.user.isEmailVerified,
+            isPhoneVerified: !!data.user.isPhoneVerified,
             avatarColor: data.user.avatarColor || "#4ECDC4",
             profileImage: data.user.profileImage || undefined,
             address: data.user.address || "",
@@ -302,21 +309,16 @@ export function useAuthProvider() {
         const data = await res.json();
 
         if (res.ok) {
-          if (data.user?.role !== "admin" && data.user?.isEmailVerified === false) {
-            return {
-              success: true,
-              requiresEmailVerification: true,
-              email: data.user.email,
-              message: "Account created! Please check your email to verify your account before logging in.",
-            };
-          }
-
           const authData: AuthData = {
             isLoggedIn: true,
             userId: data.user.id,
             userType: "user",
             role: data.user.role,
             phone: data.user.phone,
+            email: data.user.email,
+            username: data.user.username,
+            isEmailVerified: !!data.user.isEmailVerified,
+            isPhoneVerified: !!data.user.isPhoneVerified,
             rememberMe: true,
             token: data.token,
             refreshToken: data.refreshToken,
@@ -335,6 +337,9 @@ export function useAuthProvider() {
             name: data.user.name,
             phone: data.user.phone || "",
             email: data.user.email || "",
+            username: data.user.username || "",
+            isEmailVerified: !!data.user.isEmailVerified,
+            isPhoneVerified: !!data.user.isPhoneVerified,
             avatarColor: data.user.avatarColor || "#FF6B6B",
             profileImage: data.user.profileImage || undefined,
             address: data.user.address || "",

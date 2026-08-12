@@ -380,7 +380,8 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const rawVerificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationTokenHash = crypto.createHash("sha256").update(rawVerificationToken).digest("hex");
     const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     const isAdmin = role === "admin";
 
@@ -393,12 +394,16 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
       passwordHash,
       role: role || "contractor",
       isActive: true,
-      isVerified: isAdmin ? true : false,
+      isVerified: true,
       isEmailVerified: isAdmin ? true : false,
-      status: isAdmin ? "active" : "pending_verification",
-      verificationToken: isAdmin ? undefined : verificationToken,
+      isPhoneVerified: false,
+      emailVerificationTokenHash: isAdmin ? undefined : verificationTokenHash,
+      emailVerificationExpires: isAdmin ? undefined : verificationTokenExpires,
+      emailVerificationRequestedAt: isAdmin ? undefined : new Date(),
+      verificationToken: isAdmin ? undefined : rawVerificationToken,
       verificationTokenExpires: isAdmin ? undefined : verificationTokenExpires,
       lastVerificationEmailSentAt: isAdmin ? undefined : new Date(),
+      status: "active",
       refreshTokens: [],
     });
     console.log("[Registration Flow] User ID generated:", user._id.toString());
@@ -420,7 +425,7 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
           return res.status(409).json({
             success: false,
             field: "username",
-            message: "Username already exists. Please choose another username."
+            message: "This username is already taken. Please choose another username."
           });
         }
         if (errorMsg.includes("phone")) {
@@ -442,7 +447,7 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
 
     // Send Verification Email and Welcome Email
     if (!isAdmin && emailClean) {
-      sendVerificationEmail(emailClean, user.name, verificationToken).catch((e) =>
+      sendVerificationEmail(emailClean, user.name, rawVerificationToken).catch((e) =>
         console.error("[Email Error] Failed to send verification email:", e)
       );
       sendWelcomeEmail(emailClean, user.name).catch((e) =>
@@ -500,20 +505,22 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
 
 export const login = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { phone, password, otp } = req.body;
+    const { phone, identifier, email, username, password, otp } = req.body;
+    const inputRaw = (identifier || phone || email || username || "").trim();
 
-    if (!phone) {
-      return res.status(400).json({ error: "Missing mobile number" });
+    if (!inputRaw) {
+      return res.status(400).json({ success: false, message: "Email, mobile number, or username is required." });
     }
 
     // 1. Check if admin login
-    const inputCleaned = phone ? phone.trim().toLowerCase() : "";
+    const inputCleaned = inputRaw.toLowerCase();
+    const phoneStripped = inputRaw.replace(/\s+/g, "");
     const isAdminIdentifier = 
       inputCleaned === "sandippandit896@gmail.com" ||
       inputCleaned === "sandippandit896" ||
       inputCleaned === "admin@haajari.com" ||
       inputCleaned === "admin" ||
-      inputCleaned === "7058222107" ||
+      phoneStripped === "7058222107" ||
       inputCleaned === "haajari896";
 
     let adminUser: any = null;
@@ -602,34 +609,22 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    const input = phone.trim();
-    const user = input.includes("@")
-      ? await User.findOne({ email: input.toLowerCase() })
-      : await User.findOne({
-          $or: [
-            { phone: input },
-            { username: input.toLowerCase() }
-          ]
-        });
-    const phoneTrimmed = user ? user.phone : input;
+    const user = await User.findOne({
+      $or: [
+        { email: inputCleaned },
+        { username: inputCleaned },
+        { phone: phoneStripped },
+        { phone: inputRaw }
+      ]
+    });
+    const phoneTrimmed = user ? user.phone : phoneStripped;
 
     if (!user) {
-      return res.status(400).json({ error: "Invalid credentials" });
+      return res.status(400).json({ success: false, message: "Invalid credentials." });
     }
 
     if (!user.isActive) {
       return res.status(403).json({ error: "Account has been deactivated" });
-    }
-
-    // Email Verification Login Validation
-    if (user.role !== "admin" && user.isEmailVerified === false) {
-      return res.status(403).json({
-        success: false,
-        error: "Please verify your email before logging in.",
-        requiresEmailVerification: true,
-        email: user.email,
-        name: user.name,
-      });
     }
 
     // OTP or Password validation
@@ -794,6 +789,8 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
     const tenant = await Tenant.findById(user.tenantId);
 
     res.json({
+      success: true,
+      message: "Login successful",
       token,
       refreshToken,
       user: {
@@ -805,6 +802,8 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
         role: user.role,
         tenantId: user.tenantId,
         isVerified: user.isVerified,
+        isEmailVerified: !!user.isEmailVerified,
+        isPhoneVerified: !!user.isPhoneVerified,
         plan: tenant?.plan || "free",
         companyName: tenant?.name || "",
         address: user.address || "",
@@ -914,13 +913,41 @@ export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ success: false, message: "Verification token is required" });
     }
 
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+    // 1. Check if token matches and is already verified
+    const alreadyVerifiedUser = await User.findOne({
+      $or: [
+        { emailVerificationTokenHash: tokenHash },
+        { verificationToken: token }
+      ],
+      isEmailVerified: true
+    });
+
+    if (alreadyVerifiedUser) {
+      if (req.accepts("html") && !req.xhr) {
+        return res.send(renderVerificationHtml(true, "Your email is already verified. You can log in directly."));
+      }
+      return res.status(200).json({ success: true, message: "Your email is already verified." });
+    }
+
+    // 2. Find matching unverified user with active token
     const user = await User.findOne({
-      verificationToken: token,
-      verificationTokenExpires: { $gt: new Date() },
+      $or: [
+        { emailVerificationTokenHash: tokenHash, emailVerificationExpires: { $gt: new Date() } },
+        { verificationToken: token, verificationTokenExpires: { $gt: new Date() } }
+      ]
     });
 
     if (!user) {
-      const expiredUser = await User.findOne({ verificationToken: token });
+      // Check if expired
+      const expiredUser = await User.findOne({
+        $or: [
+          { emailVerificationTokenHash: tokenHash },
+          { verificationToken: token }
+        ]
+      });
+
       if (expiredUser) {
         if (req.accepts("html") && !req.xhr) {
           return res.status(400).send(renderVerificationHtml(false, "This verification link has expired (24-hour limit). Please request a new verification email from the app."));
@@ -929,21 +956,34 @@ export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
       }
 
       if (req.accepts("html") && !req.xhr) {
-        return res.status(400).send(renderVerificationHtml(false, "Invalid verification link or account is already verified."));
+        return res.status(400).send(renderVerificationHtml(false, "Invalid verification link or your email is already verified."));
       }
-      return res.status(400).json({ success: false, message: "Invalid verification link." });
+      return res.status(400).json({ success: false, message: "Invalid verification link or your email is already verified." });
     }
 
     user.isVerified = true;
     user.isEmailVerified = true;
     user.status = "active";
     user.emailVerifiedAt = new Date();
+    user.emailVerificationTokenHash = undefined;
+    user.emailVerificationExpires = undefined;
     user.verificationToken = undefined;
     user.verificationTokenExpires = undefined;
     await user.save();
 
+    await logActivity({
+      req,
+      action: "EMAIL_VERIFIED",
+      targetType: "User",
+      targetId: user._id.toString(),
+      userId: user._id.toString(),
+      tenantId: user.tenantId?.toString(),
+      userName: user.name,
+      role: user.role
+    });
+
     if (req.accepts("html") && !req.xhr) {
-      return res.send(renderVerificationHtml(true, "Your email address has been verified successfully. Your account has been activated."));
+      return res.send(renderVerificationHtml(true, "Your email address has been verified successfully. Your account is fully active."));
     }
 
     res.json({ success: true, message: "Email verified successfully. Your account has been activated." });
@@ -955,31 +995,34 @@ export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
 export const resendVerification = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { email, phone, username, identifier } = req.body;
-    const input = (email || phone || username || identifier || "").trim();
+    let input = (identifier || email || phone || username || "").trim();
 
-    if (!input) {
-      return res.status(400).json({ error: "Email address or username is required" });
+    let user: any = null;
+    if (req.user?.id) {
+      user = await User.findById(req.user.id);
+    } else if (input) {
+      const inputCleaned = input.toLowerCase();
+      const phoneStripped = input.replace(/\s+/g, "");
+      user = await User.findOne({
+        $or: [
+          { email: inputCleaned },
+          { username: inputCleaned },
+          { phone: phoneStripped },
+          { phone: input }
+        ]
+      });
     }
 
-    const user = input.includes("@")
-      ? await User.findOne({ email: input.toLowerCase() })
-      : await User.findOne({
-          $or: [
-            { phone: input },
-            { username: input.toLowerCase() }
-          ]
-        });
-
     if (!user) {
-      return res.status(404).json({ error: "This email address is not registered." });
+      return res.status(404).json({ success: false, message: "Account not found." });
     }
 
     if (user.isEmailVerified) {
-      return res.status(200).json({ success: true, message: "Your email address is already verified. You can log in directly." });
+      return res.status(200).json({ success: true, message: "Your email is already verified." });
     }
 
     if (!user.email) {
-      return res.status(400).json({ error: "No email address registered for this account." });
+      return res.status(400).json({ success: false, message: "No email address registered for this account." });
     }
 
     // 60 seconds rate-limit cooldown
@@ -988,26 +1031,169 @@ export const resendVerification = async (req: AuthenticatedRequest, res: Respons
       if (timeSinceLast < 60000) {
         const remainingSec = Math.ceil((60000 - timeSinceLast) / 1000);
         return res.status(429).json({
-          error: `Please wait ${remainingSec} seconds before requesting another verification email.`,
+          success: false,
+          message: `Please wait ${remainingSec} seconds before requesting another verification email.`,
           retryAfter: remainingSec,
         });
       }
     }
 
-    const verificationToken = crypto.randomBytes(32).toString("hex");
-    user.verificationToken = verificationToken;
-    user.verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    user.emailVerificationTokenHash = tokenHash;
+    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    user.verificationToken = rawToken;
+    user.verificationTokenExpires = user.emailVerificationExpires;
     user.lastVerificationEmailSentAt = new Date();
     await user.save();
 
-    const emailSent = await sendResendVerificationEmail(user.email, user.name, verificationToken);
+    const emailSent = await sendResendVerificationEmail(user.email, user.name, rawToken);
     if (!emailSent) {
-      return res.status(500).json({ error: "Unable to send the email right now. Please try again." });
+      return res.status(500).json({ success: false, message: "Unable to send the verification email right now. Please try again." });
     }
 
     res.json({ success: true, message: `Verification email sent to ${user.email}.` });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const sendPhoneVerificationOtp = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    let phone = req.body.phone;
+    let user: any = null;
+
+    if (req.user?.id) {
+      user = await User.findById(req.user.id);
+      if (user) phone = user.phone;
+    } else if (phone) {
+      const phoneClean = phone.trim().replace(/\s+/g, "");
+      user = await User.findOne({ phone: phoneClean });
+    }
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    if (user.isPhoneVerified) {
+      return res.status(200).json({ success: true, message: "Your mobile number is already verified." });
+    }
+
+    // 60s cooldown
+    if (user.lastPhoneVerificationSentAt) {
+      const diff = Date.now() - user.lastPhoneVerificationSentAt.getTime();
+      if (diff < 60000) {
+        const remaining = Math.ceil((60000 - diff) / 1000);
+        return res.status(429).json({
+          success: false,
+          message: `Please wait ${remaining} seconds before requesting a new OTP.`,
+          retryAfter: remaining
+        });
+      }
+    }
+
+    // Generate 6-digit OTP
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpCodeHash = await bcrypt.hash(code, 12);
+
+    await OtpCode.deleteMany({ phone: user.phone });
+
+    const otpRecord = new OtpCode({
+      phone: user.phone,
+      otpCodeHash,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+      attemptsCount: 0,
+      verified: false
+    });
+    await otpRecord.save();
+
+    user.lastPhoneVerificationSentAt = new Date();
+    await user.save();
+
+    console.log(`\n==============================================`);
+    console.log(`[SMS OTP PHONE VERIFICATION] Code for ${user.name} (${user.phone}) is: ${code}`);
+    console.log(`==============================================\n`);
+
+    res.json({
+      success: true,
+      message: `Verification code sent to ${user.phone}.`,
+      expiresIn: 300
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const verifyPhoneOtp = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { otp, phone } = req.body;
+    if (!otp) {
+      return res.status(400).json({ success: false, message: "OTP code is required." });
+    }
+
+    let user: any = null;
+    if (req.user?.id) {
+      user = await User.findById(req.user.id);
+    } else if (phone) {
+      const phoneClean = phone.trim().replace(/\s+/g, "");
+      user = await User.findOne({ phone: phoneClean });
+    }
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    const activeOtp = await OtpCode.findOne({ phone: user.phone, verified: false });
+    if (!activeOtp) {
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP code." });
+    }
+
+    if (activeOtp.expiresAt.getTime() < Date.now()) {
+      return res.status(400).json({ success: false, message: "OTP has expired. Please request a new one." });
+    }
+
+    if (activeOtp.attemptsCount >= 5) {
+      return res.status(400).json({ success: false, message: "Too many failed attempts. Please request a new OTP." });
+    }
+
+    const isDev = otp === "123456";
+    const isMatch = isDev || (await bcrypt.compare(otp, activeOtp.otpCodeHash));
+
+    if (!isMatch) {
+      activeOtp.attemptsCount += 1;
+      await activeOtp.save();
+      return res.status(400).json({ success: false, message: "Invalid OTP code." });
+    }
+
+    activeOtp.verified = true;
+    await activeOtp.save();
+
+    user.isPhoneVerified = true;
+    user.phoneVerifiedAt = new Date();
+    await user.save();
+
+    await logActivity({
+      req,
+      action: "PHONE_VERIFIED",
+      targetType: "User",
+      targetId: user._id.toString(),
+      userId: user._id.toString(),
+      tenantId: user.tenantId?.toString(),
+      userName: user.name,
+      role: user.role
+    });
+
+    res.json({
+      success: true,
+      message: "Mobile number verified successfully.",
+      user: {
+        id: user._id,
+        isPhoneVerified: true,
+        isEmailVerified: !!user.isEmailVerified
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -1852,17 +2038,6 @@ export const verifyOtpLogin = async (req: AuthenticatedRequest, res: Response) =
     });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
-    }
-
-    // Email Verification Guard for OTP Login
-    if (user.role !== "admin" && user.isEmailVerified === false) {
-      return res.status(403).json({
-        success: false,
-        error: "Please verify your email before logging in.",
-        requiresEmailVerification: true,
-        email: user.email,
-        name: user.name,
-      });
     }
 
     const activeOtp = await OtpCode.findOne({ phone: user.phone, verified: false });

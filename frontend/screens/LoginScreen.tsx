@@ -331,41 +331,8 @@ export default function LoginScreen() {
         setError("Invalid credentials.");
       }
     } catch (err: any) {
-      const msg = err.message || "";
-      if (msg.toLowerCase().includes("verify your email")) {
-        Alert.alert(
-          "Email Verification Required ✉️",
-          "Please verify your email before logging in. Would you like us to resend the verification link to your inbox?",
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Resend Email",
-              onPress: async () => {
-                setIsLoading(true);
-                try {
-                  const res = await fetch(`${API_URL}/auth/resend-verification`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ identifier: phone.trim() }),
-                  });
-                  const data = await res.json();
-                  if (res.ok) {
-                    Alert.alert("Verification Email Sent", data.message || "A new verification link has been sent to your email.");
-                  } else {
-                    Alert.alert("Notice", data.error || data.message || "Unable to resend verification email.");
-                  }
-                } catch {
-                  Alert.alert("Error", "Network error. Please try again.");
-                } finally {
-                  setIsLoading(false);
-                }
-              },
-            },
-          ]
-        );
-      } else {
-        setError(msg || "Network request failed. Verify connectivity.");
-      }
+      const msg = err.message || "Invalid credentials.";
+      setError(msg);
     } finally {
       setIsLoading(false);
     }

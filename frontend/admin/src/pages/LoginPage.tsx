@@ -149,13 +149,8 @@ const LoginPage: React.FC = () => {
           </button>
         </form>
 
-        <div className="text-center pt-3 border-t border-slate-850/40">
-          <Link
-            to="/signup"
-            className="text-xs text-orange-500 hover:text-orange-400 font-bold transition-colors"
-          >
-            Don't have an admin account? Sign Up
-          </Link>
+        <div className="text-center pt-2 text-[11px] text-slate-500">
+          Haajari Manager Enterprise Administration
         </div>
       </motion.div>
     </div>

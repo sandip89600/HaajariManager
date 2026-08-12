@@ -13,6 +13,11 @@ export interface IUser extends Document {
   isVerified: boolean;
   isEmailVerified?: boolean;
   emailVerifiedAt?: Date;
+  emailVerificationTokenHash?: string;
+  emailVerificationExpires?: Date;
+  emailVerificationRequestedAt?: Date;
+  isPhoneVerified?: boolean;
+  phoneVerifiedAt?: Date;
   status?: "pending_verification" | "active" | "suspended" | "deactivated";
   verificationToken?: string;
   verificationTokenExpires?: Date;
@@ -21,6 +26,7 @@ export interface IUser extends Document {
   passwordResetExpires?: Date;
   passwordResetRequestedAt?: Date;
   lastVerificationEmailSentAt?: Date;
+  lastPhoneVerificationSentAt?: Date;
   refreshTokens: string[];
   createdAt: Date;
   lastLogin?: Date;
@@ -81,10 +87,15 @@ const UserSchema = new Schema<IUser>({
   role: { type: String, enum: ["contractor", "builder", "supervisor", "admin"], default: "contractor" },
   assignedProjects: [{ type: Schema.Types.ObjectId, ref: "Project" }],
   isActive: { type: Boolean, default: true },
-  isVerified: { type: Boolean, default: false },
+  isVerified: { type: Boolean, default: true },
   isEmailVerified: { type: Boolean, default: false },
   emailVerifiedAt: { type: Date },
-  status: { type: String, enum: ["pending_verification", "active", "suspended", "deactivated"], default: "pending_verification" },
+  emailVerificationTokenHash: { type: String },
+  emailVerificationExpires: { type: Date },
+  emailVerificationRequestedAt: { type: Date },
+  isPhoneVerified: { type: Boolean, default: false },
+  phoneVerifiedAt: { type: Date },
+  status: { type: String, enum: ["pending_verification", "active", "suspended", "deactivated"], default: "active" },
   verificationToken: { type: String },
   verificationTokenExpires: { type: Date },
   passwordResetToken: { type: String },
@@ -92,6 +103,7 @@ const UserSchema = new Schema<IUser>({
   passwordResetExpires: { type: Date },
   passwordResetRequestedAt: { type: Date },
   lastVerificationEmailSentAt: { type: Date },
+  lastPhoneVerificationSentAt: { type: Date },
   refreshTokens: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
   lastLogin: { type: Date },

@@ -188,6 +188,9 @@ export interface AuthData {
   role?: "contractor" | "builder" | "supervisor" | "admin" | "guest";
   phone?: string;
   email?: string;
+  username?: string;
+  isEmailVerified?: boolean;
+  isPhoneVerified?: boolean;
   rememberMe: boolean;
   token?: string;
   refreshToken?: string;
@@ -212,6 +215,9 @@ export interface User {
   profileImage?: string;
   role: "contractor" | "builder" | "supervisor" | "admin";
   isActive: boolean;
+  isVerified?: boolean;
+  isEmailVerified?: boolean;
+  isPhoneVerified?: boolean;
   createdAt: number;
   lastLogin?: number;
   loginHistory: number[];
