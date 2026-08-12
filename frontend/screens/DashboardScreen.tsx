@@ -562,8 +562,8 @@ export default function DashboardScreen() {
         >
           <View style={styles.sectionCardHeader}>
             <View>
-              <ThemedText style={styles.sectionTitle}>Attendance Overview</ThemedText>
-              <ThemedText style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+              <ThemedText style={[styles.sectionTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>Attendance Overview</ThemedText>
+              <ThemedText style={[styles.sectionSubtitle, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>
                 Rate: {ratePercent}% today
               </ThemedText>
             </View>
@@ -589,7 +589,7 @@ export default function DashboardScreen() {
                   <ThemedText style={[styles.rateValue, {
                     color: ratePercent >= 80 ? "#22C55E" : ratePercent >= 50 ? "#F59E0B" : "#EF4444",
                   }]}>{ratePercent}%</ThemedText>
-                  <ThemedText style={[styles.rateLabel, { color: theme.textSecondary }]}>Rate</ThemedText>
+                  <ThemedText style={[styles.rateLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Rate</ThemedText>
                 </View>
               </View>
             </View>
@@ -603,7 +603,7 @@ export default function DashboardScreen() {
               ].map((item) => (
                 <View key={item.label} style={styles.statRow}>
                   <View style={[styles.statDot, { backgroundColor: item.color }]} />
-                  <ThemedText style={[styles.statRowLabel, { color: theme.textSecondary }]}>{item.label}</ThemedText>
+                  <ThemedText style={[styles.statRowLabel, { color: isDark ? "#CBD5E1" : theme.textSecondary }]}>{item.label}</ThemedText>
                   <ThemedText style={[styles.statRowValue, { color: item.color }]}>{item.value}</ThemedText>
                 </View>
               ))}
@@ -633,7 +633,7 @@ export default function DashboardScreen() {
                 <LinearGradient colors={action.colors} style={styles.quickActionIconWrap}>
                   <Feather name={action.icon as any} size={20} color="#FFFFFF" />
                 </LinearGradient>
-                <ThemedText style={styles.quickActionLabel}>{action.label}</ThemedText>
+                <ThemedText style={[styles.quickActionLabel, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>{action.label}</ThemedText>
               </AnimatedPressable>
             ))}
           </View>
@@ -650,8 +650,8 @@ export default function DashboardScreen() {
                 <Feather name="map-pin" size={16} color="#FFF" />
               </LinearGradient>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <ThemedText style={styles.siteCardTitle} numberOfLines={1}>{activeSite.name}</ThemedText>
-                <ThemedText style={[styles.siteCardLocation, { color: theme.textSecondary }]} numberOfLines={1}>
+                <ThemedText style={[styles.siteCardTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]} numberOfLines={1}>{activeSite.name}</ThemedText>
+                <ThemedText style={[styles.siteCardLocation, { color: isDark ? "#94A3B8" : theme.textSecondary }]} numberOfLines={1}>
                   {activeSite.location || "Default Location"}
                 </ThemedText>
               </View>
@@ -659,8 +659,8 @@ export default function DashboardScreen() {
             </View>
 
             <View style={styles.siteCardStats}>
-              <Feather name="users" size={14} color={theme.textSecondary} style={{ marginRight: 6 }} />
-              <ThemedText style={{ color: theme.textSecondary, fontSize: 13 }}>
+              <Feather name="users" size={14} color={isDark ? "#94A3B8" : theme.textSecondary} style={{ marginRight: 6 }} />
+              <ThemedText style={{ color: isDark ? "#CBD5E1" : theme.textSecondary, fontSize: 13 }}>
                 {siteStats.workersPresent}/{siteStats.totalWorkers} workers on site
               </ThemedText>
             </View>
@@ -676,8 +676,8 @@ export default function DashboardScreen() {
                 onPress={() => { triggerHaptic(); navigation.navigate("ProjectManagement"); }}
                 style={[styles.siteActionOutlineBtn, { borderColor }]}
               >
-                <Feather name="external-link" size={14} color={theme.text} style={{ marginRight: 6 }} />
-                <ThemedText style={{ color: theme.text, fontSize: 13, fontWeight: "600" }}>Manage</ThemedText>
+                <Feather name="external-link" size={14} color={isDark ? "#FFFFFF" : theme.text} style={{ marginRight: 6 }} />
+                <ThemedText style={{ color: isDark ? "#FFFFFF" : theme.text, fontSize: 13, fontWeight: "600" }}>Manage</ThemedText>
               </Pressable>
             </View>
           </Animated.View>
@@ -692,8 +692,8 @@ export default function DashboardScreen() {
         >
           <View style={styles.sectionCardHeader}>
             <View style={{ flex: 1 }}>
-              <ThemedText style={styles.sectionTitle}>Today's Attendance Log</ThemedText>
-              <ThemedText style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+              <ThemedText style={[styles.sectionTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>Today's Attendance Log</ThemedText>
+              <ThemedText style={[styles.sectionSubtitle, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>
                 Tap row to mark, hold for options.
               </ThemedText>
             </View>
@@ -708,8 +708,8 @@ export default function DashboardScreen() {
 
           {displayWorkers.length === 0 ? (
             <View style={styles.emptyWorkersLog}>
-              <Feather name="users" size={24} color={theme.textSecondary} style={{ marginBottom: 8 }} />
-              <ThemedText style={{ color: theme.textSecondary, fontSize: 13 }}>
+              <Feather name="users" size={24} color={isDark ? "#94A3B8" : theme.textSecondary} style={{ marginBottom: 8 }} />
+              <ThemedText style={{ color: isDark ? "#94A3B8" : theme.textSecondary, fontSize: 13 }}>
                 No workers registered for this site.
               </ThemedText>
             </View>
@@ -746,8 +746,8 @@ export default function DashboardScreen() {
                   >
                     <Avatar name={worker.name} size="sm" />
                     <View style={styles.workerLogInfo}>
-                      <ThemedText style={styles.workerLogName}>{worker.name}</ThemedText>
-                      <ThemedText style={[styles.workerLogCategory, { color: theme.textSecondary }]}>
+                      <ThemedText style={[styles.workerLogName, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>{worker.name}</ThemedText>
+                      <ThemedText style={[styles.workerLogCategory, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>
                         {worker.category ? worker.category.toUpperCase() : "GENERAL WORKER"}
                       </ThemedText>
                     </View>

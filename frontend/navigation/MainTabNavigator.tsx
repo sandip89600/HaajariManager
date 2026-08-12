@@ -102,7 +102,7 @@ function AttendanceNavigator() {
         name="AttendanceDetail"
         component={AttendanceScreen}
         options={{
-          headerTitle: t.attendance.title,
+          headerShown: false,
         }}
       />
       <AttendanceStack.Screen
@@ -363,7 +363,7 @@ export default function MainTabNavigator() {
         name="AttendanceDetail"
         component={AttendanceScreen}
         options={{
-          headerTitle: t.attendance.title,
+          headerShown: false,
         }}
       />
       <Stack.Screen

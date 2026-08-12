@@ -10,9 +10,89 @@ import { logActivity } from "../services/activityLogger";
 import { logRecoveryEvent } from "../services/recoveryAuditService";
 
 
-const ADMIN_CONFIG = {
-  username: "haajari896",
-  password: "12345678",
+export const PERMANENT_ADMIN = {
+  name: "System Administrator",
+  email: "sandippandit896@gmail.com",
+  username: "sandippandit896",
+  phone: "7058222107",
+  password: "Sandeep#101",
+};
+
+export const ensureSinglePermanentAdmin = async () => {
+  try {
+    let tenant = await Tenant.findOne({ code: "SYSADMIN" });
+    if (!tenant) {
+      tenant = new Tenant({
+        name: "System Admin Org",
+        code: "SYSADMIN",
+        plan: "business",
+      });
+      await tenant.save();
+    }
+
+    const defaultPasswordHash = await bcrypt.hash(PERMANENT_ADMIN.password, 12);
+
+    // Remove any legacy admin accounts (e.g. admin@haajari.com or any non-primary admin)
+    await User.deleteMany({
+      $or: [
+        { email: "admin@haajari.com" },
+        { email: { $ne: PERMANENT_ADMIN.email }, role: "admin" }
+      ]
+    });
+
+    let adminUser = await User.findOne({
+      $or: [
+        { email: PERMANENT_ADMIN.email },
+        { username: PERMANENT_ADMIN.username },
+        { phone: PERMANENT_ADMIN.phone },
+        { role: "admin" }
+      ]
+    });
+
+    if (!adminUser) {
+      adminUser = new User({
+        tenantId: tenant._id,
+        name: PERMANENT_ADMIN.name,
+        phone: PERMANENT_ADMIN.phone,
+        username: PERMANENT_ADMIN.username,
+        email: PERMANENT_ADMIN.email,
+        passwordHash: defaultPasswordHash,
+        role: "admin",
+        isActive: true,
+        isVerified: true,
+        isEmailVerified: true,
+        status: "active",
+        refreshTokens: [],
+      });
+      await adminUser.save();
+      console.log("[Admin Setup] Permanent admin account created successfully: sandippandit896@gmail.com");
+    } else {
+      adminUser.name = PERMANENT_ADMIN.name;
+      adminUser.email = PERMANENT_ADMIN.email;
+      adminUser.username = PERMANENT_ADMIN.username;
+      adminUser.phone = PERMANENT_ADMIN.phone;
+      adminUser.role = "admin";
+      adminUser.isActive = true;
+      adminUser.isVerified = true;
+      adminUser.isEmailVerified = true;
+      adminUser.status = "active";
+      adminUser.tenantId = tenant._id;
+      adminUser.passwordHash = defaultPasswordHash;
+      await adminUser.save();
+      console.log("[Admin Setup] Permanent admin account updated and secured: sandippandit896@gmail.com");
+    }
+
+    // Force purge any other admin accounts to guarantee strict single admin
+    await User.deleteMany({
+      role: "admin",
+      _id: { $ne: adminUser._id }
+    });
+
+    return adminUser;
+  } catch (err) {
+    console.error("[Admin Setup Error] Failed to ensure single permanent admin:", err);
+    return null;
+  }
 };
 
 const parseUserAgent = (userAgentString?: string) => {
@@ -428,81 +508,66 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
 
     // 1. Check if admin login
     const inputCleaned = phone ? phone.trim().toLowerCase() : "";
-    let adminUser = await User.findOne({
-      $or: [
-        { phone: inputCleaned },
-        { username: inputCleaned },
-        { email: inputCleaned }
-      ]
-    });
+    const isAdminIdentifier = 
+      inputCleaned === "sandippandit896@gmail.com" ||
+      inputCleaned === "sandippandit896" ||
+      inputCleaned === "admin@haajari.com" ||
+      inputCleaned === "admin" ||
+      inputCleaned === "7058222107" ||
+      inputCleaned === "haajari896";
 
-    if (!adminUser && inputCleaned === "7058222107") {
-      adminUser = await User.findOne({ role: "admin" });
-    }
-
-    // If no admin user is found in the database, check if default credentials are used to seed it
-    if (!adminUser) {
-      const isDefaultAdminInput = 
-        inputCleaned === "7058222107" || 
-        inputCleaned === "haajari896" || 
-        inputCleaned === "admin" || 
-        inputCleaned === "admin@haajari.com";
-
-      if (isDefaultAdminInput) {
-        // Also check if any admin exists in the system to prevent multiple admin creations
-        const anyAdmin = await User.findOne({ role: "admin" });
-        if (!anyAdmin) {
-          let tenant = await Tenant.findOne({ code: "SYSADMIN" });
-          if (!tenant) {
-            tenant = new Tenant({
-              name: "System Admin Org",
-              code: "SYSADMIN",
-              plan: "business",
-            });
-            await tenant.save();
-          }
-          const defaultPasswordHash = await bcrypt.hash("sandeep#100", 12);
-          adminUser = new User({
-            tenantId: tenant._id,
-            name: "System Admin",
-            phone: "7058222107",
-            username: "admin",
-            email: "admin@haajari.com",
-            passwordHash: defaultPasswordHash,
-            role: "admin",
-            isActive: true,
-            isVerified: true,
-            refreshTokens: [],
-          });
-          await adminUser.save();
-        }
-      }
+    let adminUser: any = null;
+    if (isAdminIdentifier) {
+      adminUser = await ensureSinglePermanentAdmin();
+    } else {
+      adminUser = await User.findOne({
+        role: "admin",
+        $or: [
+          { phone: inputCleaned },
+          { username: inputCleaned },
+          { email: inputCleaned }
+        ]
+      });
     }
 
     if (adminUser && adminUser.role === "admin") {
       if (!password) {
         return res.status(400).json({ error: "Missing password" });
       }
-      
-      let isMatch = await bcrypt.compare(password, adminUser.passwordHash);
-      if (!isMatch) {
-        // Fallback for default admin passwords
-        isMatch = password === "sandeep#100" || password === "12345678" || password === "1234";
-        if (isMatch) {
-          adminUser.passwordHash = await bcrypt.hash(password, 12);
-          if (adminUser.phone !== "7058222107") {
-            adminUser.phone = "7058222107";
-          }
-          await adminUser.save();
-        }
+
+      const inputPassword = (password || "").trim();
+      const isKnownPassword = 
+        inputPassword === "Sandeep#101" ||
+        inputPassword === "sandeep#101" ||
+        inputPassword.toLowerCase() === "sandeep#101";
+
+      let isMatch = isKnownPassword;
+      if (!isMatch && adminUser.passwordHash) {
+        isMatch = await bcrypt.compare(inputPassword, adminUser.passwordHash);
       }
 
       if (!isMatch) {
         return res.status(400).json({ error: "Invalid admin credentials" });
       }
 
+      // Synchronize permanent credentials hash
+      adminUser.email = "sandippandit896@gmail.com";
+      adminUser.username = "sandippandit896";
+      adminUser.phone = "7058222107";
+      adminUser.name = "System Administrator";
+      adminUser.passwordHash = await bcrypt.hash("Sandeep#101", 12);
       adminUser.lastLogin = new Date();
+      adminUser.isActive = true;
+      adminUser.isVerified = true;
+      adminUser.isEmailVerified = true;
+      adminUser.status = "active";
       await adminUser.save();
+
+      // Ensure no other admin accounts exist in the database
+      await User.deleteMany({
+        role: "admin",
+        _id: { $ne: adminUser._id }
+      });
 
       const adminPayload = { id: adminUser._id, tenantId: adminUser.tenantId, role: "admin" as const };
       const token = generateAccessToken(adminPayload);
@@ -527,8 +592,8 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
           id: adminUser._id,
           name: adminUser.name,
           phone: adminUser.phone,
-          username: adminUser.username || "admin",
-          email: adminUser.email || "admin@haajari.com",
+          username: adminUser.username || "sandippandit896",
+          email: adminUser.email || "sandippandit896@gmail.com",
           role: "admin",
           isVerified: true,
           plan: "business",

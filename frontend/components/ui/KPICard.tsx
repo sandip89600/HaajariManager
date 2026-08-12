@@ -16,7 +16,7 @@ export interface KPICardProps {
   isLoading?: boolean;
 }
 
-const AnimatedNumber: React.FC<{ value: number }> = ({ value }) => {
+const AnimatedNumber: React.FC<{ value: number; color?: string }> = ({ value, color }) => {
   const [displayValue, setDisplayValue] = useState(0);
   const animatedValue = useSharedValue(0);
 
@@ -29,7 +29,7 @@ const AnimatedNumber: React.FC<{ value: number }> = ({ value }) => {
     return {};
   });
 
-  return <Text style={styles.valueText}>{displayValue}</Text>;
+  return <Text style={[styles.valueText, { color: color || "#FFFFFF" }]}>{displayValue}</Text>;
 };
 
 export const KPICard: React.FC<KPICardProps> = ({
@@ -42,6 +42,7 @@ export const KPICard: React.FC<KPICardProps> = ({
   isLoading = false,
 }) => {
   const { theme, isDark } = useTheme();
+  const textColor = isDark ? "#FFFFFF" : "#0F172A";
 
   if (isLoading) {
     return (
@@ -72,9 +73,9 @@ export const KPICard: React.FC<KPICardProps> = ({
       
       <View style={styles.valueContainer}>
         {typeof value === 'number' ? (
-          <AnimatedNumber value={value} />
+          <AnimatedNumber value={value} color={textColor} />
         ) : (
-          <Text style={[styles.valueText, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>{value}</Text>
+          <Text style={[styles.valueText, { color: textColor }]}>{value}</Text>
         )}
       </View>
 

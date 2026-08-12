@@ -120,14 +120,19 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   res.status(500).json({ error: "An internal server error occurred" });
 });
 
+import { ensureSinglePermanentAdmin } from "./controllers/authController";
+
 // Connect to MongoDB & Start Server
 if (process.env.NODE_ENV !== "test") {
   console.log("Connecting to MongoDB...");
   mongoose
     .connect(MONGO_URI)
-    .then(() => {
+    .then(async () => {
       console.log("Connected to MongoDB successfully.");
       
+      // Ensure single permanent admin account is setup and purged of other admins
+      await ensureSinglePermanentAdmin();
+
       // Programmatically drop any legacy unique index on 'name' in users collection if present
       if (mongoose.connection.db) {
         mongoose.connection.db.collection("users").dropIndex("name_1").catch(() => {

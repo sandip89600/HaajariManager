@@ -141,15 +141,15 @@ const WorkerCard = React.memo(function WorkerCard({
           </View>
           
           <View style={styles.cardHeaderText}>
-            <ThemedText style={styles.workerName}>
+            <ThemedText style={[styles.workerName, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
               {translatedName}
             </ThemedText>
-            <ThemedText style={[styles.workerRole, { color: theme.textSecondary }]}>
+            <ThemedText style={[styles.workerRole, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>
               {t.categories[worker.category] || worker.category.toUpperCase()}
             </ThemedText>
             <View style={styles.siteIndicator}>
-              <Feather name="map-pin" size={12} color={theme.textSecondary} style={{ marginRight: 4 }} />
-              <ThemedText style={[styles.siteText, { color: theme.textSecondary }]} numberOfLines={1}>
+              <Feather name="map-pin" size={12} color={isDark ? "#94A3B8" : theme.textSecondary} style={{ marginRight: 4 }} />
+              <ThemedText style={[styles.siteText, { color: isDark ? "#94A3B8" : theme.textSecondary }]} numberOfLines={1}>
                 {siteName || "Unassigned"}
               </ThemedText>
             </View>
@@ -157,8 +157,8 @@ const WorkerCard = React.memo(function WorkerCard({
 
           <View style={styles.statusSection}>
             <Badge label={statusLabel} variant={badgeVariant} />
-            <ThemedText style={[styles.wageText, { color: theme.primary }]}>
-              {t.common.currency}{worker.dailyRate}/day
+            <ThemedText style={[styles.wageText, { color: isDark ? "#FFFFFF" : theme.primary }]}>
+              ₹{worker.dailyRate}/day
             </ThemedText>
           </View>
         </View>
@@ -166,16 +166,16 @@ const WorkerCard = React.memo(function WorkerCard({
         {role !== "supervisor" && (
           <View style={[styles.cardActions, { borderTopColor: isDark ? '#334155' : '#E2E8F0' }]}>
             <Pressable style={styles.actionBtn} onPress={onEdit}>
-              <Feather name="edit-2" size={14} color={theme.textSecondary} />
-              <Text style={[styles.actionText, { color: theme.textSecondary, marginLeft: 6 }]}>Edit</Text>
+              <Feather name="edit-2" size={14} color={isDark ? "#CBD5E1" : theme.textSecondary} />
+              <Text style={[styles.actionText, { color: isDark ? "#FFFFFF" : theme.textSecondary, marginLeft: 6 }]}>Edit</Text>
             </Pressable>
             <Pressable style={styles.actionBtn} onPress={onDelete}>
               <Feather name="trash-2" size={14} color="#EF4444" />
               <Text style={[styles.actionText, { color: "#EF4444", marginLeft: 6 }]}>Delete</Text>
             </Pressable>
-            <Pressable style={[styles.actionBtnPrimary, { backgroundColor: theme.primary + "15" }]} onPress={onMarkAttendance}>
-              <Feather name="calendar" size={14} color={theme.primary} />
-              <Text style={[styles.actionText, { color: theme.primary, marginLeft: 6 }]}>Mark Attendance</Text>
+            <Pressable style={[styles.actionBtnPrimary, { backgroundColor: isDark ? "rgba(249,115,22,0.2)" : theme.primary + "15" }]} onPress={onMarkAttendance}>
+              <Feather name="calendar" size={14} color={isDark ? "#F97316" : theme.primary} />
+              <Text style={[styles.actionText, { color: isDark ? "#FFFFFF" : theme.primary, marginLeft: 6 }]}>Mark Attendance</Text>
             </Pressable>
           </View>
         )}
@@ -378,7 +378,7 @@ export default function WorkersScreen() {
                 { backgroundColor: isSelected ? theme.primary : (isDark ? '#1E293B' : '#F1F5F9') },
               ]}
             >
-              <Text style={[styles.filterChipText, { color: isSelected ? '#FFFFFF' : (isDark ? '#94A3B8' : '#64748B') }]}>
+              <Text style={[styles.filterChipText, { color: isSelected ? '#FFFFFF' : (isDark ? '#FFFFFF' : '#475569') }]}>
                 {f}
               </Text>
             </Pressable>

@@ -54,6 +54,7 @@ export default function AttendanceScreen() {
   // Refs for Scroll Sync
   const leftScrollRef = useRef<ScrollView>(null);
   const rightScrollRef = useRef<ScrollView>(null);
+  const isScrollingRef = useRef<'left' | 'right' | null>(null);
 
   // States
   const [loading, setLoading] = useState(true);
@@ -61,13 +62,14 @@ export default function AttendanceScreen() {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
   const [activeSite, setActiveSite] = useState<Project | null>(null);
 
   // Month Picker Modal state
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [pickerYear, setPickerYear] = useState(selectedDate.getFullYear());
 
-  // Detailed Cell Edit Modal state
+  // Unified Cell Edit Modal state (merged tap + detailed)
   const [cellModalVisible, setCellModalVisible] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [selectedDayNum, setSelectedDayNum] = useState<number>(1);
@@ -75,11 +77,6 @@ export default function AttendanceScreen() {
   const [modalAdvance, setModalAdvance] = useState("");
   const [modalOvertimeHours, setModalOvertimeHours] = useState("");
   const [modalOvertimeWage, setModalOvertimeWage] = useState("");
-
-  // Tap Cell Options Modal state
-  const [tapModalVisible, setTapModalVisible] = useState(false);
-  const [selectedTapWorker, setSelectedTapWorker] = useState<Worker | null>(null);
-  const [selectedTapDayNum, setSelectedTapDayNum] = useState<number>(1);
 
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth(); // 0-indexed
@@ -138,7 +135,7 @@ export default function AttendanceScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [selectedDate, passedSiteId, user])
+    }, [selectedDate, passedSiteId, user?.id])
   );
 
   useEffect(() => {
@@ -154,10 +151,22 @@ export default function AttendanceScreen() {
     };
   }, [socket]);
 
-  // Sync scroll
-  const handleScroll = (event: any) => {
+  // Bidirectional scroll sync
+  const handleRightScroll = (event: any) => {
+    if (isScrollingRef.current === 'left') return;
+    isScrollingRef.current = 'right';
     const y = event.nativeEvent.contentOffset.y;
     leftScrollRef.current?.scrollTo({ y, animated: false });
+    // Reset after frame
+    requestAnimationFrame(() => { isScrollingRef.current = null; });
+  };
+
+  const handleLeftScroll = (event: any) => {
+    if (isScrollingRef.current === 'right') return;
+    isScrollingRef.current = 'left';
+    const y = event.nativeEvent.contentOffset.y;
+    rightScrollRef.current?.scrollTo({ y, animated: false });
+    requestAnimationFrame(() => { isScrollingRef.current = null; });
   };
 
   const getAttendanceValueForDay = (workerId: string, dayNum: number): AttendanceValue | null => {
@@ -232,66 +241,7 @@ export default function AttendanceScreen() {
     }
   };
 
-  // Open Tap Options Modal
-  const openTapModal = (worker: Worker, dayNum: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedTapWorker(worker);
-    setSelectedTapDayNum(dayNum);
-    setTapModalVisible(true);
-  };
 
-  // Save Tap Attendance status
-  const saveTapAttendance = async (status: AttendanceValue | null) => {
-    if (!selectedTapWorker) return;
-    try {
-      const workerId = selectedTapWorker.id;
-      const dayNum = selectedTapDayNum;
-      
-      const dailyRate = selectedTapWorker.dailyRate ?? 0;
-      let finalPay = 0;
-      if (status === "P" || status === "OT") finalPay = dailyRate;
-      else if (status === "H") finalPay = dailyRate / 2;
-
-      if (status === null) {
-        await deleteAttendanceLocally(workerId, year, month, dayNum);
-        setAttendance((prev) =>
-          prev.filter(
-            (r) => !(r.workerId === workerId && r.year === year && r.month === month && r.day === dayNum)
-          )
-        );
-      } else {
-        const newRecord: AttendanceRecord = {
-          workerId,
-          projectId: activeSite?.id || undefined,
-          year,
-          month,
-          day: dayNum,
-          value: status,
-          dailyRate,
-          finalPay,
-          timestamp: Date.now(),
-        };
-        await storage.setAttendanceRecord(newRecord);
-
-        setAttendance((prev) => {
-          const idx = prev.findIndex(
-            (r) => r.workerId === workerId && r.year === year && r.month === month && r.day === dayNum
-          );
-          const updated = [...prev];
-          if (idx !== -1) {
-            updated[idx] = newRecord;
-          } else {
-            updated.push(newRecord);
-          }
-          return updated;
-        });
-      }
-      setTapModalVisible(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e) {
-      console.warn("Failed to save tap options attendance:", e);
-    }
-  };
 
   // Open detailed popup modal
   const openDetailedModal = (worker: Worker, dayNum: number, currentVal: AttendanceValue | null) => {
@@ -387,9 +337,14 @@ export default function AttendanceScreen() {
           <Feather name="arrow-left" size={22} color="#FFFFFF" />
         </Pressable>
         <ThemedText style={styles.headerTitle}>Attendance</ThemedText>
-        <Pressable onPress={() => navigation.navigate("Workers")} style={styles.headerAddBtn}>
-          <Feather name="user-plus" size={20} color="#FFFFFF" />
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Pressable onPress={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(''); }} style={styles.headerAddBtn}>
+            <Feather name={showSearch ? "x" : "search"} size={20} color="#FFFFFF" />
+          </Pressable>
+          <Pressable onPress={() => navigation.navigate("Workers")} style={styles.headerAddBtn}>
+            <Feather name="user-plus" size={20} color="#FFFFFF" />
+          </Pressable>
+        </View>
       </View>
 
       {/* 2. Calendar Month Selector banner */}
@@ -409,24 +364,27 @@ export default function AttendanceScreen() {
         </Pressable>
       </View>
 
-      {/* 3. Search Bar filter (Optional styling to keep layout clean) */}
-      <View style={styles.searchBarContainer}>
-        <View style={[styles.searchBarWrap, { backgroundColor: bgCard, borderColor: borderCol }]}>
-          <Feather name="search" size={15} color={isDark ? "#94A3B8" : "#64748B"} style={{ marginRight: 8 }} />
-          <TextInput
-            placeholder="Search worker by name..."
-            placeholderTextColor={isDark ? "#64748B" : "#94A3B8"}
-            style={[styles.searchInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery ? (
-            <Pressable onPress={() => setSearchQuery("")}>
-              <Feather name="x" size={14} color={isDark ? "#94A3B8" : "#64748B"} />
-            </Pressable>
-          ) : null}
+      {/* 3. Inline Search (toggle from header) */}
+      {showSearch && (
+        <View style={styles.searchBarContainer}>
+          <View style={[styles.searchBarWrap, { backgroundColor: bgCard, borderColor: borderCol }]}>
+            <Feather name="search" size={15} color={isDark ? "#94A3B8" : "#64748B"} style={{ marginRight: 8 }} />
+            <TextInput
+              placeholder="Search worker by name..."
+              placeholderTextColor={isDark ? "#64748B" : "#94A3B8"}
+              style={[styles.searchInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus
+            />
+            {searchQuery ? (
+              <Pressable onPress={() => setSearchQuery("")}>
+                <Feather name="x" size={14} color={isDark ? "#94A3B8" : "#64748B"} />
+              </Pressable>
+            ) : null}
+          </View>
         </View>
-      </View>
+      )}
 
       {loading ? (
         <View style={styles.center}>
@@ -436,15 +394,17 @@ export default function AttendanceScreen() {
         /* 4. Grid register sheet */
         <View style={[styles.gridContainer, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
           {/* Left frozen column (Worker Names) */}
-          <View style={[styles.frozenColumn, { borderRightColor: borderCol }]}>
+          <View style={[styles.frozenColumn, { borderRightColor: isDark ? "rgba(255,255,255,0.08)" : borderCol }]}>
             {/* Frozen Orange Column Header */}
-            <View style={[styles.columnHeader, { backgroundColor: "#EA580C", borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.1)" }]}>
+            <View style={[styles.columnHeader, { backgroundColor: "#EA580C", borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.15)" }]}>
               <Text style={styles.columnHeaderText}>WORKERS</Text>
             </View>
 
             <ScrollView
               ref={leftScrollRef}
-              scrollEnabled={false}
+              scrollEnabled={true}
+              onScroll={handleLeftScroll}
+              scrollEventThrottle={16}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 100 }}
             >
@@ -455,13 +415,22 @@ export default function AttendanceScreen() {
                   .slice(0, 2)
                   .join("")
                   .toUpperCase();
-                const avatarBg = ["#F97316", "#3B82F6", "#22C55E", "#A855F7", "#EF4444", "#F59E0B"][idx % 6];
+                const avatarBg = ["#F97316", "#EA580C", "#F59E0B", "#F97316"][idx % 4];
                 return (
-                  <View key={worker.id} style={[styles.frozenRow, { borderBottomColor: borderCol, backgroundColor: isDark ? "#1E293B" : "#F8FAFC" }]}>
+                  <View
+                    key={worker.id}
+                    style={[
+                      styles.frozenRow,
+                      {
+                        borderBottomColor: isDark ? "rgba(255,255,255,0.06)" : borderCol,
+                        backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
+                      },
+                    ]}
+                  >
                     <View style={[styles.avatarCircle, { backgroundColor: avatarBg }]}>
                       <Text style={styles.avatarText}>{initials}</Text>
                     </View>
-                    <ThemedText numberOfLines={1} style={styles.workerNameText}>
+                    <ThemedText numberOfLines={1} style={[styles.workerNameText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>
                       {worker.name}
                     </ThemedText>
                   </View>
@@ -485,7 +454,7 @@ export default function AttendanceScreen() {
               {/* Grid cells vertical ScrollView */}
               <ScrollView
                 ref={rightScrollRef}
-                onScroll={handleScroll}
+                onScroll={handleRightScroll}
                 scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 100 }}
@@ -496,9 +465,9 @@ export default function AttendanceScreen() {
                       const dayNum = i + 1;
                       const value = getAttendanceValueForDay(worker.id, dayNum);
 
-                      let bg = "transparent";
+                      let bg = isDark ? "#131F37" : "#F1F5F9";
                       let textLabel = "";
-                      let boxBorder = isDark ? "#334155" : "#E2E8F0";
+                      let boxBorder = isDark ? "rgba(255,255,255,0.06)" : "#E2E8F0";
 
                       if (value === "P") { bg = "#22C55E"; textLabel = "P"; boxBorder = "#22C55E"; }
                       else if (value === "A") { bg = "#EF4444"; textLabel = "A"; boxBorder = "#EF4444"; }
@@ -508,13 +477,25 @@ export default function AttendanceScreen() {
                       return (
                         <Pressable
                           key={i}
-                          onPress={() => openTapModal(worker, dayNum)}
-                          onLongPress={() => openDetailedModal(worker, dayNum, value)}
-                          delayLongPress={350}
-                          style={[styles.gridCell, { borderRightColor: borderCol, borderBottomColor: borderCol }]}
+                          onPress={() => openDetailedModal(worker, dayNum, value)}
+                          style={[
+                            styles.gridCell,
+                            {
+                              borderRightColor: isDark ? "rgba(255,255,255,0.06)" : borderCol,
+                              borderBottomColor: isDark ? "rgba(255,255,255,0.06)" : borderCol,
+                            },
+                          ]}
                         >
                           <View style={[styles.statusBox, { backgroundColor: bg, borderColor: boxBorder }]}>
-                            <Text style={[styles.statusBoxText, { color: value ? "#FFFFFF" : (isDark ? "#475569" : "#94A3B8") }]}>
+                            <Text
+                              style={[
+                                styles.statusBoxText,
+                                {
+                                  color: value ? "#FFFFFF" : (isDark ? "#64748B" : "#94A3B8"),
+                                  fontSize: value ? 13 : 11,
+                                },
+                              ]}
+                            >
                               {textLabel}
                             </Text>
                           </View>
@@ -529,105 +510,7 @@ export default function AttendanceScreen() {
         </View>
       )}
 
-      {/* ── Tap Cell Options Modal (Image 1 Popup) ──────────────────── */}
-      <Modal
-        visible={tapModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setTapModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBgPress} onPress={() => setTapModalVisible(false)} />
-          <View style={[styles.tapOptionsCard, { backgroundColor: isDark ? "#121B2A" : "#FFFFFF" }]}>
-            <ThemedText style={styles.tapOptionsTitle}>Tap cell to mark attendance</ThemedText>
-            <ThemedText style={styles.tapOptionsWorkerName}>{selectedTapWorker?.name}</ThemedText>
-            
-            {/* Daily rate badge */}
-            <View style={styles.rateBadgeContainer}>
-              <View style={[styles.rateBadge, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
-                <Text style={[styles.rateBadgeText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>
-                  Daily Rate: ₹{selectedTapWorker?.dailyRate ?? 0}
-                </Text>
-              </View>
-            </View>
 
-            {/* 2x2 grid of options */}
-            <View style={styles.tapGrid}>
-              {/* Present button */}
-              <Pressable
-                onPress={() => saveTapAttendance("P")}
-                style={({ pressed }) => [
-                  styles.tapGridBtn,
-                  { borderColor: borderCol, backgroundColor: pressed ? "rgba(255,255,255,0.05)" : "transparent" }
-                ]}
-              >
-                <Feather name="check" size={20} color="#22C55E" style={{ marginBottom: 6 }} />
-                <Text style={[styles.tapGridBtnText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>P (P)</Text>
-              </Pressable>
-
-              {/* Absent button */}
-              <Pressable
-                onPress={() => saveTapAttendance("A")}
-                style={({ pressed }) => [
-                  styles.tapGridBtn,
-                  { borderColor: borderCol, backgroundColor: pressed ? "rgba(255,255,255,0.05)" : "transparent" }
-                ]}
-              >
-                <Feather name="x" size={20} color="#EF4444" style={{ marginBottom: 6 }} />
-                <Text style={[styles.tapGridBtnText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>A (A)</Text>
-              </Pressable>
-
-              {/* Half Day button */}
-              <Pressable
-                onPress={() => saveTapAttendance("H")}
-                style={({ pressed }) => [
-                  styles.tapGridBtn,
-                  { borderColor: borderCol, backgroundColor: pressed ? "rgba(255,255,255,0.05)" : "transparent" }
-                ]}
-              >
-                <Feather name="clock" size={20} color="#F59E0B" style={{ marginBottom: 6 }} />
-                <Text style={[styles.tapGridBtnText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>1/2 (1/2)</Text>
-              </Pressable>
-
-              {/* Overtime button */}
-              <Pressable
-                onPress={() => saveTapAttendance("OT")}
-                style={({ pressed }) => [
-                  styles.tapGridBtn,
-                  { borderColor: borderCol, backgroundColor: pressed ? "rgba(255,255,255,0.05)" : "transparent" }
-                ]}
-              >
-                <Feather name="trending-up" size={20} color="#A855F7" style={{ marginBottom: 6 }} />
-                <Text style={[styles.tapGridBtnText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>Overtime (OT)</Text>
-              </Pressable>
-            </View>
-
-            {/* GPS Premium row */}
-            <Pressable
-              onPress={() => {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                Alert.alert("Premium Feature", "GPS auto check-in is a premium subscription feature.");
-              }}
-              style={({ pressed }) => [
-                styles.gpsPremiumBtn,
-                {
-                  borderColor: borderCol,
-                  opacity: pressed ? 0.8 : 1,
-                  backgroundColor: isDark ? "#1E293B" : "#F8FAFC"
-                }
-              ]}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Feather name="lock" size={15} color={isDark ? "#94A3B8" : "#64748B"} style={{ marginRight: 10 }} />
-                <Text style={[styles.gpsPremiumText, { color: isDark ? "#94A3B8" : "#64748B" }]}>
-                  GPS Capture (Premium)
-                </Text>
-              </View>
-              <Feather name="chevron-right" size={16} color={isDark ? "#94A3B8" : "#64748B"} />
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
 
       {/* ── Month Selector Modal ────────────────────────────────────── */}
       <Modal
@@ -908,7 +791,7 @@ const styles = StyleSheet.create({
 
   // Left frozen names list column
   frozenColumn: {
-    width: 140,
+    width: 135,
     borderRightWidth: 1,
     zIndex: 10,
   },
@@ -951,7 +834,7 @@ const styles = StyleSheet.create({
 
   // Day columns (horizontally scrollable cells)
   dayHeaderCell: {
-    width: 48,
+    width: 50,
     height: 44,
     justifyContent: "center",
     alignItems: "center",
@@ -963,7 +846,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   gridCell: {
-    width: 48,
+    width: 50,
     height: 56,
     justifyContent: "center",
     alignItems: "center",
@@ -971,10 +854,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   statusBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    borderWidth: 1.5,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1157,75 +1040,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  // Tap Cell Options Modal styles (Image 1)
-  tapOptionsCard: {
-    width: SCREEN_WIDTH - 48,
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
-    alignItems: "center",
-  },
-  tapOptionsTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    opacity: 0.8,
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  tapOptionsWorkerName: {
-    fontSize: 22,
-    fontWeight: "800",
-    textAlign: "center",
-    marginBottom: 12,
-  },
-  rateBadgeContainer: {
-    marginBottom: 20,
-    alignItems: "center",
-  },
-  rateBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  rateBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  tapGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    width: "100%",
-    marginBottom: 20,
-  },
-  tapGridBtn: {
-    width: "48%",
-    height: 72,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tapGridBtnText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  gpsPremiumBtn: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  gpsPremiumText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
 });
