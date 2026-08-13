@@ -214,7 +214,7 @@ export default function PaymentHandoverMenuScreen() {
       <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
         <View style={[styles.header, { borderBottomColor: theme.border }]}>
           <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={20} color={theme.textDefault} />
+            <Feather name="arrow-left" size={20} color={theme.text} />
           </Pressable>
           <ThemedText style={styles.headerTitle}>Payment Handover</ThemedText>
           <View style={{ width: 40 }} />
@@ -252,7 +252,7 @@ export default function PaymentHandoverMenuScreen() {
       {/* HEADER */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <Pressable onPress={handleBack} style={styles.backBtn}>
-          <Feather name="arrow-left" size={20} color={theme.textDefault} />
+          <Feather name="arrow-left" size={20} color={theme.text} />
         </Pressable>
         <ThemedText style={styles.headerTitle}>
           {activeView === "menu" ? "Payment Handover" : activeView === "handover_list" ? "Handover Logs" : activeView === "proof_list" ? "Payment Proofs" : mockTitle}
@@ -389,7 +389,7 @@ export default function PaymentHandoverMenuScreen() {
             <View style={styles.modalHeader}>
               <ThemedText type="h2">{activeView === "handover_list" ? "Log Handover" : "Add Payment Proof"}</ThemedText>
               <Pressable onPress={() => setShowAddModal(false)}>
-                <Feather name="x" size={20} color={theme.textDefault} />
+                <Feather name="x" size={20} color={theme.text} />
               </Pressable>
             </View>
 
@@ -403,7 +403,7 @@ export default function PaymentHandoverMenuScreen() {
                     placeholder="Enter amount"
                     placeholderTextColor="#888"
                     keyboardType="numeric"
-                    style={[styles.inputField, { borderColor: theme.border, color: theme.textDefault }]}
+                    style={[styles.inputField, { borderColor: theme.border, color: theme.text }]}
                   />
 
                   <ThemedText style={styles.inputLabel}>Recipient Name</ThemedText>
@@ -412,7 +412,7 @@ export default function PaymentHandoverMenuScreen() {
                     onChangeText={setRecipient}
                     placeholder="e.g. Supervisor Hari"
                     placeholderTextColor="#888"
-                    style={[styles.inputField, { borderColor: theme.border, color: theme.textDefault }]}
+                    style={[styles.inputField, { borderColor: theme.border, color: theme.text }]}
                   />
                 </>
               ) : (
@@ -423,7 +423,7 @@ export default function PaymentHandoverMenuScreen() {
                     onChangeText={setProofUri}
                     placeholder="e.g. https://s3.aws.com/proof.jpg"
                     placeholderTextColor="#888"
-                    style={[styles.inputField, { borderColor: theme.border, color: theme.textDefault }]}
+                    style={[styles.inputField, { borderColor: theme.border, color: theme.text }]}
                   />
                 </>
               )}
@@ -436,7 +436,7 @@ export default function PaymentHandoverMenuScreen() {
                 placeholderTextColor="#888"
                 multiline
                 numberOfLines={3}
-                style={[styles.textAreaField, { borderColor: theme.border, color: theme.textDefault }]}
+                style={[styles.textAreaField, { borderColor: theme.border, color: theme.text }]}
               />
 
               <Pressable
@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "750",
+    fontWeight: "700",
   },
   scrollBody: {
     padding: 15,

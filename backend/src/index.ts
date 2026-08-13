@@ -133,6 +133,14 @@ if (process.env.NODE_ENV !== "test") {
       // Ensure single permanent admin account is setup and purged of other admins
       await ensureSinglePermanentAdmin();
 
+      // Ensure default feature toggles and subscriptions settings are seeded
+      try {
+        const { seedDefaultConfigIfNeeded } = require("./controllers/adminConfigController");
+        await seedDefaultConfigIfNeeded();
+      } catch (err: any) {
+        console.error("Failed to seed default app configuration:", err);
+      }
+
       // Programmatically drop any legacy unique index on 'name' in users collection if present
       if (mongoose.connection.db) {
         mongoose.connection.db.collection("users").dropIndex("name_1").catch(() => {
