@@ -8,13 +8,20 @@ export interface ISite extends Document {
   address: string;
   startDate: Date;
   description?: string;
-  status: "Planning" | "Started" | "In Progress" | "On Hold" | "Delayed" | "Completed";
+  status: "Planning" | "Started" | "In Progress" | "On Hold" | "Delayed" | "Completed" | "Active";
   supervisor?: mongoose.Types.ObjectId;
   createdBy: mongoose.Types.ObjectId;
   isArchived: boolean;
   isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
+  
+  // Cache fields
+  currentWork?: string;
+  currentProgress?: number;
+  lastUpdateAt?: Date;
+  lastUpdatedBy?: mongoose.Types.ObjectId;
+  lastUpdateType?: string;
 }
 
 const SiteSchema = new Schema<ISite>({
@@ -27,13 +34,20 @@ const SiteSchema = new Schema<ISite>({
   description: { type: String, trim: true },
   status: { 
     type: String, 
-    enum: ["Planning", "Started", "In Progress", "On Hold", "Delayed", "Completed"], 
-    default: "Planning" 
+    enum: ["Planning", "Started", "In Progress", "On Hold", "Delayed", "Completed", "Active"], 
+    default: "Active" 
   },
   supervisor: { type: Schema.Types.ObjectId, ref: "User" },
   createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   isArchived: { type: Boolean, default: false },
-  isDeleted: { type: Boolean, default: false }
+  isDeleted: { type: Boolean, default: false },
+  
+  // Cache fields
+  currentWork: { type: String, trim: true },
+  currentProgress: { type: Number, default: 0, min: 0, max: 100 },
+  lastUpdateAt: { type: Date },
+  lastUpdatedBy: { type: Schema.Types.ObjectId, ref: "User" },
+  lastUpdateType: { type: String, trim: true }
 }, {
   timestamps: true
 });

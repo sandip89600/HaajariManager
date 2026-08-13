@@ -74,8 +74,6 @@ export default function UserProfileScreen() {
   const [showLangModal, setShowLangModal] = useState(false);
   const [langSearch, setLangSearch] = useState("");
 
-  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
-  const [emailCooldown, setEmailCooldown] = useState(0);
   const [showPhoneVerifyModal, setShowPhoneVerifyModal] = useState(false);
   const [phoneOtp, setPhoneOtp] = useState("");
   const [isSendingPhoneOtp, setIsSendingPhoneOtp] = useState(false);
@@ -84,49 +82,11 @@ export default function UserProfileScreen() {
 
   useEffect(() => {
     let timer: any;
-    if (emailCooldown > 0) {
-      timer = setInterval(() => setEmailCooldown((prev) => prev - 1), 1000);
-    }
-    return () => clearInterval(timer);
-  }, [emailCooldown]);
-
-  useEffect(() => {
-    let timer: any;
     if (phoneOtpCooldown > 0) {
       timer = setInterval(() => setPhoneOtpCooldown((prev) => prev - 1), 1000);
     }
     return () => clearInterval(timer);
   }, [phoneOtpCooldown]);
-
-  const handleVerifyEmail = async () => {
-    if (!user?.email) {
-      Alert.alert("Notice", "Please add an email address in Edit Profile first.");
-      return;
-    }
-    if (emailCooldown > 0) return;
-    setIsVerifyingEmail(true);
-    try {
-      const res = await authenticatedFetch("/auth/resend-verification", {
-        method: "POST",
-        body: JSON.stringify({ email: user.email }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setEmailCooldown(60);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          "Verification Link Sent ✉️",
-          data.message || `We sent a verification link to ${user.email}. Please check your inbox.`
-        );
-      } else {
-        Alert.alert("Notice", data.message || data.error || "Unable to send verification email.");
-      }
-    } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to send verification email.");
-    } finally {
-      setIsVerifyingEmail(false);
-    }
-  };
 
   const handleSendPhoneOtp = async () => {
     if (!user?.phone) return;
@@ -766,42 +726,12 @@ export default function UserProfileScreen() {
               <Feather name="mail" size={16} color={theme.textSecondary} />
             </View>
             <View style={styles.infoTextWrapper}>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  {t.profile.email}
-                </ThemedText>
-                {user.isEmailVerified ? (
-                  <View style={styles.verifiedBadge}>
-                    <Feather name="check-circle" size={11} color="#22C55E" />
-                    <ThemedText style={styles.verifiedBadgeText}>Verified</ThemedText>
-                  </View>
-                ) : (
-                  <View style={styles.unverifiedBadge}>
-                    <Feather name="alert-triangle" size={11} color="#F59E0B" />
-                    <ThemedText style={styles.unverifiedBadgeText}>Not verified</ThemedText>
-                  </View>
-                )}
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 }}>
-                <ThemedText type="body" style={styles.infoValue}>
-                  {user.email || t.profile.notProvided}
-                </ThemedText>
-                {user.email && !user.isEmailVerified && (
-                  <Pressable
-                    onPress={handleVerifyEmail}
-                    disabled={isVerifyingEmail || emailCooldown > 0}
-                    style={styles.verifyActionBtn}
-                  >
-                    {isVerifyingEmail ? (
-                      <ActivityIndicator size="small" color="#FF6B35" />
-                    ) : (
-                      <ThemedText style={styles.verifyActionBtnText}>
-                        {emailCooldown > 0 ? `Sent (${emailCooldown}s)` : "Verify Email"}
-                      </ThemedText>
-                    )}
-                  </Pressable>
-                )}
-              </View>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {t.profile.email}
+              </ThemedText>
+              <ThemedText type="body" style={styles.infoValue}>
+                {user.email || t.profile.notProvided}
+              </ThemedText>
             </View>
           </View>
 

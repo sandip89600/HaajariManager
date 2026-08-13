@@ -326,66 +326,7 @@ export async function sendWelcomeEmail(email: string, name: string): Promise<boo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. EMAIL VERIFICATION
-// ─────────────────────────────────────────────────────────────────────────────
-export async function sendVerificationEmail(email: string, name: string, token: string): Promise<boolean> {
-  const baseUrl = getBaseUrl();
-  const subject = `Verify your ${APP_NAME} account`;
-  const verificationLink = `${baseUrl}/api/auth/verify-email?token=${token}`;
-
-  const content = `
-    <h2 style="color: #F8FAFC; margin-top: 0; font-size: 22px; font-weight: 700;">Verify Your Email Address</h2>
-    <p style="color: #CBD5E1; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${name}</strong>, thank you for registering with <strong>${APP_NAME}</strong>. Please confirm your email address to activate your account and start managing your workforce.
-    </p>
-    <div style="text-align: center; margin: 28px 0;">
-      <a href="${verificationLink}" target="_blank" class="btn-primary">Verify Email Address</a>
-    </div>
-    <div class="info-box">
-      <p style="margin: 0; color: #E2E8F0; font-size: 13px;">
-        ⏳ <strong>Security Notice:</strong> This verification link will expire in <strong>24 hours</strong>. If you did not create this account, no further action is required.
-      </p>
-    </div>
-    <p style="color: #94A3B8; font-size: 12px; word-break: break-all; margin-top: 20px;">
-      If the button above does not work, copy and paste this link into your browser:<br>
-      <a href="${verificationLink}" style="color: #FF6B35;">${verificationLink}</a>
-    </p>
-  `;
-
-  return sendMailUnified(email, subject, getEmailLayout("Verify Your Email", content), "Email Verification");
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. RESEND VERIFICATION EMAIL
-// ─────────────────────────────────────────────────────────────────────────────
-export async function sendResendVerificationEmail(email: string, name: string, token: string): Promise<boolean> {
-  const baseUrl = getBaseUrl();
-  const subject = `New Verification Link - ${APP_NAME}`;
-  const verificationLink = `${baseUrl}/api/auth/verify-email?token=${token}`;
-
-  const content = `
-    <h2 style="color: #F8FAFC; margin-top: 0; font-size: 22px; font-weight: 700;">New Email Verification Link</h2>
-    <p style="color: #CBD5E1; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${name}</strong>, as requested, here is your updated email verification link for <strong>${APP_NAME}</strong>. All previous verification links have been invalidated.
-    </p>
-    <div style="text-align: center; margin: 28px 0;">
-      <a href="${verificationLink}" target="_blank" class="btn-primary">Activate My Account</a>
-    </div>
-    <div class="info-box">
-      <p style="margin: 0; color: #E2E8F0; font-size: 13px;">
-        ⏳ <strong>Notice:</strong> This link is valid for <strong>24 hours</strong>.
-      </p>
-    </div>
-    <p style="color: #94A3B8; font-size: 12px; word-break: break-all;">
-      Or visit: <a href="${verificationLink}" style="color: #FF6B35;">${verificationLink}</a>
-    </p>
-  `;
-
-  return sendMailUnified(email, subject, getEmailLayout("New Verification Link", content), "Resend Verification");
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. FORGOT PASSWORD EMAIL
+// 2. FORGOT PASSWORD EMAIL
 // ─────────────────────────────────────────────────────────────────────────────
 export async function sendPasswordResetEmail(email: string, name: string, token: string): Promise<boolean> {
   const baseUrl = getBaseUrl();

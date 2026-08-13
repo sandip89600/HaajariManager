@@ -33,7 +33,7 @@ async function testForgotPasswordFlow() {
     passwordHash: await bcrypt.hash(initialPassword, 12),
     isActive: true,
     isVerified: true,
-    isEmailVerified: true,
+    isPhoneVerified: true,
     status: "active",
   });
   await user.save();

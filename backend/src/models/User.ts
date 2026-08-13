@@ -11,21 +11,13 @@ export interface IUser extends Document {
   assignedProjects?: mongoose.Types.ObjectId[];
   isActive: boolean;
   isVerified: boolean;
-  isEmailVerified?: boolean;
-  emailVerifiedAt?: Date;
-  emailVerificationTokenHash?: string;
-  emailVerificationExpires?: Date;
-  emailVerificationRequestedAt?: Date;
   isPhoneVerified?: boolean;
   phoneVerifiedAt?: Date;
   status?: "pending_verification" | "active" | "suspended" | "deactivated";
-  verificationToken?: string;
-  verificationTokenExpires?: Date;
   passwordResetToken?: string;
   passwordResetTokenHash?: string;
   passwordResetExpires?: Date;
   passwordResetRequestedAt?: Date;
-  lastVerificationEmailSentAt?: Date;
   lastPhoneVerificationSentAt?: Date;
   refreshTokens: string[];
   createdAt: Date;
@@ -88,21 +80,13 @@ const UserSchema = new Schema<IUser>({
   assignedProjects: [{ type: Schema.Types.ObjectId, ref: "Project" }],
   isActive: { type: Boolean, default: true },
   isVerified: { type: Boolean, default: true },
-  isEmailVerified: { type: Boolean, default: false },
-  emailVerifiedAt: { type: Date },
-  emailVerificationTokenHash: { type: String },
-  emailVerificationExpires: { type: Date },
-  emailVerificationRequestedAt: { type: Date },
   isPhoneVerified: { type: Boolean, default: false },
   phoneVerifiedAt: { type: Date },
   status: { type: String, enum: ["pending_verification", "active", "suspended", "deactivated"], default: "active" },
-  verificationToken: { type: String },
-  verificationTokenExpires: { type: Date },
   passwordResetToken: { type: String },
   passwordResetTokenHash: { type: String },
   passwordResetExpires: { type: Date },
   passwordResetRequestedAt: { type: Date },
-  lastVerificationEmailSentAt: { type: Date },
   lastPhoneVerificationSentAt: { type: Date },
   refreshTokens: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },

@@ -28,6 +28,7 @@ import SettingsDrawer from "@/components/SettingsDrawer";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { AttendanceEditorModal } from "@/components/AttendanceEditorModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
@@ -303,35 +304,6 @@ export default function DashboardScreen() {
     await storage.setAttendance(filtered);
   };
 
-  const handleMarkPresent = async (workerId: string) => {
-    triggerHaptic();
-    try {
-      const todayYear = today.getFullYear();
-      const todayMonth = today.getMonth();
-      const todayDay = today.getDate();
-      const existing = attendanceRecords.find(
-        (r) => r.workerId === workerId && r.year === todayYear && r.month === todayMonth && r.day === todayDay
-      );
-      const newValue: AttendanceValue = existing?.value === "P" ? "A" : "P";
-      const worker = workersList.find((w) => w.id === workerId);
-      const dailyRate = worker?.dailyRate ?? 0;
-      const finalPay = newValue === "P" ? dailyRate : 0;
-      await storage.setAttendanceRecord({
-        workerId,
-        year: todayYear,
-        month: todayMonth,
-        day: todayDay,
-        value: newValue,
-        dailyRate,
-        finalPay,
-        timestamp: Date.now(),
-      });
-      setToastMessage(newValue === "P" ? "Marked Present ✓" : "Marked Absent ✗");
-      setShowToast(true);
-      await loadDashboardData(true);
-    } catch (err) { console.warn("Quick mark failed:", err); }
-  };
-
   const handleMarkOptions = (workerId: string) => {
     triggerHaptic();
     const worker = workersList.find((w) => w.id === workerId);
@@ -340,65 +312,46 @@ export default function DashboardScreen() {
     setQuickMarkModalVisible(true);
   };
 
-  const updateAttendanceValue = async (workerId: string, val: AttendanceValue | null) => {
+  const handleSaveDetailedRecord = async (record: AttendanceRecord) => {
+    try {
+      await storage.setAttendanceRecord(record);
+      setAttendanceRecords((prev) => {
+        const idx = prev.findIndex(
+          (r) => r.workerId === record.workerId && r.year === record.year && r.month === record.month && r.day === record.day
+        );
+        const updated = [...prev];
+        if (idx !== -1) {
+          updated[idx] = record;
+        } else {
+          updated.push(record);
+        }
+        return updated;
+      });
+      setQuickMarkModalVisible(false);
+      await loadDashboardData(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      console.warn("Failed to save detailed record:", e);
+    }
+  };
+
+  const handleClearDetailedRecord = async () => {
+    if (!quickMarkWorker) return;
     try {
       const todayYear = today.getFullYear();
       const todayMonth = today.getMonth();
       const todayDay = today.getDate();
-
-      const existingIdx = attendanceRecords.findIndex(
-        (r) => r.workerId === workerId && r.year === todayYear && r.month === todayMonth && r.day === todayDay
+      await deleteAttendanceLocally(quickMarkWorker.id, todayYear, todayMonth, todayDay);
+      setAttendanceRecords((prev) =>
+        prev.filter(
+          (r) => !(r.workerId === quickMarkWorker.id && r.year === todayYear && r.month === todayMonth && r.day === todayDay)
+        )
       );
-
-      if (val === null) {
-        if (existingIdx !== -1) {
-          await deleteAttendanceLocally(workerId, todayYear, todayMonth, todayDay);
-          const updated = [...attendanceRecords];
-          updated.splice(existingIdx, 1);
-          setAttendanceRecords(updated);
-        }
-      } else {
-        const worker = workersList.find((w) => w.id === workerId);
-        const dailyRate = worker?.dailyRate ?? 0;
-        const finalPay = val === "P" ? dailyRate : val === "H" ? dailyRate / 2 : val === "OT" ? dailyRate * 1.5 : 0;
-        
-        const newRecord: AttendanceRecord = {
-          workerId,
-          projectId: activeSite?.id || undefined,
-          year: todayYear,
-          month: todayMonth,
-          day: todayDay,
-          value: val,
-          dailyRate,
-          finalPay,
-          timestamp: Date.now(),
-        };
-        await storage.setAttendanceRecord(newRecord);
-        const updated = [...attendanceRecords];
-        if (existingIdx !== -1) {
-          updated[existingIdx] = newRecord;
-        } else {
-          updated.push(newRecord);
-        }
-        setAttendanceRecords(updated);
-      }
-
+      setQuickMarkModalVisible(false);
       await loadDashboardData(true);
-      const workerName = workersList.find((w) => w.id === workerId)?.name || "Worker";
-      let statusLabel = "Present";
-      if (val === "H") statusLabel = "Half Day";
-      else if (val === "OT") statusLabel = "Overtime";
-      else if (val === "A") statusLabel = "Absent";
-      else if (val === null) statusLabel = "Unmarked";
-
-      setToastMessage(`Marked ${workerName} as ${statusLabel}`);
-      setShowToast(true);
-
-      if (val !== null) {
-        trackInteraction("attendance_marked");
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      console.warn("Failed to update attendance value:", e);
+      console.warn("Failed to clear attendance:", e);
     }
   };
 
@@ -731,9 +684,7 @@ export default function DashboardScreen() {
                 return (
                   <Pressable
                     key={worker.id}
-                    onPress={() => handleMarkPresent(worker.id)}
-                    onLongPress={() => handleMarkOptions(worker.id)}
-                    delayLongPress={300}
+                    onPress={() => handleMarkOptions(worker.id)}
                     style={({ pressed }) => [
                       styles.workerLogRow,
                       {
@@ -752,10 +703,10 @@ export default function DashboardScreen() {
                       </ThemedText>
                     </View>
                     <View style={styles.workerLogStatus}>
-                      {val === "P" && <Badge label="Present" variant="success" />}
-                      {val === "H" && <Badge label="Half Day" variant="warning" />}
-                      {val === "OT" && <Badge label="Overtime" variant="info" />}
-                      {val === "A" && <Badge label="Absent" variant="error" />}
+                      {val === "P" && <Badge label="P" variant="success" />}
+                      {val === "H" && <Badge label="1/2" variant="warning" />}
+                      {val === "OT" && <Badge label="OT" variant="info" />}
+                      {val === "A" && <Badge label="A" variant="error" />}
                       {!val && <Badge label="Unmarked" variant="neutral" />}
                     </View>
                   </Pressable>
@@ -786,10 +737,10 @@ export default function DashboardScreen() {
                 let badgeVariant: "success" | "warning" | "error" | "info" | "neutral" = "neutral";
                 let label = "Unmarked";
                 
-                if (status === "P") { badgeVariant = "success"; label = "Present"; }
-                else if (status === "A") { badgeVariant = "error"; label = "Absent"; }
-                else if (status === "H") { badgeVariant = "warning"; label = "Half Day"; }
-                else if (status === "OT") { badgeVariant = "info"; label = "Overtime"; }
+                if (status === "P") { badgeVariant = "success"; label = "P"; }
+                else if (status === "A") { badgeVariant = "error"; label = "A"; }
+                else if (status === "H") { badgeVariant = "warning"; label = "1/2"; }
+                else if (status === "OT") { badgeVariant = "info"; label = "OT"; }
 
                 return (
                   <Animated.View
@@ -838,92 +789,27 @@ export default function DashboardScreen() {
         onClose={() => setShowSettingsDrawer(false)}
       />
 
-      {/* ── Quick-Mark Attendance Modal ─────────────────────────────── */}
-      <Modal
+      {/* ── Unified Attendance Editor Modal ─────────────────────────── */}
+      <AttendanceEditorModal
         visible={quickMarkModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setQuickMarkModalVisible(false)}
-      >
-        <Pressable
-          style={styles.qmOverlay}
-          onPress={() => setQuickMarkModalVisible(false)}
-        >
-          <Pressable style={[styles.qmSheet, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]} onPress={() => {}}>
-            <View style={[styles.qmHandle, { backgroundColor: isDark ? "#475569" : "#CBD5E1" }]} />
-
-            {quickMarkWorker && (() => {
-              const todayRec = attendanceRecords.find(
+        worker={quickMarkWorker}
+        date={today}
+        projectId={activeSite?.id}
+        initialRecord={
+          quickMarkWorker
+            ? attendanceRecords.find(
                 (r) =>
                   r.workerId === quickMarkWorker.id &&
                   r.year === today.getFullYear() &&
                   r.month === today.getMonth() &&
                   r.day === today.getDate()
-              );
-              const currentVal = todayRec?.value;
-              return (
-                <View style={styles.qmWorkerHeader}>
-                  <Avatar name={quickMarkWorker.name} size="md" />
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <ThemedText style={styles.qmWorkerName}>{quickMarkWorker.name}</ThemedText>
-                    <ThemedText style={[styles.qmWorkerSub, { color: theme.textSecondary }]}>
-                      {quickMarkWorker.category ? quickMarkWorker.category.toUpperCase() : "WORKER"}
-                      {currentVal ? `  •  Today: ${currentVal}` : "  •  Unmarked"}
-                    </ThemedText>
-                  </View>
-                </View>
-              );
-            })()}
-
-            <ThemedText style={[styles.qmTitle, { color: theme.textSecondary }]}>Change Today's Status</ThemedText>
-
-            <View style={styles.qmGrid}>
-              <Pressable
-                style={({ pressed }) => [styles.qmStatusBtn, { backgroundColor: pressed ? "#16A34A" : "#22C55E" }]}
-                onPress={() => { triggerHaptic(); updateAttendanceValue(quickMarkWorker!.id, "P"); setQuickMarkModalVisible(false); }}
-              >
-                <ThemedText style={styles.qmStatusLabel}>Present</ThemedText>
-              </Pressable>
-
-              <Pressable
-                style={({ pressed }) => [styles.qmStatusBtn, { backgroundColor: pressed ? "#DC2626" : "#EF4444" }]}
-                onPress={() => { triggerHaptic(); updateAttendanceValue(quickMarkWorker!.id, "A"); setQuickMarkModalVisible(false); }}
-              >
-                <ThemedText style={styles.qmStatusLabel}>Absent</ThemedText>
-              </Pressable>
-
-              <Pressable
-                style={({ pressed }) => [styles.qmStatusBtn, { backgroundColor: pressed ? "#D97706" : "#F59E0B" }]}
-                onPress={() => { triggerHaptic(); updateAttendanceValue(quickMarkWorker!.id, "H"); setQuickMarkModalVisible(false); }}
-              >
-                <ThemedText style={styles.qmStatusLabel}>Half Day</ThemedText>
-              </Pressable>
-
-              <Pressable
-                style={({ pressed }) => [styles.qmStatusBtn, { backgroundColor: pressed ? "#7C3AED" : "#A855F7" }]}
-                onPress={() => { triggerHaptic(); updateAttendanceValue(quickMarkWorker!.id, "OT"); setQuickMarkModalVisible(false); }}
-              >
-                <ThemedText style={styles.qmStatusLabel}>Overtime</ThemedText>
-              </Pressable>
-            </View>
-
-            <View style={styles.qmFooterRow}>
-              <Pressable
-                style={[styles.qmClearBtn, { borderColor: isDark ? "#475569" : "#CBD5E1", backgroundColor: isDark ? "#0F172A" : "#F8FAFC" }]}
-                onPress={() => { triggerHaptic(); updateAttendanceValue(quickMarkWorker!.id, null); setQuickMarkModalVisible(false); }}
-              >
-                <ThemedText style={[styles.qmClearText, { color: theme.textSecondary }]}>⚪ Clear</ThemedText>
-              </Pressable>
-              <Pressable
-                style={[styles.qmCancelBtn, { borderColor: isDark ? "#475569" : "#E2E8F0", backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]}
-                onPress={() => setQuickMarkModalVisible(false)}
-              >
-                <ThemedText style={[styles.qmCancelText, { color: theme.textSecondary }]}>Cancel</ThemedText>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+              ) || null
+            : null
+        }
+        onClose={() => setQuickMarkModalVisible(false)}
+        onSave={handleSaveDetailedRecord}
+        onClear={handleClearDetailedRecord}
+      />
     </View>
   );
 }

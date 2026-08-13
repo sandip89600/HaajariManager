@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
@@ -34,11 +34,13 @@ export default function SupervisorManagementScreen() {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const { user } = useAuth();
 
   const [supervisors, setSupervisors] = useState<SupervisorUser[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // Form Fields
   const [modalVisible, setModalVisible] = useState(false);
@@ -56,6 +58,13 @@ export default function SupervisorManagementScreen() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (route.params?.action === "create" && isDataLoaded) {
+      handleOpenAddModal();
+      navigation.setParams({ action: undefined });
+    }
+  }, [route.params?.action, isDataLoaded]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -78,6 +87,7 @@ export default function SupervisorManagementScreen() {
       Alert.alert(t.common.error || "Error", t.supervisor.errorFetch);
     } finally {
       setIsLoading(false);
+      setIsDataLoaded(true);
     }
   };
 

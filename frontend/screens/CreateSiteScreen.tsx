@@ -106,7 +106,7 @@ export default function CreateSiteScreen() {
         startDate: new Date(startDate).toISOString(),
         description: description.trim() || undefined,
         supervisor: selectedSupervisor?._id || undefined,
-        status: "Planning"
+        status: "Active"
       };
 
       const result = await storage.createSite(payload);

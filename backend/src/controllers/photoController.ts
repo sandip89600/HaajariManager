@@ -25,14 +25,14 @@ export const addWorkPhoto = async (req: AuthenticatedRequest, res: Response) => 
     const { siteId } = req.params;
     const { workerId, photoType, photoUri, latitude, longitude } = req.body;
 
-    if (!workerId || !photoType || !photoUri || latitude === undefined || longitude === undefined) {
-      return res.status(400).json({ error: "Missing required fields (workerId, photoType, photoUri, latitude, longitude)" });
+    if (!photoType || !photoUri || latitude === undefined || longitude === undefined) {
+      return res.status(400).json({ error: "Missing required fields (photoType, photoUri, latitude, longitude)" });
     }
 
     const photo = new WorkPhoto({
       tenantId,
       siteId,
-      workerId,
+      workerId: workerId || undefined,
       photoType,
       photoUri,
       location: {
@@ -43,7 +43,9 @@ export const addWorkPhoto = async (req: AuthenticatedRequest, res: Response) => 
     });
 
     await photo.save();
-    await photo.populate("workerId", "name category phone");
+    if (photo.workerId) {
+      await photo.populate("workerId", "name category phone");
+    }
 
     const auditLog = new AuditLog({
       tenantId,

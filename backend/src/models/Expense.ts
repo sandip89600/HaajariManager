@@ -2,7 +2,8 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export interface IExpense extends Document {
   tenantId: mongoose.Types.ObjectId;
-  projectId: mongoose.Types.ObjectId;
+  projectId?: mongoose.Types.ObjectId;
+  siteId?: mongoose.Types.ObjectId;
   type: "material" | "machinery" | "labour" | "vendor" | "other";
   amount: number;
   date: Date;
@@ -17,7 +18,8 @@ export interface IExpense extends Document {
 
 const ExpenseSchema = new Schema<IExpense>({
   tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true },
-  projectId: { type: Schema.Types.ObjectId, ref: "Project", required: true },
+  projectId: { type: Schema.Types.ObjectId, ref: "Project" },
+  siteId: { type: Schema.Types.ObjectId, ref: "Site" },
   type: {
     type: String,
     enum: ["material", "machinery", "labour", "vendor", "other"],

@@ -13,6 +13,8 @@ import voiceRoutes from "./voiceRoutes";
 import siteRoutes from "./siteRoutes";
 import subscriptionRoutes from "./subscriptionRoutes";
 import recoveryRoutes from "./recoveryRoutes";
+import appConfigRoutes from "./appConfigRoutes";
+import paymentHandoverRoutes from "./paymentHandoverRoutes";
 
 const router = Router();
 
@@ -30,6 +32,8 @@ router.use("/export", exportRoutes);
 router.use("/voice", voiceRoutes);
 router.use("/sites", siteRoutes);
 router.use("/subscription", subscriptionRoutes);
+router.use("/app", appConfigRoutes);
+router.use("/payment-handover", paymentHandoverRoutes);
 
 export default router;
 

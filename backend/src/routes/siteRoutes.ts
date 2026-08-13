@@ -6,7 +6,9 @@ import {
   updateSite,
   archiveSite,
   deleteSite,
-  getSiteDashboardStats
+  getSiteDashboardStats,
+  getSiteUpdates,
+  createSiteUpdate
 } from "../controllers/siteController";
 import {
   getMaterials,
@@ -48,5 +50,9 @@ router.get("/:siteId/materials-history", getMaterialHistory as any);
 // Before & After Work Photos timeline endpoints
 router.get("/:siteId/photos", getSitePhotos as any);
 router.post("/:siteId/photos", addWorkPhoto as any);
+
+// Daily Updates endpoints
+router.get("/:siteId/updates", getSiteUpdates as any);
+router.post("/:siteId/updates", createSiteUpdate as any);
 
 export default router;

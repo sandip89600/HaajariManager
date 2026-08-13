@@ -29,7 +29,7 @@ interface Supervisor {
   role: string;
 }
 
-const STATUS_VALUES = ["Planning", "Started", "In Progress", "On Hold", "Delayed", "Completed"];
+const STATUS_VALUES = ["Active", "Completed", "On Hold", "Delayed"];
 
 export default function EditSiteScreen() {
   const { theme, isDark } = useTheme();

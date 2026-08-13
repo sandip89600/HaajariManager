@@ -41,6 +41,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { translateWorkerName } from "@/utils/transliteration";
 import { appContextTracker } from "@/utils/appContextTracker";
 import { useAuth } from "@/hooks/useAuth";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useTour } from "@/contexts/TourContext";
 import { Language, languageNames } from "@/constants/i18n";
 import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
@@ -175,6 +176,8 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
   const { theme, themeMode, setThemeMode, isDark } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const { user: authUser, logout, isGuest } = useAuth();
+  const { getFeatureStatus, refetch: refetchAppConfig } = useFeatureAccess();
+  const paymentHandoverStatus = getFeatureStatus("paymentHandover");
 
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -259,6 +262,7 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
       loadNotifSettings();
       loadVoiceSettings();
       loadMetrics();
+      refetchAppConfig().catch(() => {});
       appContextTracker.setContext({
         currentScreen: "Settings",
       });
@@ -1136,6 +1140,14 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                     theme={theme}
                   />
                   <SettingRow
+                    icon="user-plus"
+                    iconColor="#10B981"
+                    label="Create Supervisor"
+                    sublabel="Register a new supervisor account"
+                    onPress={() => navigation.navigate("SupervisorManagement", { action: "create" })}
+                    theme={theme}
+                  />
+                  <SettingRow
                     icon="grid"
                     iconColor="#FF5722"
                     label={t.settings.siteManagement}
@@ -1149,9 +1161,20 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                     label="Enterprise Workspace"
                     sublabel="Collaborate on documents, approvals, activity logs & backups"
                     onPress={() => navigation.navigate("EnterpriseCollaboration")}
-                    isLast
+                    isLast={!paymentHandoverStatus.enabled}
                     theme={theme}
                   />
+                  {paymentHandoverStatus.enabled && (
+                    <SettingRow
+                      icon="dollar-sign"
+                      iconColor="#00E676"
+                      label="Payment Handover"
+                      sublabel="Configure representatives and receipt proofs"
+                      onPress={() => navigation.navigate("PaymentHandoverMenu")}
+                      isLast={true}
+                      theme={theme}
+                    />
+                  )}
                 </>
               )}
 
@@ -1195,9 +1218,20 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                     label="Enterprise Workspace"
                     sublabel="Collaborate on documents, approvals, activity logs & backups"
                     onPress={() => navigation.navigate("EnterpriseCollaboration")}
-                    isLast
+                    isLast={!paymentHandoverStatus.enabled}
                     theme={theme}
                   />
+                  {paymentHandoverStatus.enabled && (
+                    <SettingRow
+                      icon="dollar-sign"
+                      iconColor="#00E676"
+                      label="Payment Handover"
+                      sublabel="Configure representatives and receipt proofs"
+                      onPress={() => navigation.navigate("PaymentHandoverMenu")}
+                      isLast={true}
+                      theme={theme}
+                    />
+                  )}
                 </>
               )}
 

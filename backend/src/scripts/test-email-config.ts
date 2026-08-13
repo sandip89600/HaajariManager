@@ -5,8 +5,6 @@ dotenv.config({ path: path.join(__dirname, "../../.env") });
 import {
   validateEmailConfig,
   sendWelcomeEmail,
-  sendVerificationEmail,
-  sendResendVerificationEmail,
   sendPasswordResetEmail,
   sendPasswordResetSuccessEmail,
 } from "../utils/mail";
@@ -31,23 +29,9 @@ async function testAllEmailFlows() {
   const welcomeOk = await sendWelcomeEmail(recipient, recipientName);
   console.log(`Result: ${welcomeOk ? "SUCCESS ✅" : "FAILED ❌"}\n`);
 
-  // 3. Test Email Verification
+  // 3. Test Forgot Password
   console.log("----------------------------------------------------------");
-  console.log("TEST 2: Email Verification Email");
-  console.log("----------------------------------------------------------");
-  const verifyOk = await sendVerificationEmail(recipient, recipientName, "sample_verify_token_123");
-  console.log(`Result: ${verifyOk ? "SUCCESS ✅" : "FAILED ❌"}\n`);
-
-  // 4. Test Resend Verification
-  console.log("----------------------------------------------------------");
-  console.log("TEST 3: Resend Verification Email");
-  console.log("----------------------------------------------------------");
-  const resendOk = await sendResendVerificationEmail(recipient, recipientName, "sample_resend_token_456");
-  console.log(`Result: ${resendOk ? "SUCCESS ✅" : "FAILED ❌"}\n`);
-
-  // 5. Test Forgot Password
-  console.log("----------------------------------------------------------");
-  console.log("TEST 4: Forgot Password Reset Email");
+  console.log("TEST 2: Forgot Password Reset Email");
   console.log("----------------------------------------------------------");
   const resetOk = await sendPasswordResetEmail(recipient, recipientName, "sample_reset_token_789");
   console.log(`Result: ${resetOk ? "SUCCESS ✅" : "FAILED ❌"}\n`);

@@ -23,6 +23,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Avatar } from "@/components/ui/Avatar";
+import { AttendanceEditorModal } from "@/components/AttendanceEditorModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
@@ -73,10 +74,6 @@ export default function AttendanceScreen() {
   const [cellModalVisible, setCellModalVisible] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [selectedDayNum, setSelectedDayNum] = useState<number>(1);
-  const [modalStatus, setModalStatus] = useState<AttendanceValue | "">("");
-  const [modalAdvance, setModalAdvance] = useState("");
-  const [modalOvertimeHours, setModalOvertimeHours] = useState("");
-  const [modalOvertimeWage, setModalOvertimeWage] = useState("");
 
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth(); // 0-indexed
@@ -246,75 +243,46 @@ export default function AttendanceScreen() {
   // Open detailed popup modal
   const openDetailedModal = (worker: Worker, dayNum: number, currentVal: AttendanceValue | null) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    const rec = attendance.find(
-      (r) => r.workerId === worker.id && r.year === year && r.month === month && r.day === dayNum
-    );
-
     setSelectedWorker(worker);
     setSelectedDayNum(dayNum);
-    setModalStatus(currentVal ?? "");
-    setModalAdvance(rec?.customWage ? String(rec.customWage) : "");
-    setModalOvertimeHours(rec?.overtimeHours ? String(rec.overtimeHours) : "");
-    setModalOvertimeWage(rec?.overtimeWage ? String(rec.overtimeWage) : "");
     setCellModalVisible(true);
   };
 
-  // Save detailed record
-  const saveDetailedRecord = async () => {
-    if (!selectedWorker) return;
+  const handleSaveDetailedRecord = async (record: AttendanceRecord) => {
     try {
-      const dailyRate = selectedWorker.dailyRate ?? 0;
-      const adv = modalAdvance ? parseFloat(modalAdvance) : undefined;
-      const otH = modalOvertimeHours ? parseFloat(modalOvertimeHours) : undefined;
-      const otW = modalOvertimeWage ? parseFloat(modalOvertimeWage) : undefined;
-
-      let finalPay = 0;
-      if (modalStatus === "P" || modalStatus === "OT") finalPay = dailyRate;
-      else if (modalStatus === "H") finalPay = dailyRate / 2;
-
-      if (modalStatus === "") {
-        await deleteAttendanceLocally(selectedWorker.id, year, month, selectedDayNum);
-        setAttendance((prev) =>
-          prev.filter(
-            (r) => !(r.workerId === selectedWorker.id && r.year === year && r.month === month && r.day === selectedDayNum)
-          )
+      await storage.setAttendanceRecord(record);
+      setAttendance((prev) => {
+        const idx = prev.findIndex(
+          (r) => r.workerId === record.workerId && r.year === record.year && r.month === record.month && r.day === record.day
         );
-      } else {
-        const record: AttendanceRecord = {
-          workerId: selectedWorker.id,
-          projectId: activeSite?.id || undefined,
-          year,
-          month,
-          day: selectedDayNum,
-          value: modalStatus as AttendanceValue,
-          dailyRate,
-          finalPay,
-          customWage: adv,
-          overtimeHours: otH,
-          overtimeWage: otW,
-          timestamp: Date.now(),
-        };
-        await storage.setAttendanceRecord(record);
-
-        setAttendance((prev) => {
-          const idx = prev.findIndex(
-            (r) => r.workerId === selectedWorker.id && r.year === year && r.month === month && r.day === selectedDayNum
-          );
-          const updated = [...prev];
-          if (idx !== -1) {
-            updated[idx] = record;
-          } else {
-            updated.push(record);
-          }
-          return updated;
-        });
-      }
-
+        const updated = [...prev];
+        if (idx !== -1) {
+          updated[idx] = record;
+        } else {
+          updated.push(record);
+        }
+        return updated;
+      });
       setCellModalVisible(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn("Failed to save detailed cell info:", e);
+    }
+  };
+
+  const handleClearDetailedRecord = async () => {
+    if (!selectedWorker) return;
+    try {
+      await deleteAttendanceLocally(selectedWorker.id, year, month, selectedDayNum);
+      setAttendance((prev) =>
+        prev.filter(
+          (r) => !(r.workerId === selectedWorker.id && r.year === year && r.month === month && r.day === selectedDayNum)
+        )
+      );
+      setCellModalVisible(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      console.warn("Failed to clear attendance:", e);
     }
   };
 
@@ -471,7 +439,7 @@ export default function AttendanceScreen() {
 
                       if (value === "P") { bg = "#22C55E"; textLabel = "P"; boxBorder = "#22C55E"; }
                       else if (value === "A") { bg = "#EF4444"; textLabel = "A"; boxBorder = "#EF4444"; }
-                      else if (value === "H") { bg = "#F59E0B"; textLabel = "½"; boxBorder = "#F59E0B"; }
+                      else if (value === "H") { bg = "#F59E0B"; textLabel = "1/2"; boxBorder = "#F59E0B"; }
                       else if (value === "OT") { bg = "#A855F7"; textLabel = "OT"; boxBorder = "#A855F7"; }
 
                       return (
@@ -560,148 +528,27 @@ export default function AttendanceScreen() {
         </View>
       </Modal>
 
-      {/* ── Cell Detailed Marks Modal (Image 2) ─────────────────────── */}
-      <Modal
+      {/* ── Unified Attendance Editor Modal ─────────────────────────── */}
+      <AttendanceEditorModal
         visible={cellModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setCellModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBgPress} onPress={() => setCellModalVisible(false)} />
-          <View style={[styles.detailsModalCard, { backgroundColor: isDark ? "#121B2A" : "#FFFFFF" }]}>
-            <View style={styles.detailsModalHeader}>
-              <View>
-                <ThemedText style={styles.detailsModalTitle}>{selectedWorker?.name}</ThemedText>
-                <Text style={[styles.detailsModalSub, { color: isDark ? "#94A3B8" : "#64748B" }]}>
-                  Choose status and configure special parameters for today
-                </Text>
-              </View>
-              <Pressable onPress={() => setCellModalVisible(false)} style={styles.detailsCloseBtn}>
-                <Feather name="x" size={20} color={isDark ? "#FFFFFF" : "#1E293B"} />
-              </Pressable>
-            </View>
-
-            {/* Status options row */}
-            <Text style={[styles.fieldLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>Status</Text>
-            <View style={styles.statusButtonsRow}>
-              {[
-                { val: "P", label: "Present", color: "#10B981" },
-                { val: "A", label: "Absent", color: "#EF4444" },
-                { val: "H", label: "Half-Day", color: "#F59E0B" },
-                { val: "OT", label: "Overtime", color: "#A855F7" },
-                { val: "", label: "Unmark", color: "#64748B" },
-              ].map((opt) => {
-                const isActive = modalStatus === opt.val;
-                return (
-                  <Pressable
-                    key={opt.label}
-                    onPress={() => setModalStatus(opt.val as any)}
-                    style={[
-                      styles.statusToggleBtn,
-                      {
-                        backgroundColor: isDark ? "#1E293B" : "#F8FAFC",
-                        borderColor: isActive ? opt.color : borderCol,
-                        borderWidth: isActive ? 2 : 1,
-                      }
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusToggleText,
-                        {
-                          color: isActive ? opt.color : (isDark ? "#94A3B8" : "#64748B"),
-                          fontWeight: isActive ? "700" : "500",
-                        }
-                      ]}
-                    >
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {/* Advance / Custom Wage (₹) */}
-            <Text style={[styles.fieldLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>
-              Advance / Custom Wage (₹)
-            </Text>
-            <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
-              <Text style={[styles.currencyPrefix, { color: isDark ? "#94A3B8" : "#64748B" }]}>₹</Text>
-              <TextInput
-                keyboardType="numeric"
-                placeholder="e.g. 100 (optional)"
-                placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
-                style={[styles.modalInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
-                value={modalAdvance}
-                onChangeText={setModalAdvance}
-              />
-            </View>
-
-            {/* Overtime Wage & Hours (side-by-side columns) */}
-            <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.fieldLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>OT Wage (₹)</Text>
-                <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
-                  <Text style={[styles.currencyPrefix, { color: isDark ? "#94A3B8" : "#64748B" }]}>₹</Text>
-                  <TextInput
-                    keyboardType="numeric"
-                    placeholder="OT amount"
-                    placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
-                    style={[styles.modalInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
-                    value={modalOvertimeWage}
-                    onChangeText={setModalOvertimeWage}
-                  />
-                </View>
-              </View>
-              
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.fieldLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>OT Hours</Text>
-                <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
-                  <TextInput
-                    keyboardType="numeric"
-                    placeholder="Hours"
-                    placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
-                    style={[styles.modalInput, { color: isDark ? "#FFFFFF" : "#1E293B", paddingLeft: 12 }]}
-                    value={modalOvertimeHours}
-                    onChangeText={setModalOvertimeHours}
-                  />
-                </View>
-              </View>
-            </View>
-
-            {/* Cancel / Save CTA Row */}
-            <View style={styles.ctaButtonRow}>
-              <Pressable
-                onPress={() => setCellModalVisible(false)}
-                style={({ pressed }) => [
-                  styles.cancelBtn,
-                  { borderColor: borderCol, opacity: pressed ? 0.8 : 1 }
-                ]}
-              >
-                <Text style={[styles.cancelBtnText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>Cancel</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={saveDetailedRecord}
-                style={({ pressed }) => [
-                  styles.saveBtn,
-                  { opacity: pressed ? 0.9 : 1 }
-                ]}
-              >
-                <LinearGradient
-                  colors={["#2563EB", "#1D4ED8"]}
-                  style={styles.saveBtnGrad}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Text style={styles.saveBtnText}>Save Attendance</Text>
-                </LinearGradient>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        worker={selectedWorker}
+        date={new Date(year, month, selectedDayNum)}
+        projectId={activeSite?.id}
+        initialRecord={
+          selectedWorker
+            ? attendance.find(
+                (r) =>
+                  r.workerId === selectedWorker.id &&
+                  r.year === year &&
+                  r.month === month &&
+                  r.day === selectedDayNum
+              ) || null
+            : null
+        }
+        onClose={() => setCellModalVisible(false)}
+        onSave={handleSaveDetailedRecord}
+        onClear={handleClearDetailedRecord}
+      />
     </View>
   );
 }

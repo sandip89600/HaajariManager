@@ -38,6 +38,7 @@ import {
   getAllSupportTicketsAdmin,
   getAllDevicesAdmin,
 } from "../controllers/adminController";
+import { getSubscriptionConfig, updateSubscriptionConfig } from "../controllers/adminConfigController";
 import { authenticateJWT, requireAdmin } from "../middleware/auth";
 
 const router = Router();
@@ -102,5 +103,9 @@ router.get("/notifications", getAllNotificationsAdmin as any);
 router.get("/subscriptions", getAllSubscriptionsAdmin as any);
 router.get("/support", getAllSupportTicketsAdmin as any);
 router.get("/devices", getAllDevicesAdmin as any);
+
+// Subscription / Feature Configuration
+router.get("/subscription-config", getSubscriptionConfig as any);
+router.put("/subscription-config", updateSubscriptionConfig as any);
 
 export default router;

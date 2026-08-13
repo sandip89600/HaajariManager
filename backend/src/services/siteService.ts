@@ -47,7 +47,7 @@ export class SiteService {
       _id: new mongoose.Types.ObjectId(siteId),
       tenantId: new mongoose.Types.ObjectId(tenantId),
       isDeleted: false
-    }).populate("supervisor", "name email phone role");
+    }).populate("supervisor", "name email phone role").populate("lastUpdatedBy", "name role");
   }
 
   /**
@@ -186,7 +186,8 @@ export class SiteService {
         .sort(sortObj)
         .skip(skip)
         .limit(limit)
-        .populate("supervisor", "name email phone role"),
+        .populate("supervisor", "name email phone role")
+        .populate("lastUpdatedBy", "name role"),
       Site.countDocuments(query)
     ]);
 

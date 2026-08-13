@@ -33,6 +33,7 @@ import EnterpriseCollaborationScreen from "@/screens/EnterpriseCollaborationScre
 import SubscriptionScreen from "@/screens/SubscriptionScreen";
 import PaymentStatusScreen from "@/screens/PaymentStatusScreen";
 import BillingHistoryScreen from "@/screens/BillingHistoryScreen";
+import PaymentHandoverMenuScreen from "@/screens/PaymentHandoverMenuScreen";
 
 export type MainTabParamList = {
   AttendanceTab: undefined;
@@ -68,6 +69,7 @@ export type RootStackParamList = {
   Subscription: undefined;
   PaymentStatus: { status: "success" | "failed" | "pending"; planName?: string; transactionId?: string };
   BillingHistory: undefined;
+  PaymentHandoverMenu: undefined;
 
   // Root stack fallbacks
   Dashboard: undefined;
@@ -346,6 +348,13 @@ export default function MainTabNavigator() {
       <Stack.Screen
         name="BillingHistory"
         component={BillingHistoryScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="PaymentHandoverMenu"
+        component={PaymentHandoverMenuScreen}
         options={{
           headerShown: false,
         }}

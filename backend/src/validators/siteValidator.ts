@@ -58,7 +58,7 @@ export const validateUpdateSite = (req: Request, res: Response, next: NextFuncti
   }
 
   if (status !== undefined) {
-    const validStatuses = ["Planning", "Started", "In Progress", "On Hold", "Delayed", "Completed"];
+    const validStatuses = ["Planning", "Started", "In Progress", "On Hold", "Delayed", "Completed", "Active"];
     if (!validStatuses.includes(status)) {
       errors.push(`Status must be one of: ${validStatuses.join(", ")}`);
     }

@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { User, Tenant, AuditLog, Worker, Attendance, Payment, WageHistory, Project, OtpCode, RecoverySession } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
-import { sendVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail, sendResendVerificationEmail, sendPasswordResetSuccessEmail } from "../utils/mail";
+import { sendPasswordResetEmail, sendWelcomeEmail, sendPasswordResetSuccessEmail } from "../utils/mail";
 import { broadcastAdminActivity } from "../utils/socket";
 import { logActivity } from "../services/activityLogger";
 import { logRecoveryEvent } from "../services/recoveryAuditService";
@@ -60,7 +60,7 @@ export const ensureSinglePermanentAdmin = async () => {
         role: "admin",
         isActive: true,
         isVerified: true,
-        isEmailVerified: true,
+        isPhoneVerified: true,
         status: "active",
         refreshTokens: [],
       });
@@ -74,7 +74,7 @@ export const ensureSinglePermanentAdmin = async () => {
       adminUser.role = "admin";
       adminUser.isActive = true;
       adminUser.isVerified = true;
-      adminUser.isEmailVerified = true;
+      adminUser.isPhoneVerified = true;
       adminUser.status = "active";
       adminUser.tenantId = tenant._id;
       adminUser.passwordHash = defaultPasswordHash;
@@ -380,9 +380,6 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const rawVerificationToken = crypto.randomBytes(32).toString("hex");
-    const verificationTokenHash = crypto.createHash("sha256").update(rawVerificationToken).digest("hex");
-    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     const isAdmin = role === "admin";
 
     const user = new User({
@@ -395,14 +392,7 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
       role: role || "contractor",
       isActive: true,
       isVerified: true,
-      isEmailVerified: isAdmin ? true : false,
-      isPhoneVerified: false,
-      emailVerificationTokenHash: isAdmin ? undefined : verificationTokenHash,
-      emailVerificationExpires: isAdmin ? undefined : verificationTokenExpires,
-      emailVerificationRequestedAt: isAdmin ? undefined : new Date(),
-      verificationToken: isAdmin ? undefined : rawVerificationToken,
-      verificationTokenExpires: isAdmin ? undefined : verificationTokenExpires,
-      lastVerificationEmailSentAt: isAdmin ? undefined : new Date(),
+      isPhoneVerified: isAdmin ? true : false,
       status: "active",
       refreshTokens: [],
     });
@@ -445,15 +435,8 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
 
     console.log("[Registration Flow] User saved successfully. ID:", user._id.toString());
 
-    // Send Verification Email and Welcome Email
-    if (!isAdmin && emailClean) {
-      sendVerificationEmail(emailClean, user.name, rawVerificationToken).catch((e) =>
-        console.error("[Email Error] Failed to send verification email:", e)
-      );
-      sendWelcomeEmail(emailClean, user.name).catch((e) =>
-        console.error("[Email Error] Failed to send welcome email:", e)
-      );
-    } else if (emailClean) {
+    // Send Welcome Email if email was optionally provided
+    if (emailClean) {
       sendWelcomeEmail(emailClean, user.name).catch((e) =>
         console.error("[Email Error] Failed to send welcome email:", e)
       );
@@ -566,7 +549,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       adminUser.lastLogin = new Date();
       adminUser.isActive = true;
       adminUser.isVerified = true;
-      adminUser.isEmailVerified = true;
+      adminUser.isPhoneVerified = true;
       adminUser.status = "active";
       await adminUser.save();
 
@@ -624,7 +607,17 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     if (!user.isActive) {
-      return res.status(403).json({ error: "Account has been deactivated" });
+      return res.status(403).json({
+        error: "Account has been deactivated. Please contact support.",
+        accountStatus: user.status
+      });
+    }
+
+    if (user.status === "suspended") {
+      return res.status(403).json({
+        error: "Your account is temporarily suspended. Please contact support.",
+        accountStatus: "suspended"
+      });
     }
 
     // OTP or Password validation
@@ -701,23 +694,20 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       }
     }
 
-    user.lastLogin = new Date();
+    // Capture device & session information
+    const userAgentHeader = req.headers["user-agent"] || "";
+    const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "127.0.0.1";
+    const deviceId = (req.headers["x-device-id"] as string) || (req.body.deviceId as string) || `dev_${crypto.randomBytes(8).toString("hex")}`;
+    const { os, browser, deviceName } = parseUserAgent(userAgentHeader);
+    const location = (req.headers["x-client-geo"] as string) || "Unknown Location";
 
-    // Session Tracking & Login History
-    const userAgent = req.headers["user-agent"];
-    const ipAddress = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1";
-    const { os, browser, deviceName } = parseUserAgent(userAgent);
-    
-    const cities = ["Nashik, India", "Pune, India", "Mumbai, India", "Nagpur, India", "Bangalore, India"];
-    const location = cities[Math.floor(Math.random() * cities.length)];
-    const deviceId = req.body.deviceId || crypto.createHash("md5").update(deviceName + os + ipAddress).digest("hex");
-
+    // Register or update trusted device
     if (user.trustedDevices) {
-      const idx = user.trustedDevices.findIndex(d => d.deviceId === deviceId);
-      if (idx >= 0) {
-        user.trustedDevices[idx].lastActiveAt = new Date();
-        user.trustedDevices[idx].ipAddress = ipAddress;
-        user.trustedDevices[idx].location = location;
+      const existingDeviceIndex = user.trustedDevices.findIndex(d => d.deviceId === deviceId);
+      if (existingDeviceIndex >= 0) {
+        user.trustedDevices[existingDeviceIndex].lastActiveAt = new Date();
+        user.trustedDevices[existingDeviceIndex].ipAddress = ipAddress;
+        user.trustedDevices[existingDeviceIndex].location = location;
       } else {
         user.trustedDevices.push({
           deviceId,
@@ -768,13 +758,13 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       }];
     }
     
+    user.lastLogin = new Date();
     const token = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
     user.refreshTokens = [...(user.refreshTokens || []), refreshToken].slice(-5);
     await user.save();
 
-    // Log login event
     await logActivity({
       req,
       action: "USER_LOGIN",
@@ -802,7 +792,6 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
         role: user.role,
         tenantId: user.tenantId,
         isVerified: user.isVerified,
-        isEmailVerified: !!user.isEmailVerified,
         isPhoneVerified: !!user.isPhoneVerified,
         plan: tenant?.plan || "free",
         companyName: tenant?.name || "",
@@ -832,229 +821,17 @@ export const refresh = async (req: AuthenticatedRequest, res: Response) => {
     jwt.verify(
       refreshToken,
       getJwtRefreshSecret(),
-      async (err: any, decoded: any) => {
-        if (err || decoded.id !== user._id.toString()) {
-          // Token is expired or invalid. Remove it from user's active tokens atomically.
-          await User.findByIdAndUpdate(user._id, {
-            $pull: { refreshTokens: refreshToken }
-          });
+      (err: any, decoded: any) => {
+        if (err) {
           return res.status(403).json({ error: "Invalid or expired refresh token" });
         }
 
         const newAccessToken = generateAccessToken(user);
-        const newRefreshToken = generateRefreshToken(user);
-
-        // Rotate refresh token atomically using findOneAndUpdate to prevent race conditions
-        const updatedUser = await User.findOneAndUpdate(
-          { _id: user._id, refreshTokens: refreshToken },
-          {
-            $pull: { refreshTokens: refreshToken }
-          },
-          { new: true }
-        );
-
-        if (!updatedUser) {
-          // The token has already been rotated by a concurrent request
-          return res.status(403).json({ error: "Refresh token already used" });
-        }
-
-        // Push the new refresh token atomically
-        await User.findByIdAndUpdate(user._id, {
-          $push: { refreshTokens: newRefreshToken }
-        });
-
-        res.json({
-          token: newAccessToken,
-          refreshToken: newRefreshToken,
-        });
+        res.json({ token: newAccessToken });
       }
     );
   } catch (error: any) {
     res.status(500).json({ error: error.message });
-  }
-};
-
-// Helper to render responsive verification HTML page
-const renderVerificationHtml = (isSuccess: boolean, message: string) => `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${isSuccess ? "Email Verified Successfully" : "Verification Failed"} - Haajari Manager</title>
-  <style>
-    body { margin: 0; padding: 0; background: #0B0F17; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; color: #E2E8F0; }
-    .card { background: #111827; border: 1px solid #1E293B; border-radius: 20px; padding: 40px; max-width: 460px; width: 90%; text-align: center; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); }
-    .icon-badge { width: 70px; height: 70px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; font-size: 32px; background: ${isSuccess ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)"}; border: 1px solid ${isSuccess ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"}; }
-    h1 { color: #FFFFFF; font-size: 24px; margin: 0 0 12px; font-weight: 700; }
-    p { color: #94A3B8; font-size: 15px; line-height: 1.6; margin: 0 0 28px; }
-    .btn { display: inline-block; background: linear-gradient(135deg, #FF6B35 0%, #EA580C 100%); color: #FFFFFF; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-size: 15px; box-shadow: 0 4px 14px rgba(234, 88, 12, 0.4); }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="icon-badge">${isSuccess ? "✅" : "❌"}</div>
-    <h1>${isSuccess ? "Email Verified Successfully" : "Verification Failed"}</h1>
-    <p>${message}</p>
-    ${isSuccess ? `<a href="haajari://login" class="btn">Continue to Login</a>` : `<a href="haajari://login" class="btn">Back to Login</a>`}
-  </div>
-</body>
-</html>
-`;
-
-export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const token = ((req.query.token as string) || (req.params.token as string) || "").trim();
-
-    if (!token) {
-      if (req.accepts("html") && !req.xhr) {
-        return res.status(400).send(renderVerificationHtml(false, "Verification token is missing. Please check your verification link."));
-      }
-      return res.status(400).json({ success: false, message: "Verification token is required" });
-    }
-
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-
-    // 1. Check if token matches and is already verified
-    const alreadyVerifiedUser = await User.findOne({
-      $or: [
-        { emailVerificationTokenHash: tokenHash },
-        { verificationToken: token }
-      ],
-      isEmailVerified: true
-    });
-
-    if (alreadyVerifiedUser) {
-      if (req.accepts("html") && !req.xhr) {
-        return res.send(renderVerificationHtml(true, "Your email is already verified. You can log in directly."));
-      }
-      return res.status(200).json({ success: true, message: "Your email is already verified." });
-    }
-
-    // 2. Find matching unverified user with active token
-    const user = await User.findOne({
-      $or: [
-        { emailVerificationTokenHash: tokenHash, emailVerificationExpires: { $gt: new Date() } },
-        { verificationToken: token, verificationTokenExpires: { $gt: new Date() } }
-      ]
-    });
-
-    if (!user) {
-      // Check if expired
-      const expiredUser = await User.findOne({
-        $or: [
-          { emailVerificationTokenHash: tokenHash },
-          { verificationToken: token }
-        ]
-      });
-
-      if (expiredUser) {
-        if (req.accepts("html") && !req.xhr) {
-          return res.status(400).send(renderVerificationHtml(false, "This verification link has expired (24-hour limit). Please request a new verification email from the app."));
-        }
-        return res.status(400).json({ success: false, message: "This verification link has expired. Please request a new verification email." });
-      }
-
-      if (req.accepts("html") && !req.xhr) {
-        return res.status(400).send(renderVerificationHtml(false, "Invalid verification link or your email is already verified."));
-      }
-      return res.status(400).json({ success: false, message: "Invalid verification link or your email is already verified." });
-    }
-
-    user.isVerified = true;
-    user.isEmailVerified = true;
-    user.status = "active";
-    user.emailVerifiedAt = new Date();
-    user.emailVerificationTokenHash = undefined;
-    user.emailVerificationExpires = undefined;
-    user.verificationToken = undefined;
-    user.verificationTokenExpires = undefined;
-    await user.save();
-
-    await logActivity({
-      req,
-      action: "EMAIL_VERIFIED",
-      targetType: "User",
-      targetId: user._id.toString(),
-      userId: user._id.toString(),
-      tenantId: user.tenantId?.toString(),
-      userName: user.name,
-      role: user.role
-    });
-
-    if (req.accepts("html") && !req.xhr) {
-      return res.send(renderVerificationHtml(true, "Your email address has been verified successfully. Your account is fully active."));
-    }
-
-    res.json({ success: true, message: "Email verified successfully. Your account has been activated." });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-export const resendVerification = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { email, phone, username, identifier } = req.body;
-    let input = (identifier || email || phone || username || "").trim();
-
-    let user: any = null;
-    if (req.user?.id) {
-      user = await User.findById(req.user.id);
-    } else if (input) {
-      const inputCleaned = input.toLowerCase();
-      const phoneStripped = input.replace(/\s+/g, "");
-      user = await User.findOne({
-        $or: [
-          { email: inputCleaned },
-          { username: inputCleaned },
-          { phone: phoneStripped },
-          { phone: input }
-        ]
-      });
-    }
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: "Account not found." });
-    }
-
-    if (user.isEmailVerified) {
-      return res.status(200).json({ success: true, message: "Your email is already verified." });
-    }
-
-    if (!user.email) {
-      return res.status(400).json({ success: false, message: "No email address registered for this account." });
-    }
-
-    // 60 seconds rate-limit cooldown
-    if (user.lastVerificationEmailSentAt) {
-      const timeSinceLast = Date.now() - user.lastVerificationEmailSentAt.getTime();
-      if (timeSinceLast < 60000) {
-        const remainingSec = Math.ceil((60000 - timeSinceLast) / 1000);
-        return res.status(429).json({
-          success: false,
-          message: `Please wait ${remainingSec} seconds before requesting another verification email.`,
-          retryAfter: remainingSec,
-        });
-      }
-    }
-
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
-    user.emailVerificationTokenHash = tokenHash;
-    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-    user.verificationToken = rawToken;
-    user.verificationTokenExpires = user.emailVerificationExpires;
-    user.lastVerificationEmailSentAt = new Date();
-    await user.save();
-
-    const emailSent = await sendResendVerificationEmail(user.email, user.name, rawToken);
-    if (!emailSent) {
-      return res.status(500).json({ success: false, message: "Unable to send the verification email right now. Please try again." });
-    }
-
-    res.json({ success: true, message: `Verification email sent to ${user.email}.` });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -1188,8 +965,7 @@ export const verifyPhoneOtp = async (req: AuthenticatedRequest, res: Response) =
       message: "Mobile number verified successfully.",
       user: {
         id: user._id,
-        isPhoneVerified: true,
-        isEmailVerified: !!user.isEmailVerified
+        isPhoneVerified: true
       }
     });
   } catch (error: any) {

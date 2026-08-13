@@ -140,6 +140,11 @@ function mapSite(doc: any): Site {
     isDeleted: doc.isDeleted || false,
     createdAt: doc.createdAt || "",
     updatedAt: doc.updatedAt || "",
+    currentWork: doc.currentWork,
+    currentProgress: doc.currentProgress,
+    lastUpdateAt: doc.lastUpdateAt,
+    lastUpdatedBy: doc.lastUpdatedBy,
+    lastUpdateType: doc.lastUpdateType,
   };
 }
 
@@ -189,7 +194,6 @@ export interface AuthData {
   phone?: string;
   email?: string;
   username?: string;
-  isEmailVerified?: boolean;
   isPhoneVerified?: boolean;
   rememberMe: boolean;
   token?: string;
@@ -216,7 +220,6 @@ export interface User {
   role: "contractor" | "builder" | "supervisor" | "admin";
   isActive: boolean;
   isVerified?: boolean;
-  isEmailVerified?: boolean;
   isPhoneVerified?: boolean;
   createdAt: number;
   lastLogin?: number;
@@ -262,7 +265,7 @@ export interface Site {
   address: string;
   startDate: string;
   description?: string;
-  status: "Planning" | "Started" | "In Progress" | "On Hold" | "Delayed" | "Completed";
+  status: "Planning" | "Started" | "In Progress" | "On Hold" | "Delayed" | "Completed" | "Active";
   supervisor?: {
     _id: string;
     name: string;
@@ -275,6 +278,17 @@ export interface Site {
   isDeleted?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  
+  // Cache fields
+  currentWork?: string;
+  currentProgress?: number;
+  lastUpdateAt?: string;
+  lastUpdatedBy?: {
+    _id: string;
+    name: string;
+    role?: string;
+  } | string;
+  lastUpdateType?: string;
 }
 
 export interface Worker {
@@ -728,6 +742,34 @@ export const storage = {
       }
     } catch (e) {
       console.warn("Failed to get site details from backend", e);
+    }
+    return null;
+  },
+
+  async getSiteUpdates(siteId: string): Promise<any[]> {
+    try {
+      const res = await authenticatedFetch(`${API_URL}/sites/${siteId}/updates`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn("Failed to get site updates from backend", e);
+    }
+    return [];
+  },
+
+  async createSiteUpdate(siteId: string, updateData: any): Promise<any | null> {
+    try {
+      const res = await authenticatedFetch(`${API_URL}/sites/${siteId}/updates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updateData),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn("Failed to create site update on backend", e);
     }
     return null;
   },

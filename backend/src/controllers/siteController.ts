@@ -1,7 +1,7 @@
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { SiteService } from "../services/siteService";
-import { AuditLog, Site, Worker, Attendance } from "../models";
+import { AuditLog, Site, Worker, Attendance, SiteUpdate, Expense, WorkPhoto } from "../models";
 import { broadcastAdminActivity } from "../utils/socket";
 import { logActivity } from "../services/activityLogger";
 
@@ -224,8 +224,8 @@ export const getSiteDashboardStats = async (req: AuthenticatedRequest, res: Resp
     const totalSites = sites.length;
     
     // Status counts
-    const activeSites = sites.filter(s => ["Started", "In Progress"].includes(s.status)).length;
-    const sitesInProgress = sites.filter(s => s.status === "In Progress").length;
+    const activeSites = sites.filter(s => ["Started", "In Progress", "Active"].includes(s.status)).length;
+    const sitesInProgress = sites.filter(s => ["In Progress", "Active"].includes(s.status)).length;
     const delayedSites = sites.filter(s => s.status === "Delayed").length;
     const completedSites = sites.filter(s => s.status === "Completed").length;
 
@@ -253,6 +253,159 @@ export const getSiteDashboardStats = async (req: AuthenticatedRequest, res: Resp
       delayedSites,
       completedSites
     });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Get site updates history / timeline
+ */
+export const getSiteUpdates = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    const { siteId } = req.params;
+
+    if (!tenantId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const updates = await SiteUpdate.find({ tenantId, siteId })
+      .populate("updatedBy", "name role")
+      .sort({ timestamp: -1 });
+
+    return res.json(updates);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Create a new site update (Work, Material, Expense, Photos, GPS, Issues)
+ */
+export const createSiteUpdate = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    const userId = req.user?.id;
+    const { siteId } = req.params;
+
+    if (!tenantId || !userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const {
+      type,
+      workType,
+      progressPercent,
+      workNotes,
+      materialName,
+      materialQty,
+      materialUnit,
+      materialNotes,
+      expenseAmount,
+      expenseCategory,
+      expenseNotes,
+      expenseDate,
+      photoUris,
+      location,
+      issueDescription,
+      issuePriority,
+      issueStatus
+    } = req.body;
+
+    if (!type) {
+      return res.status(400).json({ error: "Update type is required" });
+    }
+
+    const site = await Site.findOne({ _id: siteId, tenantId, isDeleted: false });
+    if (!site) {
+      return res.status(404).json({ error: "Site not found" });
+    }
+
+    const update = new SiteUpdate({
+      tenantId,
+      siteId,
+      updatedBy: userId,
+      type,
+      workType,
+      progressPercent,
+      workNotes,
+      materialName,
+      materialQty,
+      materialUnit,
+      materialNotes,
+      expenseAmount,
+      expenseCategory,
+      expenseNotes,
+      expenseDate: expenseDate ? new Date(expenseDate) : undefined,
+      photoUris,
+      location,
+      issueDescription,
+      issuePriority,
+      issueStatus,
+      timestamp: new Date()
+    });
+
+    await update.save();
+
+    // Cache latest status on the Site document
+    const siteUpdates: any = {
+      lastUpdateAt: update.timestamp,
+      lastUpdatedBy: userId,
+      lastUpdateType: type
+    };
+
+    if (type === "work") {
+      if (workType) siteUpdates.currentWork = workType;
+      if (progressPercent !== undefined) siteUpdates.currentProgress = progressPercent;
+    }
+
+    await Site.updateOne({ _id: siteId }, { $set: siteUpdates });
+
+    // Save copy to existing database models if applicable
+    if (type === "expense" && expenseAmount !== undefined) {
+      const dbExpense = new Expense({
+        tenantId,
+        siteId,
+        type: expenseCategory === "Labour" ? "labour" : expenseCategory === "Material" ? "material" : "other",
+        amount: expenseAmount,
+        date: expenseDate ? new Date(expenseDate) : new Date(),
+        description: expenseNotes || `Site Update Expense: ${expenseCategory}`,
+        recordedBy: userId
+      });
+      await dbExpense.save();
+    }
+
+    if (type === "photo" && photoUris && photoUris.length > 0) {
+      for (const uri of photoUris) {
+        const dbPhoto = new WorkPhoto({
+          tenantId,
+          siteId,
+          photoType: "after",
+          photoUri: uri,
+          location: {
+            latitude: location?.latitude || 0,
+            longitude: location?.longitude || 0
+          },
+          timestamp: new Date()
+        });
+        await dbPhoto.save();
+      }
+    }
+
+    // Log Activity
+    await logActivity({
+      req,
+      action: "SITE_UPDATE_CREATED",
+      targetType: "SITE_UPDATE",
+      targetId: update._id.toString(),
+      changes: { after: update.toObject() }
+    });
+
+    // Populate updater before returning
+    await update.populate("updatedBy", "name role");
+
+    return res.status(201).json(update);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

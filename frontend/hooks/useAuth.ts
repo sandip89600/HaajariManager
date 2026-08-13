@@ -146,7 +146,6 @@ export function useAuthProvider() {
             phone: data.user.phone,
             email: data.user.email,
             username: data.user.username,
-            isEmailVerified: !!data.user.isEmailVerified,
             isPhoneVerified: !!data.user.isPhoneVerified,
             rememberMe,
             token: data.token,
@@ -180,7 +179,6 @@ export function useAuthProvider() {
             phone: data.user.phone || "",
             email: data.user.email || "",
             username: data.user.username || "",
-            isEmailVerified: !!data.user.isEmailVerified,
             isPhoneVerified: !!data.user.isPhoneVerified,
             avatarColor: data.user.avatarColor || "#4ECDC4",
             profileImage: data.user.profileImage || undefined,
@@ -285,7 +283,6 @@ export function useAuthProvider() {
       success: boolean;
       field?: string;
       message?: string;
-      requiresEmailVerification?: boolean;
       email?: string;
     }> => {
       const phoneTrimmed = phone.trim();
@@ -317,7 +314,6 @@ export function useAuthProvider() {
             phone: data.user.phone,
             email: data.user.email,
             username: data.user.username,
-            isEmailVerified: !!data.user.isEmailVerified,
             isPhoneVerified: !!data.user.isPhoneVerified,
             rememberMe: true,
             token: data.token,
@@ -338,7 +334,6 @@ export function useAuthProvider() {
             phone: data.user.phone || "",
             email: data.user.email || "",
             username: data.user.username || "",
-            isEmailVerified: !!data.user.isEmailVerified,
             isPhoneVerified: !!data.user.isPhoneVerified,
             avatarColor: data.user.avatarColor || "#FF6B6B",
             profileImage: data.user.profileImage || undefined,

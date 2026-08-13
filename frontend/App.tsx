@@ -16,6 +16,7 @@ import RootNavigator from "@/navigation/RootNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LanguageContext, useLanguageProvider } from "@/hooks/useLanguage";
 import { AuthContext, useAuthProvider } from "@/hooks/useAuth";
+import { FeatureAccessProvider } from "@/hooks/useFeatureAccess";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { TourProvider } from "@/contexts/TourContext";
 import { SocketProvider } from "@/context/SocketContext";
@@ -84,11 +85,13 @@ function AppInner() {
   return (
     <LanguageContext.Provider value={languageContext}>
       <AuthContext.Provider value={authContext}>
-        <NavigationContainer ref={navigationRef} linking={linking}>
-          <RootNavigator />
-        </NavigationContainer>
-        {/* VoiceAssistant disabled — will be re-enabled in a future release */}
-        <StatusBar style={isDark ? "light" : "dark"} />
+        <FeatureAccessProvider>
+          <NavigationContainer ref={navigationRef} linking={linking}>
+            <RootNavigator />
+          </NavigationContainer>
+          {/* VoiceAssistant disabled — will be re-enabled in a future release */}
+          <StatusBar style={isDark ? "light" : "dark"} />
+        </FeatureAccessProvider>
       </AuthContext.Provider>
     </LanguageContext.Provider>
   );

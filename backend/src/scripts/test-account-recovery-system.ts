@@ -38,7 +38,7 @@ async function runCompleteRecoverySystemTestSuite() {
     role: "contractor",
     isActive: true,
     isVerified: true,
-    isEmailVerified: true,
+    isPhoneVerified: true,
     status: "active",
     refreshTokens: ["fake-active-refresh-token-session-1", "fake-active-refresh-token-session-2"]
   });
@@ -51,17 +51,17 @@ async function runCompleteRecoverySystemTestSuite() {
   console.log("Anti-enumeration response:", nonExistingRes.data);
   if (!nonExistingRes.data.success) throw new Error("Anti-enumeration should return generic success response!");
 
-  // 3. Admin without verified email recovery block
-  console.log("\n[TEST 3] Testing Admin without verified email safe recovery block...");
+  // 3. Admin without email recovery block
+  console.log("\n[TEST 3] Testing Admin without registered email safe recovery block...");
   const adminPhone = `9600${uniqueId}`;
   const unverifiedAdmin = new User({
     tenantId: tenant._id,
-    name: "Admin Without Verified Email",
+    name: "Admin Without Registered Email",
     phone: adminPhone,
     username: `admin_${uniqueId}`,
     passwordHash: await bcrypt.hash("AdminPass#123", 12),
     role: "admin",
-    isEmailVerified: false,
+    isPhoneVerified: true,
     isActive: true,
     status: "active"
   });
@@ -235,7 +235,7 @@ async function runCompleteRecoverySystemTestSuite() {
     username: `builder_${uniqueId}`,
     passwordHash: await bcrypt.hash("OldBuilderPass#123", 12),
     role: "builder",
-    isEmailVerified: true,
+    isPhoneVerified: true,
     isActive: true,
     status: "active"
   });

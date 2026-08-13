@@ -11,7 +11,7 @@ async function runVerificationTest() {
   const username = "user_" + Math.floor(100000 + Math.random() * 900000);
   const email = "test_" + Math.floor(100000 + Math.random() * 900000) + "@example.com";
 
-  console.log("=== TEST 1: User Signup ===");
+  console.log("=== TEST 1: User Signup (Email Optional, No Email Verification) ===");
   const signupRes = await axios.post("http://localhost:5000/api/auth/signup", {
     name: "Sunil Pandit",
     username,
@@ -21,36 +21,28 @@ async function runVerificationTest() {
     companyName: "Sunil Enterprises",
   });
   console.log("Signup Response Status:", signupRes.status);
-  console.log("Requires Email Verification:", signupRes.data.requiresEmailVerification);
+  console.log("Signup Success:", !!signupRes.data.token);
 
-  console.log("\n=== TEST 2: Attempt Login Before Verification ===");
-  try {
-    await axios.post("http://localhost:5000/api/auth/login", {
-      phone,
-      password: "Password@123",
-    });
-    console.error("❌ FAILED: Login was allowed for unverified user");
-  } catch (err: any) {
-    console.log("✅ BLOCKED as expected (Status " + err.response?.status + "):", err.response?.data?.error);
-  }
-
-  console.log("\n=== TEST 3: Verification Link Execution ===");
-  await mongoose.connect(process.env.MONGO_URI || "");
-  const createdUser = await User.findOne({ email });
-  console.log("Found user token in DB:", createdUser?.verificationToken);
-
-  const verifyRes = await axios.get(
-    `http://localhost:5000/api/auth/verify-email?token=${createdUser?.verificationToken}`
-  );
-  console.log("Verify Endpoint Status:", verifyRes.status);
-  console.log("Verify Message:", verifyRes.data);
-
-  console.log("\n=== TEST 4: Login After Email Verified ===");
-  const loginRes = await axios.post("http://localhost:5000/api/auth/login", {
-    phone,
+  console.log("\n=== TEST 2: Direct Login Using Phone + Password ===");
+  const loginPhoneRes = await axios.post("http://localhost:5000/api/auth/login", {
+    identifier: phone,
     password: "Password@123",
   });
-  console.log("✅ LOGIN SUCCESS! User:", loginRes.data.user?.name, "| Role:", loginRes.data.user?.role);
+  console.log("✅ Phone Login Status:", loginPhoneRes.status, "| User:", loginPhoneRes.data.user?.name);
+
+  console.log("\n=== TEST 3: Direct Login Using Username + Password ===");
+  const loginUserRes = await axios.post("http://localhost:5000/api/auth/login", {
+    identifier: username,
+    password: "Password@123",
+  });
+  console.log("✅ Username Login Status:", loginUserRes.status, "| User:", loginUserRes.data.user?.username);
+
+  console.log("\n=== TEST 4: Direct Login Using Email + Password ===");
+  const loginEmailRes = await axios.post("http://localhost:5000/api/auth/login", {
+    identifier: email,
+    password: "Password@123",
+  });
+  console.log("✅ Email Login Status:", loginEmailRes.status, "| User:", loginEmailRes.data.user?.email);
 
   console.log("\n=== TEST 5: Allow Same Full Name for New User ===");
   const phone2 = "99998" + Math.floor(10000 + Math.random() * 90000);
@@ -67,8 +59,7 @@ async function runVerificationTest() {
   });
   console.log("✅ Second user with same name 'Sunil Pandit' created successfully (Status " + signup2Res.status + ")");
 
-  await mongoose.disconnect();
-  console.log("\n🎯 ALL 5 TESTS PASSED PERFECTLY!");
+  console.log("\n🎯 ALL TESTS PASSED PERFECTLY!");
   process.exit(0);
 }
 

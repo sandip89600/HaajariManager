@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Gem, Search, Calendar, RefreshCw, AlertCircle } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Gem, Search, Calendar, RefreshCw, AlertCircle, Settings, Sliders } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../utils/api';
 
@@ -19,8 +19,8 @@ export default function SubscriptionsPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
 
-  // Fetch subscriptions
-  const { data: subs = [], isLoading } = useQuery<PlanSubscription[]>({
+  // Fetch subscriptions list
+  const { data: subs = [], isLoading: isSubsLoading } = useQuery<PlanSubscription[]>({
     queryKey: ['planSubscriptionsList'],
     queryFn: async () => {
       const res = await api.get('/admin/subscriptions');
@@ -28,29 +28,218 @@ export default function SubscriptionsPage() {
     }
   });
 
+  // Fetch centralized configurations
+  const { data: config, isLoading: isConfigLoading } = useQuery({
+    queryKey: ['subscriptionConfig'],
+    queryFn: async () => {
+      const res = await api.get('/admin/subscription-config');
+      return res.data;
+    }
+  });
+
+  // Mutation to save settings on backend
+  const updateMutation = useMutation({
+    mutationFn: async (updatedData: any) => {
+      return api.put('/admin/subscription-config', updatedData);
+    },
+    onSuccess: () => {
+      toast.success('App configuration updated successfully');
+      queryClient.invalidateQueries({ queryKey: ['subscriptionConfig'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || 'Failed to save configuration');
+    }
+  });
+
+  const handleToggleSubscriptions = () => {
+    if (!config) return;
+    const newVal = !config.subscriptionsEnabled;
+    const msg = newVal
+      ? "Are you sure you want to enable subscription enforcement? Premium/paid features will start restricting access based on user subscription levels."
+      : "Are you sure you want to disable subscription enforcement? All users will access the default launch settings.";
+
+    if (window.confirm(msg)) {
+      updateMutation.mutate({
+        ...config,
+        subscriptionsEnabled: newVal
+      });
+    }
+  };
+
+  const handleToggleFeature = (featureKey: string) => {
+    if (!config) return;
+    const updatedFeatures = config.features.map((f: any) => {
+      if (f.key === featureKey) {
+        return { ...f, enabled: !f.enabled };
+      }
+      return f;
+    });
+
+    updateMutation.mutate({
+      ...config,
+      features: updatedFeatures
+    });
+  };
+
+  const handleChangeFeaturePlan = (featureKey: string, minPlan: string) => {
+    if (!config) return;
+    const updatedFeatures = config.features.map((f: any) => {
+      if (f.key === featureKey) {
+        return { ...f, minPlan };
+      }
+      return f;
+    });
+
+    updateMutation.mutate({
+      ...config,
+      features: updatedFeatures
+    });
+  };
+
   const filteredSubs = subs.filter((sub) => {
     return sub.company.toLowerCase().includes(search.toLowerCase()) ||
            sub.plan.toLowerCase().includes(search.toLowerCase());
   });
 
+  const isLoading = isSubsLoading || isConfigLoading;
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-extrabold text-white">SaaS Subscriptions</h1>
-          <p className="text-slate-400 text-sm mt-1">Audit active service tier subscriptions, auto-renewals, and expirations</p>
+          <h1 className="text-3xl font-extrabold text-white">SaaS Subscriptions & Features</h1>
+          <p className="text-slate-400 text-sm mt-1">Configure global monetization logic, feature toggles, and audit tier access</p>
         </div>
         <button
           onClick={() => {
             queryClient.invalidateQueries({ queryKey: ['planSubscriptionsList'] });
-            toast.success('Subscriptions refreshed');
+            queryClient.invalidateQueries({ queryKey: ['subscriptionConfig'] });
+            toast.success('Information refreshed');
           }}
           disabled={isLoading}
-          className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-850 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
+          className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-855 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
         >
           <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
           <span>Refresh</span>
         </button>
+      </div>
+
+      {/* ─── CENTRAL CONTROL: SUBSCRIPTION & FEATURE SYSTEM ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Subscription Control Card */}
+        <div className="glass-card p-6 rounded-2xl border border-slate-850 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Settings className="w-5 h-5 text-orange-500" />
+              <h3 className="text-lg font-bold text-white">Subscription Control</h3>
+            </div>
+            <p className="text-slate-400 text-xs leading-relaxed mb-6">
+              Toggle subscription enforcement globally. If disabled, all features operate under a free trial launch phase. If enabled, features respect configured plans.
+            </p>
+            <div className="flex items-center gap-3 mb-6 bg-slate-950/40 p-4 rounded-xl border border-slate-900">
+              <span className="text-xs font-semibold text-slate-450 uppercase tracking-wide">System Status:</span>
+              {config?.subscriptionsEnabled ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                  <span className="w-2 h-2 rounded-full bg-slate-500"></span>
+                  Inactive
+                </span>
+              )}
+            </div>
+          </div>
+
+          <button
+            onClick={handleToggleSubscriptions}
+            disabled={updateMutation.isPending}
+            className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 ${
+              config?.subscriptionsEnabled
+                ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/30'
+                : 'bg-emerald-500/20 text-emerald-455 hover:bg-emerald-500/30 border border-emerald-500/30'
+            }`}
+          >
+            {config?.subscriptionsEnabled ? 'Turn OFF Subscription Enforcement' : 'Turn ON Subscription Enforcement'}
+          </button>
+        </div>
+
+        {/* Feature Management Panel */}
+        <div className="lg:col-span-2 glass-card p-6 rounded-2xl border border-slate-850">
+          <div className="flex items-center gap-2 mb-4">
+            <Sliders className="w-5 h-5 text-orange-500" />
+            <div>
+              <h3 className="text-lg font-bold text-white">Feature Management</h3>
+              <p className="text-slate-400 text-xs mt-0.5">Control feature rollouts and tier requirements dynamically</p>
+            </div>
+          </div>
+
+          {isConfigLoading ? (
+            <div className="py-12 text-center text-slate-500 text-xs font-semibold flex justify-center items-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-orange-500" />
+              <span>Loading feature flags...</span>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-850/60 text-slate-450 uppercase font-bold tracking-wider pb-2">
+                    <th className="py-2.5 pr-4">Feature Name / Scope</th>
+                    <th className="py-2.5 px-2">Type</th>
+                    <th className="py-2.5 px-2">Min Plan Requirement</th>
+                    <th className="py-2.5 pl-2 text-right">Toggle Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-850/30 text-slate-300">
+                  {config?.features?.map((feat: any) => (
+                    <tr key={feat.key} className="hover:bg-slate-900/10 transition-colors">
+                      <td className="py-3.5 pr-4">
+                        <div className="font-bold text-white text-sm">{feat.name}</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">{feat.description}</div>
+                      </td>
+                      <td className="py-3.5 px-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          feat.premium ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                        }`}>
+                          {feat.premium ? 'Premium' : 'Free'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-2">
+                        {feat.premium ? (
+                          <select
+                            value={feat.minPlan}
+                            onChange={(e) => handleChangeFeaturePlan(feat.key, e.target.value)}
+                            className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-350 focus:outline-none focus:ring-1 focus:ring-orange-500/50 text-[11px] font-medium"
+                          >
+                            <option value="free">Free</option>
+                            <option value="basic">Basic</option>
+                            <option value="super">Super</option>
+                            <option value="premium">Premium</option>
+                          </select>
+                        ) : (
+                          <span className="text-slate-600">—</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 pl-2 text-right">
+                        <button
+                          onClick={() => handleToggleFeature(feat.key)}
+                          className={`px-3 py-1 rounded-lg font-bold text-[10px] uppercase transition-all duration-150 active:scale-95 ${
+                            feat.enabled
+                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'
+                              : 'bg-slate-800/40 text-slate-500 border border-slate-700/60 hover:bg-slate-800/60'
+                          }`}
+                        >
+                          {feat.enabled ? 'ON' : 'OFF'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Stats header */}

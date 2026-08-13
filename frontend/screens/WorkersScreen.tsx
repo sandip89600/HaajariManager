@@ -95,19 +95,19 @@ const WorkerCard = React.memo(function WorkerCard({
 
   if (todayStatus === "P") {
     badgeVariant = "success";
-    statusLabel = "Present";
+    statusLabel = "P";
     borderHighlight = "#22C55E";
   } else if (todayStatus === "A") {
     badgeVariant = "error";
-    statusLabel = "Absent";
+    statusLabel = "A";
     borderHighlight = "#EF4444";
   } else if (todayStatus === "H") {
     badgeVariant = "warning";
-    statusLabel = "Half Day";
+    statusLabel = "1/2";
     borderHighlight = "#F59E0B";
   } else if (todayStatus === "OT") {
     badgeVariant = "info";
-    statusLabel = "Overtime";
+    statusLabel = "OT";
     borderHighlight = "#A855F7";
   }
 

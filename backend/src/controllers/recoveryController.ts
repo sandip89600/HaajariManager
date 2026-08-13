@@ -69,8 +69,8 @@ export const requestRecoveryOtp = async (req: Request, res: Response) => {
       });
     }
 
-    // Role-based check: Admin accounts with no verified email cannot self-service reset
-    if (user.role === "admin" && (!user.email || !user.isEmailVerified)) {
+    // Role-based check: Admin accounts with no email cannot self-service reset
+    if (user.role === "admin" && !user.email) {
       console.warn(`[Account Recovery] Privileged admin account without email blocked: ${user.phone}`);
       await logRecoveryEvent({
         userId: user._id,
@@ -82,7 +82,7 @@ export const requestRecoveryOtp = async (req: Request, res: Response) => {
         phone: user.phone,
         ipAddress,
         userAgent,
-        details: "Admin self-service recovery blocked due to missing verified email channel"
+        details: "Admin self-service recovery blocked due to missing email channel"
       });
       return res.status(403).json({
         success: false,
@@ -277,8 +277,8 @@ export const verifyRecoveryOtp = async (req: Request, res: Response) => {
     });
 
     // Check role-based recovery:
-    // If privileged user (admin, builder) with verified email -> requires secondary email confirmation
-    const isPrivileged = ["admin", "builder"].includes(user.role) && user.email && user.isEmailVerified;
+    // If privileged user (admin, builder) with registered email -> requires secondary email confirmation
+    const isPrivileged = ["admin", "builder"].includes(user.role) && !!user.email;
     let emailConfirmToken: string | undefined = undefined;
     let emailConfirmTokenHash: string | undefined = undefined;
 

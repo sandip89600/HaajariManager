@@ -12,16 +12,22 @@ async function activateAllUsers() {
     {
       $set: {
         isVerified: true,
-        isEmailVerified: true,
+        isPhoneVerified: true,
         status: "active",
       },
       $unset: {
+        isEmailVerified: "",
+        emailVerifiedAt: "",
+        emailVerificationTokenHash: "",
+        emailVerificationExpires: "",
+        emailVerificationRequestedAt: "",
         verificationToken: "",
         verificationTokenExpires: "",
+        lastVerificationEmailSentAt: "",
       },
     }
   );
-  console.log(`✅ Successfully activated and verified ${result.modifiedCount} user accounts.`);
+  console.log(`✅ Successfully activated ${result.modifiedCount} user accounts.`);
   await mongoose.disconnect();
 }
 

@@ -38,12 +38,12 @@ async function runEmailRecoveryTestSuite() {
     role: "contractor",
     isActive: true,
     isVerified: true,
-    isEmailVerified: true,
+    isPhoneVerified: true,
     status: "active",
     refreshTokens: ["active-session-token-1", "active-session-token-2"]
   });
   await user.save();
-  console.log(`\n[SETUP] Created User: ${testEmail} with 2 active refresh tokens and isEmailVerified: true.`);
+  console.log(`\n[SETUP] Created User: ${testEmail} with 2 active refresh tokens.`);
 
   // TEST 1: Registered Email requests password reset
   console.log("\n[TEST 1] Registered email requests password recovery...");
@@ -140,12 +140,10 @@ async function runEmailRecoveryTestSuite() {
   console.log("- Reset Token Hash in DB        :", dbUserAfterReset?.passwordResetTokenHash || "null (Cleared)");
   console.log("- Reset Expiry in DB            :", dbUserAfterReset?.passwordResetExpires || "null (Cleared)");
   console.log("- Active Sessions Count in DB   :", dbUserAfterReset?.refreshTokens.length, "(All Revoked)");
-  console.log("- isEmailVerified status        :", dbUserAfterReset?.isEmailVerified ? "✅ Still true (Preserved)" : "❌ Modified");
 
   if (!isNewMatch) throw new Error("New password hash is not stored in MongoDB!");
   if (dbUserAfterReset?.passwordResetToken) throw new Error("Reset token was not cleared from MongoDB!");
   if (dbUserAfterReset?.refreshTokens.length !== 0) throw new Error("Active sessions were not revoked!");
-  if (dbUserAfterReset?.isEmailVerified !== true) throw new Error("isEmailVerified was improperly altered!");
 
   // TEST 11: Old password fails login
   console.log("\n[TEST 11] Testing login with OLD password...");

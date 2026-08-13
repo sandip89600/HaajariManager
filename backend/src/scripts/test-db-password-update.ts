@@ -38,7 +38,7 @@ async function runRealWorldPasswordResetTest() {
     passwordHash: initialHash,
     isActive: true,
     isVerified: true,
-    isEmailVerified: true,
+    isPhoneVerified: true,
     status: "active",
   });
   await user.save();
