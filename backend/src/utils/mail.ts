@@ -410,4 +410,72 @@ export async function sendEmailConfirmationRecoveryEmail(email: string, name: st
   return sendMailUnified(email, subject, getEmailLayout("Confirm Password Recovery", content), "Privileged Recovery Email Confirmation");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. NEW DEVICE LOGIN SECURITY ALERT EMAIL
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendNewLoginAlertEmail(
+  email: string,
+  name: string,
+  deviceInfo: {
+    deviceName: string;
+    platform: string;
+    browser: string;
+    location: string;
+    loginTime: string;
+  }
+): Promise<boolean> {
+  const baseUrl = getBaseUrl();
+  const subject = `New login detected on your ${APP_NAME} account`;
+  const secureLink = `${baseUrl}/secure-account`;
+
+  const content = `
+    <h2 style="color: #F8FAFC; margin-top: 0; font-size: 22px; font-weight: 700;">🔐 New Login Detected</h2>
+    <p style="color: #CBD5E1; font-size: 15px; line-height: 1.6;">
+      Hello <strong>${name || "User"}</strong>, your <strong>${APP_NAME}</strong> account was recently signed in from a new device.
+    </p>
+
+    <div style="background-color: #1E293B; border: 1px solid #334155; border-radius: 8px; padding: 18px; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse; color: #CBD5E1; font-size: 14px; line-height: 1.8;">
+        <tr>
+          <td style="color: #94A3B8; font-weight: 600; width: 140px;">Device:</td>
+          <td style="color: #F8FAFC; font-weight: 700;">${deviceInfo.deviceName}</td>
+        </tr>
+        <tr>
+          <td style="color: #94A3B8; font-weight: 600;">Platform:</td>
+          <td style="color: #F8FAFC;">${deviceInfo.platform}</td>
+        </tr>
+        <tr>
+          <td style="color: #94A3B8; font-weight: 600;">Browser:</td>
+          <td style="color: #F8FAFC;">${deviceInfo.browser}</td>
+        </tr>
+        <tr>
+          <td style="color: #94A3B8; font-weight: 600;">Approx Location:</td>
+          <td style="color: #F8FAFC;">${deviceInfo.location}</td>
+        </tr>
+        <tr>
+          <td style="color: #94A3B8; font-weight: 600;">Time:</td>
+          <td style="color: #F8FAFC;">${deviceInfo.loginTime}</td>
+        </tr>
+      </table>
+    </div>
+
+    <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">
+      If this was you, no action is required. Your other active sessions will remain logged in.
+    </p>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${secureLink}" target="_blank" class="btn-primary" style="background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); font-weight: 700;">Secure My Account</a>
+    </div>
+
+    <div class="info-box" style="border-left-color: #EF4444;">
+      <p style="margin: 0; color: #E2E8F0; font-size: 13px; line-height: 1.5;">
+        ⚠️ <strong>Don't recognize this login?</strong> Please secure your account immediately by choosing a new password or logging out unrecognized devices under <strong>Settings → Security → Devices & Login Activity</strong>.
+      </p>
+    </div>
+  `;
+
+  return sendMailUnified(email, subject, getEmailLayout("New Login Alert", content), "New Device Login Security Alert");
+}
+
+
 

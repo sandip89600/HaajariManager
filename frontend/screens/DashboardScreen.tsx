@@ -32,6 +32,7 @@ import { AttendanceEditorModal } from "@/components/AttendanceEditorModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useSocket } from "@/hooks/useSocket";
 import { useTour } from "@/contexts/TourContext";
 import {
@@ -85,6 +86,8 @@ export default function DashboardScreen() {
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
+  const { config: featureConfig } = useFeatureAccess();
+  const subscriptionsEnabled = featureConfig?.subscriptionsEnabled ?? true;
   const { socket, connectSocket } = useSocket();
   const insets = useSafeAreaInsets();
   const tour = useTour();
@@ -430,34 +433,39 @@ export default function DashboardScreen() {
               Haajari Manager
             </ThemedText>
 
-            {/* Small Plan Badge Nudge */}
-            <Pressable
-              onPress={() => { triggerHaptic(); navigation.navigate("Subscription"); }}
-              style={styles.nudgeBadge}
-            >
-              <ThemedText style={styles.nudgeBadgeText}>
-                {currentPlan === "free" || currentPlan === "basic" ? "Basic Plan" : currentPlan === "professional" || currentPlan === "super" ? "Super Plan" : "Premium Plan"}
-              </ThemedText>
-              <View style={styles.nudgeDivider} />
-              <ThemedText style={styles.nudgeBadgeText}>
-                {workersList.length} / {currentPlan === "free" || currentPlan === "basic" ? 20 : currentPlan === "professional" || currentPlan === "super" ? 100 : "Unlimited"} Used
-              </ThemedText>
-              <Feather name="arrow-right" size={10} color="#FFFFFF" style={{ marginLeft: 4 }} />
-            </Pressable>
+            {/* Small Plan Badge Nudge — only visible when subscriptions are enabled */}
+            {subscriptionsEnabled && (
+              <Pressable
+                onPress={() => { triggerHaptic(); navigation.navigate("Subscription"); }}
+                style={styles.nudgeBadge}
+              >
+                <ThemedText style={styles.nudgeBadgeText}>
+                  {currentPlan === "free" || currentPlan === "basic" ? "Basic Plan" : currentPlan === "professional" || currentPlan === "super" ? "Super Plan" : "Premium Plan"}
+                </ThemedText>
+                <View style={styles.nudgeDivider} />
+                <ThemedText style={styles.nudgeBadgeText}>
+                  {workersList.length} / {currentPlan === "free" || currentPlan === "basic" ? 20 : currentPlan === "professional" || currentPlan === "super" ? 100 : "Unlimited"} Used
+                </ThemedText>
+                <Feather name="arrow-right" size={10} color="#FFFFFF" style={{ marginLeft: 4 }} />
+              </Pressable>
+            )}
 
             <ThemedText style={[styles.dateText, { color: isDark ? "#64748B" : "rgba(255,255,255,0.7)", marginTop: 6 }]}>
               {formattedDate}
             </ThemedText>
           </View>
-          <View style={styles.headerActions}>
-            <Pressable
-              onPress={() => { triggerHaptic(); navigation.navigate("Subscription"); }}
-              style={styles.premiumBadgeBtn}
-            >
-              <Ionicons name="sparkles" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
-              <ThemedText style={styles.premiumBadgeBtnText}>Upgrade</ThemedText>
-            </Pressable>
-          </View>
+          {/* Upgrade button — only visible when subscriptions are enabled */}
+          {subscriptionsEnabled && (
+            <View style={styles.headerActions}>
+              <Pressable
+                onPress={() => { triggerHaptic(); navigation.navigate("Subscription"); }}
+                style={styles.premiumBadgeBtn}
+              >
+                <Ionicons name="sparkles" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+                <ThemedText style={styles.premiumBadgeBtnText}>Upgrade</ThemedText>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         {/* Streak badge */}

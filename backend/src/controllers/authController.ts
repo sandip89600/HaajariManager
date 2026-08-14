@@ -2,10 +2,12 @@ import { Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import { User, Tenant, AuditLog, Worker, Attendance, Payment, WageHistory, Project, OtpCode, RecoverySession } from "../models";
+import { User, Tenant, AuditLog, Worker, Attendance, Payment, WageHistory, Project, OtpCode, RecoverySession, SecurityEvent } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
-import { sendPasswordResetEmail, sendWelcomeEmail, sendPasswordResetSuccessEmail } from "../utils/mail";
-import { broadcastAdminActivity } from "../utils/socket";
+import { sendPasswordResetEmail, sendWelcomeEmail, sendPasswordResetSuccessEmail, sendNewLoginAlertEmail } from "../utils/mail";
+import { sendPushNotification } from "../utils/notifications";
+import { resolveDeviceMeta } from "../utils/deviceHelper";
+import { broadcastAdminActivity, getIO } from "../utils/socket";
 import { logActivity } from "../services/activityLogger";
 import { logRecoveryEvent } from "../services/recoveryAuditService";
 
@@ -694,76 +696,156 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       }
     }
 
-    // Capture device & session information
-    const userAgentHeader = req.headers["user-agent"] || "";
-    const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "127.0.0.1";
-    const deviceId = (req.headers["x-device-id"] as string) || (req.body.deviceId as string) || `dev_${crypto.randomBytes(8).toString("hex")}`;
-    const { os, browser, deviceName } = parseUserAgent(userAgentHeader);
-    const location = (req.headers["x-client-geo"] as string) || "Unknown Location";
+    // Resolve full device metadata and location
+    const deviceMeta = resolveDeviceMeta(req);
+    const { deviceId, deviceName, platform, os, browser, ipAddress, location } = deviceMeta;
 
-    // Register or update trusted device
-    if (user.trustedDevices) {
-      const existingDeviceIndex = user.trustedDevices.findIndex(d => d.deviceId === deviceId);
-      if (existingDeviceIndex >= 0) {
-        user.trustedDevices[existingDeviceIndex].lastActiveAt = new Date();
-        user.trustedDevices[existingDeviceIndex].ipAddress = ipAddress;
-        user.trustedDevices[existingDeviceIndex].location = location;
-      } else {
-        user.trustedDevices.push({
+    if (!user.trustedDevices) user.trustedDevices = [];
+    const existingDeviceIndex = user.trustedDevices.findIndex((d) => d.deviceId === deviceId);
+    let isNewDeviceLogin = false;
+
+    if (existingDeviceIndex >= 0) {
+      const existingDevice = user.trustedDevices[existingDeviceIndex];
+      if (existingDevice.trusted === true && !existingDevice.isRevoked) {
+        // Known trusted device -> normal login, no alert
+        existingDevice.lastActiveAt = new Date();
+        existingDevice.ipAddress = ipAddress;
+        existingDevice.location = location;
+        existingDevice.deviceName = deviceName;
+        existingDevice.deviceOs = os;
+        existingDevice.deviceBrowser = browser;
+
+        // Record normal login event
+        await SecurityEvent.create({
+          userId: user._id,
+          eventType: "LOGIN",
           deviceId,
           deviceName,
-          deviceOs: os,
-          deviceBrowser: browser,
+          platform,
+          browser,
           ipAddress,
-          location,
-          lastActiveAt: new Date(),
-          isSuspicious: false
-        });
+          approximateLocation: location,
+          status: "normal",
+          timestamp: new Date(),
+        }).catch((err) => console.warn("[SecurityEvent] Failed to log normal login:", err));
+      } else {
+        // Known device record exists, but trusted is false or revoked -> New device alert!
+        isNewDeviceLogin = true;
+        existingDevice.trusted = false;
+        existingDevice.isRevoked = false;
+        existingDevice.lastActiveAt = new Date();
+        existingDevice.ipAddress = ipAddress;
+        existingDevice.location = location;
       }
     } else {
-      user.trustedDevices = [{
+      // Completely new unrecognized device -> New device alert!
+      isNewDeviceLogin = true;
+      user.trustedDevices.push({
         deviceId,
         deviceName,
         deviceOs: os,
         deviceBrowser: browser,
         ipAddress,
         location,
+        trusted: false,
+        firstSeenAt: new Date(),
         lastActiveAt: new Date(),
-        isSuspicious: false
-      }];
+        isSuspicious: false,
+        isRevoked: false,
+      });
     }
 
-    if (user.loginHistory) {
-      user.loginHistory.push({
-        loginTime: new Date(),
-        deviceId,
-        deviceName,
-        deviceOs: os,
-        deviceBrowser: browser,
-        ipAddress,
-        location
-      });
-      if (user.loginHistory.length > 50) {
-        user.loginHistory = user.loginHistory.slice(-50);
-      }
-    } else {
-      user.loginHistory = [{
-        loginTime: new Date(),
-        deviceId,
-        deviceName,
-        deviceOs: os,
-        deviceBrowser: browser,
-        ipAddress,
-        location
-      }];
+    // Add to login history
+    if (!user.loginHistory) user.loginHistory = [];
+    user.loginHistory.push({
+      loginTime: new Date(),
+      deviceId,
+      deviceName,
+      deviceOs: os,
+      deviceBrowser: browser,
+      ipAddress,
+      location,
+    });
+    if (user.loginHistory.length > 50) {
+      user.loginHistory = user.loginHistory.slice(-50);
     }
-    
+
     user.lastLogin = new Date();
     const token = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
     user.refreshTokens = [...(user.refreshTokens || []), refreshToken].slice(-5);
     await user.save();
+
+    let newDeviceInfoPayload: any = null;
+
+    if (isNewDeviceLogin) {
+      const loginTimeFormatted = new Date().toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+
+      newDeviceInfoPayload = {
+        deviceId,
+        deviceName,
+        platform,
+        browser,
+        location,
+        loginTime: new Date().toISOString(),
+        formattedTime: loginTimeFormatted,
+      };
+
+      // 1. Create SecurityEvent
+      await SecurityEvent.create({
+        userId: user._id,
+        eventType: "NEW_DEVICE_LOGIN",
+        deviceId,
+        deviceName,
+        platform,
+        browser,
+        ipAddress,
+        approximateLocation: location,
+        status: "new_device_login",
+        timestamp: new Date(),
+      }).catch((err) => console.warn("[SecurityEvent] Failed to log new device event:", err));
+
+      // 2. Dispatch Email alert asynchronously (safely handled)
+      if (user.email) {
+        sendNewLoginAlertEmail(user.email, user.name, {
+          deviceName,
+          platform,
+          browser,
+          location,
+          loginTime: loginTimeFormatted,
+        }).catch((err) => console.error("[NewLoginAlert Email Error]:", err));
+      }
+
+      // 3. Dispatch Push notification asynchronously (safely handled)
+      if (user.expoPushToken) {
+        sendPushNotification(
+          user.expoPushToken,
+          "New Login Detected",
+          `Your Haajari account was signed in from a new device (${deviceName}). Was this you?`,
+          { type: "NEW_DEVICE_LOGIN", ...newDeviceInfoPayload }
+        ).catch((err) => console.error("[NewLoginAlert Push Error]:", err));
+      }
+
+      // 4. Emit Socket.IO real-time notification to user's room & broadcast
+      try {
+        const io = getIO();
+        if (io) {
+          io.to(`user_${user._id.toString()}`).emit("new_device_login", newDeviceInfoPayload);
+          io.emit("security_alert_event", {
+            userId: user._id.toString(),
+            userName: user.name,
+            ...newDeviceInfoPayload,
+          });
+        }
+      } catch {
+        // Ignore socket emit if socket server not active
+      }
+    }
 
     await logActivity({
       req,
@@ -773,7 +855,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       userId: user._id.toString(),
       tenantId: user.tenantId?.toString(),
       userName: user.name,
-      role: user.role
+      role: user.role,
     });
 
     const tenant = await Tenant.findById(user.tenantId);
@@ -783,6 +865,8 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       message: "Login successful",
       token,
       refreshToken,
+      isNewDevice: isNewDeviceLogin,
+      newDeviceInfo: newDeviceInfoPayload,
       user: {
         id: user._id,
         name: user.name,
@@ -2242,26 +2326,28 @@ export const logoutDevice = async (req: AuthenticatedRequest, res: Response) => 
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Remove device from trustedDevices
     if (user.trustedDevices) {
-      user.trustedDevices = user.trustedDevices.filter(d => d.deviceId !== deviceId);
+      const targetDevice = user.trustedDevices.find((d) => d.deviceId === deviceId);
+      if (targetDevice) {
+        targetDevice.isRevoked = true;
+        targetDevice.trusted = false;
+      }
     }
 
-    // Update logout time in history
     if (user.loginHistory) {
-      const activeSessions = user.loginHistory.filter(h => h.deviceId === deviceId && !h.logoutTime);
-      activeSessions.forEach(session => {
+      const activeSessions = user.loginHistory.filter((h) => h.deviceId === deviceId && !h.logoutTime);
+      activeSessions.forEach((session) => {
         session.logoutTime = new Date();
       });
     }
 
-    if (!user.securityLogs) user.securityLogs = [];
-    user.securityLogs.push({
+    await SecurityEvent.create({
+      userId: user._id,
+      eventType: "LOGOUT_DEVICE",
+      deviceId,
+      status: "revoked",
       timestamp: new Date(),
-      eventType: "DEVICE_REVOKED",
-      details: `Revoked session for device ID: ${deviceId}`,
-      ipAddress: (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1"
-    });
+    }).catch(() => {});
 
     await user.save();
     res.json({ success: true, message: "Logged out from device successfully" });
@@ -2270,10 +2356,12 @@ export const logoutDevice = async (req: AuthenticatedRequest, res: Response) => 
   }
 };
 
-// 9. Logout all devices
+// 9. Logout all other devices (preserves current session)
 export const logoutAllDevices = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
+    const currentDeviceId = (req.headers["x-device-id"] as string) || req.body?.currentDeviceId;
+
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -2283,29 +2371,187 @@ export const logoutAllDevices = async (req: AuthenticatedRequest, res: Response)
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Clear refresh tokens
-    user.refreshTokens = [];
-
-    // Clear trusted devices
-    user.trustedDevices = [];
-
-    // Mark active sessions in history as logged out
-    if (user.loginHistory) {
-      user.loginHistory.forEach(h => {
-        if (!h.logoutTime) h.logoutTime = new Date();
+    // Mark all devices except current as revoked
+    if (user.trustedDevices) {
+      user.trustedDevices.forEach((d) => {
+        if (!currentDeviceId || d.deviceId !== currentDeviceId) {
+          d.isRevoked = true;
+          d.trusted = false;
+        }
       });
     }
 
-    if (!user.securityLogs) user.securityLogs = [];
-    user.securityLogs.push({
-      timestamp: new Date(),
+    // Mark active sessions in loginHistory as logged out except current
+    if (user.loginHistory) {
+      user.loginHistory.forEach((h) => {
+        if (!currentDeviceId || h.deviceId !== currentDeviceId) {
+          if (!h.logoutTime) h.logoutTime = new Date();
+        }
+      });
+    }
+
+    await SecurityEvent.create({
+      userId: user._id,
       eventType: "LOGOUT_ALL_DEVICES",
-      details: "Force logged out from all sessions",
-      ipAddress: (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1"
-    });
+      deviceId: currentDeviceId,
+      status: "revoked",
+      timestamp: new Date(),
+    }).catch(() => {});
 
     await user.save();
-    res.json({ success: true, message: "Logged out from all devices successfully" });
+    res.json({ success: true, message: "Logged out from all other devices successfully" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// 10. Trust device: "Yes, It Was Me"
+export const trustDevice = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { deviceId } = req.body;
+    if (!userId || !deviceId) {
+      return res.status(400).json({ error: "User ID and Device ID are required" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (!user.trustedDevices) user.trustedDevices = [];
+    let targetDevice = user.trustedDevices.find((d) => d.deviceId === deviceId);
+
+    if (targetDevice) {
+      targetDevice.trusted = true;
+      targetDevice.trustedAt = new Date();
+      targetDevice.isSuspicious = false;
+      targetDevice.isRevoked = false;
+    } else {
+      user.trustedDevices.push({
+        deviceId,
+        deviceName: "Trusted Device",
+        trusted: true,
+        trustedAt: new Date(),
+        firstSeenAt: new Date(),
+        lastActiveAt: new Date(),
+        isSuspicious: false,
+        isRevoked: false,
+      });
+    }
+
+    // Log SecurityEvent
+    await SecurityEvent.create({
+      userId: user._id,
+      eventType: "TRUST_DEVICE",
+      deviceId,
+      deviceName: targetDevice?.deviceName || "Device",
+      platform: targetDevice?.deviceOs || "Unknown",
+      browser: targetDevice?.deviceBrowser || "Unknown",
+      ipAddress: targetDevice?.ipAddress || "127.0.0.1",
+      approximateLocation: targetDevice?.location || "Location unavailable",
+      status: "confirmed_by_user",
+      timestamp: new Date(),
+    }).catch((err) => console.warn("[SecurityEvent] Failed to log trust event:", err));
+
+    // Update prior NEW_DEVICE_LOGIN security events for this device to confirmed_by_user
+    await SecurityEvent.updateMany(
+      { userId: user._id, deviceId, eventType: "NEW_DEVICE_LOGIN" },
+      { status: "confirmed_by_user" }
+    ).catch(() => {});
+
+    await user.save();
+    res.json({ success: true, message: "Device marked as trusted successfully" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// 11. Report suspicious activity: "No, It Wasn't Me"
+export const reportSuspicious = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { deviceId } = req.body;
+    if (!userId || !deviceId) {
+      return res.status(400).json({ error: "User ID and Device ID are required" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (user.trustedDevices) {
+      const targetDevice = user.trustedDevices.find((d) => d.deviceId === deviceId);
+      if (targetDevice) {
+        targetDevice.trusted = false;
+        targetDevice.isSuspicious = true;
+      }
+    }
+
+    // Log SecurityEvent
+    await SecurityEvent.create({
+      userId: user._id,
+      eventType: "SECURITY_ALERT",
+      deviceId,
+      status: "marked_suspicious",
+      timestamp: new Date(),
+    }).catch((err) => console.warn("[SecurityEvent] Failed to log suspicious event:", err));
+
+    // Update prior NEW_DEVICE_LOGIN security events for this device to marked_suspicious
+    await SecurityEvent.updateMany(
+      { userId: user._id, deviceId, eventType: "NEW_DEVICE_LOGIN" },
+      { status: "marked_suspicious" }
+    ).catch(() => {});
+
+    await user.save();
+    res.json({ success: true, message: "Security alert recorded" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// 12. Get user security event history
+export const getSecurityEvents = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const events = await SecurityEvent.find({ userId }).sort({ timestamp: -1 }).limit(100);
+    res.json({ success: true, events });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// 13. Admin view for all security events across system
+export const getAdminSecurityEvents = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const events = await SecurityEvent.find({})
+      .populate("userId", "name email phone role")
+      .sort({ timestamp: -1 })
+      .limit(200);
+
+    const formattedEvents = events.map((e) => ({
+      id: e._id,
+      userId: (e.userId as any)?._id,
+      userName: (e.userId as any)?.name || "User",
+      userEmail: (e.userId as any)?.email || "",
+      userRole: (e.userId as any)?.role || "user",
+      eventType: e.eventType,
+      deviceId: e.deviceId,
+      deviceName: e.deviceName || "Unknown Device",
+      platform: e.platform || "Unknown",
+      browser: e.browser || "Unknown",
+      ipAddress: e.ipAddress || "127.0.0.1",
+      location: e.approximateLocation || "Location unavailable",
+      status: e.status,
+      timestamp: e.timestamp,
+    }));
+
+    res.json({ success: true, events: formattedEvents });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

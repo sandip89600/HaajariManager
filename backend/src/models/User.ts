@@ -45,8 +45,12 @@ export interface IUser extends Document {
     deviceBrowser?: string;
     ipAddress?: string;
     location?: string;
+    trusted?: boolean;
+    trustedAt?: Date;
+    firstSeenAt?: Date;
     lastActiveAt: Date;
-    isSuspicious: boolean;
+    isSuspicious?: boolean;
+    isRevoked?: boolean;
   }>;
   loginHistory?: Array<{
     loginTime: Date;
@@ -114,8 +118,12 @@ const UserSchema = new Schema<IUser>({
     deviceBrowser: { type: String },
     ipAddress: { type: String },
     location: { type: String },
+    trusted: { type: Boolean, default: false },
+    trustedAt: { type: Date },
+    firstSeenAt: { type: Date, default: Date.now },
     lastActiveAt: { type: Date, default: Date.now },
-    isSuspicious: { type: Boolean, default: false }
+    isSuspicious: { type: Boolean, default: false },
+    isRevoked: { type: Boolean, default: false }
   }],
   loginHistory: [{
     loginTime: { type: Date, default: Date.now },

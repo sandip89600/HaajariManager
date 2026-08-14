@@ -7,6 +7,8 @@ import { Platform, StyleSheet, View } from "react-native";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
+import { useSocket } from "@/hooks/useSocket";
+import SecurityAlertModal from "@/components/SecurityAlertModal";
 import {
   getCommonScreenOptions,
   getCommonTabScreenOptions,
@@ -34,6 +36,7 @@ import SubscriptionScreen from "@/screens/SubscriptionScreen";
 import PaymentStatusScreen from "@/screens/PaymentStatusScreen";
 import BillingHistoryScreen from "@/screens/BillingHistoryScreen";
 import PaymentHandoverMenuScreen from "@/screens/PaymentHandoverMenuScreen";
+import SecureAccountScreen from "@/screens/SecureAccountScreen";
 
 export type MainTabParamList = {
   AttendanceTab: undefined;
@@ -70,6 +73,7 @@ export type RootStackParamList = {
   PaymentStatus: { status: "success" | "failed" | "pending"; planName?: string; transactionId?: string };
   BillingHistory: undefined;
   PaymentHandoverMenu: undefined;
+  SecureAccount: { deviceInfo?: any } | undefined;
 
   // Root stack fallbacks
   Dashboard: undefined;
@@ -221,13 +225,33 @@ function MainTabs() {
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
+  const { newDeviceAlert, clearNewDeviceAlert, setNewDeviceAlert, userId } = useAuth();
+  const { socket } = useSocket();
+
+  React.useEffect(() => {
+    if (socket && userId) {
+      socket.emit("join_user_room", userId);
+
+      const handleNewDeviceLogin = (data: any) => {
+        if (data) {
+          setNewDeviceAlert(data);
+        }
+      };
+
+      socket.on("new_device_login", handleNewDeviceLogin);
+      return () => {
+        socket.off("new_device_login", handleNewDeviceLogin);
+      };
+    }
+  }, [socket, userId]);
 
   return (
-    <Stack.Navigator
-      screenOptions={{
-        ...getCommonScreenOptions({ theme, isDark }),
-      }}
-    >
+    <>
+      <Stack.Navigator
+        screenOptions={{
+          ...getCommonScreenOptions({ theme, isDark }),
+        }}
+      >
       <Stack.Screen
         name="MainTabs"
         component={MainTabs}
@@ -359,6 +383,13 @@ export default function MainTabNavigator() {
           headerShown: false,
         }}
       />
+      <Stack.Screen
+        name="SecureAccount"
+        component={SecureAccountScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
       
       {/* Fallback stack screen mappings */}
       <Stack.Screen
@@ -390,6 +421,14 @@ export default function MainTabNavigator() {
         }}
       />
     </Stack.Navigator>
+    {newDeviceAlert && (
+      <SecurityAlertModal
+        visible={!!newDeviceAlert}
+        deviceInfo={newDeviceAlert}
+        onDismiss={clearNewDeviceAlert}
+      />
+    )}
+    </>
   );
 }
 

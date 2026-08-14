@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { User } from "../models/User";
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -24,16 +25,33 @@ export const authenticateJWT = (
       return res.status(500).json({ error: "Server configuration error" });
     }
 
-    jwt.verify(token, secret, (err, user: any) => {
+    jwt.verify(token, secret, async (err, decodedUser: any) => {
       if (err) {
-        console.warn("[Auth Middleware] JWT Verification failed:", err.message, "Token:", token ? token.substring(0, 15) + "..." : "none");
-        return res.status(401).json({ error: "Invalid token" });
+        console.warn("[Auth Middleware] JWT Verification failed:", err.message);
+        return res.status(401).json({ error: "Invalid or expired token" });
+      }
+
+      const deviceId = (req.headers["x-device-id"] as string) || (req.body?.deviceId as string);
+
+      // Check if device session was revoked
+      if (deviceId && decodedUser?.id && decodedUser.role !== "admin") {
+        try {
+          const userDoc = await User.findById(decodedUser.id).select("trustedDevices").lean();
+          if (userDoc?.trustedDevices) {
+            const deviceRecord = userDoc.trustedDevices.find((d) => d.deviceId === deviceId);
+            if (deviceRecord && deviceRecord.isRevoked) {
+              return res.status(401).json({ error: "Session has been revoked. Please log in again." });
+            }
+          }
+        } catch {
+          // Fallthrough on DB query error
+        }
       }
 
       req.user = {
-        id: user.id,
-        tenantId: user.tenantId,
-        role: user.role,
+        id: decodedUser.id,
+        tenantId: decodedUser.tenantId,
+        role: decodedUser.role,
       };
       next();
     });

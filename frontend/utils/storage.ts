@@ -3,6 +3,7 @@ import { Platform, DeviceEventEmitter } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
 import { Language } from "@/constants/i18n";
+import { getDeviceHeaders } from "./device";
 
 const getApiUrl = () => {
   if (process.env.EXPO_PUBLIC_API_URL) {
@@ -1556,8 +1557,12 @@ export async function authenticatedFetch(
   options: RequestInit & { _retry?: boolean; timeoutMs?: number } = {},
 ): Promise<Response> {
   const auth = await storage.getAuth();
+  const deviceHeaders = await getDeviceHeaders().catch(() => ({} as Record<string, string>));
 
-  const headers = (options.headers || {}) as Record<string, string>;
+  const headers = {
+    ...deviceHeaders,
+    ...((options.headers || {}) as Record<string, string>),
+  };
   if (!headers["Content-Type"] && !(options.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }

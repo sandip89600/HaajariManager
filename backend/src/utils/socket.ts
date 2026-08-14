@@ -128,6 +128,13 @@ export const initSocket = (server: HttpServer): Server => {
   io.on("connection", (socket) => {
     console.log(`[Socket] Admin/User client connected: ${socket.id}`);
     
+    socket.on("join_user_room", (userId: string) => {
+      if (userId) {
+        socket.join(`user_${userId}`);
+        console.log(`[Socket] Client ${socket.id} joined room user_${userId}`);
+      }
+    });
+
     socket.on("disconnect", () => {
       console.log(`[Socket] Client disconnected: ${socket.id}`);
     });

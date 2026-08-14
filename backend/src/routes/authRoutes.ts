@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { signup, login, refresh, forgotPassword, resetPassword, renderResetPasswordPage, getProfile, updateProfile, changePassword, upgradePlan, deleteAccount, sendOtp, verifyOtpLogin, registerBiometric, biometricLogin, updatePrivacySettings, toggleOtpSetting, toggleBiometricsSetting, getUserSessions, logoutDevice, logoutAllDevices, savePushToken, validateSignupField, sendPhoneVerificationOtp, verifyPhoneOtp } from "../controllers/authController";
+import { signup, login, refresh, forgotPassword, resetPassword, renderResetPasswordPage, getProfile, updateProfile, changePassword, upgradePlan, deleteAccount, sendOtp, verifyOtpLogin, registerBiometric, biometricLogin, updatePrivacySettings, toggleOtpSetting, toggleBiometricsSetting, getUserSessions, logoutDevice, logoutAllDevices, savePushToken, validateSignupField, sendPhoneVerificationOtp, verifyPhoneOtp, trustDevice, reportSuspicious, getSecurityEvents } from "../controllers/authController";
 import { authenticateJWT } from "../middleware/auth";
 
 const router = Router();
@@ -28,6 +28,9 @@ router.put("/security/otp", authenticateJWT as any, toggleOtpSetting as any);
 router.put("/security/biometrics", authenticateJWT as any, toggleBiometricsSetting as any);
 router.put("/security/privacy", authenticateJWT as any, updatePrivacySettings as any);
 router.get("/security/sessions", authenticateJWT as any, getUserSessions as any);
+router.get("/security/events", authenticateJWT as any, getSecurityEvents as any);
+router.post("/security/trust-device", authenticateJWT as any, trustDevice as any);
+router.post("/security/report-suspicious", authenticateJWT as any, reportSuspicious as any);
 router.post("/security/logout-device", authenticateJWT as any, logoutDevice as any);
 router.post("/security/logout-all", authenticateJWT as any, logoutAllDevices as any);
 router.post("/push-token", authenticateJWT as any, savePushToken as any);

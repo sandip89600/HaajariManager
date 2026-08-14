@@ -21,3 +21,4 @@ export * from "./RecoverySession";
 export * from "./SiteUpdate";
 export * from "./AppConfig";
 export * from "./PaymentHandover";
+export * from "./SecurityEvent";

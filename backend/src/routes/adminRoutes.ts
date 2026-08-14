@@ -39,6 +39,7 @@ import {
   getAllDevicesAdmin,
 } from "../controllers/adminController";
 import { getSubscriptionConfig, updateSubscriptionConfig } from "../controllers/adminConfigController";
+import { getAdminSecurityEvents } from "../controllers/authController";
 import { authenticateJWT, requireAdmin } from "../middleware/auth";
 
 const router = Router();
@@ -86,6 +87,7 @@ router.delete("/support/feedback/:id", deleteFeedbackAdmin as any);
 // Admin Security Management
 router.get("/security/logs", getSecurityLogs as any);
 router.get("/security/sessions", getActiveSessions as any);
+router.get("/security-events", getAdminSecurityEvents as any);
 router.post("/security/force-logout", forceLogoutUser as any);
 router.post("/security/disable-device", disableSuspiciousDevice as any);
 router.post("/security/logout-all", logoutAllUsers as any);

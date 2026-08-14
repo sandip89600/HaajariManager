@@ -9,6 +9,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DeviceEventEmitter } from "react-native";
 import { storage, AuthData, User, generateId, API_URL } from "@/utils/storage";
 import { registerExpoPushToken } from "@/utils/notifications";
+import { getDeviceHeaders } from "@/utils/device";
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -18,6 +19,9 @@ interface AuthContextType {
   userType: "admin" | "user" | "guest";
   email: string; // Used as the identifier (phone/email/username)
   user: User | null;
+  newDeviceAlert: any | null;
+  clearNewDeviceAlert: () => void;
+  setNewDeviceAlert: (info: any) => void;
   login: (
     phone: string,
     password?: string,
@@ -61,6 +65,11 @@ export function useAuthProvider() {
   const [userType, setUserType] = useState<"admin" | "user" | "guest">("user");
   const [email, setEmail] = useState(""); // identifier
   const [user, setUser] = useState<User | null>(null);
+  const [newDeviceAlert, setNewDeviceAlert] = useState<any | null>(null);
+
+  const clearNewDeviceAlert = useCallback(() => {
+    setNewDeviceAlert(null);
+  }, []);
 
   useEffect(() => {
     checkAuth();
@@ -113,10 +122,11 @@ export function useAuthProvider() {
       try {
         const url = otp ? `${API_URL}/auth/verify-otp-login` : `${API_URL}/auth/login`;
         const payload = otp ? { phone: phoneTrimmed, otp } : { phone: phoneTrimmed, password };
+        const deviceHeaders = await getDeviceHeaders().catch(() => ({}));
 
         const res = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { ...deviceHeaders, "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
 
@@ -133,6 +143,9 @@ export function useAuthProvider() {
         if (res.ok && isJson && data) {
           if (data.requiresOtp) {
             return { requiresOtp: true, phone: data.phone };
+          }
+          if (data.isNewDevice && data.newDeviceInfo) {
+            setNewDeviceAlert(data.newDeviceInfo);
           }
           const role = data.user.role;
           const uType =
@@ -544,6 +557,9 @@ export function useAuthProvider() {
     userType,
     email,
     user,
+    newDeviceAlert,
+    clearNewDeviceAlert,
+    setNewDeviceAlert,
     login,
     signup,
     loginAsGuest,
