@@ -18,7 +18,7 @@ import Animated, {
   FadeInDown,
   FadeInUp,
 } from "react-native-reanimated";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
 import * as Haptics from "expo-haptics";
 import * as SecureStore from "expo-secure-store";
@@ -27,6 +27,8 @@ import { BlurView } from "expo-blur";
 
 import { ThemedText } from "@/components/ThemedText";
 import { AppInfoModal } from "@/components/AppInfoModal";
+import GoogleMobileCompletionModal from "@/components/GoogleMobileCompletionModal";
+import { promptGoogleSignIn } from "@/utils/googleAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -124,7 +126,7 @@ export default function LoginScreen() {
   const theme = themeContext.theme;
   const isDark = themeContext.isDark ?? false;
   
-  const { login, loginAsGuest, loginWithBiometrics } = useAuth();
+  const { login, loginAsGuest, loginWithBiometrics, loginWithGoogle } = useAuth();
   const { t, language } = useLanguage();
   const insets = useSafeAreaInsets();
 
@@ -142,6 +144,10 @@ export default function LoginScreen() {
   const [otpCountdown, setOtpCountdown] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  // Google completion modal state
+  const [showMobileCompletionModal, setShowMobileCompletionModal] = useState(false);
+  const [pendingGoogleProfile, setPendingGoogleProfile] = useState<any>(null);
+
   // OTP Refs for 6 boxes
   const otpRefs = useRef<Array<TextInput | null>>([]);
   const [otpArray, setOtpArray] = useState(["", "", "", "", "", ""]);
@@ -158,6 +164,55 @@ export default function LoginScreen() {
   useEffect(() => {
     checkBiometricAvailability();
   }, []);
+
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const googleRes = await promptGoogleSignIn();
+      if (googleRes.type === "cancel") {
+        setIsLoading(false);
+        return;
+      }
+      if (googleRes.type === "error") {
+        setIsLoading(false);
+        setError(googleRes.error || "Unable to connect to Google.");
+        return;
+      }
+
+      const res = await loginWithGoogle(googleRes.idToken, googleRes.accessToken);
+      setIsLoading(false);
+
+      if (res.requiresMobileCompletion) {
+        setPendingGoogleProfile(res.googleProfile);
+        setShowMobileCompletionModal(true);
+      } else if (!res.success) {
+        setError(res.message || "Google Sign-In failed. Please try again.");
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      setError("Unable to sign in with Google right now.");
+    }
+  };
+
+  const handleCompleteGoogleRegistration = async (phoneStr: string, otpStr: string) => {
+    if (!pendingGoogleProfile) return;
+    const res = await loginWithGoogle(
+      undefined,
+      undefined,
+      phoneStr,
+      otpStr,
+      pendingGoogleProfile.name,
+      undefined,
+      "contractor"
+    );
+    if (res.success) {
+      setShowMobileCompletionModal(false);
+      setPendingGoogleProfile(null);
+    } else {
+      throw new Error(res.message || "Failed to verify phone & create account.");
+    }
+  };
 
   const checkBiometricAvailability = async () => {
     if (Platform.OS === "web") return;
@@ -223,7 +278,7 @@ export default function LoginScreen() {
 
         if (loginSuccess) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          navigationProp.replace("Main");
+          try { navigationProp.replace("Main"); } catch (e) {}
         } else {
           setError("Biometric login failed. Please enter password.");
         }
@@ -299,7 +354,7 @@ export default function LoginScreen() {
       const success = await login(phone, "", fullOtp);
       if (success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        navigationProp.replace("Main");
+        try { navigationProp.replace("Main"); } catch (e) {}
       } else {
         setError("Invalid verification code.");
       }
@@ -326,7 +381,7 @@ export default function LoginScreen() {
           await SecureStore.setItemAsync("biometric_phone", phone);
         }
 
-        navigationProp.replace("Main");
+        try { navigationProp.replace("Main"); } catch (e) {}
       } else {
         setError("Invalid credentials.");
       }
@@ -526,9 +581,26 @@ export default function LoginScreen() {
             <>
               <View style={styles.dividerRow}>
                 <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-                <ThemedText style={[styles.dividerLabel, { color: theme.textSecondary }]}>or verify with</ThemedText>
+                <ThemedText style={[styles.dividerLabel, { color: theme.textSecondary }]}>or continue with</ThemedText>
                 <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
               </View>
+
+              <Pressable
+                style={[
+                  styles.googleBtn,
+                  {
+                    backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#FFFFFF",
+                    borderColor: theme.border,
+                  },
+                ]}
+                onPress={handleGoogleSignIn}
+                disabled={isLoading}
+              >
+                <Ionicons name="logo-google" size={18} color="#4285F4" style={{ marginRight: 10 }} />
+                <ThemedText style={[styles.googleBtnLabel, { color: theme.text }]}>
+                  Continue with Google
+                </ThemedText>
+              </Pressable>
 
               <View style={styles.altAuthRow}>
                 <Pressable
@@ -566,6 +638,13 @@ export default function LoginScreen() {
           </Pressable>
         </Animated.View>
       </KeyboardAwareScrollView>
+
+      <GoogleMobileCompletionModal
+        visible={showMobileCompletionModal}
+        googleProfile={pendingGoogleProfile}
+        onClose={() => setShowMobileCompletionModal(false)}
+        onSuccess={handleCompleteGoogleRegistration}
+      />
     </View>
   );
 }
@@ -649,6 +728,16 @@ const styles = StyleSheet.create({
 
   // Alt auth
   altAuthRow: { flexDirection: "row", gap: 10 },
+  googleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  googleBtnLabel: { fontSize: 14, fontWeight: "600" },
   altBtn: {
     flex: 1,
     flexDirection: "row",

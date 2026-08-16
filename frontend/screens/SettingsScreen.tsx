@@ -271,16 +271,48 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
 
   const loadProfileAndState = async () => {
     const auth = await storage.getAuth();
+    let loadedUser: User | null = null;
+
     if (auth?.userId) {
-      const userData = await storage.getUserById(auth.userId);
-      if (userData) {
-        setCurrentUser(userData);
-        if (userData.plan) {
-          setCurrentPlan(userData.plan as any);
+      loadedUser = await storage.getUserById(auth.userId);
+      if (!loadedUser && auth.token) {
+        try {
+          const res = await authenticatedFetch(`${API_URL}/auth/profile`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.user) {
+              loadedUser = {
+                id: data.user._id || data.user.id,
+                name: data.user.name,
+                phone: data.user.phone || "",
+                email: data.user.email || "",
+                username: data.user.username || "",
+                role: data.user.role || auth.role || "contractor",
+                isActive: true,
+                avatarColor: data.user.avatarColor || "#4ECDC4",
+                profileImage: data.user.profileImage || "",
+                companyName: data.user.tenantId?.name || data.user.companyName || "",
+                plan: data.user.tenantId?.plan || auth.plan || "free",
+                createdAt: new Date(data.user.createdAt).getTime(),
+                loginHistory: [Date.now()],
+              };
+              await storage.updateUser(loadedUser);
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to fetch user profile in SettingsScreen", e);
         }
       }
     }
-    if (auth?.plan && (!currentUser || !currentUser.plan)) {
+
+    const activeUser = loadedUser || authUser;
+    if (activeUser) {
+      setCurrentUser(activeUser);
+      if (activeUser.plan) {
+        setCurrentPlan(activeUser.plan as any);
+      }
+    }
+    if (auth?.plan && (!activeUser || !activeUser.plan)) {
       setCurrentPlan(auth.plan as any);
     }
 
@@ -1038,58 +1070,66 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
 
 
         {/* ─── 1. USER PROFILE CARD (DYNAMIC) ─── */}
-        {!isGuest && currentUser && (
-          <Pressable
-            onPress={() => {
-              if (isInDrawer && onClose) {
-                onClose();
-              }
-              navigation.navigate("UserProfile");
-            }}
-            style={[
-              styles.profileCard,
-              {
-                backgroundColor: theme.backgroundSecondary,
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            <View style={[styles.profileAvatar, { backgroundColor: currentUser.avatarColor || theme.primary }]}>
-              <ThemedText style={styles.profileAvatarText}>
-                {initials}
-              </ThemedText>
-            </View>
-            <View style={styles.profileDetails}>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <ThemedText style={styles.profileName}>{currentUser.name}</ThemedText>
-                <Feather name="chevron-right" size={16} color={theme.textSecondary} />
-              </View>
-              <ThemedText type="small" style={styles.profileMeta}>
-                📧 {currentUser.email || "No email added"}
-              </ThemedText>
-              <ThemedText type="small" style={styles.profileMeta}>
-                📞 {currentUser.phone}
-              </ThemedText>
-              {currentUser.companyName && (
-                <ThemedText type="small" style={styles.profileMeta}>
-                  🏢 {currentUser.companyName}
+        {!isGuest && (currentUser || authUser) && (() => {
+          const displayUser = currentUser || authUser;
+          if (!displayUser) return null;
+          const userInitials = displayUser.name
+            ? displayUser.name.split(" ").map((n) => n[0]).join("").toUpperCase()
+            : "HM";
+
+          return (
+            <Pressable
+              onPress={() => {
+                if (isInDrawer && onClose) {
+                  onClose();
+                }
+                navigation.navigate("UserProfile");
+              }}
+              style={[
+                styles.profileCard,
+                {
+                  backgroundColor: theme.backgroundSecondary,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <View style={[styles.profileAvatar, { backgroundColor: displayUser.avatarColor || theme.primary }]}>
+                <ThemedText style={styles.profileAvatarText}>
+                  {userInitials}
                 </ThemedText>
-              )}
-              <View style={{ flexDirection: "row", marginTop: 8 }}>
-                <View
-                  style={[
-                    styles.planBadge,
-                    { backgroundColor: getPlanColor(currentPlan) },
-                  ]}
-                >
-                  <ThemedText style={styles.planBadgeText}>
-                    {getPlanLabel(currentPlan).toUpperCase()}
+              </View>
+              <View style={styles.profileDetails}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <ThemedText style={styles.profileName}>{displayUser.name}</ThemedText>
+                  <Feather name="chevron-right" size={16} color={theme.textSecondary} />
+                </View>
+                <ThemedText type="small" style={styles.profileMeta}>
+                  📧 {displayUser.email || "No email added"}
+                </ThemedText>
+                <ThemedText type="small" style={styles.profileMeta}>
+                  📞 {displayUser.phone}
+                </ThemedText>
+                {displayUser.companyName && (
+                  <ThemedText type="small" style={styles.profileMeta}>
+                    🏢 {displayUser.companyName}
                   </ThemedText>
+                )}
+                <View style={{ flexDirection: "row", marginTop: 8 }}>
+                  <View
+                    style={[
+                      styles.planBadge,
+                      { backgroundColor: getPlanColor(currentPlan) },
+                    ]}
+                  >
+                    <ThemedText style={styles.planBadgeText}>
+                      {getPlanLabel(currentPlan).toUpperCase()}
+                    </ThemedText>
+                  </View>
                 </View>
               </View>
-            </View>
-          </Pressable>
-        )}
+            </Pressable>
+          );
+        })()}
 
         {/* ─── GUEST BANNER ─── */}
         {isGuest && (
@@ -1115,13 +1155,13 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
         )}
 
         {/* ─── 2. BUSINESS MANAGEMENT SECTION (DYNAMIC) ─── */}
-        {!isGuest && currentUser && (
+        {!isGuest && (currentUser || authUser) && (
           <>
             <ThemedText type="small" style={styles.sectionLabel}>
               {t.settings.businessManagement}
             </ThemedText>
             <SettingCard theme={theme} isDark={isDark}>
-              {currentUser.role === "contractor" && (
+              {(currentUser || authUser)?.role === "contractor" && (
                 <>
                   <SettingRow
                     icon="users"
@@ -1178,7 +1218,7 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                 </>
               )}
 
-              {currentUser.role === "builder" && (
+              {(currentUser || authUser)?.role === "builder" && (
                 <>
                   <SettingRow
                     icon="briefcase"
@@ -1235,7 +1275,7 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                 </>
               )}
 
-              {currentUser.role === "supervisor" && (
+              {(currentUser || authUser)?.role === "supervisor" && (
                 <>
                   <SettingRow
                     icon="map-pin"

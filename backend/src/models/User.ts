@@ -25,6 +25,8 @@ export interface IUser extends Document {
   address?: string;
   profileImage?: string;
   avatarColor?: string;
+  googleId?: string;
+  authProvider?: "password" | "otp" | "google";
 
   // Security Module
   otpEnabled?: boolean;
@@ -98,6 +100,8 @@ const UserSchema = new Schema<IUser>({
   address: { type: String },
   profileImage: { type: String },
   avatarColor: { type: String, default: "#4ECDC4" },
+  googleId: { type: String, unique: true, sparse: true, trim: true },
+  authProvider: { type: String, enum: ["password", "otp", "google"], default: "password" },
 
   // Security Module Settings
   otpEnabled: { type: Boolean, default: false },

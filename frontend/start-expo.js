@@ -2,7 +2,6 @@ const { execSync, spawn } = require("child_process");
 const os = require("os");
 
 const env = { ...process.env };
-env.EXPO_OFFLINE = "1";
 
 function getLocalIpAddress() {
   const interfaces = os.networkInterfaces();

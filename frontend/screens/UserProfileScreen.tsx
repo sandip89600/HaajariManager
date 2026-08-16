@@ -96,7 +96,7 @@ export default function UserProfileScreen() {
     }
     setIsSendingPhoneOtp(true);
     try {
-      const res = await authenticatedFetch("/auth/send-phone-verification-otp", {
+      const res = await authenticatedFetch(`${API_URL}/auth/send-phone-verification-otp`, {
         method: "POST",
         body: JSON.stringify({ phone: user.phone }),
       });
@@ -123,7 +123,7 @@ export default function UserProfileScreen() {
     }
     setIsVerifyingPhoneOtp(true);
     try {
-      const res = await authenticatedFetch("/auth/verify-phone-otp", {
+      const res = await authenticatedFetch(`${API_URL}/auth/verify-phone-otp`, {
         method: "POST",
         body: JSON.stringify({ otp: phoneOtp.trim(), phone: user?.phone }),
       });

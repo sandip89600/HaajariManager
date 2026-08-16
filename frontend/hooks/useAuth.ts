@@ -7,7 +7,7 @@ import {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DeviceEventEmitter } from "react-native";
-import { storage, AuthData, User, generateId, API_URL } from "@/utils/storage";
+import { storage, AuthData, User, generateId, API_URL, authenticatedFetch } from "@/utils/storage";
 import { registerExpoPushToken } from "@/utils/notifications";
 import { getDeviceHeaders } from "@/utils/device";
 
@@ -44,6 +44,15 @@ interface AuthContextType {
     token: string,
     rememberMe?: boolean,
   ) => Promise<boolean>;
+  loginWithGoogle: (
+    idToken?: string,
+    accessToken?: string,
+    phone?: string,
+    otp?: string,
+    name?: string,
+    companyName?: string,
+    role?: "contractor" | "builder"
+  ) => Promise<any>;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -83,10 +92,42 @@ export function useAuthProvider() {
         setUserId(auth.userId);
         setUserType(auth.userType);
         setEmail(auth.phone || auth.email || "");
-        if (auth.userType === "user" || auth.role) {
-          const userData = await storage.getUserById(auth.userId);
-          setUser(userData);
+        let userData = await storage.getUserById(auth.userId);
+        if (!userData && auth.token) {
+          try {
+            const res = await authenticatedFetch(`${API_URL}/auth/profile`);
+            if (res.ok) {
+              const profileData = await res.json();
+              const serverUser = profileData.user;
+              if (serverUser) {
+                userData = {
+                  id: serverUser._id || serverUser.id,
+                  name: serverUser.name,
+                  phone: serverUser.phone || "",
+                  email: serverUser.email || "",
+                  username: serverUser.username || "",
+                  isPhoneVerified: !!serverUser.isPhoneVerified,
+                  avatarColor: serverUser.avatarColor || "#4ECDC4",
+                  profileImage: serverUser.profileImage || undefined,
+                  address: serverUser.address || "",
+                  role: serverUser.role || auth.role || "contractor",
+                  isActive: true,
+                  createdAt: serverUser.createdAt
+                    ? new Date(serverUser.createdAt).getTime()
+                    : Date.now(),
+                  loginHistory: [Date.now()],
+                  companyName: serverUser.tenantId?.name || serverUser.companyName || "",
+                  plan: serverUser.tenantId?.plan || auth.plan || "free",
+                };
+                await storage.updateUser(userData);
+              }
+            }
+          } catch (e) {
+            console.log("Failed to fetch user profile during checkAuth:", e);
+          }
         }
+        setUser(userData);
+
         // Run sync on launch if logged in
         if (auth.token) {
           storage.syncWithBackend();
@@ -523,6 +564,106 @@ export function useAuthProvider() {
     [],
   );
 
+  const loginWithGoogle = useCallback(
+    async (
+      idToken?: string,
+      accessToken?: string,
+      phone?: string,
+      otp?: string,
+      name?: string,
+      companyName?: string,
+      role?: "contractor" | "builder"
+    ): Promise<any> => {
+      try {
+        const deviceHeaders = await getDeviceHeaders().catch(() => ({}));
+        const res = await fetch(`${API_URL}/auth/google`, {
+          method: "POST",
+          headers: { ...deviceHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idToken,
+            accessToken,
+            phone,
+            otp,
+            name,
+            companyName,
+            role,
+          }),
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok || !data || !data.success) {
+          return {
+            success: false,
+            message: data?.message || "Google Sign-In failed. Please try again.",
+          };
+        }
+
+        if (data.requiresMobileCompletion) {
+          return {
+            requiresMobileCompletion: true,
+            googleProfile: data.googleProfile,
+            message: data.message,
+          };
+        }
+
+        const uRole = data.user.role;
+        const uType = uRole === "admin" ? ("admin" as const) : ("user" as const);
+
+        const authData: AuthData = {
+          isLoggedIn: true,
+          userId: data.user.id,
+          userType: uType,
+          role: uRole,
+          phone: data.user.phone,
+          email: data.user.email,
+          username: data.user.username,
+          isPhoneVerified: !!data.user.isPhoneVerified,
+          rememberMe: true,
+          token: data.token,
+          refreshToken: data.refreshToken,
+          tenantId: data.user.tenantId,
+          plan: data.user.plan || "free",
+        };
+        await storage.setAuth(authData);
+        setIsLoggedIn(true);
+        setIsGuest(false);
+        setUserId(data.user.id);
+        setUserType(uType);
+        setEmail(data.user.email || data.user.phone || "");
+
+        const userData: User = {
+          id: data.user.id,
+          name: data.user.name,
+          phone: data.user.phone || "",
+          email: data.user.email || "",
+          username: data.user.username || "",
+          isPhoneVerified: !!data.user.isPhoneVerified,
+          avatarColor: data.user.avatarColor || "#4ECDC4",
+          profileImage: data.user.profileImage || undefined,
+          address: data.user.address || "",
+          role: uRole,
+          isActive: true,
+          createdAt: data.user.createdAt
+            ? new Date(data.user.createdAt).getTime()
+            : Date.now(),
+          loginHistory: [Date.now()],
+          companyName: data.user.companyName,
+          plan: data.user.plan || "free",
+        };
+        await storage.updateUser(userData);
+        setUser(userData);
+
+        storage.syncWithBackend();
+        return { success: true };
+      } catch (e: any) {
+        console.warn("[loginWithGoogle Error]:", e);
+        return { success: false, message: "Unable to connect to server. Please try again." };
+      }
+    },
+    [],
+  );
+
   const loginAsGuest = useCallback(() => {
     setIsGuest(true);
     setIsLoggedIn(false);
@@ -565,6 +706,7 @@ export function useAuthProvider() {
     loginAsGuest,
     logout,
     loginWithBiometrics,
+    loginWithGoogle,
   };
 }
 

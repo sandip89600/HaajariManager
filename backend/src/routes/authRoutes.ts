@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { signup, login, refresh, forgotPassword, resetPassword, renderResetPasswordPage, getProfile, updateProfile, changePassword, upgradePlan, deleteAccount, sendOtp, verifyOtpLogin, registerBiometric, biometricLogin, updatePrivacySettings, toggleOtpSetting, toggleBiometricsSetting, getUserSessions, logoutDevice, logoutAllDevices, savePushToken, validateSignupField, sendPhoneVerificationOtp, verifyPhoneOtp, trustDevice, reportSuspicious, getSecurityEvents } from "../controllers/authController";
+import { signup, login, refresh, forgotPassword, resetPassword, renderResetPasswordPage, getProfile, updateProfile, changePassword, upgradePlan, deleteAccount, sendOtp, verifyOtpLogin, registerBiometric, biometricLogin, updatePrivacySettings, toggleOtpSetting, toggleBiometricsSetting, getUserSessions, logoutDevice, logoutAllDevices, savePushToken, validateSignupField, sendPhoneVerificationOtp, verifyPhoneOtp, trustDevice, reportSuspicious, getSecurityEvents, googleAuth } from "../controllers/authController";
 import { authenticateJWT } from "../middleware/auth";
 
 const router = Router();
@@ -7,6 +7,7 @@ const router = Router();
 router.post("/signup", signup as any);
 router.post("/validate-signup-field", validateSignupField as any);
 router.post("/login", login as any);
+router.post("/google", googleAuth as any);
 router.post("/refresh", refresh as any);
 router.post("/send-phone-verification-otp", sendPhoneVerificationOtp as any);
 router.post("/verify-phone-otp", verifyPhoneOtp as any);

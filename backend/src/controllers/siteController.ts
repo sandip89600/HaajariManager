@@ -45,6 +45,8 @@ export const createSite = async (req: AuthenticatedRequest, res: Response) => {
 export const getSites = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
 
     if (!tenantId) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -54,6 +56,8 @@ export const getSites = async (req: AuthenticatedRequest, res: Response) => {
 
     const result = await SiteService.querySites({
       tenantId: tenantId.toString(),
+      userId: userId ? userId.toString() : undefined,
+      userRole,
       search: search ? String(search) : undefined,
       status: status ? String(status) : undefined,
       sortBy: sortBy ? String(sortBy) : undefined,

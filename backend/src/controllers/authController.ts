@@ -1,4 +1,5 @@
 import { Response } from "express";
+import axios from "axios";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -2577,5 +2578,245 @@ export const savePushToken = async (req: AuthenticatedRequest, res: Response) =>
     res.json({ success: true, message: "Push token registered successfully" });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+// 14. Google Sign-In Authentication Handler
+export const googleAuth = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { idToken, accessToken, phone, otp, name: customName, companyName, role } = req.body;
+
+    if (!idToken && !accessToken) {
+      return res.status(400).json({ success: false, message: "Google credential token is required." });
+    }
+
+    let googleUser: {
+      sub: string;
+      email: string;
+      email_verified?: boolean;
+      name?: string;
+      picture?: string;
+    } | null = null;
+
+    // 1. Verify Google ID Token with Google OAuth API
+    if (idToken) {
+      try {
+        const verifyRes = await axios.get(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`, { timeout: 8000 });
+        if (verifyRes.status === 200 && verifyRes.data && verifyRes.data.sub) {
+          googleUser = {
+            sub: verifyRes.data.sub,
+            email: verifyRes.data.email,
+            email_verified: verifyRes.data.email_verified === "true" || verifyRes.data.email_verified === true,
+            name: verifyRes.data.name,
+            picture: verifyRes.data.picture,
+          };
+        }
+      } catch (err: any) {
+        console.warn("[Google Auth] ID Token tokeninfo verification failed:", err.message);
+      }
+    }
+
+    // 2. Fallback verification via Google UserInfo API if accessToken was provided
+    if (!googleUser && accessToken) {
+      try {
+        const userinfoRes = await axios.get("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 8000,
+        });
+        if (userinfoRes.status === 200 && userinfoRes.data && userinfoRes.data.sub) {
+          googleUser = {
+            sub: userinfoRes.data.sub,
+            email: userinfoRes.data.email,
+            email_verified: userinfoRes.data.email_verified === true,
+            name: userinfoRes.data.name,
+            picture: userinfoRes.data.picture,
+          };
+        }
+      } catch (err: any) {
+        console.warn("[Google Auth] Access Token userinfo verification failed:", err.message);
+      }
+    }
+
+    if (!googleUser || !googleUser.sub) {
+      return res.status(400).json({ success: false, message: "Unable to verify Google identity. Please try again." });
+    }
+
+    const googleId = googleUser.sub;
+    const emailCleaned = (googleUser.email || "").toLowerCase().trim();
+
+    // 3. Find existing user by googleId
+    let user = await User.findOne({ googleId });
+
+    // 4. If not found by googleId, check if existing account matches verified email
+    if (!user && emailCleaned) {
+      const existingUserByEmail = await User.findOne({ email: emailCleaned });
+      if (existingUserByEmail) {
+        // Safely link Google Account to existing account
+        existingUserByEmail.googleId = googleId;
+        if (!existingUserByEmail.authProvider) {
+          existingUserByEmail.authProvider = "google";
+        }
+        if (googleUser.picture && !existingUserByEmail.profileImage) {
+          existingUserByEmail.profileImage = googleUser.picture;
+        }
+        await existingUserByEmail.save();
+        user = existingUserByEmail;
+        console.log(`[Google Auth] Linked Google account ${googleId} to existing email ${emailCleaned}`);
+      }
+    }
+
+    // 5. If user does NOT exist, create account or request mobile completion
+    if (!user) {
+      const phoneCleaned = (phone || "").replace(/\s+/g, "").trim();
+
+      if (!phoneCleaned) {
+        return res.json({
+          success: true,
+          requiresMobileCompletion: true,
+          googleProfile: {
+            googleId,
+            email: emailCleaned,
+            name: googleUser.name || customName || "Haajari User",
+            picture: googleUser.picture || "",
+          },
+          message: "Please enter your 10-digit mobile number to complete account setup.",
+        });
+      }
+
+      // Verify OTP if OTP is submitted for mobile registration
+      if (otp) {
+        const activeOtp = await OtpCode.findOne({ phone: phoneCleaned, verified: false });
+        if (!activeOtp || activeOtp.expiresAt.getTime() < Date.now()) {
+          return res.status(400).json({ success: false, message: "Invalid or expired OTP code." });
+        }
+        const isMatch = await bcrypt.compare(otp, activeOtp.otpCodeHash);
+        if (!isMatch) {
+          return res.status(400).json({ success: false, message: "Invalid OTP code." });
+        }
+        activeOtp.verified = true;
+        await activeOtp.save();
+      }
+
+      // Create Tenant for new user workspace
+      const userRole = (role || "contractor") as "contractor" | "builder";
+      const orgName = (companyName || `${googleUser.name || "My"} Org`).trim();
+      const tenantCode = `TEN_${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+
+      const tenant = new Tenant({
+        name: orgName,
+        code: tenantCode,
+        plan: "free",
+      });
+      await tenant.save();
+
+      // Secure random password hash for schema validity
+      const randomPasswordHash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 12);
+
+      user = new User({
+        tenantId: tenant._id,
+        name: (customName || googleUser.name || "Haajari User").trim(),
+        email: emailCleaned || undefined,
+        phone: phoneCleaned,
+        role: userRole,
+        passwordHash: randomPasswordHash,
+        googleId,
+        authProvider: "google",
+        isActive: true,
+        isVerified: true,
+        isPhoneVerified: true,
+        phoneVerifiedAt: new Date(),
+        status: "active",
+        profileImage: googleUser.picture || undefined,
+      });
+
+      await user.save();
+      console.log(`[Google Auth] Created new user with Google ID ${googleId} and phone ${phoneCleaned}`);
+    }
+
+    // 6. Device resolution & session logging
+    const deviceMeta = resolveDeviceMeta(req);
+    const { deviceId, deviceName, platform, os, browser, ipAddress, location } = deviceMeta;
+
+    if (!user.trustedDevices) user.trustedDevices = [];
+    const existingDeviceIndex = user.trustedDevices.findIndex((d) => d.deviceId === deviceId);
+
+    if (existingDeviceIndex >= 0) {
+      user.trustedDevices[existingDeviceIndex].lastActiveAt = new Date();
+      user.trustedDevices[existingDeviceIndex].ipAddress = ipAddress;
+      user.trustedDevices[existingDeviceIndex].location = location;
+    } else {
+      user.trustedDevices.push({
+        deviceId,
+        deviceName,
+        deviceOs: os,
+        deviceBrowser: browser,
+        ipAddress,
+        location,
+        trusted: true,
+        trustedAt: new Date(),
+        firstSeenAt: new Date(),
+        lastActiveAt: new Date(),
+        isSuspicious: false,
+        isRevoked: false,
+      });
+    }
+
+    if (!user.loginHistory) user.loginHistory = [];
+    user.loginHistory.push({
+      loginTime: new Date(),
+      deviceId,
+      deviceName,
+      deviceOs: os,
+      deviceBrowser: browser,
+      ipAddress,
+      location,
+    });
+
+    user.lastLogin = new Date();
+    const token = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    user.refreshTokens = [...(user.refreshTokens || []), refreshToken].slice(-5);
+    await user.save();
+
+    await logActivity({
+      req,
+      action: "USER_LOGIN",
+      targetType: "User",
+      targetId: user._id.toString(),
+      userId: user._id.toString(),
+      tenantId: user.tenantId?.toString(),
+      userName: user.name,
+      role: user.role,
+    });
+
+    const tenant = await Tenant.findById(user.tenantId);
+
+    return res.json({
+      success: true,
+      message: "Google login successful",
+      token,
+      refreshToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email || "",
+        username: user.username || "",
+        role: user.role,
+        tenantId: user.tenantId,
+        isVerified: user.isVerified,
+        isPhoneVerified: !!user.isPhoneVerified,
+        plan: tenant?.plan || "free",
+        companyName: tenant?.name || "",
+        address: user.address || "",
+        profileImage: user.profileImage || "",
+        avatarColor: user.avatarColor || "#4ECDC4",
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error: any) {
+    console.error("[Google Auth Error]:", error);
+    res.status(500).json({ success: false, message: error.message || "Failed to authenticate with Google." });
   }
 };

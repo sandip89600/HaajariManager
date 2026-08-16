@@ -110,18 +110,32 @@ export class SiteService {
    */
   static async querySites(params: {
     tenantId: string;
+    userId?: string;
+    userRole?: string;
     search?: string;
     status?: string;
     sortBy?: string;
     page?: number;
     limit?: number;
   }) {
-    const { tenantId, search, status, sortBy, page = 1, limit = 10 } = params;
+    const { tenantId, userId, userRole, search, status, sortBy, page = 1, limit = 10 } = params;
 
     const query: any = {
       tenantId: new mongoose.Types.ObjectId(tenantId),
       isDeleted: false
     };
+
+    if (userRole === "supervisor" && userId) {
+      const userDoc = await User.findById(userId);
+      const assignedProjects = userDoc?.assignedProjects || [];
+      query.$or = [
+        { supervisor: new mongoose.Types.ObjectId(userId) },
+        { createdBy: new mongoose.Types.ObjectId(userId) },
+        { _id: { $in: assignedProjects } },
+        { supervisor: { $exists: false } },
+        { supervisor: null }
+      ];
+    }
 
     // Filter by status (including "Archived" flag vs standard statuses)
     if (status) {

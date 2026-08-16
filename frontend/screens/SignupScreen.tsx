@@ -17,11 +17,13 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import GoogleMobileCompletionModal from "@/components/GoogleMobileCompletionModal";
+import { promptGoogleSignIn } from "@/utils/googleAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -42,7 +44,7 @@ type UserRole = "contractor" | "builder" | "supervisor";
 
 export default function SignupScreen() {
   const { theme } = useTheme();
-  const { signup } = useAuth();
+  const { signup, loginWithGoogle } = useAuth();
   const { t } = useLanguage();
   const navigation = useNavigation<SignupScreenNavigationProp>();
   const insets = useSafeAreaInsets();
@@ -60,6 +62,10 @@ export default function SignupScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  // Google completion modal state
+  const [showMobileCompletionModal, setShowMobileCompletionModal] = useState(false);
+  const [pendingGoogleProfile, setPendingGoogleProfile] = useState<any>(null);
 
   // Real-time password validation criteria
   const isMinLength = password.length >= 8;
@@ -102,6 +108,64 @@ export default function SignupScreen() {
   const animatedButtonStyle = useAnimatedStyle(() => ({
     transform: [{ scale: buttonScale.value }],
   }));
+
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    try {
+      const googleRes = await promptGoogleSignIn();
+      if (googleRes.type === "cancel") {
+        setIsLoading(false);
+        return;
+      }
+      if (googleRes.type === "error") {
+        setIsLoading(false);
+        Alert.alert("Google Sign-In", googleRes.error || "Unable to connect to Google.");
+        return;
+      }
+
+      const userRole = selectedRole === "builder" ? "builder" : "contractor";
+      const res = await loginWithGoogle(
+        googleRes.idToken,
+        googleRes.accessToken,
+        undefined,
+        undefined,
+        name,
+        companyName,
+        userRole
+      );
+      setIsLoading(false);
+
+      if (res.requiresMobileCompletion) {
+        setPendingGoogleProfile(res.googleProfile);
+        setShowMobileCompletionModal(true);
+      } else if (!res.success) {
+        Alert.alert("Google Sign-In", res.message || "Google Sign-In failed.");
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      Alert.alert("Google Sign-In", "Unable to sign in with Google right now.");
+    }
+  };
+
+  const handleCompleteGoogleRegistration = async (phoneStr: string, otpStr: string) => {
+    if (!pendingGoogleProfile) return;
+    const userRole = selectedRole === "builder" ? "builder" : "contractor";
+    const res = await loginWithGoogle(
+      undefined,
+      undefined,
+      phoneStr,
+      otpStr,
+      name || pendingGoogleProfile.name,
+      companyName,
+      userRole
+    );
+    if (res.success) {
+      setShowMobileCompletionModal(false);
+      setPendingGoogleProfile(null);
+    } else {
+      throw new Error(res.message || "Failed to verify phone & create account.");
+    }
+  };
 
   const runFieldValidation = async (field: "username" | "email" | "phone", val: string) => {
     const trimmed = val.trim();
@@ -348,7 +412,7 @@ export default function SignupScreen() {
       if (result.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert("Success", "Account created successfully!");
-        navigation.replace("Main");
+        try { navigation.replace("Main"); } catch (e) {}
       } else {
         if (result.field === "email") {
           setEmailState("error");
@@ -1002,9 +1066,40 @@ export default function SignupScreen() {
                 {isLoading ? t.common.loading : t.auth.signUp}
               </ThemedText>
             </AnimatedPressable>
+
+            {/* Google Sign-In Option */}
+            <View style={styles.dividerRow}>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+              <ThemedText style={[styles.dividerLabel, { color: theme.textSecondary }]}>or continue with</ThemedText>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+            </View>
+
+            <Pressable
+              style={[
+                styles.googleBtn,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+              onPress={handleGoogleSignIn}
+              disabled={isLoading}
+            >
+              <Ionicons name="logo-google" size={18} color="#4285F4" style={{ marginRight: 10 }} />
+              <ThemedText style={[styles.googleBtnLabel, { color: theme.text }]}>
+                Continue with Google
+              </ThemedText>
+            </Pressable>
           </View>
         )}
       </ScrollContainer>
+
+      <GoogleMobileCompletionModal
+        visible={showMobileCompletionModal}
+        googleProfile={pendingGoogleProfile}
+        onClose={() => setShowMobileCompletionModal(false)}
+        onSuccess={handleCompleteGoogleRegistration}
+      />
     </ThemedView>
   );
 }
@@ -1223,5 +1318,30 @@ const styles = StyleSheet.create({
   },
   ruleText: {
     fontSize: 12,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: Spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerLabel: {
+    fontSize: 12,
+    marginHorizontal: Spacing.md,
+  },
+  googleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 48,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  googleBtnLabel: {
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

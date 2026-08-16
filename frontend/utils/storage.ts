@@ -20,12 +20,18 @@ const getApiUrl = () => {
 
   // 2. Development mode on Metro / Local simulator / LAN
   if (__DEV__) {
-    const debuggerHost = Constants.expoConfig?.hostUri || (Constants as any).manifest?.debuggerHost;
+    const debuggerHost =
+      Constants.expoConfig?.hostUri ||
+      (Constants as any).manifest?.debuggerHost ||
+      (Constants as any).experienceUrl;
     if (debuggerHost) {
       const ip = debuggerHost.split(":")[0];
       if (ip && ip !== "localhost" && ip !== "127.0.0.1") {
         return `http://${ip}:5000/api`;
       }
+    }
+    if (Platform.OS === "android") {
+      return "http://10.0.2.2:5000/api";
     }
     return "http://localhost:5000/api";
   }
@@ -1556,6 +1562,12 @@ export async function authenticatedFetch(
   url: string,
   options: RequestInit & { _retry?: boolean; timeoutMs?: number } = {},
 ): Promise<Response> {
+  let fullUrl = url;
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    const endpoint = url.startsWith("/") ? url : `/${url}`;
+    fullUrl = `${API_URL}${endpoint}`;
+  }
+
   const auth = await storage.getAuth();
   const deviceHeaders = await getDeviceHeaders().catch(() => ({} as Record<string, string>));
 
@@ -1577,18 +1589,18 @@ export async function authenticatedFetch(
 
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetch(fullUrl, {
       ...options,
       signal: options.signal || controller.signal,
     });
   } catch (netError: any) {
     clearTimeout(timeoutId);
     if (netError.name === "AbortError") {
-      console.warn(`Request to ${url} timed out after ${timeoutMs}ms`);
-      throw new Error("Request timed out. Please try again.");
+      console.warn(`Request to ${fullUrl} timed out after ${timeoutMs}ms`);
+      throw new Error("Request timed out. Please check network connection and try again.");
     }
-    console.log("Network request failed in authenticatedFetch:", netError);
-    throw netError;
+    console.warn(`[Network Warning] Could not reach backend server at ${fullUrl}:`, netError?.message || netError);
+    throw new Error("Unable to connect to Haajari server. Please check internet connection.");
   } finally {
     clearTimeout(timeoutId);
   }
@@ -1596,7 +1608,7 @@ export async function authenticatedFetch(
   if (res.status === 401 && !options._retry) {
     if (auth?.token && auth?.refreshToken) {
       if (isRefreshing) {
-        console.log("Queueing request during token refresh:", url);
+        console.log("Queueing request during token refresh:", fullUrl);
         return new Promise<Response>((resolve, reject) => {
           subscribeTokenRefresh((newToken) => {
             // Update auth token for request and retry
@@ -1604,7 +1616,7 @@ export async function authenticatedFetch(
             updatedHeaders["Authorization"] = `Bearer ${newToken}`;
             options.headers = updatedHeaders;
             options._retry = true; // Mark retry to avoid infinite loop
-            fetch(url, options).then(resolve).catch(reject);
+            fetch(fullUrl, options).then(resolve).catch(reject);
           });
         });
       }
@@ -1636,7 +1648,7 @@ export async function authenticatedFetch(
           headers["Authorization"] = `Bearer ${refreshData.token}`;
           options.headers = headers;
           options._retry = true;
-          return fetch(url, options);
+          return fetch(fullUrl, options);
         } else if (refreshRes.status === 401 || refreshRes.status === 403 || refreshRes.status === 400) {
           console.warn("Refresh token rejected by server: status", refreshRes.status);
           isRefreshing = false;
@@ -1654,10 +1666,6 @@ export async function authenticatedFetch(
         isRefreshing = false;
         onRefreshed(auth.token);
       }
-    } else {
-      console.log("No token or refresh token, triggering unauthorized...");
-      await storage.clearAuth();
-      DeviceEventEmitter.emit("unauthorized");
     }
   }
 
