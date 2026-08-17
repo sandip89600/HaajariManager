@@ -12,11 +12,13 @@ let isGoogleConfigured = false;
 function configureGoogleSignin() {
   if (isGoogleConfigured) return;
   try {
-    GoogleSignin.configure({
-      webClientId: GOOGLE_WEB_CLIENT_ID,
-      offlineAccess: true,
+    const config: any = {
       scopes: ["profile", "email"],
-    });
+    };
+    if (GOOGLE_WEB_CLIENT_ID && GOOGLE_WEB_CLIENT_ID.trim()) {
+      config.webClientId = GOOGLE_WEB_CLIENT_ID.trim();
+    }
+    GoogleSignin.configure(config);
     isGoogleConfigured = true;
   } catch (err) {
     console.warn("[GoogleSignin] Configuration error:", err);
@@ -84,14 +86,30 @@ export async function promptGoogleSignIn(): Promise<GoogleAuthResult> {
 
     return { type: "cancel" };
   } catch (err: any) {
+    const errCode = String(err?.code || "");
     const errMessage = String(err?.message || err);
+
     if (err.code === statusCodes.SIGN_IN_CANCELLED) {
       return { type: "cancel" };
     } else if (err.code === statusCodes.IN_PROGRESS) {
       return { type: "cancel" };
     } else if (err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
       return { type: "error", error: "Google Play Services is not available on this device." };
-    } else if (errMessage.includes("RNGoogleSignin") || errMessage.includes("could not be found") || errMessage.includes("TurboModuleRegistry")) {
+    } else if (
+      errCode === (statusCodes as any).DEVELOPER_ERROR ||
+      errCode === "10" ||
+      errMessage.includes("DEVELOPER_ERROR")
+    ) {
+      console.warn("[Google Sign-In DEVELOPER_ERROR]:", errMessage);
+      return {
+        type: "error",
+        error: "Google Sign-In configuration mismatch (DEVELOPER_ERROR). Please ensure the Web Client ID in Google Cloud Console is distinct from the Android Client ID, and that package (com.haajari.app) & SHA-1 (94:94:EC:3F:5E:FC:9A:B1:81:AA:D9:48:3B:CF:ED:50:DF:EE:74:5C) are registered under your Android Client ID.",
+      };
+    } else if (
+      errMessage.includes("RNGoogleSignin") ||
+      errMessage.includes("could not be found") ||
+      errMessage.includes("TurboModuleRegistry")
+    ) {
       return {
         type: "error",
         error: "RNGoogleSignin native module is missing from the installed APK. Please build and install a new EAS Development Build.",
