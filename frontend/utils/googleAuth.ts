@@ -5,7 +5,7 @@ import Constants from "expo-constants";
 // Google OAuth 2.0 Web Client ID configuration (Server Audience)
 const GOOGLE_WEB_CLIENT_ID =
   process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
-  "734339237204-akssiso88c0dq5gh09i0hivjlhbporuj.apps.googleusercontent.com";
+  "734339237204-ck40vfaneag57k5u541g1vsr1v18uule.apps.googleusercontent.com";
 
 let isGoogleConfigured = false;
 
