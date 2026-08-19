@@ -37,6 +37,7 @@ import PaymentStatusScreen from "@/screens/PaymentStatusScreen";
 import BillingHistoryScreen from "@/screens/BillingHistoryScreen";
 import PaymentHandoverMenuScreen from "@/screens/PaymentHandoverMenuScreen";
 import SecureAccountScreen from "@/screens/SecureAccountScreen";
+import NotificationScreen from "@/screens/NotificationScreen";
 
 export type MainTabParamList = {
   AttendanceTab: undefined;
@@ -74,6 +75,7 @@ export type RootStackParamList = {
   BillingHistory: undefined;
   PaymentHandoverMenu: undefined;
   SecureAccount: { deviceInfo?: any } | undefined;
+  Notifications: undefined;
 
   // Root stack fallbacks
   Dashboard: undefined;
@@ -386,6 +388,13 @@ export default function MainTabNavigator() {
       <Stack.Screen
         name="SecureAccount"
         component={SecureAccountScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationScreen}
         options={{
           headerShown: false,
         }}

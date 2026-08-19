@@ -9,6 +9,7 @@ export const seedDefaultConfigIfNeeded = async (adminId?: any) => {
   if (!config) {
     config = new AppConfig({
       subscriptionsEnabled: false,
+      supervisorManagementRestrictedToPaid: false,
       features: [
         { key: "paymentHandover", name: "Payment Handover", description: "Enables contractor payment handover configuration and settings", enabled: true, premium: true, minPlan: "premium" },
         { key: "paymentProof", name: "Payment Proof", description: "Allows uploading and auditing payment proofs", enabled: false, premium: true, minPlan: "premium" },
@@ -33,7 +34,7 @@ export const getSubscriptionConfig = async (req: AuthenticatedRequest, res: Resp
 
 export const updateSubscriptionConfig = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { subscriptionsEnabled, features } = req.body;
+    const { subscriptionsEnabled, supervisorManagementRestrictedToPaid, features } = req.body;
     const adminId = req.user?.id;
 
     let config = await AppConfig.findOne();
@@ -47,6 +48,9 @@ export const updateSubscriptionConfig = async (req: AuthenticatedRequest, res: R
     // Update values
     if (typeof subscriptionsEnabled === "boolean") {
       config.subscriptionsEnabled = subscriptionsEnabled;
+    }
+    if (typeof supervisorManagementRestrictedToPaid === "boolean") {
+      config.supervisorManagementRestrictedToPaid = supervisorManagementRestrictedToPaid;
     }
     if (Array.isArray(features)) {
       config.features = features;

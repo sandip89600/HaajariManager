@@ -12,7 +12,17 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 
 import * as Linking from "expo-linking";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import RootNavigator from "@/navigation/RootNavigator";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LanguageContext, useLanguageProvider } from "@/hooks/useLanguage";
 import { AuthContext, useAuthProvider } from "@/hooks/useAuth";
@@ -99,21 +109,23 @@ function AppInner() {
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <GestureHandlerRootView style={styles.root}>
-        <KeyboardProvider>
-          <ThemeProvider>
-            <TourProvider>
-              <SocketProvider>
-                <ErrorBoundary>
-                  <AppInner />
-                </ErrorBoundary>
-              </SocketProvider>
-            </TourProvider>
-          </ThemeProvider>
-        </KeyboardProvider>
-      </GestureHandlerRootView>
-    </SafeAreaProvider>
+    <QueryClientProvider client={queryClient}>
+      <SafeAreaProvider>
+        <GestureHandlerRootView style={styles.root}>
+          <KeyboardProvider>
+            <ThemeProvider>
+              <TourProvider>
+                <SocketProvider>
+                  <ErrorBoundary>
+                    <AppInner />
+                  </ErrorBoundary>
+                </SocketProvider>
+              </TourProvider>
+            </ThemeProvider>
+          </KeyboardProvider>
+        </GestureHandlerRootView>
+      </SafeAreaProvider>
+    </QueryClientProvider>
   );
 }
 

@@ -25,6 +25,7 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import SettingsDrawer from "@/components/SettingsDrawer";
+import { useNotifications, registerForPushNotificationsAsync } from "@/hooks/useNotifications";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -89,8 +90,13 @@ export default function DashboardScreen() {
   const { config: featureConfig } = useFeatureAccess();
   const subscriptionsEnabled = featureConfig?.subscriptionsEnabled ?? true;
   const { socket, connectSocket } = useSocket();
+  const { unreadCount } = useNotifications();
   const insets = useSafeAreaInsets();
   const tour = useTour();
+
+  useEffect(() => {
+    registerForPushNotificationsAsync().catch(() => {});
+  }, []);
 
   const welcomeRef = useRef<View>(null);
   const summaryRef = useRef<View>(null);
@@ -429,9 +435,40 @@ export default function DashboardScreen() {
       >
         <View style={styles.headerInner} ref={welcomeRef} onLayout={onLayoutWelcome}>
           <View style={{ flex: 1 }}>
-            <ThemedText style={{ fontSize: 20, fontWeight: "900", color: "#FFFFFF" }}>
-              Haajari Manager
-            </ThemedText>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <ThemedText style={{ fontSize: 20, fontWeight: "900", color: "#FFFFFF" }}>
+                Haajari Manager
+              </ThemedText>
+              <Pressable
+                onPress={() => {
+                  triggerHaptic();
+                  navigation.navigate("Notifications");
+                }}
+                style={{ padding: 4, position: "relative", marginRight: 8 }}
+              >
+                <Feather name="bell" size={22} color="#FFFFFF" />
+                {unreadCount > 0 && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      right: -2,
+                      backgroundColor: "#EF4444",
+                      borderRadius: 9,
+                      minWidth: 16,
+                      height: 16,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingHorizontal: 3,
+                    }}
+                  >
+                    <ThemedText style={{ color: "#FFFFFF", fontSize: 10, fontWeight: "800" }}>
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </ThemedText>
+                  </View>
+                )}
+              </Pressable>
+            </View>
 
             {/* Small Plan Badge Nudge — only visible when subscriptions are enabled */}
             {subscriptionsEnabled && (

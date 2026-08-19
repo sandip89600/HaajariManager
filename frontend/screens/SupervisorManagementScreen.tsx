@@ -19,6 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
 import { storage, Project, API_URL, authenticatedFetch } from "@/utils/storage";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { appContextTracker } from "@/utils/appContextTracker";
 
 interface SupervisorUser {
@@ -36,6 +37,7 @@ export default function SupervisorManagementScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { user } = useAuth();
+  const { isSupervisorManagementAllowed } = useFeatureAccess();
 
   const [supervisors, setSupervisors] = useState<SupervisorUser[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -92,17 +94,13 @@ export default function SupervisorManagementScreen() {
   };
 
   const handleOpenAddModal = async () => {
-    // Client-side plan checks
+    // Dynamic plan restriction check controlled by Admin Panel toggle
     const auth = await storage.getAuth();
-    const plan = auth?.plan || "free";
-    const count = supervisors.length;
+    const plan = auth?.plan || user?.plan || "free";
+    const allowed = isSupervisorManagementAllowed(plan);
 
-    if (plan === "free") {
-      setUpgradeMessage(t.supervisor.upgradeFree);
-      setUpgradeModalVisible(true);
-      return;
-    } else if (plan === "professional" && count >= 2) {
-      setUpgradeMessage(t.supervisor.upgradeProfessional);
+    if (!allowed) {
+      setUpgradeMessage("Supervisor management is currently restricted to paid subscription plans. Upgrade your plan to invite supervisors.");
       setUpgradeModalVisible(true);
       return;
     }

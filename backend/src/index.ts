@@ -152,6 +152,15 @@ if (process.env.NODE_ENV !== "test") {
 
       const server = createServer(app);
       initSocket(server);
+      
+      // Initialize automated background reminder scheduler
+      try {
+        const { startReminderScheduler } = require("./services/reminderScheduler");
+        startReminderScheduler();
+      } catch (err: any) {
+        console.error("Failed to start reminder scheduler:", err);
+      }
+
       server.listen(PORT, () => {
         console.log(`Haajari Server (with Socket.io) running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode.`);
       });

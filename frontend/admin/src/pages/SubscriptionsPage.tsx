@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Gem, Search, Calendar, RefreshCw, AlertCircle, Settings, Sliders } from 'lucide-react';
+import { Gem, Search, Calendar, RefreshCw, AlertCircle, Settings, Sliders, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../utils/api';
 
@@ -64,6 +64,15 @@ export default function SubscriptionsPage() {
         subscriptionsEnabled: newVal
       });
     }
+  };
+
+  const handleToggleSupervisorRestricted = () => {
+    if (!config) return;
+    const newVal = !config.supervisorManagementRestrictedToPaid;
+    updateMutation.mutate({
+      ...config,
+      supervisorManagementRestrictedToPaid: newVal
+    });
   };
 
   const handleToggleFeature = (featureKey: string) => {
@@ -162,6 +171,49 @@ export default function SubscriptionsPage() {
             }`}
           >
             {config?.subscriptionsEnabled ? 'Turn OFF Subscription Enforcement' : 'Turn ON Subscription Enforcement'}
+          </button>
+        </div>
+
+        {/* Supervisor Management Free Plan Toggle Card */}
+        <div className="glass-card p-6 rounded-2xl border border-slate-850 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Shield className="w-5 h-5 text-purple-400" />
+              <h3 className="text-lg font-bold text-white">Supervisor Free Plan Access</h3>
+            </div>
+            <p className="text-slate-400 text-xs leading-relaxed mb-6">
+              Toggle whether Supervisor Management can be used on the Free plan.
+              <br/>
+              <span className="text-orange-400 font-semibold">• ON:</span> Restricted to Paid plans (blocked on Free plan).
+              <br/>
+              <span className="text-emerald-400 font-semibold">• OFF:</span> Unlocked for Free plan users.
+            </p>
+            <div className="flex items-center gap-3 mb-6 bg-slate-950/40 p-4 rounded-xl border border-slate-900">
+              <span className="text-xs font-semibold text-slate-450 uppercase tracking-wide">Access Mode:</span>
+              {config?.supervisorManagementRestrictedToPaid ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                  Restricted (Paid Only)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Unlocked (Free Allowed)
+                </span>
+              )}
+            </div>
+          </div>
+
+          <button
+            onClick={handleToggleSupervisorRestricted}
+            disabled={updateMutation.isPending}
+            className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 ${
+              config?.supervisorManagementRestrictedToPaid
+                ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30'
+                : 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30'
+            }`}
+          >
+            {config?.supervisorManagementRestrictedToPaid ? 'Turn OFF Paid Restriction (Allow on Free)' : 'Turn ON Paid Restriction (Paid Only)'}
           </button>
         </div>
 

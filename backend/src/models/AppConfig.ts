@@ -11,6 +11,7 @@ export interface IFeatureConfig {
 
 export interface IAppConfig extends Document {
   subscriptionsEnabled: boolean;
+  supervisorManagementRestrictedToPaid?: boolean;
   features: IFeatureConfig[];
   updatedBy: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -32,6 +33,7 @@ const FeatureConfigSchema = new Schema<IFeatureConfig>({
 
 const AppConfigSchema = new Schema<IAppConfig>({
   subscriptionsEnabled: { type: Boolean, required: true, default: false },
+  supervisorManagementRestrictedToPaid: { type: Boolean, default: false },
   features: [FeatureConfigSchema],
   updatedBy: { type: Schema.Types.ObjectId, ref: "User", required: true }
 }, {

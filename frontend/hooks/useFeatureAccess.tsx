@@ -13,6 +13,7 @@ export interface FeatureFlag {
 
 export interface AppConfig {
   subscriptionsEnabled: boolean;
+  supervisorManagementRestrictedToPaid?: boolean;
   features: FeatureFlag[];
 }
 
@@ -21,6 +22,7 @@ interface FeatureAccessContextType {
   isLoading: boolean;
   refetch: () => Promise<void>;
   hasFeature: (featureKey: string) => boolean;
+  isSupervisorManagementAllowed: (userPlan?: string) => boolean;
   getFeatureStatus: (featureKey: string) => {
     enabled: boolean;
     accessible: boolean;
@@ -75,6 +77,14 @@ export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
     const feature = config.features.find(f => f.key === featureKey);
     if (!feature) return true;
     return feature.enabled;
+  };
+
+  const isSupervisorManagementAllowed = (userPlan: string = "free"): boolean => {
+    if (!config) return true;
+    if (!config.subscriptionsEnabled) return true;
+    const restricted = config.supervisorManagementRestrictedToPaid ?? false;
+    if (!restricted) return true; // OFF: Allowed on Free plan
+    return userPlan !== "free"; // ON: Only allowed on paid plans
   };
 
   const getFeatureStatus = (featureKey: string) => {
@@ -144,6 +154,7 @@ export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
         isLoading,
         refetch: fetchConfig,
         hasFeature,
+        isSupervisorManagementAllowed,
         getFeatureStatus
       }}
     >
