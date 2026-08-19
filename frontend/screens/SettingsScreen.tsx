@@ -1168,7 +1168,7 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                     iconColor="#00BCD4"
                     label={t.settings.manageWorkers}
                     sublabel={t.settings.manageWorkersDesc}
-                    onPress={() => navigation.navigate("AttendanceTab", { screen: "Workers" })}
+                    onPress={() => navigation.navigate("MainTabs", { screen: "AttendanceTab", params: { screen: "Workers" } })}
                     theme={theme}
                   />
                   <SettingRow
@@ -1241,7 +1241,7 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                     iconColor="#03A9F4"
                     label={t.settings.businessAnalytics}
                     sublabel={t.settings.businessAnalyticsDesc}
-                    onPress={() => navigation.navigate("AttendanceTab", { screen: "Summary" })}
+                    onPress={() => navigation.navigate("MainTabs", { screen: "AttendanceTab", params: { screen: "Summary" } })}
                     theme={theme}
                   />
                   <SettingRow
@@ -2789,7 +2789,7 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
         onClose={() => setShowHelpSheet(false)}
         onTourStart={() => {
           if (isInDrawer && onClose) onClose();
-          navigation.navigate("AttendanceTab", { screen: "Dashboard" });
+          navigation.navigate("MainTabs", { screen: "AttendanceTab", params: { screen: "Dashboard" } });
         }}
       />
     </ThemedView>

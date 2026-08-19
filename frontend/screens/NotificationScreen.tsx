@@ -101,15 +101,27 @@ export default function NotificationScreen() {
     if (screen) {
       try {
         if (screen === "Attendance") {
-          navigation.navigate("AttendanceTab", { screen: "Dashboard", ...params });
+          navigation.navigate("MainTabs", {
+            screen: "AttendanceTab",
+            params: { screen: "Dashboard", ...params },
+          });
         } else if (screen === "Settings") {
-          navigation.navigate("Settings", params);
+          navigation.navigate("MainTabs", {
+            screen: "SettingsTab",
+            params,
+          });
         } else if (screen === "Workers") {
-          navigation.navigate("WorkersTab", { screen: "WorkerList", ...params });
+          navigation.navigate("MainTabs", {
+            screen: "WorkersTab",
+            params,
+          });
         } else if (screen === "Payments") {
-          navigation.navigate("PaymentsTab", params);
+          navigation.navigate("MainTabs", {
+            screen: "ReportsTab",
+            params,
+          });
         } else {
-          navigation.navigate(screen, params);
+          navigation.navigate(screen as any, params);
         }
       } catch (e) {
         console.warn("Deep linking navigation error:", e);

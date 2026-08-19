@@ -77,11 +77,16 @@ export type RootStackParamList = {
   SecureAccount: { deviceInfo?: any } | undefined;
   Notifications: undefined;
 
-  // Root stack fallbacks
+  // Root stack fallbacks & tab alias mappings
   Dashboard: undefined;
   AttendanceDetail: { siteId?: string } | undefined;
   Workers: undefined;
   Summary: undefined;
+  AttendanceTab: any;
+  WorkersTab: any;
+  SettingsTab: any;
+  SiteManagementTab: any;
+  ReportsTab: any;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -428,6 +433,32 @@ export default function MainTabNavigator() {
         options={{
           headerTitle: t.summary.title,
         }}
+      />
+      {/* Fallback tab alias screen mappings */}
+      <Stack.Screen
+        name="AttendanceTab"
+        component={DashboardScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="WorkersTab"
+        component={WorkersScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="SettingsTab"
+        component={SettingsScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="SiteManagementTab"
+        component={SiteControlDashboardScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="ReportsTab"
+        component={SummaryScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
     {newDeviceAlert && (
