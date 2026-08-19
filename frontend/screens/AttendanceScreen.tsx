@@ -22,8 +22,8 @@ import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { Avatar } from "@/components/ui/Avatar";
 import { AttendanceEditorModal } from "@/components/AttendanceEditorModal";
+import { AttendanceCompactStats, AttendanceStatsData } from "@/components/AttendanceCompactStats";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
@@ -87,13 +87,18 @@ export default function AttendanceScreen() {
     return new Date(year, month + 1, 0).getDate();
   }, [year, month]);
 
-  // Load Data
+  // Load Data with Instant Cache + Parallel Revalidation
   const loadData = async (silent = false) => {
     try {
-      if (!silent) setLoading(true);
+      if (!silent && workers.length === 0) setLoading(true);
       
-      // Load active project/site details if any
-      const sitesResult = await storage.getSites();
+      // Parallel fetch of independent requests instead of sequential waterfall
+      const [sitesResult, loadedWorkers, monthAttendance] = await Promise.all([
+        storage.getSites(),
+        storage.getWorkers(),
+        storage.getAttendanceForMonth(year, month),
+      ]);
+
       const rawSites = sitesResult.sites || [];
       const projects: Project[] = rawSites.map((s: any) => ({
         id: s.id,
@@ -111,16 +116,12 @@ export default function AttendanceScreen() {
       
       setActiveSite(activeProj);
 
-      // Load workers
-      const loadedWorkers = await storage.getWorkers();
       // Filter workers assigned to the active site/project
       const siteWorkers = activeProj 
         ? loadedWorkers.filter((w) => w.projectId === activeProj.id)
         : loadedWorkers;
-      setWorkers(siteWorkers);
 
-      // Load month attendance
-      const monthAttendance = await storage.getAttendanceForMonth(year, month);
+      setWorkers(siteWorkers);
       setAttendance(monthAttendance);
     } catch (e) {
       console.warn("Failed to load attendance grid data:", e);
@@ -292,6 +293,34 @@ export default function AttendanceScreen() {
     return workers.filter((w) => w.name?.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [workers, searchQuery]);
 
+  const statsData: AttendanceStatsData = useMemo(() => {
+    let pCount = 0;
+    let aCount = 0;
+    let hCount = 0;
+    let otCount = 0;
+
+    const monthRecords = attendance.filter((r) => r.year === year && r.month === month);
+
+    monthRecords.forEach((r) => {
+      if (r.value === "P") pCount++;
+      else if (r.value === "A") aCount++;
+      else if (r.value === "H") hCount++;
+      else if (r.value === "OT") otCount++;
+    });
+
+    const activeW = workers.filter((w) => (w as any).status !== "inactive").length;
+
+    return {
+      present: pCount + otCount,
+      absent: aCount,
+      halfDay: hCount,
+      totalAttendance: pCount + aCount + hCount + otCount,
+      activeWorkers: activeW,
+      onLeaveWorkers: otCount,
+      newWorkersThisMonth: workers.length,
+    };
+  }, [attendance, workers, year, month]);
+
   // Colors
   const bgCard = isDark ? "#1E293B" : "#FFFFFF";
   const bgRoot = isDark ? "#0F172A" : "#F8FAFC";
@@ -331,6 +360,9 @@ export default function AttendanceScreen() {
           <Feather name="chevron-down" size={16} color={isDark ? "#94A3B8" : "#64748B"} style={{ marginLeft: 8 }} />
         </Pressable>
       </View>
+
+      {/* 2.1 Compact Attendance & Worker Statistics Banner */}
+      <AttendanceCompactStats stats={statsData} />
 
       {/* 3. Inline Search (toggle from header) */}
       {showSearch && (

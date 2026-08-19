@@ -51,7 +51,9 @@ interface AuthContextType {
     otp?: string,
     name?: string,
     companyName?: string,
-    role?: "contractor" | "builder"
+    role?: "contractor" | "builder",
+    googleId?: string,
+    email?: string
   ) => Promise<any>;
 }
 
@@ -572,7 +574,9 @@ export function useAuthProvider() {
       otp?: string,
       name?: string,
       companyName?: string,
-      role?: "contractor" | "builder"
+      role?: "contractor" | "builder",
+      googleId?: string,
+      email?: string
     ): Promise<any> => {
       try {
         const deviceHeaders = await getDeviceHeaders().catch(() => ({}));
@@ -582,6 +586,8 @@ export function useAuthProvider() {
           body: JSON.stringify({
             idToken,
             accessToken,
+            googleId,
+            email,
             phone,
             otp,
             name,

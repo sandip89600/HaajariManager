@@ -165,52 +165,67 @@ export default function LoginScreen() {
     checkBiometricAvailability();
   }, []);
 
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [googleLoadingText, setGoogleLoadingText] = useState("");
+
   const handleGoogleSignIn = async () => {
-    setIsLoading(true);
+    setIsGoogleLoading(true);
+    setGoogleLoadingText("Connecting to Google...");
     setError(null);
     try {
       const googleRes = await promptGoogleSignIn();
       if (googleRes.type === "cancel") {
-        setIsLoading(false);
+        setIsGoogleLoading(false);
+        setGoogleLoadingText("");
         return;
       }
       if (googleRes.type === "error") {
-        setIsLoading(false);
+        setIsGoogleLoading(false);
+        setGoogleLoadingText("");
         setError(googleRes.error || "Unable to connect to Google.");
         return;
       }
 
+      setGoogleLoadingText("Setting up your Haajari account...");
       const res = await loginWithGoogle(googleRes.idToken, googleRes.accessToken);
-      setIsLoading(false);
+      setIsGoogleLoading(false);
+      setGoogleLoadingText("");
 
       if (res.requiresMobileCompletion) {
-        setPendingGoogleProfile(res.googleProfile);
+        setPendingGoogleProfile({
+          ...res.googleProfile,
+          idToken: googleRes.idToken,
+          accessToken: googleRes.accessToken,
+        });
         setShowMobileCompletionModal(true);
       } else if (!res.success) {
         setError(res.message || "Google Sign-In failed. Please try again.");
       }
     } catch (err: any) {
-      setIsLoading(false);
+      setIsGoogleLoading(false);
+      setGoogleLoadingText("");
       setError("Unable to sign in with Google right now.");
     }
   };
 
-  const handleCompleteGoogleRegistration = async (phoneStr: string, otpStr: string) => {
+  const handleCompleteGoogleRegistration = async (phoneStr: string) => {
     if (!pendingGoogleProfile) return;
     const res = await loginWithGoogle(
-      undefined,
-      undefined,
+      pendingGoogleProfile.idToken,
+      pendingGoogleProfile.accessToken,
       phoneStr,
-      otpStr,
+      undefined,
       pendingGoogleProfile.name,
       undefined,
-      "contractor"
+      "contractor",
+      pendingGoogleProfile.googleId,
+      pendingGoogleProfile.email
     );
     if (res.success) {
       setShowMobileCompletionModal(false);
       setPendingGoogleProfile(null);
     } else {
-      throw new Error(res.message || "Failed to verify phone & create account.");
+      throw new Error(res.message || "Failed to create account.");
     }
   };
 
@@ -427,7 +442,7 @@ export default function LoginScreen() {
             <Feather name="shield" size={32} color="#FFFFFF" />
           </LinearGradient>
           <ThemedText style={[styles.appName, { color: theme.text }]}>Haajari Manager</ThemedText>
-          <ThemedText style={[styles.tagline, { color: theme.textSecondary }]}>Premium Workforce Telemetry</ThemedText>
+          <ThemedText style={[styles.tagline, { color: theme.textSecondary }]}>Advance Haajari Mangament</ThemedText>
         </Animated.View>
 
         {/* glassmorphism Card container */}
@@ -594,12 +609,23 @@ export default function LoginScreen() {
                   },
                 ]}
                 onPress={handleGoogleSignIn}
-                disabled={isLoading}
+                disabled={isLoading || isGoogleLoading}
               >
-                <Ionicons name="logo-google" size={18} color="#4285F4" style={{ marginRight: 10 }} />
-                <ThemedText style={[styles.googleBtnLabel, { color: theme.text }]}>
-                  Continue with Google
-                </ThemedText>
+                {isGoogleLoading ? (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <ActivityIndicator size="small" color="#4285F4" style={{ marginRight: 8 }} />
+                    <ThemedText style={[styles.googleBtnLabel, { color: theme.text }]}>
+                      {googleLoadingText || "Connecting to Google..."}
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <>
+                    <Ionicons name="logo-google" size={18} color="#4285F4" style={{ marginRight: 10 }} />
+                    <ThemedText style={[styles.googleBtnLabel, { color: theme.text }]}>
+                      Continue with Google
+                    </ThemedText>
+                  </>
+                )}
               </Pressable>
 
               <View style={styles.altAuthRow}>

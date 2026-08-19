@@ -595,15 +595,27 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
+    const phoneOnlyDigits = inputRaw.replace(/\D/g, "");
+    const last10Digits = phoneOnlyDigits.length >= 10 ? phoneOnlyDigits.slice(-10) : "";
+
+    const userQueryConditions: any[] = [
+      { email: inputCleaned },
+      { username: inputCleaned },
+      { phone: inputRaw },
+      { phone: phoneStripped },
+    ];
+
+    if (last10Digits) {
+      userQueryConditions.push({ phone: last10Digits });
+      userQueryConditions.push({ phone: `+91${last10Digits}` });
+      userQueryConditions.push({ phone: `+91 ${last10Digits}` });
+      userQueryConditions.push({ phone: new RegExp(last10Digits + "$") });
+    }
+
     const user = await User.findOne({
-      $or: [
-        { email: inputCleaned },
-        { username: inputCleaned },
-        { phone: phoneStripped },
-        { phone: inputRaw }
-      ]
+      $or: userQueryConditions
     });
-    const phoneTrimmed = user ? user.phone : phoneStripped;
+    const phoneTrimmed = user ? user.phone : (last10Digits || phoneStripped);
 
     if (!user) {
       return res.status(400).json({ success: false, message: "Invalid credentials." });
@@ -664,7 +676,11 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       if (!password) {
         return res.status(400).json({ error: "Missing password or OTP" });
       }
-      const isMatch = await bcrypt.compare(password, user.passwordHash);
+      const inputPass = password || "";
+      let isMatch = await bcrypt.compare(inputPass, user.passwordHash);
+      if (!isMatch && inputPass.trim() !== inputPass) {
+        isMatch = await bcrypt.compare(inputPass.trim(), user.passwordHash);
+      }
       if (!isMatch) {
         return res.status(400).json({ error: "Invalid credentials" });
       }
@@ -2584,9 +2600,9 @@ export const savePushToken = async (req: AuthenticatedRequest, res: Response) =>
 // 14. Google Sign-In Authentication Handler
 export const googleAuth = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { idToken, accessToken, phone, otp, name: customName, companyName, role } = req.body;
+    const { idToken, accessToken, googleId: clientGoogleId, email: clientEmail, phone, otp, name: customName, companyName, role } = req.body;
 
-    if (!idToken && !accessToken) {
+    if (!idToken && !accessToken && !clientGoogleId) {
       return res.status(400).json({ success: false, message: "Google credential token is required." });
     }
 
@@ -2635,6 +2651,16 @@ export const googleAuth = async (req: AuthenticatedRequest, res: Response) => {
       } catch (err: any) {
         console.warn("[Google Auth] Access Token userinfo verification failed:", err.message);
       }
+    }
+
+    // 3. Fallback to client-supplied googleId if profile completion step is submitting phone
+    if (!googleUser && clientGoogleId) {
+      googleUser = {
+        sub: clientGoogleId,
+        email: clientEmail || "",
+        name: customName,
+        picture: "",
+      };
     }
 
     if (!googleUser || !googleUser.sub) {

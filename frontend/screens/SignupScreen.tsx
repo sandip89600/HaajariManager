@@ -136,7 +136,11 @@ export default function SignupScreen() {
       setIsLoading(false);
 
       if (res.requiresMobileCompletion) {
-        setPendingGoogleProfile(res.googleProfile);
+        setPendingGoogleProfile({
+          ...res.googleProfile,
+          idToken: googleRes.idToken,
+          accessToken: googleRes.accessToken,
+        });
         setShowMobileCompletionModal(true);
       } else if (!res.success) {
         Alert.alert("Google Sign-In", res.message || "Google Sign-In failed.");
@@ -147,23 +151,25 @@ export default function SignupScreen() {
     }
   };
 
-  const handleCompleteGoogleRegistration = async (phoneStr: string, otpStr: string) => {
+  const handleCompleteGoogleRegistration = async (phoneStr: string) => {
     if (!pendingGoogleProfile) return;
     const userRole = selectedRole === "builder" ? "builder" : "contractor";
     const res = await loginWithGoogle(
-      undefined,
-      undefined,
+      pendingGoogleProfile.idToken,
+      pendingGoogleProfile.accessToken,
       phoneStr,
-      otpStr,
+      undefined,
       name || pendingGoogleProfile.name,
       companyName,
-      userRole
+      userRole,
+      pendingGoogleProfile.googleId,
+      pendingGoogleProfile.email
     );
     if (res.success) {
       setShowMobileCompletionModal(false);
       setPendingGoogleProfile(null);
     } else {
-      throw new Error(res.message || "Failed to verify phone & create account.");
+      throw new Error(res.message || "Failed to create account.");
     }
   };
 

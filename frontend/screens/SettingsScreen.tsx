@@ -1596,6 +1596,23 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
             theme={theme}
           />
         </SettingCard>
+
+        {/* ─── 11. LOGOUT BUTTON ─── */}
+        <Pressable
+          onPress={handleLogout}
+          style={[
+            styles.logoutBtn,
+            {
+              borderColor: "#EF4444",
+              backgroundColor: isDark ? "rgba(239, 68, 68, 0.1)" : "#FEF2F2",
+            },
+          ]}
+        >
+          <Feather name="log-out" size={18} color="#EF4444" />
+          <ThemedText style={{ color: "#EF4444", fontWeight: "700", fontSize: 16 }}>
+            {t.settings?.logout || "Log Out"}
+          </ThemedText>
+        </Pressable>
       </ScrollView>
 
       {/* ─── THEME MODAL ─── */}

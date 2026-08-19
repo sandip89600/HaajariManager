@@ -8,6 +8,7 @@ import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
 import { createServer } from "http";
+import mongoSanitize from "express-mongo-sanitize";
 import apiRoutes from "./routes";
 import { initSocket } from "./utils/socket";
 import { validateEmailConfig } from "./utils/mail";
@@ -62,6 +63,7 @@ app.use(helmet({
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use(mongoSanitize());
 
 // Serve static uploads folder
 const uploadsDir = path.join(__dirname, "../uploads");

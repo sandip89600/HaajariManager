@@ -56,8 +56,12 @@ try {
 
 const args = ["expo", "start"];
 
-// Forward any arguments from command line
-process.argv.slice(2).forEach((arg) => {
+const userArgs = process.argv.slice(2);
+if (!userArgs.includes("--dev-client") && !userArgs.includes("--go")) {
+  args.push("--dev-client");
+}
+
+userArgs.forEach((arg) => {
   args.push(arg);
 });
 

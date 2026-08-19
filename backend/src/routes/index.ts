@@ -15,6 +15,7 @@ import subscriptionRoutes from "./subscriptionRoutes";
 import recoveryRoutes from "./recoveryRoutes";
 import appConfigRoutes from "./appConfigRoutes";
 import paymentHandoverRoutes from "./paymentHandoverRoutes";
+import haiRoutes from "./haiRoutes";
 
 const router = Router();
 
@@ -34,6 +35,7 @@ router.use("/sites", siteRoutes);
 router.use("/subscription", subscriptionRoutes);
 router.use("/app", appConfigRoutes);
 router.use("/payment-handover", paymentHandoverRoutes);
+router.use("/hai", haiRoutes);
 
 export default router;
 

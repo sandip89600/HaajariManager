@@ -1,4 +1,3 @@
-import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 
@@ -9,8 +8,21 @@ const GOOGLE_WEB_CLIENT_ID =
 
 let isGoogleConfigured = false;
 
-function configureGoogleSignin() {
-  if (isGoogleConfigured) return;
+function getGoogleSigninModule() {
+  try {
+    const mod = require("@react-native-google-signin/google-signin");
+    return {
+      GoogleSignin: mod.GoogleSignin,
+      statusCodes: mod.statusCodes,
+    };
+  } catch (err) {
+    console.warn("[GoogleSignin] Native module require failed:", err);
+    return null;
+  }
+}
+
+function configureGoogleSignin(GoogleSignin: any) {
+  if (isGoogleConfigured || !GoogleSignin) return;
   try {
     const config: any = {
       scopes: ["profile", "email"],
@@ -47,8 +59,19 @@ export async function promptGoogleSignIn(): Promise<GoogleAuthResult> {
     };
   }
 
+  // Safely load native module dynamically at runtime
+  const nativeModule = getGoogleSigninModule();
+  if (!nativeModule || !nativeModule.GoogleSignin) {
+    return {
+      type: "error",
+      error: "RNGoogleSignin native module is missing from the installed APK. Please build and install a new EAS Development Build.",
+    };
+  }
+
+  const { GoogleSignin, statusCodes } = nativeModule;
+
   try {
-    configureGoogleSignin();
+    configureGoogleSignin(GoogleSignin);
 
     // Ensure Google Play Services are available on Android devices
     if (Platform.OS === "android") {
@@ -89,21 +112,21 @@ export async function promptGoogleSignIn(): Promise<GoogleAuthResult> {
     const errCode = String(err?.code || "");
     const errMessage = String(err?.message || err);
 
-    if (err.code === statusCodes.SIGN_IN_CANCELLED) {
+    if (err.code === statusCodes?.SIGN_IN_CANCELLED) {
       return { type: "cancel" };
-    } else if (err.code === statusCodes.IN_PROGRESS) {
+    } else if (err.code === statusCodes?.IN_PROGRESS) {
       return { type: "cancel" };
-    } else if (err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+    } else if (err.code === statusCodes?.PLAY_SERVICES_NOT_AVAILABLE) {
       return { type: "error", error: "Google Play Services is not available on this device." };
     } else if (
-      errCode === (statusCodes as any).DEVELOPER_ERROR ||
+      errCode === (statusCodes as any)?.DEVELOPER_ERROR ||
       errCode === "10" ||
       errMessage.includes("DEVELOPER_ERROR")
     ) {
       console.warn("[Google Sign-In DEVELOPER_ERROR]:", errMessage);
       return {
         type: "error",
-        error: "Google Sign-In configuration mismatch (DEVELOPER_ERROR). Please ensure the Web Client ID in Google Cloud Console is distinct from the Android Client ID, and that package (com.haajari.app) & SHA-1 (94:94:EC:3F:5E:FC:9A:B1:81:AA:D9:48:3B:CF:ED:50:DF:EE:74:5C) are registered under your Android Client ID.",
+        error: "Google Sign-In configuration mismatch (DEVELOPER_ERROR). Please ensure the Web Client ID in Google Cloud Console is distinct from the Android Client ID, and that package (com.haajari.app) & SHA-1 are registered under your Android Client ID.",
       };
     } else if (
       errMessage.includes("RNGoogleSignin") ||
