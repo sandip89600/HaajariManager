@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { WebView } from "react-native-webview";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeInDown, FadeInUp, FadeInRight, Layout } from "react-native-reanimated";
@@ -90,9 +91,17 @@ export default function SubscriptionScreen() {
   const [sitesCount, setSitesCount] = useState(2);
   const [sitesLimit, setSitesLimit] = useState(2);
 
-  // Payment Drawer state
+  // Payment Drawer & Success Modal state
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
+  const [successDetails, setSuccessDetails] = useState<{ planName: string; amount: number; validUntil: string } | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"UPI" | "Credit Card" | "Debit Card" | "Net Banking" | "Wallet">("UPI");
+
+  // Mobile Native WebView Razorpay Modal States
+  const [webViewModalVisible, setWebViewModalVisible] = useState(false);
+  const [webViewHtml, setWebViewHtml] = useState<string>("");
+  const [pendingTxnDetails, setPendingTxnDetails] = useState<{ transactionId: string; token: string; invoiceNumber: string } | null>(null);
 
   const triggerHaptic = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -139,83 +148,351 @@ export default function SubscriptionScreen() {
     setPaymentModalVisible(true);
   };
 
-  // Process Mock Checkout
-  const processPayment = async (status: "Completed" | "Failed" | "Pending") => {
+  // Helper to dynamically load Razorpay Standard Web Checkout SDK script on web environment
+  const loadRazorpayScript = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (typeof window !== "undefined" && (window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      if (typeof document === "undefined") {
+        resolve(false);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  // Process Real Razorpay Standard Checkout
+  const handlePayWithRazorpay = async () => {
+    if (isPaymentProcessing) return; // Prevent double-clicking / duplicate orders
+
     try {
-      setPaymentModalVisible(false);
-      setLoading(true);
+      setIsPaymentProcessing(true);
 
       const auth = await storage.getAuth();
       const token = auth?.token;
 
-      // 1. Create session
-      const checkoutRes = await fetch(`${API_URL}/subscription/checkout`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          planName: selectedPlan,
-          billingCycle,
-          paymentMethod,
-        }),
-      });
+      // 1. Create order & transaction on backend
+      let checkoutRes: Response;
+      try {
+        checkoutRes = await fetch(`${API_URL}/subscription/checkout`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            planName: selectedPlan,
+            billingCycle,
+            paymentMethod,
+          }),
+        });
+      } catch {
+        setIsPaymentProcessing(false);
+        Alert.alert(
+          "Network Error",
+          "Unable to complete the payment right now. Please check your connection and try again."
+        );
+        return;
+      }
 
       const checkoutData = await checkoutRes.json();
       if (!checkoutRes.ok || !checkoutData.success) {
-        throw new Error(checkoutData.error || "Failed to initialize payment");
+        setIsPaymentProcessing(false);
+        Alert.alert(
+          "Payment Order Failed",
+          checkoutData.error || "Unable to initialize Razorpay payment order.",
+          [
+            { text: "Try Again", onPress: () => handlePayWithRazorpay() },
+            { text: "Cancel", style: "cancel" },
+          ]
+        );
+        return;
       }
 
-      const transactionId = checkoutData.transaction._id;
+      const { transactionId, order_id, amount, key_id } = checkoutData;
 
-      // 2. Confirm simulated payment
-      const confirmRes = await fetch(`${API_URL}/subscription/confirm`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          transactionId,
-          status,
-        }),
+      // Calculate expiration date string
+      let days = 30;
+      if (billingCycle === "3months") days = 90;
+      else if (billingCycle === "yearly") days = 365;
+      const validUntilDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
       });
 
-      const confirmData = await confirmRes.json();
-      if (!confirmRes.ok || !confirmData.success) {
-        throw new Error(confirmData.error || "Failed to confirm payment");
-      }
-
-      // If successful, update locally
-      if (status === "Completed" && auth) {
-        auth.plan = selectedPlan;
-        await storage.setAuth(auth);
-        setCurrentPlan(selectedPlan);
-
-        // Update limits locally
-        if (selectedPlan === "super") {
-          setWorkersLimit(100);
-          setSitesLimit(10);
-        } else if (selectedPlan === "premium") {
-          setWorkersLimit(Infinity);
-          setSitesLimit(Infinity);
-        } else {
-          setWorkersLimit(20);
-          setSitesLimit(2);
+      const handleSuccess = async () => {
+        if (auth) {
+          auth.plan = selectedPlan;
+          await storage.setAuth(auth);
+          setCurrentPlan(selectedPlan);
+          if ((selectedPlan as string) === "super" || (selectedPlan as string) === "professional") {
+            setWorkersLimit(100);
+            setSitesLimit(10);
+          } else if ((selectedPlan as string) === "premium" || (selectedPlan as string) === "business") {
+            setWorkersLimit(Infinity);
+            setSitesLimit(Infinity);
+          } else {
+            setWorkersLimit(20);
+            setSitesLimit(2);
+          }
         }
+        setIsPaymentProcessing(false);
+        setPaymentModalVisible(false);
+        setSuccessDetails({
+          planName: selectedPlan.toUpperCase(),
+          amount: Math.round(PRICES[selectedPlan][billingCycle] * 1.18),
+          validUntil: validUntilDate,
+        });
+        setSuccessModalVisible(true);
+      };
+
+      // Launch Razorpay Standard Checkout Modal on Web vs Mobile Native (WebView)
+      if (Platform.OS === "web") {
+        const scriptLoaded = await loadRazorpayScript();
+        if (scriptLoaded && (window as any).Razorpay) {
+          const options = {
+            key: key_id || process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_TSg4wZpi0xM7On",
+            amount: amount,
+            currency: "INR",
+            name: "Haajari Manager",
+            description: `Subscription Upgrade - ${selectedPlan.toUpperCase()} (${billingCycle})`,
+            order_id: order_id,
+            prefill: {
+              name: user?.name || "Haajari User",
+              email: user?.email || "",
+              contact: user?.phone || "",
+            },
+            theme: {
+              color: "#F97316",
+            },
+            handler: async function (response: any) {
+              try {
+                // Verify payment signature on backend
+                const confirmRes = await fetch(`${API_URL}/subscription/confirm`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                  },
+                  body: JSON.stringify({
+                    transactionId,
+                    status: "Completed",
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
+                  }),
+                });
+
+                const confirmData = await confirmRes.json();
+                if (!confirmRes.ok || !confirmData.success) {
+                  throw new Error(confirmData.error || "Payment signature verification failed.");
+                }
+
+                await handleSuccess();
+              } catch (err: any) {
+                setIsPaymentProcessing(false);
+                Alert.alert(
+                  "Verification Failed",
+                  err.message || "Payment verification failed. Please try again.",
+                  [
+                    { text: "Try Again", onPress: () => handlePayWithRazorpay() },
+                    { text: "Cancel", style: "cancel" },
+                  ]
+                );
+              }
+            },
+            modal: {
+              ondismiss: function () {
+                setIsPaymentProcessing(false);
+                Alert.alert("Payment Cancelled", "Payment cancelled.");
+              },
+            },
+          };
+
+          const rzp = new (window as any).Razorpay(options);
+          rzp.on("payment.failed", function (response: any) {
+            setIsPaymentProcessing(false);
+            Alert.alert(
+              "Payment Failed",
+              "Payment failed. Please try again.",
+              [
+                { text: "Try Again", onPress: () => handlePayWithRazorpay() },
+                { text: "Cancel", style: "cancel" },
+              ]
+            );
+          });
+          rzp.open();
+          return;
+        }
+      } else {
+        // Mobile Native (Android & iOS) Razorpay Checkout via WebView Modal
+        const keyIdToUse = key_id || process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_TSg4wZpi0xM7On";
+        const html = `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+              <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+              <style>
+                body { background-color: #0F172A; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
+                .loading { color: #F97316; font-weight: bold; font-size: 16px; text-align: center; }
+              </style>
+            </head>
+            <body>
+              <div class="loading">Initializing Razorpay Checkout...</div>
+              <script>
+                var options = {
+                  "key": "${keyIdToUse}",
+                  "amount": "${amount}",
+                  "currency": "INR",
+                  "name": "Haajari Manager",
+                  "description": "Subscription Upgrade - ${selectedPlan.toUpperCase()}",
+                  "order_id": "${order_id}",
+                  "prefill": {
+                    "name": "${(user?.name || "Haajari User").replace(/"/g, '\\"')}",
+                    "email": "${(user?.email || "").replace(/"/g, '\\"')}",
+                    "contact": "${(user?.phone || "").replace(/"/g, '\\"')}"
+                  },
+                  "theme": { "color": "#F97316" },
+                  "handler": function (response) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                      status: 'success',
+                      razorpay_payment_id: response.razorpay_payment_id,
+                      razorpay_order_id: response.razorpay_order_id,
+                      razorpay_signature: response.razorpay_signature
+                    }));
+                  },
+                  "modal": {
+                    "ondismiss": function() {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({ status: 'cancelled' }));
+                    }
+                  }
+                };
+                var rzp = new Razorpay(options);
+                rzp.on('payment.failed', function (response){
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    status: 'failed',
+                    error: response.error ? response.error.description : 'Payment failed'
+                  }));
+                });
+                window.onload = function() {
+                  rzp.open();
+                };
+              </script>
+            </body>
+          </html>
+        `;
+
+        setPendingTxnDetails({ transactionId, token: token || "", invoiceNumber: checkoutData.transaction?.invoiceNumber || order_id });
+        setWebViewHtml(html);
+        setPaymentModalVisible(false);
+        setWebViewModalVisible(true);
       }
-
-      setLoading(false);
-      navigation.navigate("PaymentStatus", {
-        status: status.toLowerCase(),
-        planName: selectedPlan,
-        transactionId: checkoutData.transaction.invoiceNumber,
-      });
-
     } catch (err: any) {
-      setLoading(false);
-      Alert.alert("Upgrade Failed", err.message || "An error occurred during payment.");
+      setIsPaymentProcessing(false);
+      Alert.alert(
+        "Payment Failed",
+        "Payment failed. Please try again.",
+        [
+          { text: "Try Again", onPress: () => handlePayWithRazorpay() },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
+    }
+  };
+
+  // Handle Razorpay PostMessage from WebView Modal on Mobile Native
+  const handleWebViewMessage = async (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      setWebViewModalVisible(false);
+
+      if (data.status === "success" && pendingTxnDetails) {
+        setIsPaymentProcessing(true);
+        const confirmRes = await fetch(`${API_URL}/subscription/confirm`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${pendingTxnDetails.token}`,
+          },
+          body: JSON.stringify({
+            transactionId: pendingTxnDetails.transactionId,
+            status: "Completed",
+            razorpay_order_id: data.razorpay_order_id,
+            razorpay_payment_id: data.razorpay_payment_id,
+            razorpay_signature: data.razorpay_signature,
+          }),
+        });
+
+        const confirmData = await confirmRes.json();
+        if (!confirmRes.ok || !confirmData.success) {
+          throw new Error(confirmData.error || "Payment signature verification failed.");
+        }
+
+        const auth = await storage.getAuth();
+        if (auth) {
+          auth.plan = selectedPlan;
+          await storage.setAuth(auth);
+          setCurrentPlan(selectedPlan);
+          if ((selectedPlan as string) === "super" || (selectedPlan as string) === "professional") {
+            setWorkersLimit(100);
+            setSitesLimit(10);
+          } else if ((selectedPlan as string) === "premium" || (selectedPlan as string) === "business") {
+            setWorkersLimit(Infinity);
+            setSitesLimit(Infinity);
+          } else {
+            setWorkersLimit(20);
+            setSitesLimit(2);
+          }
+        }
+
+        let days = 30;
+        if (billingCycle === "3months") days = 90;
+        else if (billingCycle === "yearly") days = 365;
+        const validUntilDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+
+        setIsPaymentProcessing(false);
+        setSuccessDetails({
+          planName: selectedPlan.toUpperCase(),
+          amount: Math.round(PRICES[selectedPlan][billingCycle] * 1.18),
+          validUntil: validUntilDate,
+        });
+        setSuccessModalVisible(true);
+      } else if (data.status === "cancelled") {
+        setIsPaymentProcessing(false);
+        Alert.alert("Payment Cancelled", "Payment cancelled.");
+      } else {
+        setIsPaymentProcessing(false);
+        Alert.alert(
+          "Payment Failed",
+          "Payment failed. Please try again.",
+          [
+            { text: "Try Again", onPress: () => handlePayWithRazorpay() },
+            { text: "Cancel", style: "cancel" },
+          ]
+        );
+      }
+    } catch (err: any) {
+      setIsPaymentProcessing(false);
+      Alert.alert(
+        "Verification Failed",
+        err.message || "Payment verification failed. Please try again.",
+        [
+          { text: "Try Again", onPress: () => handlePayWithRazorpay() },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
     }
   };
 
@@ -576,22 +853,118 @@ export default function SubscriptionScreen() {
               <PaymentMethodOption label="Wallet" value="Wallet" selected={paymentMethod} onSelect={setPaymentMethod} icon="wallet-outline" />
             </View>
 
-            {/* Action buttons simulating statuses */}
+            {/* Proceed to Pay CTA */}
             <View style={{ gap: 10 }}>
-              <Pressable onPress={() => processPayment("Completed")} style={styles.payBtn}>
-                <ThemedText style={styles.payBtnText}>Simulate Success Pay</ThemedText>
+              <Pressable
+                disabled={isPaymentProcessing}
+                onPress={handlePayWithRazorpay}
+                style={[
+                  styles.payBtn,
+                  isPaymentProcessing && { opacity: 0.6 }
+                ]}
+              >
+                {isPaymentProcessing ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <ThemedText style={styles.payBtnText}>Proceed to Pay</ThemedText>
+                )}
               </Pressable>
-              
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <Pressable onPress={() => processPayment("Failed")} style={[styles.payBtn, { flex: 1, backgroundColor: "#EF4444" }]}>
-                  <ThemedText style={styles.payBtnText}>Simulate Fail</ThemedText>
-                </Pressable>
-                <Pressable onPress={() => processPayment("Pending")} style={[styles.payBtn, { flex: 1, backgroundColor: "#F59E0B" }]}>
-                  <ThemedText style={styles.payBtnText}>Simulate Pending</ThemedText>
-                </Pressable>
-              </View>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      {/* SUCCESS OVERLAY MODAL */}
+      <Modal
+        visible={successModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setSuccessModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", alignItems: "center", paddingVertical: 28 }]}>
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "rgba(34, 197, 94, 0.15)", justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
+              <Feather name="check-circle" size={36} color="#22C55E" />
+            </View>
+
+            <ThemedText style={{ fontSize: 20, fontWeight: "800", color: isDark ? "#F8FAFC" : "#0F172A", marginBottom: 4 }}>
+              ✓ Payment Successful
+            </ThemedText>
+            
+            <ThemedText style={{ fontSize: 13, color: isDark ? "#94A3B8" : "#64748B", marginBottom: 20, textAlign: "center" }}>
+              Your Haajari subscription is now active.
+            </ThemedText>
+
+            {successDetails && (
+              <View style={{ width: "100%", backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderRadius: 12, padding: 16, marginBottom: 24, gap: 12 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <ThemedText style={{ fontSize: 13, color: isDark ? "#94A3B8" : "#64748B" }}>Plan</ThemedText>
+                  <ThemedText style={{ fontSize: 14, fontWeight: "700", color: "#F97316" }}>{successDetails.planName}</ThemedText>
+                </View>
+
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <ThemedText style={{ fontSize: 13, color: isDark ? "#94A3B8" : "#64748B" }}>Amount Paid</ThemedText>
+                  <ThemedText style={{ fontSize: 14, fontWeight: "700", color: isDark ? "#F8FAFC" : "#0F172A" }}>₹{successDetails.amount}</ThemedText>
+                </View>
+
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <ThemedText style={{ fontSize: 13, color: isDark ? "#94A3B8" : "#64748B" }}>Valid Until</ThemedText>
+                  <ThemedText style={{ fontSize: 14, fontWeight: "700", color: "#22C55E" }}>{successDetails.validUntil}</ThemedText>
+                </View>
+              </View>
+            )}
+
+            <Pressable
+              onPress={() => setSuccessModalVisible(false)}
+              style={[styles.payBtn, { width: "100%", backgroundColor: "#F97316" }]}
+            >
+              <ThemedText style={styles.payBtnText}>Continue to Haajari</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MOBILE NATIVE RAZORPAY CHECKOUT WEBVIEW MODAL */}
+      <Modal
+        visible={webViewModalVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => {
+          setWebViewModalVisible(false);
+          setIsPaymentProcessing(false);
+          Alert.alert("Payment Cancelled", "Payment cancelled.");
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: "#0F172A", paddingTop: insets.top }}>
+          <View style={{ height: 50, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, backgroundColor: "#1E293B", borderBottomWidth: 1, borderBottomColor: "#334155" }}>
+            <ThemedText style={{ fontSize: 16, fontWeight: "700", color: "#F8FAFC" }}>Razorpay Secure Checkout</ThemedText>
+            <Pressable
+              onPress={() => {
+                setWebViewModalVisible(false);
+                setIsPaymentProcessing(false);
+                Alert.alert("Payment Cancelled", "Payment cancelled.");
+              }}
+              style={{ padding: 6 }}
+            >
+              <Feather name="x" size={24} color="#94A3B8" />
+            </Pressable>
+          </View>
+          {webViewHtml ? (
+            <WebView
+              source={{ html: webViewHtml }}
+              onMessage={handleWebViewMessage}
+              javaScriptEnabled={true}
+              domStorageEnabled={true}
+              startInLoadingState={true}
+              renderLoading={() => (
+                <View style={{ flex: 1, backgroundColor: "#0F172A", justifyContent: "center", alignItems: "center" }}>
+                  <ActivityIndicator size="large" color="#F97316" />
+                  <ThemedText style={{ color: "#94A3B8", fontSize: 14, marginTop: 12 }}>Loading Razorpay Payment Gateway...</ThemedText>
+                </View>
+              )}
+              style={{ flex: 1, backgroundColor: "#0F172A" }}
+            />
+          ) : null}
         </View>
       </Modal>
     </View>

@@ -8,7 +8,7 @@ export interface ISubscriptionTransaction extends Document {
   billingCycle: "monthly" | "3months" | "yearly";
   amount: number;
   gst: number;
-  paymentMethod: "UPI" | "Credit Card" | "Debit Card" | "Net Banking" | "Wallet";
+  paymentMethod: "UPI" | "Credit Card" | "Debit Card" | "Net Banking" | "Wallet" | "Razorpay";
   status: "Pending" | "Completed" | "Failed";
   date: Date;
   autoRenew: boolean;
@@ -22,7 +22,7 @@ const SubscriptionTransactionSchema = new Schema<ISubscriptionTransaction>({
   billingCycle: { type: String, enum: ["monthly", "3months", "yearly"], required: true },
   amount: { type: Number, required: true },
   gst: { type: Number, required: true },
-  paymentMethod: { type: String, enum: ["UPI", "Credit Card", "Debit Card", "Net Banking", "Wallet"], required: true },
+  paymentMethod: { type: String, required: true },
   status: { type: String, enum: ["Pending", "Completed", "Failed"], default: "Pending" },
   date: { type: Date, default: Date.now },
   autoRenew: { type: Boolean, default: true },

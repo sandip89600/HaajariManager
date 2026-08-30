@@ -53,5 +53,6 @@ const ProjectSchema = new Schema<IProject>({
 });
 
 ProjectSchema.index({ tenantId: 1 });
+ProjectSchema.index({ tenantId: 1, status: 1 });
 
 export const Project = mongoose.model<IProject>("Project", ProjectSchema);

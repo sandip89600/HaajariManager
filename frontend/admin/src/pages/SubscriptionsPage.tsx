@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Gem, Search, Calendar, RefreshCw, AlertCircle, Settings, Sliders, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../utils/api';
+import { startRazorpayWebCheckout } from '../utils/razorpayCheckout';
 
 interface PlanSubscription {
   _id: string;
@@ -119,18 +120,39 @@ export default function SubscriptionsPage() {
           <h1 className="text-3xl font-extrabold text-white">SaaS Subscriptions & Features</h1>
           <p className="text-slate-400 text-sm mt-1">Configure global monetization logic, feature toggles, and audit tier access</p>
         </div>
-        <button
-          onClick={() => {
-            queryClient.invalidateQueries({ queryKey: ['planSubscriptionsList'] });
-            queryClient.invalidateQueries({ queryKey: ['subscriptionConfig'] });
-            toast.success('Information refreshed');
-          }}
-          disabled={isLoading}
-          className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-855 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
-          <span>Refresh</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              startRazorpayWebCheckout({
+                amount: 149,
+                planName: 'super',
+                billingCycle: 'monthly',
+                userName: 'Haajari Admin User',
+                userEmail: 'admin@haajari.app',
+                onSuccess: () => {
+                  queryClient.invalidateQueries({ queryKey: ['planSubscriptionsList'] });
+                  queryClient.invalidateQueries({ queryKey: ['subscriptionConfig'] });
+                },
+              });
+            }}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-extrabold transition-all inline-flex items-center gap-2 shadow-lg shadow-orange-500/20 active:scale-95"
+          >
+            <Gem className="w-4 h-4" />
+            <span>Pay with Razorpay (₹149)</span>
+          </button>
+          <button
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['planSubscriptionsList'] });
+              queryClient.invalidateQueries({ queryKey: ['subscriptionConfig'] });
+              toast.success('Information refreshed');
+            }}
+            disabled={isLoading}
+            className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-855 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* ─── CENTRAL CONTROL: SUBSCRIPTION & FEATURE SYSTEM ─── */}

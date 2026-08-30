@@ -44,5 +44,7 @@ const AttendanceSchema = new Schema<IAttendance>({
 
 AttendanceSchema.index({ tenantId: 1, workerId: 1, year: 1, month: 1, day: 1 }, { unique: true });
 AttendanceSchema.index({ tenantId: 1, year: 1, month: 1 });
+AttendanceSchema.index({ tenantId: 1, projectId: 1, year: 1, month: 1, day: 1 });
+AttendanceSchema.index({ tenantId: 1, workerId: 1, year: 1, month: 1 });
 
 export const Attendance = mongoose.model<IAttendance>("Attendance", AttendanceSchema);

@@ -128,7 +128,12 @@ import { ensureSinglePermanentAdmin } from "./controllers/authController";
 if (process.env.NODE_ENV !== "test") {
   console.log("Connecting to MongoDB...");
   mongoose
-    .connect(MONGO_URI)
+    .connect(MONGO_URI, {
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    })
     .then(async () => {
       console.log("Connected to MongoDB successfully.");
       

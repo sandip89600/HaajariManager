@@ -287,11 +287,9 @@ export default function DashboardScreen() {
   useEffect(() => {
     const handleUpdate = () => { loadDashboardData(true); };
     socket.on("admin_dashboard_update", handleUpdate);
-    socket.on("admin_activity", handleUpdate);
     const sub = DeviceEventEmitter.addListener("refreshData", () => loadDashboardData(true));
     return () => {
       socket.off("admin_dashboard_update", handleUpdate);
-      socket.off("admin_activity", handleUpdate);
       sub.remove();
     };
   }, [socket]);

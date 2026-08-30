@@ -42,6 +42,32 @@ const getApiUrl = () => {
 export const API_URL = getApiUrl();
 
 const inflightRequests = new Map<string, Promise<any>>();
+const memoryCache = new Map<string, { data: any; timestamp: number }>();
+const DEFAULT_STALE_TIME_MS = 15000; // 15 seconds memory cache stale time
+
+export function getMemoryCache<T>(key: string, maxAgeMs = DEFAULT_STALE_TIME_MS): T | null {
+  const cached = memoryCache.get(key);
+  if (cached && Date.now() - cached.timestamp < maxAgeMs) {
+    return cached.data as T;
+  }
+  return null;
+}
+
+export function setMemoryCache<T>(key: string, data: T): void {
+  memoryCache.set(key, { data, timestamp: Date.now() });
+}
+
+export function invalidateMemoryCache(keyPrefix?: string): void {
+  if (!keyPrefix) {
+    memoryCache.clear();
+    return;
+  }
+  for (const key of memoryCache.keys()) {
+    if (key.startsWith(keyPrefix)) {
+      memoryCache.delete(key);
+    }
+  }
+}
 
 export function dedupeRequest<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
   const existing = inflightRequests.get(key);
@@ -870,7 +896,11 @@ export const storage = {
   },
 
   // Worker methods
-  async getWorkers(): Promise<Worker[]> {
+  async getWorkers(forceRefresh = false): Promise<Worker[]> {
+    if (!forceRefresh) {
+      const cached = getMemoryCache<Worker[]>("workers");
+      if (cached) return cached;
+    }
     return dedupeRequest("workers", async () => {
       try {
         const auth = await this.getAuth();
@@ -880,10 +910,11 @@ export const storage = {
             if (res.ok) {
               const data = await res.json();
               const serverWorkers = data.map(mapWorker);
-              await AsyncStorage.setItem(
+              setMemoryCache("workers", serverWorkers);
+              AsyncStorage.setItem(
                 STORAGE_KEYS.WORKERS,
                 JSON.stringify(serverWorkers),
-              );
+              ).catch(() => {});
               return serverWorkers;
             }
           } catch (e) {
@@ -891,7 +922,9 @@ export const storage = {
           }
         }
         const data = await AsyncStorage.getItem(STORAGE_KEYS.WORKERS);
-        return data ? JSON.parse(data) : [];
+        const parsed = data ? JSON.parse(data) : [];
+        setMemoryCache("workers", parsed);
+        return parsed;
       } catch {
         return [];
       }
@@ -900,6 +933,7 @@ export const storage = {
 
   async setWorkers(workers: Worker[]): Promise<void> {
     try {
+      setMemoryCache("workers", workers);
       await AsyncStorage.setItem(STORAGE_KEYS.WORKERS, JSON.stringify(workers));
       DeviceEventEmitter.emit("refreshData");
     } catch (error) {
@@ -908,8 +942,7 @@ export const storage = {
   },
 
   async addWorker(worker: Worker): Promise<void> {
-    const rawData = await AsyncStorage.getItem(STORAGE_KEYS.WORKERS);
-    const workers: Worker[] = rawData ? JSON.parse(rawData) : [];
+    const workers = await this.getWorkers();
     const auth = await this.getAuth();
     const plan = auth?.plan || "free";
 
@@ -952,8 +985,9 @@ export const storage = {
         console.warn("Failed to add worker on backend, saving locally", e);
       }
     }
-    workers.unshift(worker);
-    await AsyncStorage.setItem(STORAGE_KEYS.WORKERS, JSON.stringify(workers));
+    const updatedWorkers = [worker, ...workers];
+    setMemoryCache("workers", updatedWorkers);
+    AsyncStorage.setItem(STORAGE_KEYS.WORKERS, JSON.stringify(updatedWorkers)).catch(() => {});
     DeviceEventEmitter.emit("refreshData");
   },
 
@@ -1036,21 +1070,44 @@ export const storage = {
   },
 
   async setAttendanceRecord(record: AttendanceRecord): Promise<void> {
-    const records = await this.getAttendance();
-    const existingIndex = records.findIndex(
-      (r) =>
-        r.workerId === record.workerId &&
-        r.year === record.year &&
-        r.month === record.month &&
-        r.day === record.day,
-    );
-    if (existingIndex !== -1) {
-      records[existingIndex] = record;
-    } else {
-      records.push(record);
+    // 1. Optimistically update memory cache for instant UI renders
+    const monthKey = `attendance_${record.year}_${record.month}`;
+    const cachedMonthRecords = getMemoryCache<AttendanceRecord[]>(monthKey);
+    if (cachedMonthRecords) {
+      const idx = cachedMonthRecords.findIndex(
+        (r) =>
+          r.workerId === record.workerId &&
+          r.year === record.year &&
+          r.month === record.month &&
+          r.day === record.day,
+      );
+      if (idx !== -1) {
+        cachedMonthRecords[idx] = record;
+      } else {
+        cachedMonthRecords.push(record);
+      }
+      setMemoryCache(monthKey, cachedMonthRecords);
     }
-    await this.setAttendance(records);
 
+    // 2. Persist to local disk asynchronously
+    (async () => {
+      const records = await this.getAttendance();
+      const existingIndex = records.findIndex(
+        (r) =>
+          r.workerId === record.workerId &&
+          r.year === record.year &&
+          r.month === record.month &&
+          r.day === record.day,
+      );
+      if (existingIndex !== -1) {
+        records[existingIndex] = record;
+      } else {
+        records.push(record);
+      }
+      await AsyncStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(records));
+    })().catch((err) => console.warn("Failed to persist attendance locally", err));
+
+    // 3. Sync to backend API
     const auth = await this.getAuth();
     if (auth?.token && record.workerId.length >= 24) {
       try {
@@ -1082,8 +1139,14 @@ export const storage = {
   async getAttendanceForMonth(
     year: number,
     month: number,
+    forceRefresh = false,
   ): Promise<AttendanceRecord[]> {
-    return dedupeRequest(`attendance_${year}_${month}`, async () => {
+    const key = `attendance_${year}_${month}`;
+    if (!forceRefresh) {
+      const cached = getMemoryCache<AttendanceRecord[]>(key);
+      if (cached) return cached;
+    }
+    return dedupeRequest(key, async () => {
       try {
         const auth = await this.getAuth();
         if (auth?.token) {
@@ -1094,16 +1157,18 @@ export const storage = {
             if (res.ok) {
               const data = await res.json();
               const serverAttendance = data.map(mapAttendance);
-              const localRecords = await this.getAttendance();
-              const filteredLocal = localRecords.filter(
-                (r) => !(r.year === year && r.month === month),
-              );
-              const merged = [...filteredLocal, ...serverAttendance];
-              // Write directly to storage cache without triggering refreshData event loop
-              await AsyncStorage.setItem(
-                STORAGE_KEYS.ATTENDANCE,
-                JSON.stringify(merged),
-              );
+              setMemoryCache(key, serverAttendance);
+              (async () => {
+                const localRecords = await this.getAttendance();
+                const filteredLocal = localRecords.filter(
+                  (r) => !(r.year === year && r.month === month),
+                );
+                const merged = [...filteredLocal, ...serverAttendance];
+                await AsyncStorage.setItem(
+                  STORAGE_KEYS.ATTENDANCE,
+                  JSON.stringify(merged),
+                );
+              })().catch(() => {});
               return serverAttendance;
             }
           } catch (e) {
@@ -1117,7 +1182,9 @@ export const storage = {
         console.error(e);
       }
       const records = await this.getAttendance();
-      return records.filter((r) => r.year === year && r.month === month);
+      const filtered = records.filter((r) => r.year === year && r.month === month);
+      setMemoryCache(key, filtered);
+      return filtered;
     });
   },
 

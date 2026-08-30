@@ -140,11 +140,9 @@ export default function AttendanceScreen() {
     connectSocket();
     const handleUpdate = () => loadData(true);
     socket.on("admin_dashboard_update", handleUpdate);
-    socket.on("admin_activity", handleUpdate);
     const sub = DeviceEventEmitter.addListener("refreshData", () => loadData(true));
     return () => {
       socket.off("admin_dashboard_update", handleUpdate);
-      socket.off("admin_activity", handleUpdate);
       sub.remove();
     };
   }, [socket]);

@@ -17,6 +17,7 @@ import appConfigRoutes from "./appConfigRoutes";
 import paymentHandoverRoutes from "./paymentHandoverRoutes";
 import haiRoutes from "./haiRoutes";
 import notificationRoutes from "./notificationRoutes";
+import razorpayRoutes from "./razorpayRoutes";
 
 const router = Router();
 
@@ -38,6 +39,7 @@ router.use("/app", appConfigRoutes);
 router.use("/payment-handover", paymentHandoverRoutes);
 router.use("/hai", haiRoutes);
 router.use("/notifications", notificationRoutes);
+router.use("/", razorpayRoutes);
 
 export default router;
 
