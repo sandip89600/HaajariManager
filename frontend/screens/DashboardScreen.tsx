@@ -10,6 +10,7 @@ import {
   Alert,
   Modal,
   DeviceEventEmitter,
+  Text,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -76,10 +77,14 @@ interface QuickAction {
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { id: "attendance", label: "Mark Attendance", icon: "check-square", colors: ["#22C55E", "#16A34A"], screen: "AttendanceDetail" },
-  { id: "workers", label: "Add Worker", icon: "user-plus", colors: ["#3B82F6", "#2563EB"], screen: "Workers" },
-  { id: "reports", label: "View Reports", icon: "bar-chart-2", colors: ["#A855F7", "#9333EA"], screen: "Summary" },
-  { id: "sites", label: "Manage Sites", icon: "map-pin", colors: ["#F97316", "#EA580C"], screen: "ProjectManagement" },
+  { id: "grid", label: "Attendance Grid", icon: "grid", colors: ["#22C55E", "#16A34A"], screen: "AttendanceDetail" },
+  { id: "log", label: "Attendance Log", icon: "file-text", colors: ["#3B82F6", "#2563EB"], screen: "Summary" },
+  { id: "progress", label: "Work / Progress", icon: "trending-up", colors: ["#A855F7", "#9333EA"], screen: "SiteManagementTab" },
+  { id: "material", label: "Material", icon: "box", colors: ["#F97316", "#EA580C"], screen: "SiteManagementTab" },
+  { id: "expense", label: "Expense", icon: "credit-card", colors: ["#EC4899", "#DB2777"], screen: "SiteManagementTab" },
+  { id: "photos", label: "Photos", icon: "camera", colors: ["#06B6D4", "#0891B2"], screen: "SiteManagementTab" },
+  { id: "gps", label: "GPS Location", icon: "map-pin", colors: ["#10B981", "#059669"], screen: "AttendanceDetail" },
+  { id: "issues", label: "Issues / Delays", icon: "alert-circle", colors: ["#EF4444", "#DC2626"], screen: "Support" },
 ];
 
 export default function DashboardScreen() {
@@ -526,88 +531,78 @@ export default function DashboardScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Smart Insight Banner ──────────────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(100).springify()} style={[styles.insightBanner, { backgroundColor: isDark ? "#1E293B" : "#FFF7ED", borderColor: "#F97316" + "40" }]}>
-          <Feather name="zap" size={14} color="#F97316" style={{ marginRight: 8 }} />
-          <ThemedText style={[styles.insightText, { color: isDark ? "#FED7AA" : "#92400E" }]} numberOfLines={2}>
-            {smartInsight}
-          </ThemedText>
-        </Animated.View>
-
-        {/* ── KPI Scroll ────────────────────────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(150).springify()}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.kpiScrollContent}
-            style={styles.kpiScroll}
-          >
-            <KPICard title="Total" value={stats.totalWorkers} icon="users" color="#3B82F6" isLoading={loading} />
-            <KPICard title="Present" value={stats.present} icon="check-circle" color="#22C55E" isLoading={loading} />
-            <KPICard title="Absent" value={stats.absent} icon="x-circle" color="#EF4444" isLoading={loading} />
-            <KPICard title="Half Day" value={stats.halfDay} icon="clock" color="#F59E0B" isLoading={loading} />
-          </ScrollView>
-        </Animated.View>
-
-        {/* ── Today's Attendance Breakdown Card ─────────────────────── */}
-        <Animated.View
-          entering={FadeInDown.delay(200).springify()}
-          style={[styles.sectionCard, { backgroundColor: cardBg, borderColor }]}
-          ref={summaryRef}
-          onLayout={onLayoutSummary}
-        >
-          <View style={styles.sectionCardHeader}>
-            <View>
-              <ThemedText style={[styles.sectionTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>Attendance Overview</ThemedText>
-              <ThemedText style={[styles.sectionSubtitle, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>
-                Rate: {ratePercent}% today
+        {/* ── 1. Top Site Information Card ───────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(100).springify()} style={[styles.topSiteCard, { backgroundColor: cardBg, borderColor }]}>
+          <View style={styles.topSiteHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={[styles.topSiteName, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
+                {activeSite ? activeSite.name : "Green Valley Residency"}
+              </ThemedText>
+              <ThemedText style={[styles.topSiteDate, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>
+                {formattedDate}
               </ThemedText>
             </View>
-            <Pressable
-              onPress={() => { triggerHaptic(); navigation.navigate("AttendanceDetail"); }}
-              style={[styles.viewAllBtn, { backgroundColor: theme.primary + "15" }]}
-            >
-              <ThemedText style={[styles.viewAllText, { color: theme.primary }]}>Grid Sheet</ThemedText>
-              <Feather name="arrow-right" size={14} color={theme.primary} />
-            </Pressable>
-          </View>
-
-          <View style={styles.attendanceRow}>
-            {/* Circle Progress bar */}
-            <View style={styles.rateRingWrap}>
-              <View style={styles.rateRing}>
-                <View style={[styles.rateRingTrack, { borderColor: isDark ? "#334155" : "#E2E8F0" }]} />
-                <View style={[styles.rateRingFill, {
-                  borderColor: ratePercent >= 80 ? "#22C55E" : ratePercent >= 50 ? "#F59E0B" : "#EF4444",
-                  transform: [{ rotate: `${(ratePercent / 100) * 360}deg` }],
-                }]} />
-                <View style={styles.rateRingCenter}>
-                  <ThemedText style={[styles.rateValue, {
-                    color: ratePercent >= 80 ? "#22C55E" : ratePercent >= 50 ? "#F59E0B" : "#EF4444",
-                  }]}>{ratePercent}%</ThemedText>
-                  <ThemedText style={[styles.rateLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Rate</ThemedText>
-                </View>
-              </View>
+            <View style={styles.topSiteStatusBadge}>
+              <View style={styles.activeDot} />
+              <Text style={styles.activeStatusText}>Active</Text>
             </View>
+          </View>
+          <View style={[styles.supervisorRow, { borderTopColor: borderColor }]}>
+            <Feather name="user-check" size={14} color="#F97316" style={{ marginRight: 6 }} />
+            <Text style={[styles.supervisorLabel, { color: isDark ? "#CBD5E1" : theme.textSecondary }]}>
+              Supervisor: <Text style={{ fontWeight: "700", color: isDark ? "#FFFFFF" : "#0F172A" }}>{activeSite?.clientName || "Ramesh Kumar"}</Text>
+            </Text>
+          </View>
+        </Animated.View>
 
-            <View style={styles.statsBreakdown}>
-              {[
-                { label: "Present", value: stats.present, color: "#22C55E" },
-                { label: "Absent", value: stats.absent, color: "#EF4444" },
-                { label: "Half Day", value: stats.halfDay, color: "#F59E0B" },
-                { label: "Overtime", value: stats.overtime, color: "#A855F7" },
-              ].map((item) => (
-                <View key={item.label} style={styles.statRow}>
-                  <View style={[styles.statDot, { backgroundColor: item.color }]} />
-                  <ThemedText style={[styles.statRowLabel, { color: isDark ? "#CBD5E1" : theme.textSecondary }]}>{item.label}</ThemedText>
-                  <ThemedText style={[styles.statRowValue, { color: item.color }]}>{item.value}</ThemedText>
-                </View>
-              ))}
+        {/* ── 2. Attendance Summary Cards (Compact Grid) ─────────────── */}
+        <Animated.View entering={FadeInDown.delay(150).springify()} style={styles.summaryGridContainer}>
+          <SectionHeader title="Attendance Summary" />
+          <View style={styles.summaryCompactGrid}>
+            <View style={[styles.summaryCompactCard, { backgroundColor: cardBg, borderColor }]}>
+              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Total</Text>
+              <Text style={[styles.summaryCardValue, { color: "#3B82F6" }]}>{stats.totalWorkers}</Text>
+            </View>
+            <View style={[styles.summaryCompactCard, { backgroundColor: cardBg, borderColor }]}>
+              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Present</Text>
+              <Text style={[styles.summaryCardValue, { color: "#22C55E" }]}>{stats.present}</Text>
+            </View>
+            <View style={[styles.summaryCompactCard, { backgroundColor: cardBg, borderColor }]}>
+              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Absent</Text>
+              <Text style={[styles.summaryCardValue, { color: "#EF4444" }]}>{stats.absent}</Text>
+            </View>
+            <View style={[styles.summaryCompactCard, { backgroundColor: cardBg, borderColor }]}>
+              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Half Day</Text>
+              <Text style={[styles.summaryCardValue, { color: "#F59E0B" }]}>{stats.halfDay}</Text>
             </View>
           </View>
         </Animated.View>
 
-        {/* ── Quick Actions Grid ────────────────────────────────────── */}
+        {/* ── 3. Attendance Grid Launcher Card ──────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(200).springify()} style={{ paddingHorizontal: 16, marginTop: 12 }}>
+          <Pressable
+            onPress={() => {
+              triggerHaptic();
+              navigation.navigate("AttendanceDetail");
+            }}
+            style={[styles.attendanceGridLauncherCard, { backgroundColor: isDark ? "#1E293B" : "#FFF7ED", borderColor: "#F97316" }]}
+          >
+            <View style={styles.launcherIconCircle}>
+              <Feather name="calendar" size={20} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <ThemedText style={[styles.launcherTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
+                📅 Attendance Grid
+              </ThemedText>
+              <ThemedText style={[styles.launcherSubtitle, { color: isDark ? "#94A3B8" : "#92400E" }]}>
+                View worker attendance by date
+              </ThemedText>
+            </View>
+            <Feather name="chevron-right" size={20} color="#F97316" />
+          </Pressable>
+        </Animated.View>
+
+        {/* ── 4. Quick Actions Grid ─────────────────────────────────── */}
         <Animated.View
           entering={FadeInDown.delay(240).springify()}
           style={styles.section}
@@ -1161,4 +1156,114 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   qmCancelText: { fontSize: 13, fontWeight: "700" },
+
+  // Top Site Card
+  topSiteCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  topSiteHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  topSiteName: {
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  topSiteDate: {
+    fontSize: 13,
+    marginTop: 4,
+    fontWeight: "500",
+  },
+  topSiteStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  activeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#22C55E",
+    marginRight: 6,
+  },
+  activeStatusText: {
+    color: "#166534",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  supervisorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  supervisorLabel: {
+    fontSize: 13,
+  },
+
+  // Summary Compact Grid (2x2)
+  summaryGridContainer: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+  },
+  summaryCompactGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 8,
+  },
+  summaryCompactCard: {
+    width: (SCREEN_WIDTH - 44) / 2,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  summaryCardLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  summaryCardValue: {
+    fontSize: 22,
+    fontWeight: "900",
+  },
+
+  // Attendance Grid Launcher Card
+  attendanceGridLauncherCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+  },
+  launcherIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F97316",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  launcherTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  launcherSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: "500",
+  },
 });

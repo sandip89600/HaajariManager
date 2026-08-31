@@ -39,6 +39,11 @@ import {
   getAllDevicesAdmin,
 } from "../controllers/adminController";
 import { getSubscriptionConfig, updateSubscriptionConfig } from "../controllers/adminConfigController";
+import {
+  sendAdminNotification,
+  getAdminNotificationHistory,
+  getAdminRecipientList,
+} from "../controllers/adminNotificationController";
 import { getAdminSecurityEvents } from "../controllers/authController";
 import { authenticateJWT, requireAdmin } from "../middleware/auth";
 
@@ -102,6 +107,9 @@ router.get("/materials", getAllMaterialsAdmin as any);
 router.get("/expenses", getAllExpensesAdmin as any);
 router.get("/salary", getAllSalariesAdmin as any);
 router.get("/notifications", getAllNotificationsAdmin as any);
+router.post("/notifications/send", sendAdminNotification as any);
+router.get("/notifications/history", getAdminNotificationHistory as any);
+router.get("/notifications/recipients", getAdminRecipientList as any);
 router.get("/subscriptions", getAllSubscriptionsAdmin as any);
 router.get("/support", getAllSupportTicketsAdmin as any);
 router.get("/devices", getAllDevicesAdmin as any);

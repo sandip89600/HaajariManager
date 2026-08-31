@@ -174,10 +174,10 @@ function MainTabs() {
         name="AttendanceTab"
         component={AttendanceNavigator}
         options={{
-          title: t.tabs.attendance,
+          title: "Dashboard",
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
-            <Feather name="calendar" size={size} color={color} />
+            <Feather name="grid" size={size} color={color} />
           ),
         }}
       />

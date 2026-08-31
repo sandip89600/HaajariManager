@@ -508,6 +508,33 @@ export default function AttendanceScreen() {
         </View>
       )}
 
+      {/* ── Attendance Overview Information Below Grid ─────────────── */}
+      <View style={[styles.overviewCard, { backgroundColor: bgCard, borderColor: borderCol }]}>
+        <ThemedText style={[styles.overviewCardTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
+          Attendance Overview
+        </ThemedText>
+        <View style={styles.overviewRow}>
+          <Text style={[styles.overviewLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Total Workers</Text>
+          <Text style={[styles.overviewValue, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>{filteredWorkers.length}</Text>
+        </View>
+        <View style={styles.overviewRow}>
+          <Text style={[styles.overviewLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Present</Text>
+          <Text style={[styles.overviewValue, { color: "#22C55E" }]}>{statsData.present}</Text>
+        </View>
+        <View style={styles.overviewRow}>
+          <Text style={[styles.overviewLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Absent</Text>
+          <Text style={[styles.overviewValue, { color: "#EF4444" }]}>{statsData.absent}</Text>
+        </View>
+        <View style={styles.overviewRow}>
+          <Text style={[styles.overviewLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Half Day</Text>
+          <Text style={[styles.overviewValue, { color: "#F59E0B" }]}>{statsData.halfDay}</Text>
+        </View>
+        <View style={styles.overviewRow}>
+          <Text style={[styles.overviewLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Overtime</Text>
+          <Text style={[styles.overviewValue, { color: "#A855F7" }]}>{statsData.onLeaveWorkers}</Text>
+        </View>
+      </View>
+
 
 
       {/* ── Month Selector Modal ────────────────────────────────────── */}
@@ -916,5 +943,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
-
+  overviewCard: {
+    margin: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  overviewCardTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 12,
+  },
+  overviewRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(150,150,150,0.15)",
+  },
+  overviewLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  overviewValue: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
 });

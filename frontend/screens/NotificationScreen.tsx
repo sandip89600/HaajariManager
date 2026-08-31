@@ -49,6 +49,18 @@ export default function NotificationScreen() {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
+      case "general":
+        return <Feather name="bell" size={18} color="#F97316" />;
+      case "announcement":
+        return <Ionicons name="megaphone-outline" size={18} color="#EC4899" />;
+      case "important":
+        return <Feather name="alert-triangle" size={18} color="#F59E0B" />;
+      case "update":
+        return <Feather name="info" size={18} color="#3B82F6" />;
+      case "maintenance":
+        return <Feather name="tool" size={18} color="#A855F7" />;
+      case "security":
+        return <Feather name="shield" size={18} color="#EF4444" />;
       case "attendance_reminder":
         return <Feather name="calendar" size={18} color="#FF6B35" />;
       case "subscription_reminder":
@@ -59,8 +71,6 @@ export default function NotificationScreen() {
         return <Feather name="users" size={18} color="#3B82F6" />;
       case "site_reminder":
         return <Feather name="map-pin" size={18} color="#8B5CF6" />;
-      case "announcement":
-        return <Ionicons name="megaphone-outline" size={18} color="#EC4899" />;
       default:
         return <Feather name="bell" size={18} color={theme.primary} />;
     }
