@@ -1,7 +1,7 @@
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { EmailNotification, User } from "../models";
-import { sendMailUnified, generateAdminNotificationEmailHTML } from "../utils/mail";
+import { sendMailUnified, sendMailUnifiedDetailed, generateAdminNotificationEmailHTML } from "../utils/mail";
 
 // Helper: Sanitize basic HTML input
 function sanitizeHtmlInput(input: string): string {
@@ -238,22 +238,27 @@ export const sendTestEmailNotification = async (req: AuthenticatedRequest, res: 
 
     const testHtml = generateAdminNotificationEmailHTML(sanitizedHeading, sanitizedMessage, cta, true);
 
-    const sent = await sendMailUnified(
+    const result = await sendMailUnifiedDetailed(
       testEmail.trim(),
       `[TEST] ${subject.trim()}`,
       testHtml,
       "Test Admin Email"
     );
 
-    if (sent) {
+    if (result.success) {
       return res.json({
         success: true,
-        message: `Test email sent successfully to ${testEmail.trim()}`,
+        message: `Test email processed successfully for ${testEmail.trim()} via ${result.provider}. ${
+          result.error ? result.error : ""
+        }`,
+        provider: result.provider,
+        messageId: result.messageId,
       });
     } else {
       return res.status(500).json({
         success: false,
-        message: `Failed to deliver test email to ${testEmail.trim()}. Check backend mail logs.`,
+        message: `Failed to deliver test email to ${testEmail.trim()}. ${result.error || "Check email service credentials."}`,
+        provider: result.provider,
       });
     }
   } catch (error: any) {

@@ -14,14 +14,16 @@ function getResendClient(): Resend | null {
  * In development: Falls back to onboarding@resend.dev for local testing if not configured.
  */
 function getSenderEmail(): string | null {
-  const isProd = process.env.NODE_ENV === "production";
   const configuredFrom = process.env.EMAIL_FROM?.trim();
 
   if (configuredFrom) {
-    return configuredFrom;
+    if (configuredFrom.includes("<")) {
+      return configuredFrom;
+    }
+    return `Haajari Manager <${configuredFrom}>`;
   }
 
-  if (isProd) {
+  if (process.env.NODE_ENV === "production") {
     console.error(
       "[Email Config Error] EMAIL_FROM is missing in production environment. A verified-domain sender is required (e.g. Haajari Manager <noreply@yourdomain.com>)."
     );
@@ -160,14 +162,28 @@ export function validateEmailConfig(): void {
  * 2. If Resend fails, automatically falls back to Nodemailer SMTP
  * 3. Never exposes secrets or tokens in logs
  */
-export async function sendMailUnified(
+export interface EmailSendResult {
+  success: boolean;
+  provider: "Resend" | "Nodemailer" | "ConsoleFallback";
+  error?: string;
+  messageId?: string;
+}
+
+/**
+ * Centralized Universal Email Sender with detailed error reporting:
+ * 1. Attempts Resend Primary
+ * 2. If Resend fails, automatically falls back to Nodemailer SMTP / Console Transporter
+ * 3. Returns detailed status & safe error message for feedback
+ */
+export async function sendMailUnifiedDetailed(
   to: string,
   subject: string,
   html: string,
   emailType: string = "Notification"
-): Promise<boolean> {
+): Promise<EmailSendResult> {
   const resend = getResendClient();
   const from = getSenderEmail();
+  let lastResendError = "";
 
   console.log(`[Email] Type: ${emailType}`);
   console.log(`[Email] To: ${to}`);
@@ -185,58 +201,94 @@ export async function sendMailUnified(
       });
 
       if (!error && data) {
-        console.log(`[Email] Status: SUCCESS`);
+        console.log(`[Email] Status: SUCCESS (Resend)`);
         console.log(`[Email] Message ID: ${data.id}`);
-        return true;
+        return { success: true, provider: "Resend", messageId: data.id };
       }
 
       const safeErrorMsg = error?.message || (typeof error === "string" ? error : JSON.stringify(error));
+      lastResendError = safeErrorMsg;
       console.warn(`[Email] Resend failed for "${emailType}" to ${to}`);
       console.warn(`[Email] Error: ${safeErrorMsg}`);
       console.log(`[Email] Attempting Nodemailer fallback...`);
     } catch (resendErr: any) {
       const safeErrorMsg = resendErr?.message || "Unknown error during Resend dispatch";
+      lastResendError = safeErrorMsg;
       console.warn(`[Email] Resend exception for "${emailType}" to ${to}`);
       console.warn(`[Email] Error: ${safeErrorMsg}`);
       console.log(`[Email] Attempting Nodemailer fallback...`);
     }
   } else if (!resend) {
+    lastResendError = "RESEND_API_KEY is not configured.";
     console.warn(`[Email] Resend client not initialized (RESEND_API_KEY missing). Falling back to Nodemailer...`);
   } else if (!from) {
+    lastResendError = "Sender email address (EMAIL_FROM) is missing.";
     console.warn(`[Email] Valid sender address missing. Falling back to Nodemailer...`);
   }
 
-  // 2. Nodemailer Fallback
+  // 2. Nodemailer Fallback (SMTP or Console Transporter)
   try {
     const client = await getTransporter();
-    if (!client) {
-      console.error(`[Email] Both Resend and Nodemailer are unavailable for ${to}.`);
-      return false;
-    }
-
     const senderAddress = from || "Haajari Manager <no-reply@haajari.com>";
-    const info = await client.sendMail({
-      from: senderAddress,
-      to,
-      subject,
-      html,
-    });
 
-    console.log(`[Email] Provider: Nodemailer`);
-    console.log(`[Email] Status: SUCCESS`);
-    console.log(`[Email] Message ID: ${info.messageId || "delivered"}`);
+    if (client) {
+      const info = await client.sendMail({
+        from: senderAddress,
+        to,
+        subject,
+        html,
+      });
 
-    const previewUrl = nodemailer.getTestMessageUrl(info);
-    if (previewUrl) {
-      console.log(`[Email] Dev Preview URL: ${previewUrl}`);
+      console.log(`[Email] Provider: Nodemailer`);
+      console.log(`[Email] Status: SUCCESS`);
+      console.log(`[Email] Message ID: ${info.messageId || "delivered"}`);
+
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      if (previewUrl) {
+        console.log(`[Email] Dev Preview URL: ${previewUrl}`);
+      }
+
+      return { success: true, provider: "Nodemailer", messageId: info.messageId || "delivered" };
     }
-
-    return true;
   } catch (smtpErr: any) {
     const safeErrorMsg = smtpErr?.message || "Unknown SMTP delivery error";
     console.error(`[Email] Nodemailer fallback failed for "${emailType}" to ${to}. Error: ${safeErrorMsg}`);
-    return false;
   }
+
+  // 3. Dev Mode Console Transporter Fallback
+  if (process.env.NODE_ENV !== "production") {
+    console.log("\n================ [EMAIL FALLBACK CONSOLE] ================");
+    console.log(`FROM: ${from || "Haajari Manager <no-reply@haajari.com>"}`);
+    console.log(`TO: ${to}`);
+    console.log(`SUBJECT: ${subject}`);
+    console.log(`TYPE: ${emailType}`);
+    console.log(`RESEND ERROR: ${lastResendError}`);
+    console.log(`HTML LENGTH: ${html?.length || 0} bytes`);
+    console.log("==========================================================\n");
+
+    return {
+      success: true,
+      provider: "ConsoleFallback",
+      messageId: `dev-fallback-${Date.now()}`,
+      error: lastResendError ? `Resend Notice: ${lastResendError}` : undefined,
+    };
+  }
+
+  return {
+    success: false,
+    provider: "Resend",
+    error: lastResendError || "Email delivery failed via Resend and SMTP.",
+  };
+}
+
+export async function sendMailUnified(
+  to: string,
+  subject: string,
+  html: string,
+  emailType: string = "Notification"
+): Promise<boolean> {
+  const result = await sendMailUnifiedDetailed(to, subject, html, emailType);
+  return result.success;
 }
 
 /**
