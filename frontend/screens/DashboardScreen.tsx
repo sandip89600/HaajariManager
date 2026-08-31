@@ -316,6 +316,51 @@ export default function DashboardScreen() {
     await storage.setAttendance(filtered);
   };
 
+  const handleFastMarkPresent = async (worker: Worker) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const todayYear = today.getFullYear();
+    const todayMonth = today.getMonth();
+    const todayDay = today.getDate();
+    const dailyRate = worker.dailyRate ?? 0;
+
+    const newRecord: AttendanceRecord = {
+      workerId: worker.id,
+      projectId: activeSite?.id || undefined,
+      year: todayYear,
+      month: todayMonth,
+      day: todayDay,
+      value: "P",
+      dailyRate,
+      finalPay: dailyRate,
+      timestamp: Date.now(),
+    };
+
+    // Optimistic UI update
+    const previousRecords = [...attendanceRecords];
+    setAttendanceRecords((prev) => {
+      const idx = prev.findIndex(
+        (r) => r.workerId === worker.id && r.year === todayYear && r.month === todayMonth && r.day === todayDay
+      );
+      const updated = [...prev];
+      if (idx !== -1) {
+        updated[idx] = newRecord;
+      } else {
+        updated.push(newRecord);
+      }
+      return updated;
+    });
+
+    try {
+      await storage.setAttendanceRecord(newRecord);
+      setToastMessage(`Marked ${worker.name} as Present`);
+      setShowToast(true);
+    } catch (e) {
+      console.warn("Failed to mark present:", e);
+      setAttendanceRecords(previousRecords);
+      Alert.alert("Error", "Failed to save attendance. Please try again.");
+    }
+  };
+
   const handleMarkOptions = (workerId: string) => {
     triggerHaptic();
     const worker = workersList.find((w) => w.id === workerId);
@@ -719,10 +764,23 @@ export default function DashboardScreen() {
                 );
                 const val = todayRec?.value;
 
+                const handleSingleTap = () => {
+                  // Single tap ALWAYS marks worker as Present immediately (no modal, no bottom sheet)
+                  handleFastMarkPresent(worker);
+                };
+
+                const handleLongPress = () => {
+                  // Long press (~1.5 to 2 seconds) ALWAYS opens Attendance Bottom Sheet with all options
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  handleMarkOptions(worker.id);
+                };
+
                 return (
                   <Pressable
                     key={worker.id}
-                    onPress={() => handleMarkOptions(worker.id)}
+                    onPress={handleSingleTap}
+                    onLongPress={handleLongPress}
+                    delayLongPress={1500}
                     style={({ pressed }) => [
                       styles.workerLogRow,
                       {

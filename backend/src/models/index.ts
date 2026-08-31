@@ -23,3 +23,4 @@ export * from "./AppConfig";
 export * from "./PaymentHandover";
 export * from "./SecurityEvent";
 export * from "./Notification";
+export * from "./EmailNotification";

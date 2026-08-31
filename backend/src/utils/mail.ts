@@ -160,7 +160,7 @@ export function validateEmailConfig(): void {
  * 2. If Resend fails, automatically falls back to Nodemailer SMTP
  * 3. Never exposes secrets or tokens in logs
  */
-async function sendMailUnified(
+export async function sendMailUnified(
   to: string,
   subject: string,
   html: string,
@@ -475,6 +475,85 @@ export async function sendNewLoginAlertEmail(
   `;
 
   return sendMailUnified(email, subject, getEmailLayout("New Login Alert", content), "New Device Login Security Alert");
+}
+
+/**
+ * Generates branded HTML for Admin Custom Email Notifications
+ */
+export function generateAdminNotificationEmailHTML(
+  heading: string,
+  messageContent: string,
+  cta?: {
+    enabled?: boolean;
+    buttonText?: string;
+    actionTarget?: string;
+    customUrl?: string;
+  },
+  isTest: boolean = false
+): string {
+  const baseUrl = getBaseUrl();
+  let ctaLink = baseUrl;
+
+  if (cta?.enabled) {
+    if (cta.actionTarget === "Custom Link" && cta.customUrl) {
+      ctaLink = cta.customUrl;
+    } else if (cta.actionTarget === "Open Attendance") {
+      ctaLink = `${baseUrl}/attendance`;
+    } else if (cta.actionTarget === "Open Workers") {
+      ctaLink = `${baseUrl}/workers`;
+    } else if (cta.actionTarget === "Open Reports") {
+      ctaLink = `${baseUrl}/reports`;
+    } else if (cta.actionTarget === "Open Profile") {
+      ctaLink = `${baseUrl}/settings`;
+    } else if (cta.actionTarget === "Open Site Management") {
+      ctaLink = `${baseUrl}/sites`;
+    } else {
+      ctaLink = `${baseUrl}/dashboard`;
+    }
+  }
+
+  // Format paragraphs in message content safely if not HTML formatted
+  const formattedBody = messageContent.includes("<p>")
+    ? messageContent
+    : messageContent
+        .split("\n\n")
+        .map((para) => `<p style="margin: 0 0 16px; color: #E2E8F0; font-size: 15px; line-height: 1.6;">${para.replace(/\n/g, "<br/>")}</p>`)
+        .join("");
+
+  const testBanner = isTest
+    ? `
+      <div style="background-color: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 10px 16px; margin-bottom: 20px; text-align: center;">
+        <span style="color: #92400E; font-[700]; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
+          ⚠️ THIS IS A TEST EMAIL FROM HAAJARI MANAGER ADMIN PANEL
+        </span>
+      </div>
+    `
+    : "";
+
+  const ctaButtonHtml = cta?.enabled
+    ? `
+      <div style="text-align: center; margin: 28px 0 16px;">
+        <a href="${ctaLink}" target="_blank" class="btn-primary" style="background: linear-gradient(135deg, #F97316 0%, #EA580C 100%); color: #FFFFFF; font-weight: 800; font-size: 15px; padding: 12px 28px; text-decoration: none; border-radius: 12px; display: inline-block;">
+          ${cta.buttonText || "Open Haajari Manager"}
+        </a>
+      </div>
+    `
+    : "";
+
+  const innerContent = `
+    ${testBanner}
+    <h2 style="color: #FFFFFF; font-size: 22px; font-weight: 800; margin: 0 0 16px; letter-spacing: -0.5px;">
+      ${heading}
+    </h2>
+    
+    <div style="margin-bottom: 24px;">
+      ${formattedBody}
+    </div>
+
+    ${ctaButtonHtml}
+  `;
+
+  return getEmailLayout(heading, innerContent);
 }
 
 

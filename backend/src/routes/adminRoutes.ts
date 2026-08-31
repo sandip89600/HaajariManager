@@ -44,6 +44,13 @@ import {
   getAdminNotificationHistory,
   getAdminRecipientList,
 } from "../controllers/adminNotificationController";
+import {
+  sendAdminEmailNotification,
+  sendTestEmailNotification,
+  saveEmailDraft,
+  getEmailNotificationHistory,
+  getEmailNotificationDetails,
+} from "../controllers/adminEmailNotificationController";
 import { getAdminSecurityEvents } from "../controllers/authController";
 import { authenticateJWT, requireAdmin } from "../middleware/auth";
 
@@ -110,6 +117,13 @@ router.get("/notifications", getAllNotificationsAdmin as any);
 router.post("/notifications/send", sendAdminNotification as any);
 router.get("/notifications/history", getAdminNotificationHistory as any);
 router.get("/notifications/recipients", getAdminRecipientList as any);
+
+// Email Notifications Management
+router.post("/notifications/email/send", sendAdminEmailNotification as any);
+router.post("/notifications/email/test", sendTestEmailNotification as any);
+router.post("/notifications/email/draft", saveEmailDraft as any);
+router.get("/notifications/email/history", getEmailNotificationHistory as any);
+router.get("/notifications/email/:id", getEmailNotificationDetails as any);
 router.get("/subscriptions", getAllSubscriptionsAdmin as any);
 router.get("/support", getAllSupportTicketsAdmin as any);
 router.get("/devices", getAllDevicesAdmin as any);

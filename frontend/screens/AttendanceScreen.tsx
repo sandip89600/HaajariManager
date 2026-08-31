@@ -23,7 +23,6 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { AttendanceEditorModal } from "@/components/AttendanceEditorModal";
-import { AttendanceCompactStats, AttendanceStatsData } from "@/components/AttendanceCompactStats";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
@@ -291,34 +290,6 @@ export default function AttendanceScreen() {
     return workers.filter((w) => w.name?.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [workers, searchQuery]);
 
-  const statsData: AttendanceStatsData = useMemo(() => {
-    let pCount = 0;
-    let aCount = 0;
-    let hCount = 0;
-    let otCount = 0;
-
-    const monthRecords = attendance.filter((r) => r.year === year && r.month === month);
-
-    monthRecords.forEach((r) => {
-      if (r.value === "P") pCount++;
-      else if (r.value === "A") aCount++;
-      else if (r.value === "H") hCount++;
-      else if (r.value === "OT") otCount++;
-    });
-
-    const activeW = workers.filter((w) => (w as any).status !== "inactive").length;
-
-    return {
-      present: pCount + otCount,
-      absent: aCount,
-      halfDay: hCount,
-      totalAttendance: pCount + aCount + hCount + otCount,
-      activeWorkers: activeW,
-      onLeaveWorkers: otCount,
-      newWorkersThisMonth: workers.length,
-    };
-  }, [attendance, workers, year, month]);
-
   // Colors
   const bgCard = isDark ? "#1E293B" : "#FFFFFF";
   const bgRoot = isDark ? "#0F172A" : "#F8FAFC";
@@ -342,7 +313,7 @@ export default function AttendanceScreen() {
         </View>
       </View>
 
-      {/* 2. Calendar Month Selector banner */}
+      {/* 2. Calendar Month Selector container */}
       <View style={styles.monthSelectorWrap}>
         <Pressable
           onPress={() => {
@@ -351,16 +322,13 @@ export default function AttendanceScreen() {
           }}
           style={[styles.monthSelectorBtn, { backgroundColor: bgCard, borderColor: borderCol }]}
         >
-          <Feather name="calendar" size={18} color="#F97316" style={{ marginRight: 10 }} />
-          <ThemedText style={[styles.monthText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>
-            {MONTHS[month]} {year}
-          </ThemedText>
-          <Feather name="chevron-down" size={16} color={isDark ? "#94A3B8" : "#64748B"} style={{ marginLeft: 8 }} />
+          <Feather name="calendar" size={16} color="#F97316" style={{ marginRight: 8 }} />
+          <Text style={[styles.monthText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>
+            {MONTHS[month].substring(0, 3).toUpperCase()} {year}
+          </Text>
+          <Feather name="chevron-down" size={14} color={isDark ? "#94A3B8" : "#64748B"} style={{ marginLeft: 6 }} />
         </Pressable>
       </View>
-
-      {/* 2.1 Compact Attendance & Worker Statistics Banner */}
-      <AttendanceCompactStats stats={statsData} />
 
       {/* 3. Inline Search (toggle from header) */}
       {showSearch && (
@@ -508,32 +476,7 @@ export default function AttendanceScreen() {
         </View>
       )}
 
-      {/* ── Attendance Overview Information Below Grid ─────────────── */}
-      <View style={[styles.overviewCard, { backgroundColor: bgCard, borderColor: borderCol }]}>
-        <ThemedText style={[styles.overviewCardTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
-          Attendance Overview
-        </ThemedText>
-        <View style={styles.overviewRow}>
-          <Text style={[styles.overviewLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Total Workers</Text>
-          <Text style={[styles.overviewValue, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>{filteredWorkers.length}</Text>
-        </View>
-        <View style={styles.overviewRow}>
-          <Text style={[styles.overviewLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Present</Text>
-          <Text style={[styles.overviewValue, { color: "#22C55E" }]}>{statsData.present}</Text>
-        </View>
-        <View style={styles.overviewRow}>
-          <Text style={[styles.overviewLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Absent</Text>
-          <Text style={[styles.overviewValue, { color: "#EF4444" }]}>{statsData.absent}</Text>
-        </View>
-        <View style={styles.overviewRow}>
-          <Text style={[styles.overviewLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Half Day</Text>
-          <Text style={[styles.overviewValue, { color: "#F59E0B" }]}>{statsData.halfDay}</Text>
-        </View>
-        <View style={styles.overviewRow}>
-          <Text style={[styles.overviewLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Overtime</Text>
-          <Text style={[styles.overviewValue, { color: "#A855F7" }]}>{statsData.onLeaveWorkers}</Text>
-        </View>
-      </View>
+
 
 
 
