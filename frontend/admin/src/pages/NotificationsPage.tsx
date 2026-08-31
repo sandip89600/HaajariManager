@@ -240,7 +240,7 @@ export default function NotificationsPage() {
 
     setTestSending(true);
     try {
-      const res = await api.post('/api/admin/notifications/email/test', {
+      const res = await api.post('/admin/notifications/email/test', {
         testEmail: testEmailAddress.trim(),
         subject: emailSubject.trim(),
         heading: emailHeading.trim(),
@@ -270,7 +270,7 @@ export default function NotificationsPage() {
   const handleSaveDraft = async () => {
     setDraftSaving(true);
     try {
-      const res = await api.post('/api/admin/notifications/email/draft', {
+      const res = await api.post('/admin/notifications/email/draft', {
         draftId: currentDraftId,
         subject: emailSubject.trim() || 'Untitled Draft',
         type: emailType,
@@ -306,7 +306,7 @@ export default function NotificationsPage() {
   const handleConfirmEmailSend = async () => {
     setEmailSending(true);
     try {
-      const res = await api.post('/api/admin/notifications/email/send', {
+      const res = await api.post('/admin/notifications/email/send', {
         draftId: currentDraftId,
         subject: emailSubject.trim(),
         type: emailType,

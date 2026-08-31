@@ -100,7 +100,7 @@ export const sendAdminEmailNotification = async (req: AuthenticatedRequest, res:
       new Set(
         targetUsers
           .map((u) => u.email?.trim())
-          .filter((e) => e && e.includes("@") && !e.endsWith("@example.com"))
+          .filter((e) => e && e.length > 3 && e.includes("@"))
       )
     );
 
