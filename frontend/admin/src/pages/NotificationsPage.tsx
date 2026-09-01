@@ -194,6 +194,19 @@ export default function NotificationsPage() {
     }
   };
 
+  const formatUserErrorMessage = (err: any): string => {
+    if (!err.response) {
+      return 'Unable to connect to the server. Please check your internet connection and try again.';
+    }
+    if (err.response.status === 401) {
+      return 'Your admin session has expired. Please sign in again.';
+    }
+    if (err.response.status === 403) {
+      return 'Unauthorized access. Only authorized Admin users can perform this action.';
+    }
+    return err.response?.data?.message || 'Unable to process request. Please try again.';
+  };
+
   // Submit In-App Broadcast
   const handleConfirmInAppSend = async () => {
     setInAppSending(true);
@@ -217,7 +230,7 @@ export default function NotificationsPage() {
         queryClient.invalidateQueries({ queryKey: ['adminNotificationHistory'] });
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to send in-app notification');
+      toast.error(formatUserErrorMessage(err));
     } finally {
       setInAppSending(false);
     }
@@ -238,6 +251,12 @@ export default function NotificationsPage() {
       return;
     }
 
+    console.log('[AdminEmailUI] Initiating Test Email send:', {
+      testEmail: testEmailAddress.trim(),
+      subject: emailSubject.trim(),
+      heading: emailHeading.trim(),
+    });
+
     setTestSending(true);
     try {
       const res = await api.post('/admin/notifications/email/test', {
@@ -253,14 +272,17 @@ export default function NotificationsPage() {
         },
       });
 
+      console.log('[AdminEmailUI] Test Email API Response:', res.data);
+
       if (res.data.success) {
-        toast.success(`Test email sent to ${testEmailAddress.trim()}`);
+        toast.success(res.data.message || `Test email sent to ${testEmailAddress.trim()}`);
         setShowTestModal(false);
       } else {
         toast.error(res.data.message || 'Failed to send test email');
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Unable to send test email');
+      console.error('[AdminEmailUI] Error sending test email:', err.response?.data || err.message || err);
+      toast.error(formatUserErrorMessage(err));
     } finally {
       setTestSending(false);
     }
@@ -268,6 +290,10 @@ export default function NotificationsPage() {
 
   // Save Email Draft
   const handleSaveDraft = async () => {
+    console.log('[AdminEmailUI] Saving Email Draft:', {
+      draftId: currentDraftId,
+      subject: emailSubject.trim() || 'Untitled Draft',
+    });
     setDraftSaving(true);
     try {
       const res = await api.post('/admin/notifications/email/draft', {
@@ -288,6 +314,8 @@ export default function NotificationsPage() {
         },
       });
 
+      console.log('[AdminEmailUI] Save Draft API Response:', res.data);
+
       if (res.data.success) {
         toast.success('Email draft saved successfully');
         if (res.data.notification?._id) {
@@ -296,7 +324,8 @@ export default function NotificationsPage() {
         queryClient.invalidateQueries({ queryKey: ['adminEmailHistory'] });
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to save draft');
+      console.error('[AdminEmailUI] Error saving draft:', err.response?.data || err.message || err);
+      toast.error(formatUserErrorMessage(err));
     } finally {
       setDraftSaving(false);
     }
@@ -304,6 +333,13 @@ export default function NotificationsPage() {
 
   // Submit Final Email Broadcast Send
   const handleConfirmEmailSend = async () => {
+    console.log('[AdminEmailUI] Initiating Final Email Broadcast Send:', {
+      draftId: currentDraftId,
+      subject: emailSubject.trim(),
+      heading: emailHeading.trim(),
+      roles: selectedRecipientRoles,
+      specificUserIds: emailSpecificUserIds,
+    });
     setEmailSending(true);
     try {
       const res = await api.post('/admin/notifications/email/send', {
@@ -324,6 +360,8 @@ export default function NotificationsPage() {
         },
       });
 
+      console.log('[AdminEmailUI] Email Broadcast API Response:', res.data);
+
       if (res.data.success) {
         toast.success(res.data.message || 'Email notification sent successfully');
         setShowEmailConfirmModal(false);
@@ -339,7 +377,8 @@ export default function NotificationsPage() {
         toast.error(res.data.message || 'Failed to send email notification');
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Unable to send email notification');
+      console.error('[AdminEmailUI] Error in handleConfirmEmailSend:', err.response?.data || err.message || err);
+      toast.error(formatUserErrorMessage(err));
     } finally {
       setEmailSending(false);
     }

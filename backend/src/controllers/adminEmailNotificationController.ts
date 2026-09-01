@@ -95,6 +95,11 @@ export const sendAdminEmailNotification = async (req: AuthenticatedRequest, res:
       }
     }
 
+    console.log(`\n================ [ADMIN EMAIL BROADCAST REQUEST] ================`);
+    console.log(`[AdminEmail] Subject  : "${subject}"`);
+    console.log(`[AdminEmail] Roles    : ${JSON.stringify(rolesArray)}`);
+    console.log(`[AdminEmail] Admin ID : ${adminId}`);
+
     // Filter valid email addresses
     const emailList = Array.from(
       new Set(
@@ -104,7 +109,11 @@ export const sendAdminEmailNotification = async (req: AuthenticatedRequest, res:
       )
     );
 
+    console.log(`[AdminEmail] Resolved ${targetUsers.length} total users in DB.`);
+    console.log(`[AdminEmail] Resolved ${emailList.length} unique email addresses:`, emailList);
+
     if (emailList.length === 0) {
+      console.warn(`[AdminEmail] ⚠️ No eligible email recipients found!`);
       return res.status(400).json({
         success: false,
         message: "No eligible email recipients found for the selected option.",
@@ -117,29 +126,7 @@ export const sendAdminEmailNotification = async (req: AuthenticatedRequest, res:
     // Generate Branded HTML Content
     const emailHtml = generateAdminNotificationEmailHTML(sanitizedHeading, sanitizedMessage, cta, false);
 
-    // Send emails through unified email provider
-    let successfulSends = 0;
-    let failedSends = 0;
-    const failedEmails: string[] = [];
-
-    for (const email of emailList) {
-      const sent = await sendMailUnified(email, subject.trim(), emailHtml, `Admin Broadcast: ${type}`);
-      if (sent) {
-        successfulSends++;
-      } else {
-        failedSends++;
-        failedEmails.push(email);
-      }
-    }
-
-    const finalStatus =
-      successfulSends === emailList.length
-        ? "Sent"
-        : successfulSends > 0
-        ? "Partially Sent"
-        : "Failed";
-
-    // Save Email Notification Record in Database
+    // 1. Create or update EmailNotification record in DB with status "Sending"
     let emailRecord;
     if (draftId && draftId.length === 24) {
       emailRecord = await EmailNotification.findByIdAndUpdate(
@@ -153,13 +140,13 @@ export const sendAdminEmailNotification = async (req: AuthenticatedRequest, res:
           heading: sanitizedHeading,
           message: sanitizedMessage,
           cta,
-          status: finalStatus,
+          status: "Sending",
           sentAt: new Date(),
           deliveryStats: {
             totalRecipients: emailList.length,
-            successfulSends,
-            failedSends,
-            failedEmails,
+            successfulSends: 0,
+            failedSends: 0,
+            failedEmails: [],
           },
         },
         { new: true }
@@ -177,8 +164,77 @@ export const sendAdminEmailNotification = async (req: AuthenticatedRequest, res:
         message: sanitizedMessage,
         cta,
         createdBy: adminId,
-        status: finalStatus,
+        status: "Sending",
         sentAt: new Date(),
+        deliveryStats: {
+          totalRecipients: emailList.length,
+          successfulSends: 0,
+          failedSends: 0,
+          failedEmails: [],
+        },
+      });
+      await emailRecord.save();
+    }
+
+    console.log(`[AdminEmail] Saved MongoDB Notification Record ID: ${emailRecord._id}`);
+    console.log(`[AdminEmail] Responding immediately to UI with HTTP 200 OK.`);
+
+    // 2. Respond immediately to Frontend UI (never hangs!)
+    res.json({
+      success: true,
+      message: `Email broadcast initiated for ${emailList.length} recipient(s).`,
+      notification: emailRecord,
+      stats: {
+        totalRecipients: emailList.length,
+        successfulSends: 0,
+        failedSends: 0,
+      },
+    });
+
+    // 3. Process email delivery asynchronously in background batches (Parallel chunks of 5)
+    setImmediate(async () => {
+      console.log(`\n[AdminEmail Background] Initiating background batch dispatch for ${emailList.length} email(s)...`);
+      let successfulSends = 0;
+      let failedSends = 0;
+      const failedEmails: string[] = [];
+
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < emailList.length; i += BATCH_SIZE) {
+        const chunk = emailList.slice(i, i + BATCH_SIZE);
+        console.log(`[AdminEmail Background] Dispatching batch ${Math.floor(i / BATCH_SIZE) + 1} (${chunk.length} emails):`, chunk);
+        await Promise.all(
+          chunk.map(async (email) => {
+            try {
+              const sent = await sendMailUnified(email, subject.trim(), emailHtml, `Admin Broadcast: ${type}`);
+              if (sent) {
+                successfulSends++;
+                console.log(`[AdminEmail Background] ✅ Sent to ${email}`);
+              } else {
+                failedSends++;
+                failedEmails.push(email);
+                console.warn(`[AdminEmail Background] ❌ Failed to send to ${email}`);
+              }
+            } catch (err: any) {
+              failedSends++;
+              failedEmails.push(email);
+              console.error(`[AdminEmail Background] ❌ Exception for ${email}:`, err?.message || err);
+            }
+          })
+        );
+      }
+
+      const finalStatus =
+        successfulSends === emailList.length
+          ? "Sent"
+          : successfulSends > 0
+          ? "Partially Sent"
+          : "Failed";
+
+      console.log(`[AdminEmail Background] Batch complete. Total=${emailList.length}, Sent=${successfulSends}, Failed=${failedSends}, Status=${finalStatus}`);
+      console.log(`=================================================================\n`);
+
+      await EmailNotification.findByIdAndUpdate(emailRecord._id, {
+        status: finalStatus,
         deliveryStats: {
           totalRecipients: emailList.length,
           successfulSends,
@@ -186,18 +242,6 @@ export const sendAdminEmailNotification = async (req: AuthenticatedRequest, res:
           failedEmails,
         },
       });
-      await emailRecord.save();
-    }
-
-    return res.json({
-      success: true,
-      message: `Email notification processed. ${successfulSends} sent successfully.`,
-      notification: emailRecord,
-      stats: {
-        totalRecipients: emailList.length,
-        successfulSends,
-        failedSends,
-      },
     });
   } catch (error: any) {
     console.error("[AdminEmailNotificationController] Error sending email notification:", error);
@@ -211,6 +255,8 @@ export const sendAdminEmailNotification = async (req: AuthenticatedRequest, res:
 // 2. Send Test Email Notification
 export const sendTestEmailNotification = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    console.log(`[EMAIL_TEST_REQUEST_RECEIVED] Admin ID: ${req.user?.id}`);
+
     const adminId = req.user?.id;
     const adminRole = req.user?.role;
 
@@ -245,27 +291,39 @@ export const sendTestEmailNotification = async (req: AuthenticatedRequest, res: 
       "Test Admin Email"
     );
 
+    console.log(`[EMAIL_TEST_COMPLETED] Status: ${result.success ? "SUCCESS" : "FAILED"} | Provider: ${result.provider}`);
+
     if (result.success) {
       return res.json({
         success: true,
-        message: `Test email processed successfully for ${testEmail.trim()} via ${result.provider}. ${
-          result.error ? result.error : ""
-        }`,
+        message: "Test email sent successfully.",
         provider: result.provider,
         messageId: result.messageId,
       });
     } else {
+      let userFriendlyMessage = "Unable to send email right now.";
+
+      if (result.error?.includes("timed out")) {
+        userFriendlyMessage = "Email service timed out. Please try again later.";
+      } else if (
+        result.error?.includes("missing") ||
+        result.error?.includes("invalid") ||
+        result.error?.includes("RESEND_API_KEY")
+      ) {
+        userFriendlyMessage = "Email service is not configured correctly.";
+      }
+
       return res.status(500).json({
         success: false,
-        message: `Failed to deliver test email to ${testEmail.trim()}. ${result.error || "Check email service credentials."}`,
+        message: userFriendlyMessage,
         provider: result.provider,
       });
     }
   } catch (error: any) {
-    console.error("[AdminEmailNotificationController] Error sending test email:", error);
+    console.error("[EMAIL_PROVIDER_ERROR] Exception in sendTestEmailNotification:", error?.message || error);
     return res.status(500).json({
       success: false,
-      message: "Unable to send test email. Please try again.",
+      message: "Unable to send email right now.",
     });
   }
 };
