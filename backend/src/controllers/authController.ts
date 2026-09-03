@@ -1627,7 +1627,20 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
-    res.json({ user });
+    const tenant: any = user.tenantId;
+    const userObj = user.toObject();
+    res.json({
+      success: true,
+      user: {
+        ...userObj,
+        id: user._id,
+        companyName: tenant?.name || "",
+        plan: tenant?.plan || "free",
+        email: user.email || "",
+        phone: user.phone || "",
+        name: user.name || "",
+      },
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

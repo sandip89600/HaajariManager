@@ -185,11 +185,47 @@ export default function UserProfileScreen() {
   );
 
   const loadUserData = async () => {
-    if (authUser) {
-      const userData = await storage.getUserById(authUser.id);
-      if (userData) {
-        setUser(userData);
+    if (!authUser) return;
+
+    // 1. Instant local cache render
+    const localUser = await storage.getUserById(authUser.id);
+    if (localUser) {
+      setUser(localUser);
+    }
+
+    // 2. Direct backend profile API fetch
+    try {
+      const res = await authenticatedFetch(`${API_URL}/auth/profile`);
+      if (res.ok) {
+        const data = await res.json();
+        const serverUser = data.user;
+        if (serverUser) {
+          const tenantObj = typeof serverUser.tenantId === "object" ? serverUser.tenantId : null;
+          const freshUser: User = {
+            id: serverUser._id || serverUser.id || authUser.id,
+            name: serverUser.name || (localUser ? localUser.name : authUser.name),
+            phone: serverUser.phone || authUser.phone || "",
+            email: serverUser.email || "",
+            username: serverUser.username || "",
+            isPhoneVerified: !!serverUser.isPhoneVerified,
+            avatarColor: serverUser.avatarColor || "#4ECDC4",
+            profileImage: serverUser.profileImage || undefined,
+            address: serverUser.address || "",
+            role: serverUser.role || authUser.role || "contractor",
+            isActive: true,
+            createdAt: serverUser.createdAt
+              ? new Date(serverUser.createdAt).getTime()
+              : Date.now(),
+            companyName: tenantObj?.name || serverUser.companyName || "",
+            plan: tenantObj?.plan || serverUser.plan || authUser.plan || "free",
+            loginHistory: serverUser.loginHistory || localUser?.loginHistory || [Date.now()],
+          };
+          setUser(freshUser);
+          await storage.updateUser(freshUser);
+        }
       }
+    } catch (err) {
+      console.warn("Failed to fetch fresh profile from backend API", err);
     }
   };
 
@@ -488,6 +524,7 @@ export default function UserProfileScreen() {
       if (confirmed && user) {
         setIsUpdating(true);
         try {
+          alert("Account Deletion Scheduled: Your account data will be permanently deleted in 30 days.");
           await storage.deleteUser(user.id);
           await logout();
         } catch (err: any) {
@@ -502,12 +539,16 @@ export default function UserProfileScreen() {
     Alert.alert(t.profile.deleteAccountTitle, t.profile.deleteAccountConfirm, [
       { text: t.common.cancel || "Cancel", style: "cancel" },
       {
-        text: t.profile.deleteAccountBtn,
+        text: "Schedule Deletion (30 Days)",
         style: "destructive",
         onPress: async () => {
           if (user) {
             setIsUpdating(true);
             try {
+              Alert.alert(
+                "Deletion Scheduled 🗓️",
+                "Your account deletion request is scheduled. All your data will be permanently removed in 30 days.",
+              );
               await storage.deleteUser(user.id);
               await logout();
             } catch (err: any) {
@@ -560,19 +601,19 @@ export default function UserProfileScreen() {
     );
   }
 
-  const initials = (translateWorkerName(user.name, language) || "?").charAt(0).toUpperCase();
+  const initials = (user.name || "?").charAt(0).toUpperCase();
 
   return (
     <ThemedView style={styles.container}>
       <ScrollView
         contentContainerStyle={{
           paddingHorizontal: Spacing.lg,
-          paddingTop: finalHeaderHeight + Spacing.lg,
+          paddingTop: Spacing.md,
           paddingBottom: insets.bottom + Spacing.xl,
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── TOP HERO PROFILE CARD ── */}
+        {/* ── TOP HERO PROFILE CARD (Updated Layout) ── */}
         <View
           style={[
             styles.heroCard,
@@ -585,11 +626,32 @@ export default function UserProfileScreen() {
           <LinearGradient
             colors={
               isDark
-                ? ["rgba(99, 102, 241, 0.1)", "rgba(15, 23, 42, 0.95)"]
-                : ["rgba(30, 58, 95, 0.05)", "rgba(255, 255, 255, 0.98)"]
+                ? ["rgba(99, 102, 241, 0.12)", "rgba(15, 23, 42, 0.98)"]
+                : ["rgba(30, 58, 95, 0.06)", "rgba(255, 255, 255, 0.99)"]
             }
             style={styles.heroGradient}
           >
+            {/* Edit Profile Action Button Top-Right */}
+            <Pressable
+              onPress={openEditModal}
+              style={{
+                position: "absolute",
+                top: 14,
+                right: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 16,
+              }}
+            >
+              <Feather name="edit-2" size={13} color={theme.primary} style={{ marginRight: 4 }} />
+              <ThemedText style={{ fontSize: 12, fontWeight: "600", color: theme.primary }}>
+                {t.common?.edit || "Edit"}
+              </ThemedText>
+            </Pressable>
+
             {/* Circular Profile Picture */}
             <Pressable
               onPress={() => setShowImageModal(true)}
@@ -617,49 +679,54 @@ export default function UserProfileScreen() {
               </View>
             </Pressable>
 
-            {/* User Details */}
+            {/* User Name */}
             <ThemedText type="h2" style={styles.userName}>
-              {translateWorkerName(user.name, language)}
+              {user.name}
             </ThemedText>
 
-            {/* User Role Badge */}
-            <View
-              style={[
-                styles.badge,
-                {
-                  backgroundColor: getRoleColor(user.role) + "15",
-                  borderColor: getRoleColor(user.role),
-                },
-              ]}
-            >
-              <ThemedText
-                style={[styles.badgeText, { color: getRoleColor(user.role) }]}
+            {/* User Meta Row (Role & Company) */}
+            <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", justifyContent: "center", gap: 8, marginTop: 6, marginBottom: 4 }}>
+              {/* User Role Badge */}
+              <View
+                style={[
+                  styles.badge,
+                  {
+                    backgroundColor: getRoleColor(user.role) + "15",
+                    borderColor: getRoleColor(user.role),
+                  },
+                ]}
               >
-                {getRoleLabel(user.role)}
-              </ThemedText>
+                <ThemedText
+                  style={[styles.badgeText, { color: getRoleColor(user.role) }]}
+                >
+                  {getRoleLabel(user.role)}
+                </ThemedText>
+              </View>
+
+              {/* Company Name */}
+              {user.companyName ? (
+                <ThemedText
+                  type="body"
+                  style={[styles.companyName, { color: theme.textSecondary }]}
+                >
+                  🏢 {user.companyName}
+                </ThemedText>
+              ) : null}
             </View>
 
-            {/* Company Name */}
-            {user.companyName ? (
-              <ThemedText
-                type="body"
-                style={[styles.companyName, { color: theme.textSecondary }]}
+            {/* Upgraded Plan Badge ONLY (Free and Basic Badges Removed) */}
+            {user.plan && user.plan !== "free" && user.plan !== "basic" && (
+              <View
+                style={[
+                  styles.planBadge,
+                  { backgroundColor: getPlanColor(user.plan), marginTop: 8 },
+                ]}
               >
-                🏢 {user.companyName}
-              </ThemedText>
-            ) : null}
-
-            {/* Plan Badge */}
-            <View
-              style={[
-                styles.planBadge,
-                { backgroundColor: getPlanColor(user.plan || "free") },
-              ]}
-            >
-              <ThemedText style={styles.planBadgeText}>
-                {t.profile.plan || "Plan"}: {getPlanLabel(user.plan || "free")}
-              </ThemedText>
-            </View>
+                <ThemedText style={styles.planBadgeText}>
+                  {t.profile.plan || "Plan"}: {getPlanLabel(user.plan)}
+                </ThemedText>
+              </View>
+            )}
           </LinearGradient>
         </View>
 
@@ -794,108 +861,7 @@ export default function UserProfileScreen() {
           </View>
         </View>
 
-        {/* ─── SETTINGS & MANAGEMENT OPTIONS ─── */}
-        <View
-          style={[
-            styles.settingsSection,
-            {
-              backgroundColor: theme.backgroundDefault,
-              borderColor: theme.border,
-            },
-          ]}
-        >
-          <ThemedText type="h3" style={styles.sectionTitle}>
-            Settings & Options
-          </ThemedText>
-
-          {/* Language Selection Row */}
-          <Pressable
-            onPress={() => setShowLangModal(true)}
-            style={[styles.settingRow, { borderBottomColor: theme.border }]}
-          >
-            <View style={styles.settingRowLeft}>
-              <View style={[styles.settingIconBg, { backgroundColor: "rgba(37,99,235,0.1)" }]}>
-                <Feather name="globe" size={16} color="#2563EB" />
-              </View>
-              <View style={{ marginLeft: 12 }}>
-                <ThemedText style={styles.settingLabel}>App Language</ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  {language === "en" ? "English" : language === "hi" ? "Hindi (हिंदी)" : language === "mr" ? "Marathi (मराठी)" : languageNames[language] || language}
-                </ThemedText>
-              </View>
-            </View>
-            <Feather name="chevron-right" size={16} color={theme.textSecondary} />
-          </Pressable>
-
-          {/* Theme Selection Row */}
-          <Pressable
-            onPress={() => setShowThemeModal(true)}
-            style={[styles.settingRow, { borderBottomColor: theme.border }]}
-          >
-            <View style={styles.settingRowLeft}>
-              <View style={[styles.settingIconBg, { backgroundColor: "rgba(245,158,11,0.1)" }]}>
-                <Feather name="sun" size={16} color="#F59E0B" />
-              </View>
-              <View style={{ marginLeft: 12 }}>
-                <ThemedText style={styles.settingLabel}>Display Theme</ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  {themeMode === "light" ? "Light Mode" : themeMode === "dark" ? "Dark Mode" : "System Default"}
-                </ThemedText>
-              </View>
-            </View>
-            <Feather name="chevron-right" size={16} color={theme.textSecondary} />
-          </Pressable>
-
-          {/* Support Row */}
-          <Pressable
-            onPress={() => navigation.navigate("Support")}
-            style={[styles.settingRow, { borderBottomColor: theme.border }]}
-          >
-            <View style={styles.settingRowLeft}>
-              <View style={[styles.settingIconBg, { backgroundColor: "rgba(139,92,246,0.1)" }]}>
-                <Feather name="help-circle" size={16} color="#8B5CF6" />
-              </View>
-              <View style={{ marginLeft: 12 }}>
-                <ThemedText style={styles.settingLabel}>Help & Support</ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  Contact customer care & guides
-                </ThemedText>
-              </View>
-            </View>
-            <Feather name="chevron-right" size={16} color={theme.textSecondary} />
-          </Pressable>
-
-          {/* Logout Row */}
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              Alert.alert(
-                t.settings.logout || "Logout",
-                t.settings.logoutConfirm || "Are you sure you want to log out?",
-                [
-                  { text: t.common.cancel || "Cancel", style: "cancel" },
-                  { text: t.settings.logout || "Logout", style: "destructive", onPress: () => logout() },
-                ]
-              );
-            }}
-            style={styles.settingRow}
-          >
-            <View style={styles.settingRowLeft}>
-              <View style={[styles.settingIconBg, { backgroundColor: "rgba(239,68,68,0.1)" }]}>
-                <Feather name="log-out" size={16} color="#EF4444" />
-              </View>
-              <View style={{ marginLeft: 12 }}>
-                <ThemedText style={[styles.settingLabel, { color: "#EF4444" }]}>Sign Out</ThemedText>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  Log out of your account
-                </ThemedText>
-              </View>
-            </View>
-            <Feather name="chevron-right" size={16} color={theme.textSecondary} />
-          </Pressable>
-        </View>
-
-        {/* ── ACTION BUTTONS ── */}
+        {/* ── PRIMARY ACTIONS ── */}
         <View style={styles.buttonsGroup}>
           <Pressable
             onPress={openEditModal}
@@ -925,13 +891,16 @@ export default function UserProfileScreen() {
               {t.profile.changePassword}
             </ThemedText>
           </Pressable>
+        </View>
 
+        {/* ── DANGER ZONE (DELETE ACCOUNT) ── */}
+        <View style={{ marginTop: 28, paddingTop: 16, borderTopWidth: 1, borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", marginBottom: 12 }}>
           <Pressable
             onPress={handleDeleteAccount}
-            style={[styles.deleteButton, { borderColor: theme.error }]}
+            style={[styles.deleteButton, { borderColor: theme.error + "40", backgroundColor: theme.error + "0A" }]}
           >
             <Feather name="trash-2" size={16} color={theme.error} />
-            <ThemedText style={styles.deleteButtonText}>
+            <ThemedText style={[styles.deleteButtonText, { color: theme.error }]}>
               {t.profile.deleteAccountTitle}
             </ThemedText>
           </Pressable>

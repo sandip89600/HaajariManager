@@ -415,16 +415,35 @@ export async function shareCSV(
   }
 }
 
+// Helper for 15-second request timeout guard
+const WITH_TIMEOUT_MS = 15000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs = WITH_TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("Report generation timed out. Please try again.")), timeoutMs)
+    ),
+  ]);
+}
+
 export async function downloadAndSharePDF(
   url: string,
   filename: string,
 ): Promise<boolean> {
   try {
     if (Platform.OS === "web") {
-      const response = await authenticatedFetch(url);
+      const response = await withTimeout(authenticatedFetch(url));
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed to download PDF.");
+        const errorText = await response.text().catch(() => "");
+        let errorMessage = `PDF API failed (HTTP ${response.status})`;
+        try {
+          const parsed = JSON.parse(errorText);
+          errorMessage = parsed.error || parsed.message || errorMessage;
+        } catch {
+          if (errorText) errorMessage += `: ${errorText.substring(0, 100)}`;
+        }
+        throw new Error(errorMessage);
       }
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
@@ -443,41 +462,50 @@ export async function downloadAndSharePDF(
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const fileUri = `${FileSystem.documentDirectory}${filename}`;
-    const result = await FileSystem.downloadAsync(url, fileUri, { headers });
+    const safeFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
+    const fileUri = `${FileSystem.documentDirectory}${safeFilename}`;
+
+    const result = await withTimeout(FileSystem.downloadAsync(url, fileUri, { headers }));
 
     if (result.status >= 400) {
-      let errorMessage = "Failed to download PDF.";
+      let errorMessage = `PDF API failed (HTTP ${result.status})`;
       try {
         const errorContent = await FileSystem.readAsStringAsync(result.uri);
         const parsed = JSON.parse(errorContent);
-        errorMessage = parsed.error || errorMessage;
-      } catch (e) {
-        // Not JSON or failed to read
+        errorMessage = parsed.error || parsed.message || errorMessage;
+      } catch {
+        // Not JSON
       }
       await FileSystem.deleteAsync(result.uri, { idempotent: true });
       throw new Error(errorMessage);
+    }
+
+    // Verify downloaded file is not empty
+    const fileInfo = await FileSystem.getInfoAsync(result.uri);
+    if (!fileInfo.exists || (fileInfo as any).size === 0) {
+      await FileSystem.deleteAsync(result.uri, { idempotent: true });
+      throw new Error("Downloaded PDF file is empty or invalid.");
     }
 
     const isAvailable = await Sharing.isAvailableAsync();
     if (isAvailable) {
       await Sharing.shareAsync(result.uri, {
         mimeType: "application/pdf",
-        dialogTitle: filename,
+        dialogTitle: safeFilename,
         UTI: "com.adobe.pdf",
       });
       return true;
     } else {
-      Alert.alert("Sharing not available", "Cannot share on this device");
+      Alert.alert("Sharing not available", "Cannot share files on this device.");
       return false;
     }
   } catch (error: any) {
-    console.error("downloadAndSharePDF failed:", error);
+    console.error("[ExportUtil] downloadAndSharePDF failed:", error);
     Alert.alert(
       "Export Error",
-      error.message || "Failed to download and share PDF.",
+      error.message || "Failed to download and share PDF report.",
     );
-    return false;
+    throw error;
   }
 }
 
@@ -487,10 +515,17 @@ export async function downloadAndShareCSV(
 ): Promise<boolean> {
   try {
     if (Platform.OS === "web") {
-      const response = await authenticatedFetch(url);
+      const response = await withTimeout(authenticatedFetch(url));
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed to download CSV.");
+        const errorText = await response.text().catch(() => "");
+        let errorMessage = `CSV API failed (HTTP ${response.status})`;
+        try {
+          const parsed = JSON.parse(errorText);
+          errorMessage = parsed.error || parsed.message || errorMessage;
+        } catch {
+          if (errorText) errorMessage += `: ${errorText.substring(0, 100)}`;
+        }
+        throw new Error(errorMessage);
       }
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
@@ -509,60 +544,91 @@ export async function downloadAndShareCSV(
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const fileUri = `${FileSystem.documentDirectory}${filename}`;
-    const result = await FileSystem.downloadAsync(url, fileUri, { headers });
+    const safeFilename = filename.endsWith(".csv") ? filename : `${filename}.csv`;
+    const fileUri = `${FileSystem.documentDirectory}${safeFilename}`;
+
+    const result = await withTimeout(FileSystem.downloadAsync(url, fileUri, { headers }));
 
     if (result.status >= 400) {
-      let errorMessage = "Failed to download CSV.";
+      let errorMessage = `CSV API failed (HTTP ${result.status})`;
       try {
         const errorContent = await FileSystem.readAsStringAsync(result.uri);
         const parsed = JSON.parse(errorContent);
-        errorMessage = parsed.error || errorMessage;
-      } catch (e) {
-        // Not JSON or failed to read
+        errorMessage = parsed.error || parsed.message || errorMessage;
+      } catch {
+        // Not JSON
       }
       await FileSystem.deleteAsync(result.uri, { idempotent: true });
       throw new Error(errorMessage);
+    }
+
+    // Verify downloaded file is not empty
+    const fileInfo = await FileSystem.getInfoAsync(result.uri);
+    if (!fileInfo.exists || (fileInfo as any).size === 0) {
+      await FileSystem.deleteAsync(result.uri, { idempotent: true });
+      throw new Error("Downloaded CSV file is empty or invalid.");
     }
 
     const isAvailable = await Sharing.isAvailableAsync();
     if (isAvailable) {
       await Sharing.shareAsync(result.uri, {
         mimeType: "text/csv",
-        dialogTitle: filename,
+        dialogTitle: safeFilename,
       });
       return true;
     } else {
-      Alert.alert("Sharing not available", "Cannot share on this device");
+      Alert.alert("Sharing not available", "Cannot share files on this device.");
       return false;
     }
   } catch (error: any) {
-    console.error("downloadAndShareCSV failed:", error);
+    console.error("[ExportUtil] downloadAndShareCSV failed:", error);
     Alert.alert(
       "Export Error",
-      error.message || "Failed to download and share CSV.",
+      error.message || "Failed to download and share CSV report.",
     );
-    return false;
+    throw error;
   }
 }
 
 export async function fetchAndPrintHTML(url: string): Promise<boolean> {
   try {
-    const response = await authenticatedFetch(url);
+    const response = await withTimeout(authenticatedFetch(url));
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error || "Failed to fetch print layout.");
+      const errorText = await response.text().catch(() => "");
+      let errorMessage = `Print API failed (HTTP ${response.status})`;
+      try {
+        const parsed = JSON.parse(errorText);
+        errorMessage = parsed.error || parsed.message || errorMessage;
+      } catch {
+        if (errorText) errorMessage += `: ${errorText.substring(0, 100)}`;
+      }
+      throw new Error(errorMessage);
     }
+
     const html = await response.text();
+    if (!html || !html.trim()) {
+      throw new Error("Print layout payload is empty.");
+    }
+
     await Print.printAsync({ html });
     return true;
   } catch (error: any) {
-    console.error("fetchAndPrintHTML failed:", error);
+    const errMessage = error?.message || "";
+    const isUserCanceled =
+      errMessage.toLowerCase().includes("cancel") ||
+      errMessage.toLowerCase().includes("dismiss");
+
+    if (isUserCanceled) {
+      console.log("[ExportUtil] Print dialog canceled by user.");
+      return false;
+    }
+
+    console.error("[ExportUtil] fetchAndPrintHTML failed:", error);
     Alert.alert(
       "Print Error",
-      error.message || "Failed to load and print HTML layout.",
+      errMessage || "Failed to load and print HTML layout.",
     );
-    return false;
+    throw error;
   }
 }
 

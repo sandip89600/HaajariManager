@@ -95,16 +95,17 @@ export function useAuthProvider() {
         setUserType(auth.userType);
         setEmail(auth.phone || auth.email || "");
         let userData = await storage.getUserById(auth.userId);
-        if (!userData && auth.token) {
+        if (auth.token) {
           try {
             const res = await authenticatedFetch(`${API_URL}/auth/profile`);
             if (res.ok) {
               const profileData = await res.json();
               const serverUser = profileData.user;
               if (serverUser) {
+                const tenantObj = typeof serverUser.tenantId === "object" ? serverUser.tenantId : null;
                 userData = {
-                  id: serverUser._id || serverUser.id,
-                  name: serverUser.name,
+                  id: serverUser._id || serverUser.id || auth.userId,
+                  name: serverUser.name || (userData ? userData.name : ""),
                   phone: serverUser.phone || "",
                   email: serverUser.email || "",
                   username: serverUser.username || "",
@@ -118,8 +119,8 @@ export function useAuthProvider() {
                     ? new Date(serverUser.createdAt).getTime()
                     : Date.now(),
                   loginHistory: [Date.now()],
-                  companyName: serverUser.tenantId?.name || serverUser.companyName || "",
-                  plan: serverUser.tenantId?.plan || auth.plan || "free",
+                  companyName: tenantObj?.name || serverUser.companyName || "",
+                  plan: tenantObj?.plan || serverUser.plan || auth.plan || "free",
                 };
                 await storage.updateUser(userData);
               }

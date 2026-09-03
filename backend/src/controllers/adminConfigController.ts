@@ -12,13 +12,46 @@ export const seedDefaultConfigIfNeeded = async (adminId?: any) => {
       supervisorManagementRestrictedToPaid: false,
       features: [
         { key: "paymentHandover", name: "Payment Handover", description: "Enables contractor payment handover configuration and settings", enabled: true, premium: true, minPlan: "premium" },
-        { key: "paymentProof", name: "Payment Proof", description: "Allows uploading and auditing payment proofs", enabled: false, premium: true, minPlan: "premium" },
-        { key: "advancedReports", name: "Advanced Reports", description: "Allows exporting advanced PDF and CSV sheets", enabled: true, premium: true, minPlan: "premium" },
-        { key: "aiAssistant", name: "AI / HAI Assistant", description: "Enables voice-driven commands and AI recommendations", enabled: false, premium: true, minPlan: "premium" }
+        { key: "paymentProof", name: "Payment Proof", description: "Allows uploading and auditing payment proofs", enabled: true, premium: false, minPlan: "free" },
+        { key: "advancedReports", name: "Advanced Reports", description: "Allows exporting advanced PDF and CSV sheets", enabled: true, premium: false, minPlan: "free" },
+        { key: "aiAssistant", name: "AI / HAI Assistant", description: "Enables voice-driven commands and AI recommendations", enabled: true, premium: false, minPlan: "free" }
       ],
       updatedBy: adminId || "000000000000000000000000" // Fallback system ID if seed is triggered anonymously
     });
     await config.save();
+  } else {
+    // Ensure advancedReports is re-enabled for all plans in database
+    let modified = false;
+    const feat = config.features.find((f: any) => f.key === "advancedReports");
+    if (feat) {
+      if (!feat.enabled || feat.premium || feat.minPlan !== "free") {
+        feat.enabled = true;
+        feat.premium = false;
+        feat.minPlan = "free";
+        modified = true;
+      }
+    } else {
+      config.features.push({
+        key: "advancedReports",
+        name: "Advanced Reports",
+        description: "Allows exporting advanced PDF and CSV sheets",
+        enabled: true,
+        premium: false,
+        minPlan: "free"
+      });
+      modified = true;
+    }
+
+    if (config.supervisorManagementRestrictedToPaid !== false) {
+      config.supervisorManagementRestrictedToPaid = false;
+      modified = true;
+    }
+
+    if (modified) {
+      config.markModified("features");
+      await config.save();
+      invalidateAppConfigCache();
+    }
   }
   return config;
 };

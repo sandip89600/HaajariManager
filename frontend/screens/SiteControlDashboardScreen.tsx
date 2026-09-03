@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -22,6 +23,8 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { storage, Site } from "@/utils/storage";
+
+import { useLanguage } from "@/hooks/useLanguage";
 
 const FILTER_OPTIONS = ["All", "Planning", "Started", "In Progress", "Delayed", "Completed", "Archived"];
 const SORT_OPTIONS = ["Newest", "Recently Updated", "Alphabetical", "Progress"];
@@ -39,7 +42,9 @@ interface DashboardStats {
 
 export default function SiteControlDashboardScreen() {
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
 
   // Data States
   const [sites, setSites] = useState<Site[]>([]);
@@ -331,7 +336,7 @@ export default function SiteControlDashboardScreen() {
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
       {/* Top Header Row with Title */}
-      <View style={[styles.header, { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }]}>
+      <View style={[styles.header, { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: Math.max(insets.top + 12, 28) }]}>
         <View style={{ flex: 1 }}>
           <ThemedText style={styles.headerSubtitle}>Haajari Manager</ThemedText>
           <ThemedText style={styles.headerTitle}>Site Control Center</ThemedText>

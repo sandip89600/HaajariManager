@@ -79,6 +79,8 @@ const linking = {
   },
 };
 
+import { ErrorFeedbackProvider } from "@/context/ErrorFeedbackContext";
+
 function AppInner() {
   const languageContext = useLanguageProvider();
   const authContext = useAuthProvider();
@@ -95,13 +97,15 @@ function AppInner() {
   return (
     <LanguageContext.Provider value={languageContext}>
       <AuthContext.Provider value={authContext}>
-        <FeatureAccessProvider>
-          <NavigationContainer ref={navigationRef} linking={linking}>
-            <RootNavigator />
-          </NavigationContainer>
-          {/* VoiceAssistant disabled — will be re-enabled in a future release */}
-          <StatusBar style={isDark ? "light" : "dark"} />
-        </FeatureAccessProvider>
+        <ErrorFeedbackProvider>
+          <FeatureAccessProvider>
+            <NavigationContainer ref={navigationRef} linking={linking}>
+              <RootNavigator />
+            </NavigationContainer>
+            {/* VoiceAssistant disabled — will be re-enabled in a future release */}
+            <StatusBar style={isDark ? "light" : "dark"} />
+          </FeatureAccessProvider>
+        </ErrorFeedbackProvider>
       </AuthContext.Provider>
     </LanguageContext.Provider>
   );

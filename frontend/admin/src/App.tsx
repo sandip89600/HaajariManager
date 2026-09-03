@@ -33,6 +33,7 @@ const ExpensesPage = lazy(() => import('./pages/ExpensesPage'));
 const SalaryPage = lazy(() => import('./pages/SalaryPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
+const FeedbackPage = lazy(() => import('./pages/FeedbackPage'));
 const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage'));
 const SupportPage = lazy(() => import('./pages/SupportPage'));
 const ActivityLogsPage = lazy(() => import('./pages/ActivityLogsPage'));
@@ -142,6 +143,12 @@ function App() {
                 <Route path="notifications" element={
                   <Suspense fallback={<PageLoader />}>
                     <NotificationsPage />
+                  </Suspense>
+                } />
+
+                <Route path="feedback" element={
+                  <Suspense fallback={<PageLoader />}>
+                    <FeedbackPage />
                   </Suspense>
                 } />
                 

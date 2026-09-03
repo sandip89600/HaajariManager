@@ -174,7 +174,7 @@ function MainTabs() {
         name="AttendanceTab"
         component={AttendanceNavigator}
         options={{
-          title: "Dashboard",
+          title: t.tabs?.dashboard || "Dashboard",
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Feather name="grid" size={size} color={color} />
@@ -185,7 +185,7 @@ function MainTabs() {
         name="SiteManagementTab"
         component={SiteControlDashboardScreen}
         options={{
-          title: "Site Control",
+          title: t.tabs?.siteControl || "Site Control",
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Feather name="layers" size={size} color={color} />
@@ -196,7 +196,7 @@ function MainTabs() {
         name="ReportsTab"
         component={SummaryScreen}
         options={{
-          title: "Reports",
+          title: t.tabs?.reports || t.summary.title || "Reports",
           headerTitle: t.summary.title,
           tabBarIcon: ({ color, size }) => (
             <Feather name="bar-chart-2" size={size} color={color} />
@@ -207,7 +207,7 @@ function MainTabs() {
         name="WorkersTab"
         component={WorkersScreen}
         options={{
-          title: "Workers",
+          title: t.tabs?.workers || t.workers.title || "Workers",
           headerTitle: t.workers.title,
           tabBarIcon: ({ color, size }) => (
             <Feather name="users" size={size} color={color} />
@@ -218,7 +218,7 @@ function MainTabs() {
         name="SettingsTab"
         component={SettingsScreen}
         options={{
-          title: "Settings",
+          title: t.tabs?.settings || t.settings.title || "Settings",
           headerTitle: t.settings.title,
           tabBarIcon: ({ color, size }) => (
             <Feather name="settings" size={size} color={color} />

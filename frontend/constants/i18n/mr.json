@@ -21,10 +21,79 @@
     "companyName": "कंपनीचे नाव"
   },
   "tabs": {
-    "attendance": "हजेरी",
+    "dashboard": "Dashboard",
+    "siteControl": "Site Control",
+    "reports": "Reports",
     "workers": "कामगार",
-    "summary": "सारांश",
-    "settings": "सेटिंग्ज"
+    "settings": "सेटिंग्ज",
+    "attendance": "हजेरी",
+    "summary": "सारांश"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "todayAttendance": "Today's Attendance",
+    "activeWorkers": "Active Workers",
+    "absentWorkers": "Absent Workers",
+    "presentWorkers": "Present Workers",
+    "halfDayWorkers": "Half Day Workers",
+    "overtimeWorkers": "Overtime Workers",
+    "attendanceRate": "Attendance Rate",
+    "attendanceGrid": "Attendance Grid",
+    "attendanceLog": "Attendance Log",
+    "workProgress": "Work / Progress",
+    "material": "Material",
+    "expense": "Expense",
+    "photos": "Photos",
+    "gpsLocation": "GPS Location",
+    "issuesDelays": "Issues / Delays",
+    "quickActions": "Quick Actions",
+    "recentSites": "Recent Sites",
+    "viewAll": "View All",
+    "markAttendance": "Mark Attendance",
+    "smartInsights": "Smart Insights"
+  },
+  "sites": {
+    "title": "Site Control",
+    "siteManagement": "Site Management",
+    "addSite": "Add Site",
+    "editSite": "Edit Site",
+    "siteDetails": "Site Details",
+    "siteName": "Site Name",
+    "address": "Address",
+    "supervisor": "Supervisor",
+    "progress": "Progress",
+    "materials": "Materials",
+    "expenses": "Expenses",
+    "photos": "Photos",
+    "issues": "Issues",
+    "gpsLocation": "GPS Location",
+    "dailyUpdate": "Daily Update",
+    "planning": "Planning",
+    "started": "Started",
+    "inProgress": "In Progress",
+    "delayed": "Delayed",
+    "completed": "Completed",
+    "archived": "Archived",
+    "noSites": "No construction sites found",
+    "loadingSites": "Loading sites..."
+  },
+  "feedback": {
+    "title": "Report a Problem",
+    "subtitle": "Tell us what went wrong. Your feedback helps us improve Haajari Manager.",
+    "category": "Category",
+    "description": "Problem Description",
+    "tryAgain": "Try Again",
+    "reportProblem": "Report a Problem",
+    "submitFeedback": "Submit Feedback",
+    "feedbackReceived": "Feedback Received",
+    "thanksMessage": "Thanks for your feedback! We've received your report.",
+    "attachedDiagnostics": "Attached Diagnostics Context"
+  },
+  "errors": {
+    "networkError": "Network connection error. Please check your internet.",
+    "serverError": "Unable to connect to server. Please try again.",
+    "timeoutError": "Operation timed out. Please try again.",
+    "permissionDenied": "Permission denied."
   },
   "attendance": {
     "title": "हजेरी",
@@ -317,7 +386,8 @@
     "search": "Search",
     "filter": "Filter",
     "clear": "Clear",
-    "share": "Share"
+    "share": "Share",
+    "total": "Total"
   },
   "profile": {
     "title": "वापरकर्ता प्रोफाइल",

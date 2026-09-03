@@ -71,3 +71,29 @@ export const requireAdmin = (
     res.status(403).json({ error: "Forbidden: Admins only" });
   }
 };
+
+export const optionalAuth = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    const token = authHeader.split(" ")[1];
+    const secret = process.env.JWT_SECRET;
+    if (secret && token) {
+      jwt.verify(token, secret, (err, decodedUser: any) => {
+        if (!err && decodedUser) {
+          req.user = {
+            id: decodedUser.id,
+            tenantId: decodedUser.tenantId,
+            role: decodedUser.role,
+          };
+        }
+        next();
+      });
+      return;
+    }
+  }
+  next();
+};

@@ -18,6 +18,7 @@ import paymentHandoverRoutes from "./paymentHandoverRoutes";
 import haiRoutes from "./haiRoutes";
 import notificationRoutes from "./notificationRoutes";
 import razorpayRoutes from "./razorpayRoutes";
+import feedbackRoutes from "./feedbackRoutes";
 
 const router = Router();
 
@@ -31,6 +32,7 @@ router.use("/projects", projectRoutes);
 router.use("/supervisors", supervisorRoutes);
 router.use("/admin", adminRoutes);
 router.use("/support", supportRoutes);
+router.use("/feedback", feedbackRoutes);
 router.use("/export", exportRoutes);
 router.use("/voice", voiceRoutes);
 router.use("/sites", siteRoutes);

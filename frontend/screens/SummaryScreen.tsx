@@ -259,7 +259,7 @@ const SummaryCard = memo(function SummaryCard({
       <View style={styles.cardHeader}>
         <View style={{ flex: 1, marginRight: Spacing.sm }}>
           <ThemedText type="h3" style={{ fontWeight: "700" }}>
-            {translateWorkerName(summary.worker.name, language)}
+            {summary.worker.name}
           </ThemedText>
           <View
             style={{
@@ -879,7 +879,7 @@ const SummaryCard = memo(function SummaryCard({
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                Alert.alert("Invoice Generated", `Monthly invoice created for ${translateWorkerName(summary.worker.name, language)}: ₹${summary.totalAmount.toFixed(0)}`);
+                Alert.alert("Invoice Generated", `Monthly invoice created for ${summary.worker.name}: ₹${summary.totalAmount.toFixed(0)}`);
               }}
               style={{
                 flex: 1,
@@ -945,10 +945,13 @@ const SummaryCard = memo(function SummaryCard({
   );
 });
 
+import { useErrorFeedback } from "@/context/ErrorFeedbackContext";
+
 // ─── MAIN SCREEN COMPONENT ───────────────────────────────────────────────────
 export default function SummaryScreen() {
   const { theme, isDark } = useTheme();
   const { t, language } = useLanguage();
+  const { reportError } = useErrorFeedback();
   const insets = useSafeAreaInsets();
   const rawHeaderHeight = useHeaderHeight();
   const headerHeight = rawHeaderHeight > 0 ? rawHeaderHeight : insets.top + Platform.select({ ios: 44, default: 56 });
@@ -1180,7 +1183,14 @@ export default function SummaryScreen() {
       const success = await downloadAndSharePDF(url, filename);
       if (success) Alert.alert(t.common.success, t.export.success);
     } catch (error: any) {
-      Alert.alert(t.common.error, error.message || t.export.error);
+      reportError({
+        title: "PDF Export Failed",
+        message: error.message || "Failed to download and share PDF.",
+        category: "PDF",
+        feature: "Export PDF",
+        errorMessage: error.message,
+        onRetry: () => handleExportPDF(type),
+      });
     } finally {
       setIsExporting(false);
       setShowExportModal(false);
@@ -1218,7 +1228,14 @@ export default function SummaryScreen() {
       const success = await downloadAndShareCSV(url, filename);
       if (success) Alert.alert(t.common.success, t.export.success);
     } catch (error: any) {
-      Alert.alert(t.common.error, error.message || t.export.error);
+      reportError({
+        title: "CSV Export Failed",
+        message: error.message || "Failed to download and share CSV.",
+        category: "CSV",
+        feature: "Export CSV",
+        errorMessage: error.message,
+        onRetry: () => handleExportCSV(),
+      });
     } finally {
       setIsExporting(false);
       setShowExportModal(false);
@@ -1236,7 +1253,17 @@ export default function SummaryScreen() {
       const url = `${API_URL}/export/print?year=${selectedYear}&month=${selectedMonth}`;
       await fetchAndPrintHTML(url);
     } catch (error: any) {
-      Alert.alert(t.common.error, error.message || t.export.error);
+      const isCanceled = error?.message?.toLowerCase().includes("cancel");
+      if (!isCanceled) {
+        reportError({
+          title: "Print Layout Failed",
+          message: error.message || "Failed to load and print HTML layout.",
+          category: "Print",
+          feature: "Print Sheet",
+          errorMessage: error.message,
+          onRetry: () => handlePrint(),
+        });
+      }
     } finally {
       setIsExporting(false);
       setShowExportModal(false);
@@ -1971,7 +1998,7 @@ export default function SummaryScreen() {
               fontSize: 14,
             }}
           >
-            {translateWorkerName(paymentWorker.worker.name, language)} — {t.payment.balance}:{" "}
+            {paymentWorker.worker.name} — {t.payment.balance}:{" "}
             {t.common.currency} {paymentWorker.balance.toFixed(0)}
           </ThemedText>
         ) : null}
@@ -2258,7 +2285,7 @@ export default function SummaryScreen() {
                 marginTop: -Spacing.xs,
               }}
             >
-              {translateWorkerName(calculationWorker.worker.name, language)} • {monthNames[selectedMonth]} {selectedYear}
+              {calculationWorker.worker.name} • {monthNames[selectedMonth]} {selectedYear}
             </ThemedText>
 
             <ScrollView

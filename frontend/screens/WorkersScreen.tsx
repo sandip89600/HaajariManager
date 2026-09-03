@@ -142,7 +142,7 @@ const WorkerCard = React.memo(function WorkerCard({
           
           <View style={styles.cardHeaderText}>
             <ThemedText style={[styles.workerName, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
-              {translatedName}
+              {worker.name}
             </ThemedText>
             <ThemedText style={[styles.workerRole, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>
               {t.categories[worker.category] || worker.category.toUpperCase()}
@@ -184,10 +184,13 @@ const WorkerCard = React.memo(function WorkerCard({
   );
 });
 
+import { useErrorFeedback } from "@/context/ErrorFeedbackContext";
+
 export default function WorkersScreen() {
   const { theme, isDark } = useTheme();
   const { t, language } = useLanguage();
   const { user } = useAuth();
+  const { reportError } = useErrorFeedback();
   const role = user?.role;
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -355,9 +358,20 @@ export default function WorkersScreen() {
         text: t.common.delete,
         style: "destructive",
         onPress: async () => {
-          setWorkers((prev) => prev.filter((w) => w.id !== worker.id));
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          await storage.deleteWorker(worker.id);
+          try {
+            setWorkers((prev) => prev.filter((w) => w.id !== worker.id));
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            await storage.deleteWorker(worker.id);
+          } catch (err: any) {
+            reportError({
+              title: "Worker Deletion Failed",
+              message: "Unable to delete worker right now.",
+              category: "Worker Management",
+              feature: "Delete Worker",
+              errorMessage: err?.message || "Failed to delete worker",
+              onRetry: () => handleDeleteWorker(worker),
+            });
+          }
         },
       },
     ]);
@@ -507,7 +521,7 @@ export default function WorkersScreen() {
         contentContainerStyle={[
           styles.listContent,
           {
-            paddingTop: headerHeight,
+            paddingTop: (headerHeight > 0 ? headerHeight : 20) + Spacing.md,
             paddingBottom: tabBarHeight + Spacing.xl,
           },
         ]}

@@ -32,6 +32,7 @@ const AdminLayout: React.FC = () => {
     { name: 'Salary', path: '/salary', icon: Coins },
     { name: 'Reports', path: '/reports', icon: FileSpreadsheet },
     { name: 'Notifications', path: '/notifications', icon: Bell },
+    { name: 'Feedback & Issues', path: '/feedback', icon: HelpCircle },
     { name: 'Subscriptions', path: '/subscriptions', icon: Gem },
     { name: 'Support', path: '/support', icon: HelpCircle },
     { name: 'Activity Logs', path: '/activity-logs', icon: FileText },

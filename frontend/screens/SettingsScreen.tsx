@@ -1047,7 +1047,7 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
     return theme.primary;
   };
 
-  const initials = (translateWorkerName(currentUser?.name || "", language) || "?").charAt(0).toUpperCase();
+  const initials = (currentUser?.name || "?").charAt(0).toUpperCase();
 
   return (
     <ThemedView style={[styles.container, isInDrawer && { backgroundColor: theme.backgroundDefault }]}>
@@ -1069,7 +1069,7 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
         )}
 
 
-        {/* ─── 1. USER PROFILE CARD (DYNAMIC) ─── */}
+        {/* ─── 1. USER PROFILE CARD (UPDATED LAYOUT - BADGES REMOVED) ─── */}
         {!isGuest && (currentUser || authUser) && (() => {
           const displayUser = currentUser || authUser;
           if (!displayUser) return null;
@@ -1090,42 +1090,41 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                 {
                   backgroundColor: theme.backgroundSecondary,
                   borderColor: theme.border,
+                  padding: 16,
+                  borderRadius: 16,
+                  flexDirection: "row",
+                  alignItems: "center",
                 },
               ]}
             >
-              <View style={[styles.profileAvatar, { backgroundColor: displayUser.avatarColor || theme.primary }]}>
-                <ThemedText style={styles.profileAvatarText}>
+              <View style={[styles.profileAvatar, { backgroundColor: displayUser.avatarColor || theme.primary, width: 52, height: 52, borderRadius: 26, justifyContent: "center", alignItems: "center" }]}>
+                <ThemedText style={[styles.profileAvatarText, { fontSize: 20, fontWeight: "700" }]}>
                   {userInitials}
                 </ThemedText>
               </View>
-              <View style={styles.profileDetails}>
+              <View style={[styles.profileDetails, { flex: 1, marginLeft: 14 }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <ThemedText style={styles.profileName}>{displayUser.name}</ThemedText>
-                  <Feather name="chevron-right" size={16} color={theme.textSecondary} />
-                </View>
-                <ThemedText type="small" style={styles.profileMeta}>
-                  📧 {displayUser.email || "No email added"}
-                </ThemedText>
-                <ThemedText type="small" style={styles.profileMeta}>
-                  📞 {displayUser.phone}
-                </ThemedText>
-                {displayUser.companyName && (
-                  <ThemedText type="small" style={styles.profileMeta}>
-                    🏢 {displayUser.companyName}
-                  </ThemedText>
-                )}
-                <View style={{ flexDirection: "row", marginTop: 8 }}>
-                  <View
-                    style={[
-                      styles.planBadge,
-                      { backgroundColor: getPlanColor(currentPlan) },
-                    ]}
-                  >
-                    <ThemedText style={styles.planBadgeText}>
-                      {getPlanLabel(currentPlan).toUpperCase()}
+                  <ThemedText style={[styles.profileName, { fontSize: 17, fontWeight: "700" }]}>{displayUser.name}</ThemedText>
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <ThemedText type="small" style={{ color: theme.primary, fontWeight: "600", marginRight: 4 }}>
+                      {t.profile?.editProfile || "View Profile"}
                     </ThemedText>
+                    <Feather name="chevron-right" size={16} color={theme.primary} />
                   </View>
                 </View>
+                <ThemedText type="small" style={[styles.profileMeta, { marginTop: 2, color: theme.textSecondary }]}>
+                  📞 {displayUser.phone}
+                </ThemedText>
+                {displayUser.email ? (
+                  <ThemedText type="small" style={[styles.profileMeta, { color: theme.textSecondary }]}>
+                    📧 {displayUser.email}
+                  </ThemedText>
+                ) : null}
+                {displayUser.companyName ? (
+                  <ThemedText type="small" style={[styles.profileMeta, { color: theme.textSecondary }]}>
+                    🏢 {displayUser.companyName}
+                  </ThemedText>
+                ) : null}
               </View>
             </Pressable>
           );
@@ -1164,14 +1163,6 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
               {(currentUser || authUser)?.role === "contractor" && (
                 <>
                   <SettingRow
-                    icon="users"
-                    iconColor="#00BCD4"
-                    label={t.settings.manageWorkers}
-                    sublabel={t.settings.manageWorkersDesc}
-                    onPress={() => navigation.navigate("MainTabs", { screen: "AttendanceTab", params: { screen: "Workers" } })}
-                    theme={theme}
-                  />
-                  <SettingRow
                     icon="shield"
                     iconColor="#7C3AED"
                     label={t.settings.supervisorManagement}
@@ -1193,14 +1184,6 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                     label={t.settings.siteManagement}
                     sublabel={t.settings.siteManagementDesc}
                     onPress={() => navigation.navigate("SiteManagement")}
-                    theme={theme}
-                  />
-                  <SettingRow
-                    icon="cpu"
-                    iconColor="#FF9800"
-                    label="Enterprise Workspace"
-                    sublabel="Collaborate on documents, approvals, activity logs & backups"
-                    onPress={() => navigation.navigate("EnterpriseCollaboration")}
                     isLast={!paymentHandoverStatus.enabled}
                     theme={theme}
                   />
@@ -1250,14 +1233,6 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                     label={t.settings.siteManagement}
                     sublabel={t.settings.siteManagementDesc}
                     onPress={() => navigation.navigate("SiteManagement")}
-                    theme={theme}
-                  />
-                  <SettingRow
-                    icon="cpu"
-                    iconColor="#FF9800"
-                    label="Enterprise Workspace"
-                    sublabel="Collaborate on documents, approvals, activity logs & backups"
-                    onPress={() => navigation.navigate("EnterpriseCollaboration")}
                     isLast={!paymentHandoverStatus.enabled}
                     theme={theme}
                   />

@@ -144,46 +144,5 @@ function fallbackEnglishToDevanagari(name: string): string {
 
 export function translateWorkerName(name: string, targetLang: string): string {
   if (!name) return "";
-  const trimmed = name.trim();
-  const lower = trimmed.toLowerCase();
-
-  const isTargetDevanagari = targetLang === "hi" || targetLang === "mr";
-  const isInputDevanagari = /[\u0900-\u097F]/.test(trimmed);
-
-  if (isTargetDevanagari && isInputDevanagari) return trimmed;
-  if (!isTargetDevanagari && !isInputDevanagari) return trimmed;
-
-  if (commonNameMap[lower]) {
-    const match = commonNameMap[lower];
-    if (!isTargetDevanagari) {
-      return match
-        .split(" ")
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ");
-    }
-    return match;
-  }
-
-  if (isTargetDevanagari) {
-    return trimmed
-      .split(" ")
-      .map((word) => {
-        const wLower = word.toLowerCase();
-        if (commonNameMap[wLower]) return commonNameMap[wLower];
-        return fallbackEnglishToDevanagari(word);
-      })
-      .join(" ");
-  } else {
-    return trimmed
-      .split(" ")
-      .map((word) => {
-        const foundKey = Object.keys(commonNameMap).find((k) => k === word);
-        if (foundKey && commonNameMap[foundKey]) {
-          const eng = commonNameMap[foundKey];
-          return eng.charAt(0).toUpperCase() + eng.slice(1);
-        }
-        return word;
-      })
-      .join(" ");
-  }
+  return name;
 }

@@ -21,4 +21,17 @@ config.watchFolders = [
   projectRoot,
 ];
 
+// Handle Metro redirect middleware for custom runtimes on Android
+config.server = {
+  ...config.server,
+  enhanceMiddleware: (middleware) => {
+    return (req, res, next) => {
+      if (req.url && req.url.includes("runtime=custom") && req.url.includes("platform=android")) {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+      }
+      return middleware(req, res, next);
+    };
+  },
+};
+
 module.exports = withNativeWind(config, { input: "./global.css" });

@@ -11,8 +11,10 @@ import {
   Modal,
   DeviceEventEmitter,
   Text,
+  Image,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -76,15 +78,15 @@ interface QuickAction {
   screen: string;
 }
 
-const QUICK_ACTIONS: QuickAction[] = [
-  { id: "grid", label: "Attendance Grid", icon: "grid", colors: ["#22C55E", "#16A34A"], screen: "AttendanceDetail" },
-  { id: "log", label: "Attendance Log", icon: "file-text", colors: ["#3B82F6", "#2563EB"], screen: "Summary" },
-  { id: "progress", label: "Work / Progress", icon: "trending-up", colors: ["#A855F7", "#9333EA"], screen: "SiteManagementTab" },
-  { id: "material", label: "Material", icon: "box", colors: ["#F97316", "#EA580C"], screen: "SiteManagementTab" },
-  { id: "expense", label: "Expense", icon: "credit-card", colors: ["#EC4899", "#DB2777"], screen: "SiteManagementTab" },
-  { id: "photos", label: "Photos", icon: "camera", colors: ["#06B6D4", "#0891B2"], screen: "SiteManagementTab" },
-  { id: "gps", label: "GPS Location", icon: "map-pin", colors: ["#10B981", "#059669"], screen: "AttendanceDetail" },
-  { id: "issues", label: "Issues / Delays", icon: "alert-circle", colors: ["#EF4444", "#DC2626"], screen: "Support" },
+const getQuickActions = (t: any): QuickAction[] => [
+  { id: "grid", label: t.dashboard?.attendanceGrid || "Attendance Grid", icon: "grid", colors: ["#22C55E", "#16A34A"], screen: "AttendanceDetail" },
+  { id: "log", label: t.dashboard?.attendanceLog || "Attendance Log", icon: "file-text", colors: ["#3B82F6", "#2563EB"], screen: "Summary" },
+  { id: "progress", label: t.dashboard?.workProgress || "Work / Progress", icon: "trending-up", colors: ["#A855F7", "#9333EA"], screen: "SiteManagementTab" },
+  { id: "material", label: t.dashboard?.material || "Material", icon: "box", colors: ["#F97316", "#EA580C"], screen: "SiteManagementTab" },
+  { id: "expense", label: t.dashboard?.expense || "Expense", icon: "credit-card", colors: ["#EC4899", "#DB2777"], screen: "SiteManagementTab" },
+  { id: "photos", label: t.dashboard?.photos || "Photos", icon: "camera", colors: ["#06B6D4", "#0891B2"], screen: "SiteManagementTab" },
+  { id: "gps", label: t.dashboard?.gpsLocation || "GPS Location", icon: "map-pin", colors: ["#10B981", "#059669"], screen: "AttendanceDetail" },
+  { id: "issues", label: t.dashboard?.issuesDelays || "Issues / Delays", icon: "alert-circle", colors: ["#EF4444", "#DC2626"], screen: "Support" },
 ];
 
 export default function DashboardScreen() {
@@ -127,10 +129,43 @@ export default function DashboardScreen() {
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [showToast, setShowToast] = useState(false);
+  const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showSuccessToast = useCallback((msg: string) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    setToastMessage(msg);
+    setShowToast(true);
+
+    toastTimerRef.current = setTimeout(() => {
+      setShowToast(false);
+      toastTimerRef.current = null;
+    }, 5000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  let tabBarHeight = 65;
+  try {
+    tabBarHeight = useBottomTabBarHeight();
+  } catch {
+    tabBarHeight = insets.bottom + 65;
+  }
+  const toastBottom = (tabBarHeight > 0 ? tabBarHeight : insets.bottom + 65) + 16;
   const [streakCount, setStreakCount] = useState(1);
   const [smartInsight, setSmartInsight] = useState("Calculating live analytics...");
   const [quickMarkModalVisible, setQuickMarkModalVisible] = useState(false);
   const [quickMarkWorker, setQuickMarkWorker] = useState<Worker | null>(null);
+  const [selectedSiteFilter, setSelectedSiteFilter] = useState<string>("ALL");
 
   const [stats, setStats] = useState({
     totalWorkers: 0,
@@ -205,7 +240,10 @@ export default function DashboardScreen() {
       const active = projects.find((p) => p.status === "active") || projects[0] || null;
       setActiveSite(active);
 
-      const siteWorkers = active ? workers.filter((w) => w.projectId === active.id) : workers;
+      // Default to ALL workers (contractor-wide scope) unless an explicit site filter is selected
+      const siteWorkers = (selectedSiteFilter && selectedSiteFilter !== "ALL" && active)
+        ? workers.filter((w) => w.projectId === active.id)
+        : workers;
       const totalWorkers = siteWorkers.length;
 
       const todayAttendance = attendance.filter(
@@ -352,8 +390,7 @@ export default function DashboardScreen() {
 
     try {
       await storage.setAttendanceRecord(newRecord);
-      setToastMessage(`Marked ${worker.name} as Present`);
-      setShowToast(true);
+      showSuccessToast("Attendance marked successfully.");
     } catch (e) {
       console.warn("Failed to mark present:", e);
       setAttendanceRecords(previousRecords);
@@ -387,8 +424,10 @@ export default function DashboardScreen() {
       setQuickMarkModalVisible(false);
       await loadDashboardData(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showSuccessToast("Attendance marked successfully.");
     } catch (e) {
       console.warn("Failed to save detailed record:", e);
+      Alert.alert("Error", "Failed to save attendance. Please try again.");
     }
   };
 
@@ -412,7 +451,7 @@ export default function DashboardScreen() {
     }
   };
 
-  const displayWorkers = activeSite
+  const displayWorkers = (selectedSiteFilter && selectedSiteFilter !== "ALL" && activeSite)
     ? workersList.filter((w) => w.projectId === activeSite.id)
     : workersList;
 
@@ -458,10 +497,10 @@ export default function DashboardScreen() {
 
       setAttendanceRecords(updated);
       await loadDashboardData(true);
-      setToastMessage("Marked all workers as Present");
-      setShowToast(true);
+      showSuccessToast("Attendance marked successfully.");
     } catch (e) {
       console.warn("Bulk mark failed:", e);
+      Alert.alert("Error", "Failed to mark all workers. Please try again.");
     }
   };
 
@@ -565,7 +604,7 @@ export default function DashboardScreen() {
       <ScrollView
         ref={scrollViewRef}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 120, tabBarHeight + 90) }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -581,7 +620,7 @@ export default function DashboardScreen() {
           <View style={styles.topSiteHeaderRow}>
             <View style={{ flex: 1 }}>
               <ThemedText style={[styles.topSiteName, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
-                {activeSite ? activeSite.name : "Green Valley Residency"}
+                {activeSite ? activeSite.name : (user?.companyName || t.sites?.title || "Main Construction Site")}
               </ThemedText>
               <ThemedText style={[styles.topSiteDate, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>
                 {formattedDate}
@@ -589,35 +628,43 @@ export default function DashboardScreen() {
             </View>
             <View style={styles.topSiteStatusBadge}>
               <View style={styles.activeDot} />
-              <Text style={styles.activeStatusText}>Active</Text>
+              <Text style={styles.activeStatusText}>{activeSite ? "Active" : "Live"}</Text>
             </View>
           </View>
           <View style={[styles.supervisorRow, { borderTopColor: borderColor }]}>
             <Feather name="user-check" size={14} color="#F97316" style={{ marginRight: 6 }} />
             <Text style={[styles.supervisorLabel, { color: isDark ? "#CBD5E1" : theme.textSecondary }]}>
-              Supervisor: <Text style={{ fontWeight: "700", color: isDark ? "#FFFFFF" : "#0F172A" }}>{activeSite?.clientName || "Ramesh Kumar"}</Text>
+              Supervisor: <Text style={{ fontWeight: "700", color: isDark ? "#FFFFFF" : "#0F172A" }}>{
+                typeof (activeSite as any)?.supervisor === "object" && (activeSite as any)?.supervisor?.name
+                  ? (activeSite as any).supervisor.name
+                  : typeof (activeSite as any)?.supervisor === "string" && (activeSite as any).supervisor.trim().length > 0
+                  ? (activeSite as any).supervisor
+                  : (activeSite as any)?.supervisorName
+                  ? (activeSite as any).supervisorName
+                  : "Not Assigned"
+              }</Text>
             </Text>
           </View>
         </Animated.View>
 
         {/* ── 2. Attendance Summary Cards (Compact Grid) ─────────────── */}
         <Animated.View entering={FadeInDown.delay(150).springify()} style={styles.summaryGridContainer}>
-          <SectionHeader title="Attendance Summary" />
+          <SectionHeader title={t.dashboard?.todayAttendance || "Attendance Summary"} />
           <View style={styles.summaryCompactGrid}>
             <View style={[styles.summaryCompactCard, { backgroundColor: cardBg, borderColor }]}>
-              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Total</Text>
+              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>{t.common?.total || "Total"}</Text>
               <Text style={[styles.summaryCardValue, { color: "#3B82F6" }]}>{stats.totalWorkers}</Text>
             </View>
             <View style={[styles.summaryCompactCard, { backgroundColor: cardBg, borderColor }]}>
-              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Present</Text>
+              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>{t.summary?.present || "Present"}</Text>
               <Text style={[styles.summaryCardValue, { color: "#22C55E" }]}>{stats.present}</Text>
             </View>
             <View style={[styles.summaryCompactCard, { backgroundColor: cardBg, borderColor }]}>
-              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Absent</Text>
+              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>{t.summary?.absent || "Absent"}</Text>
               <Text style={[styles.summaryCardValue, { color: "#EF4444" }]}>{stats.absent}</Text>
             </View>
             <View style={[styles.summaryCompactCard, { backgroundColor: cardBg, borderColor }]}>
-              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>Half Day</Text>
+              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>{t.summary?.halfDay || "Half Day"}</Text>
               <Text style={[styles.summaryCardValue, { color: "#F59E0B" }]}>{stats.halfDay}</Text>
             </View>
           </View>
@@ -654,9 +701,9 @@ export default function DashboardScreen() {
           ref={actionsRef}
           onLayout={onLayoutActions}
         >
-          <SectionHeader title="Quick Actions" />
+          <SectionHeader title={t.dashboard?.quickActions || "Quick Actions"} />
           <View style={styles.quickActionsGrid}>
-            {QUICK_ACTIONS.map((action) => (
+            {getQuickActions(t).map((action) => (
               <AnimatedPressable
                 key={action.id}
                 style={[styles.quickActionCard, { backgroundColor: cardBg, borderColor }]}
@@ -770,7 +817,7 @@ export default function DashboardScreen() {
                 };
 
                 const handleLongPress = () => {
-                  // Long press (~1.5 to 2 seconds) ALWAYS opens Attendance Bottom Sheet with all options
+                  // Hold for 2 seconds opens Attendance Options Pop-Up Modal
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   handleMarkOptions(worker.id);
                 };
@@ -780,7 +827,7 @@ export default function DashboardScreen() {
                     key={worker.id}
                     onPress={handleSingleTap}
                     onLongPress={handleLongPress}
-                    delayLongPress={1500}
+                    delayLongPress={2000}
                     style={({ pressed }) => [
                       styles.workerLogRow,
                       {
@@ -854,6 +901,7 @@ export default function DashboardScreen() {
           </Animated.View>
         )}
 
+
         {/* ── Empty State ───────────────────────────────────────────── */}
         {!loading && stats.totalWorkers === 0 && workersList.length === 0 && (
           <Animated.View entering={FadeInDown.delay(400).springify()}>
@@ -868,16 +916,54 @@ export default function DashboardScreen() {
         )}
       </ScrollView>
 
-      {/* Toast notification */}
-      {showToast && (
-        <View style={[styles.toast, { backgroundColor: isDark ? "#1E293B" : "#FFF" }]}>
-          <Feather name="check-circle" size={18} color="#22C55E" />
-          <ThemedText style={[styles.toastText, { color: theme.text }]}>{toastMessage}</ThemedText>
-          <Pressable onPress={() => setShowToast(false)}>
-            <Feather name="x" size={16} color={theme.textSecondary} />
-          </Pressable>
+      {/* ── Attendance Success Notification / Toast (Overlay Layering Fix) ── */}
+      <Modal
+        visible={showToast}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          if (toastTimerRef.current) {
+            clearTimeout(toastTimerRef.current);
+            toastTimerRef.current = null;
+          }
+          setShowToast(false);
+        }}
+        statusBarTranslucent
+      >
+        <View style={styles.toastModalOverlay} pointerEvents="box-none">
+          <Animated.View
+            entering={FadeInDown.duration(200)}
+            style={[
+              styles.toast,
+              {
+                bottom: toastBottom,
+                backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                borderColor: isDark ? "rgba(34, 197, 94, 0.5)" : "#BBF7D0",
+              },
+            ]}
+          >
+            <View style={styles.toastIconCircle}>
+              <Feather name="check" size={16} color="#FFFFFF" />
+            </View>
+            <ThemedText style={[styles.toastText, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
+              {toastMessage || "Attendance marked successfully."}
+            </ThemedText>
+            <Pressable
+              onPress={() => {
+                if (toastTimerRef.current) {
+                  clearTimeout(toastTimerRef.current);
+                  toastTimerRef.current = null;
+                }
+                setShowToast(false);
+              }}
+              hitSlop={8}
+              style={styles.toastCloseBtn}
+            >
+              <Feather name="x" size={16} color={isDark ? "#94A3B8" : "#64748B"} />
+            </Pressable>
+          </Animated.View>
         </View>
-      )}
+      </Modal>
 
       {/* Settings Drawer */}
       <SettingsDrawer
@@ -1143,24 +1229,56 @@ const styles = StyleSheet.create({
   },
   workerName: { fontSize: 12, fontWeight: "700", textAlign: "center" },
 
-  // Toast
+  // Bottom Slogan PNG Asset
+  bottomSloganWrapper: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    marginTop: 28,
+    marginBottom: 16,
+  },
+  bottomSloganImg: {
+    width: "100%",
+    maxWidth: 320,
+    height: 106,
+  },
+
+  // Toast Layering Overlay
+  toastModalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
   toast: {
     position: "absolute",
-    bottom: 24,
-    left: 20,
-    right: 20,
-    padding: 14,
-    borderRadius: 12,
+    left: 16,
+    right: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    borderWidth: 1.5,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
     shadowRadius: 12,
-    elevation: 6,
+    elevation: 25,
+    zIndex: 999999,
   },
-  toastText: { fontSize: 13, fontWeight: "600", flex: 1 },
+  toastIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#22C55E",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  toastText: { fontSize: 14, fontWeight: "700", flex: 1 },
+  toastCloseBtn: { padding: 4 },
 
   // Modal Sheet style
   qmOverlay: {

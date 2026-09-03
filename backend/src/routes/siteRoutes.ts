@@ -8,7 +8,12 @@ import {
   deleteSite,
   getSiteDashboardStats,
   getSiteUpdates,
-  createSiteUpdate
+  createSiteUpdate,
+  getTodayDailyWork,
+  startDailyWork,
+  completeDailyWork,
+  getDailyWorkHistory,
+  getDailyWorkUpdateById
 } from "../controllers/siteController";
 import {
   getMaterials,
@@ -54,5 +59,12 @@ router.post("/:siteId/photos", addWorkPhoto as any);
 // Daily Updates endpoints
 router.get("/:siteId/updates", getSiteUpdates as any);
 router.post("/:siteId/updates", createSiteUpdate as any);
+
+// Structured Daily Work Photo & Progress endpoints
+router.get("/:siteId/daily-work/today", getTodayDailyWork as any);
+router.post("/:siteId/daily-work/start", startDailyWork as any);
+router.post("/:siteId/daily-work/complete", completeDailyWork as any);
+router.get("/:siteId/daily-work/history", getDailyWorkHistory as any);
+router.get("/:siteId/daily-work/:updateId", getDailyWorkUpdateById as any);
 
 export default router;

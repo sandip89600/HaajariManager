@@ -98,8 +98,8 @@ export const getAttendancePDF = async (req: AuthenticatedRequest, res: Response)
 
     const { workers, attendance, payments, tenant } = await getExportData(tenantId.toString(), year, month);
 
-    if (attendance.length === 0) {
-      return res.status(400).json({ error: "No attendance data available for export." });
+    if (workers.length === 0) {
+      return res.status(400).json({ error: "No workers found to generate export report." });
     }
 
     const monthNames = [
@@ -218,8 +218,8 @@ export const getPaymentSummaryPDF = async (req: AuthenticatedRequest, res: Respo
 
     const { workers, attendance, payments, tenant } = await getExportData(tenantId.toString(), year, month);
 
-    if (attendance.length === 0) {
-      return res.status(400).json({ error: "No attendance data available for export." });
+    if (workers.length === 0) {
+      return res.status(400).json({ error: "No workers found to generate export report." });
     }
 
     const monthNames = [
@@ -356,8 +356,8 @@ export const getCSV = async (req: AuthenticatedRequest, res: Response) => {
 
     const { workers, attendance, payments } = await getExportData(tenantId.toString(), year, month);
 
-    if (attendance.length === 0) {
-      return res.status(400).json({ error: "No attendance data available for export." });
+    if (workers.length === 0) {
+      return res.status(400).json({ error: "No workers found to generate export report." });
     }
 
     const monthNames = [
@@ -428,8 +428,8 @@ export const getPrintHTML = async (req: AuthenticatedRequest, res: Response) => 
 
     const { workers, attendance, payments, tenant } = await getExportData(tenantId.toString(), year, month);
 
-    if (attendance.length === 0) {
-      return res.status(400).json({ error: "No attendance data available for export." });
+    if (workers.length === 0) {
+      return res.status(400).json({ error: "No workers found to generate export report." });
     }
 
     const monthNames = [

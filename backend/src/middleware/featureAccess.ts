@@ -1,7 +1,7 @@
 import { Response, NextFunction } from "express";
 import { AuthenticatedRequest } from "./auth";
 import { AppConfig } from "../models";
-import { getTenantPlan } from "./subscription";
+import { getTenantPlan, getPlanRank } from "./subscription";
 
 let cachedConfig: any = null;
 let lastCacheTime = 0;
@@ -45,7 +45,7 @@ export const checkFeatureAccess = (featureKey: string) => {
         return next();
       }
 
-      // 3. Check global toggle status
+      // 3. Check global toggle status (Admin turned feature OFF)
       if (!feature.enabled) {
         return res.status(403).json({
           success: false,
@@ -54,26 +54,22 @@ export const checkFeatureAccess = (featureKey: string) => {
         });
       }
 
-      // 4. Check subscription status rules if active
+      // 4. Check minimum subscription plan if Master Global Switch is active
       if (appConfig.subscriptionsEnabled) {
-        if (feature.premium) {
-          if (!tenantId) {
-            return res.status(401).json({ error: "Unauthorized: Tenant ID missing" });
-          }
+        if (!tenantId) {
+          return res.status(401).json({ error: "Unauthorized: Tenant ID missing" });
+        }
 
-          const { plan } = await getTenantPlan(tenantId.toString());
-          
-          const planHierarchy = ["free", "basic", "super", "premium"];
-          const userPlanIdx = planHierarchy.indexOf(plan || "free");
-          const minPlanIdx = planHierarchy.indexOf(feature.minPlan || "premium");
+        const { plan } = await getTenantPlan(tenantId.toString());
+        const userRank = getPlanRank(plan);
+        const reqRank = getPlanRank(feature.minPlan || (feature.premium ? "premium" : "free"));
 
-          if (userPlanIdx < minPlanIdx) {
-            return res.status(403).json({
-              success: false,
-              code: "SUBSCRIPTION_REQUIRED",
-              message: `This feature requires an active ${feature.minPlan} subscription.`
-            });
-          }
+        if (userRank < reqRank) {
+          return res.status(403).json({
+            success: false,
+            code: "SUBSCRIPTION_REQUIRED",
+            message: `This feature (${feature.name}) requires an active ${(feature.minPlan || "premium").toUpperCase()} plan subscription.`
+          });
         }
       }
 

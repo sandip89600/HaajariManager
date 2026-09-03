@@ -12,6 +12,21 @@
       "bundleIdentifier": "com.haajari.app"
     },
     "android": {
+      "scheme": "haajari",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "haajari"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#F97316",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

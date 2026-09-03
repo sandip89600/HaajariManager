@@ -12,6 +12,8 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
@@ -36,6 +38,8 @@ export default function SupervisorManagementScreen() {
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const { user } = useAuth();
   const { isSupervisorManagementAllowed } = useFeatureAccess();
 
@@ -71,12 +75,20 @@ export default function SupervisorManagementScreen() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch sites
+      // 1. Fetch sites/projects with fallback
       const sitesResult = await storage.getSites();
-      const projs = (sitesResult.sites || []).map((s: any) => ({
-        id: s.id,
+      let projs = (sitesResult.sites || []).map((s: any) => ({
+        id: s.id || s._id,
         name: s.name,
       })) as any[];
+
+      if (!projs || projs.length === 0) {
+        const allProjects = await storage.getProjects();
+        projs = allProjects.map((p: any) => ({
+          id: p.id || p._id,
+          name: p.name,
+        }));
+      }
       setProjects(projs);
 
       // 2. Fetch supervisors from backend
@@ -94,14 +106,25 @@ export default function SupervisorManagementScreen() {
   };
 
   const handleOpenAddModal = async () => {
-    // Dynamic plan restriction check controlled by Admin Panel toggle
-    const auth = await storage.getAuth();
-    const plan = auth?.plan || user?.plan || "free";
-    const allowed = isSupervisorManagementAllowed(plan);
-
-    if (!allowed) {
-      setUpgradeMessage("Supervisor management is currently restricted to paid subscription plans. Upgrade your plan to invite supervisors.");
+    const currentPlan = user?.plan || "free";
+    if (!isSupervisorManagementAllowed(currentPlan)) {
+      setUpgradeMessage(t.supervisor.upgradeFree);
       setUpgradeModalVisible(true);
+      return;
+    }
+
+    if (projects.length === 0) {
+      Alert.alert(
+        t.common.error || "Notice",
+        t.supervisor.createProjectFirst || "Please create a project site first.",
+        [
+          { text: t.common.cancel || "Cancel", style: "cancel" },
+          {
+            text: "Create Site",
+            onPress: () => navigation.navigate("MainTabs", { screen: "SitesTab" })
+          }
+        ]
+      );
       return;
     }
 
@@ -195,17 +218,18 @@ export default function SupervisorManagementScreen() {
           const saved = await res.json();
           setSupervisors((prev) => [...prev, saved]);
           setModalVisible(false);
-        } else if (res.status === 403) {
-          const err = await res.json();
-          setModalVisible(false);
-          setUpgradeMessage(err.error || "Plan limit exceeded.");
-          setUpgradeModalVisible(true);
         } else {
           const err = await res.json();
-          Alert.alert(
-            t.common.error || "Error",
-            err.error || t.supervisor.errorCreate,
-          );
+          if (res.status === 403 || err.limitExceeded || err.code === "SUBSCRIPTION_REQUIRED") {
+            setModalVisible(false);
+            setUpgradeMessage(err.error || t.supervisor.upgradeFree);
+            setUpgradeModalVisible(true);
+          } else {
+            Alert.alert(
+              t.common.error || "Error",
+              err.error || t.supervisor.errorCreate,
+            );
+          }
         }
       }
     } catch {
@@ -277,7 +301,7 @@ export default function SupervisorManagementScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, { paddingTop: (headerHeight > 0 ? headerHeight : insets.top) + Spacing.sm }]}>
         <ThemedText type="h2">{t.supervisor.title}</ThemedText>
         <Pressable
           onPress={handleOpenAddModal}
@@ -670,8 +694,8 @@ export default function SupervisorManagementScreen() {
                 navigation.navigate("MainTabs" as any, { screen: "SettingsTab" } as any);
               }}
               style={[
-                styles.upgradeActionBtn,
-                { backgroundColor: theme.primary },
+                styles.actionBtn,
+                { backgroundColor: theme.primary, marginBottom: Spacing.sm },
               ]}
             >
               <ThemedText
@@ -685,7 +709,7 @@ export default function SupervisorManagementScreen() {
             <Pressable
               onPress={() => setUpgradeModalVisible(false)}
               style={[
-                styles.upgradeCancelBtn,
+                styles.actionBtn,
                 { borderColor: theme.border, borderWidth: 1 },
               ]}
             >
@@ -710,11 +734,12 @@ const styles = StyleSheet.create({
   },
   addBtn: {
     flexDirection: "row",
-    height: 40,
+    height: 44,
     paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.xs,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+    marginVertical: 4,
   },
   centered: {
     flex: 1,
@@ -723,7 +748,7 @@ const styles = StyleSheet.create({
     padding: Spacing["3xl"],
   },
   supervisorCard: {
-    borderRadius: BorderRadius.xs,
+    borderRadius: 14,
     borderWidth: 1,
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
@@ -760,14 +785,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     gap: Spacing.md,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.xs,
   },
   actionBtn: {
     flex: 1,
     flexDirection: "row",
-    height: 36,
-    borderRadius: BorderRadius.xs,
+    height: 42,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+    marginVertical: 4,
   },
   modalBackdrop: {
     flex: 1,

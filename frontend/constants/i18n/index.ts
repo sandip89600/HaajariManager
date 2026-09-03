@@ -72,8 +72,36 @@ export const translations: Record<Language, any> = {
 
 export type TranslationKeys = typeof en;
 
+// Deep merge fallback helper to ensure missing keys safely fall back to English
+function deepMergeFallback(target: any, source: any): any {
+  if (typeof target !== "object" || target === null) return source ?? target;
+  if (typeof source !== "object" || source === null) return target;
+
+  const result: any = Array.isArray(target) ? [...target] : { ...target };
+
+  for (const key of Object.keys(target)) {
+    if (source[key] !== undefined) {
+      if (typeof target[key] === "object" && target[key] !== null) {
+        result[key] = deepMergeFallback(target[key], source[key]);
+      } else {
+        result[key] = source[key];
+      }
+    }
+  }
+
+  for (const key of Object.keys(source)) {
+    if (result[key] === undefined) {
+      result[key] = source[key];
+    }
+  }
+
+  return result;
+}
+
 export function getTranslation(language: Language): TranslationKeys {
-  return translations[language] || translations.en;
+  const selected = translations[language];
+  if (!selected || language === "en") return translations.en;
+  return deepMergeFallback(translations.en, selected);
 }
 
 export const languageNames: Record<Language, string> = {

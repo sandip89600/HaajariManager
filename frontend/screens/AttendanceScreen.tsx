@@ -64,6 +64,7 @@ export default function AttendanceScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [activeSite, setActiveSite] = useState<Project | null>(null);
+  const [selectedSiteFilter, setSelectedSiteFilter] = useState<string>("ALL");
 
   // Month Picker Modal state
   const [showMonthPicker, setShowMonthPicker] = useState(false);
@@ -110,14 +111,16 @@ export default function AttendanceScreen() {
       })) as any[];
 
       const activeProj = passedSiteId 
-        ? (projects.find((p) => p.id === passedSiteId) || projects[0] || null)
-        : (projects.find((p) => p.status === "active") || projects[0] || null);
+        ? (projects.find((p) => p.id === passedSiteId) || null)
+        : (selectedSiteFilter && selectedSiteFilter !== "ALL")
+        ? (projects.find((p) => p.id === selectedSiteFilter) || null)
+        : null;
       
       setActiveSite(activeProj);
 
-      // Filter workers assigned to the active site/project
-      const siteWorkers = activeProj 
-        ? loadedWorkers.filter((w) => w.projectId === activeProj.id)
+      // Filter workers assigned to the active site/project (or show all workers if "All Sites" / null)
+      const siteWorkers = (passedSiteId || (selectedSiteFilter && selectedSiteFilter !== "ALL" && activeProj))
+        ? loadedWorkers.filter((w) => w.projectId === (passedSiteId || activeProj?.id))
         : loadedWorkers;
 
       setWorkers(siteWorkers);

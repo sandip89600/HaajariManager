@@ -83,8 +83,8 @@ export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!config) return true;
     if (!config.subscriptionsEnabled) return true;
     const restricted = config.supervisorManagementRestrictedToPaid ?? false;
-    if (!restricted) return true; // OFF: Allowed on Free plan
-    return userPlan !== "free"; // ON: Only allowed on paid plans
+    if (!restricted) return true; // Admin set OFF: Free for all plans
+    return userPlan !== "free" && userPlan !== "basic"; // Admin set ON: Only allowed on paid plans
   };
 
   const getFeatureStatus = (featureKey: string) => {

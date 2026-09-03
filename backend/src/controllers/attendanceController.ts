@@ -1,8 +1,9 @@
 import { Response } from "express";
-import { Attendance, AuditLog, User, Worker, Tenant } from "../models";
+import { Attendance, AuditLog, User, Worker, Tenant, AppConfig } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { broadcastAdminActivity } from "../utils/socket";
 import { logActivity } from "../services/activityLogger";
+import { getPlanRank } from "../middleware/subscription";
 
 export const getAttendanceForMonth = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -44,15 +45,18 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Check GPS limits
+    // Check GPS limits with Master Global Switch
     if (location && (location.latitude || location.longitude)) {
-      const tenant = await Tenant.findById(tenantId).select("plan").lean();
-      if (tenant?.plan === "free") {
-        return res.status(403).json({
-          error: "GPS attendance is not available on the Free Plan. Upgrade to Professional Plan to unlock this feature.",
-          limitExceeded: true,
-          plan: "free"
-        });
+      const appConfig = await AppConfig.findOne();
+      if (appConfig?.subscriptionsEnabled) {
+        const tenant = await Tenant.findById(tenantId).select("plan").lean();
+        if (getPlanRank(tenant?.plan) < 2) {
+          return res.status(403).json({
+            error: "GPS attendance is not available on your current plan. Upgrade to Super Plan to unlock this feature.",
+            limitExceeded: true,
+            plan: tenant?.plan || "free"
+          });
+        }
       }
     }
 
@@ -133,16 +137,19 @@ export const syncAttendance = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ error: "Records must be an array" });
     }
 
-    // Check GPS limits
+    // Check GPS limits with Master Global Switch
     const hasLocation = records.some((r: any) => r.location && (r.location.latitude || r.location.longitude));
     if (hasLocation) {
-      const tenant = await Tenant.findById(tenantId);
-      if (tenant?.plan === "free") {
-        return res.status(403).json({
-          error: "GPS attendance is not available on the Free Plan. Upgrade to Professional Plan to unlock this feature.",
-          limitExceeded: true,
-          plan: "free"
-        });
+      const appConfig = await AppConfig.findOne();
+      if (appConfig?.subscriptionsEnabled) {
+        const tenant = await Tenant.findById(tenantId);
+        if (getPlanRank(tenant?.plan) < 2) {
+          return res.status(403).json({
+            error: "GPS attendance is not available on your current plan. Upgrade to Super Plan to unlock this feature.",
+            limitExceeded: true,
+            plan: tenant?.plan || "free"
+          });
+        }
       }
     }
 

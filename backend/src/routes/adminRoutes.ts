@@ -124,12 +124,15 @@ router.post("/notifications/email/test", sendTestEmailNotification as any);
 router.post("/notifications/email/draft", saveEmailDraft as any);
 router.get("/notifications/email/history", getEmailNotificationHistory as any);
 router.get("/notifications/email/:id", getEmailNotificationDetails as any);
-router.get("/subscriptions", getAllSubscriptionsAdmin as any);
-router.get("/support", getAllSupportTicketsAdmin as any);
-router.get("/devices", getAllDevicesAdmin as any);
+import {
+  getAdminFeedbacks,
+  updateAdminFeedbackStatus,
+  addAdminFeedbackNote,
+} from "../controllers/feedbackController";
 
-// Subscription / Feature Configuration
-router.get("/subscription-config", getSubscriptionConfig as any);
-router.put("/subscription-config", updateSubscriptionConfig as any);
+// Feedback & Issue Management Endpoints
+router.get("/feedback", getAdminFeedbacks as any);
+router.patch("/feedback/:id/status", updateAdminFeedbackStatus as any);
+router.post("/feedback/:id/notes", addAdminFeedbackNote as any);
 
 export default router;
