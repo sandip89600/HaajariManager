@@ -10,13 +10,20 @@ router.get("/config", authenticateJWT as any, async (req: any, res: any) => {
     const config = await seedDefaultConfigIfNeeded(req.user?._id);
     res.json({
       subscriptionsEnabled: config.subscriptionsEnabled,
-      features: config.features.map((f: any) => ({
+      supervisorManagementRestrictedToPaid: config.supervisorManagementRestrictedToPaid ?? false,
+      features: (config.features || []).map((f: any) => ({
         key: f.key,
         name: f.name,
         description: f.description,
         enabled: f.enabled,
         premium: f.premium,
         minPlan: f.minPlan
+      })),
+      moduleVisibility: (config.moduleVisibility || []).map((m: any) => ({
+        key: m.key,
+        name: m.name,
+        description: m.description,
+        enabled: m.enabled
       }))
     });
   } catch (err: any) {

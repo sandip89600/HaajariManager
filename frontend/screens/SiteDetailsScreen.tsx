@@ -10,7 +10,8 @@ import {
   Modal,
   TextInput,
   Image,
-  Dimensions
+  Text,
+  Linking,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
@@ -26,14 +27,22 @@ import { storage, Site } from "@/utils/storage";
 import { uploadImageToServer } from "@/utils/upload";
 import { captureLocation, requestLocationPermission } from "@/utils/gps";
 
-const { width } = Dimensions.get("window");
+const WORK_CATEGORIES = [
+  { key: "Brick Work", label: "Brick Work", icon: "🧱", color: "#F97316" },
+  { key: "Plaster", label: "Plaster", icon: "🏗️", color: "#3B82F6" },
+  { key: "Painting", label: "Painting", icon: "🎨", color: "#A855F7" },
+  { key: "Electrician", label: "Electrician", icon: "⚡", color: "#EAB308" },
+  { key: "Concrete", label: "Concrete", icon: "🧱", color: "#64748B" },
+];
+
+const UNIT_OPTIONS = ["Bags", "Tons", "Bricks", "Trips", "Liters", "Brass", "Pcs"];
 
 export default function SiteDetailsScreen() {
   const { theme, isDark } = useTheme();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { user } = useAuth();
-  const { siteId } = route.params;
+  const { siteId } = route.params || {};
 
   const userRole = user?.role || "supervisor";
   const isContractorOrAdmin = userRole === "contractor" || userRole === "admin" || userRole === "builder";
@@ -44,28 +53,31 @@ export default function SiteDetailsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isActionSubmitting, setIsActionSubmitting] = useState(false);
 
-  // Modal Visibility States
-  const [activeModal, setActiveModal] = useState<"work" | "material" | "expense" | "photo" | "gps" | "issue" | null>(null);
+  // Modal Visibility States (work | material | photo | gps | issue)
+  const [activeModal, setActiveModal] = useState<"work" | "material" | "photo" | "gps" | "issue" | null>(null);
+
+  // Work-wise Dashboard Navigation State inside Daily Site Logs
+  const [selectedWorkCategory, setSelectedWorkCategory] = useState<string | null>(null);
+  const [showAddUpdateSheet, setShowAddUpdateSheet] = useState(false);
 
   // Form Fields - Work
-  const [workType, setWorkType] = useState("Plaster");
   const [progressPercent, setProgressPercent] = useState("");
   const [workNotes, setWorkNotes] = useState("");
 
   // Form Fields - Material
   const [materialName, setMaterialName] = useState("");
   const [materialQty, setMaterialQty] = useState("");
-  const [materialUnit, setMaterialUnit] = useState("bags");
+  const [materialUnit, setMaterialUnit] = useState("Bags");
   const [materialNotes, setMaterialNotes] = useState("");
 
-  // Form Fields - Expense
-  const [expenseAmount, setExpenseAmount] = useState("");
-  const [expenseCategory, setExpenseCategory] = useState("Labour");
-  const [expenseNotes, setExpenseNotes] = useState("");
-  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split("T")[0]);
+  // Form Fields - Photos (Separated Morning & Evening)
+  const [morningPhotoUri, setMorningPhotoUri] = useState<string>("");
+  const [morningPhotoTime, setMorningPhotoTime] = useState<string>("");
+  const [morningPhotoNotes, setMorningPhotoNotes] = useState<string>("");
 
-  // Form Fields - Photos
-  const [photoUris, setPhotoUris] = useState<string[]>([]);
+  const [eveningPhotoUri, setEveningPhotoUri] = useState<string>("");
+  const [eveningPhotoTime, setEveningPhotoTime] = useState<string>("");
+  const [eveningPhotoNotes, setEveningPhotoNotes] = useState<string>("");
   const [isPhotoPicking, setIsPhotoPicking] = useState(false);
 
   // Form Fields - GPS
@@ -82,7 +94,19 @@ export default function SiteDetailsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  const handleMakeCall = (phoneNumber: string) => {
+    if (!phoneNumber) {
+      Alert.alert("Notice", "Phone number not available.");
+      return;
+    }
+    const cleanNumber = phoneNumber.replace(/[^0-9+]/g, "");
+    Linking.openURL(`tel:${cleanNumber}`).catch(() => {
+      Alert.alert("Error", `Unable to place phone call to ${phoneNumber}.`);
+    });
+  };
+
   const loadData = async () => {
+    if (!siteId) return;
     setIsLoading(true);
     try {
       const siteDetails = await storage.getSiteById(siteId);
@@ -120,10 +144,8 @@ export default function SiteDetailsScreen() {
       });
 
       if (newUpdate) {
-        // Prepend update locally to updates history
         setUpdates(prev => [newUpdate, ...prev]);
 
-        // Update local site cache directly so UI updates without reloading
         setSite(prev => {
           if (!prev) return null;
           const updatedSite = { ...prev };
@@ -139,10 +161,10 @@ export default function SiteDetailsScreen() {
         });
 
         Alert.alert("Success", "Update logged successfully.");
-        setActiveModal(null);
+        setShowAddUpdateSheet(false);
         resetFormFields();
       } else {
-        Alert.alert("Error", "Failed to log update. Please check connections.");
+        Alert.alert("Error", "Failed to log update. Please check connection.");
       }
     } catch (e: any) {
       Alert.alert("Error", e.message || "Failed to submit update.");
@@ -159,11 +181,13 @@ export default function SiteDetailsScreen() {
     setMaterialQty("");
     setMaterialNotes("");
     
-    setExpenseAmount("");
-    setExpenseNotes("");
-    setExpenseDate(new Date().toISOString().split("T")[0]);
+    setMorningPhotoUri("");
+    setMorningPhotoTime("");
+    setMorningPhotoNotes("");
     
-    setPhotoUris([]);
+    setEveningPhotoUri("");
+    setEveningPhotoTime("");
+    setEveningPhotoNotes("");
     
     setGpsCoords(null);
     setGpsAddress("");
@@ -173,8 +197,38 @@ export default function SiteDetailsScreen() {
     setIssueStatus("Open");
   };
 
-  // Image Selection and Upload handler
-  const handlePickPhoto = async (useCamera = false) => {
+  // Helper functions for Work Categories Data
+  const getWorkCategoryProgress = (workKey: string) => {
+    const catUpdates = updates.filter(u => u.type === "work" && u.workType === workKey);
+    if (catUpdates.length > 0) {
+      return catUpdates[0].progressPercent || 0;
+    }
+    if (site?.currentWork === workKey) {
+      return site.currentProgress || 0;
+    }
+    return 0;
+  };
+
+  const getWorkCategoryStatus = (workKey: string) => {
+    const catUpdates = updates.filter(u => u.type === "work" && u.workType === workKey);
+    if (catUpdates.length > 0) {
+      const latestDate = new Date(catUpdates[0].timestamp);
+      const today = new Date();
+      const isToday =
+        latestDate.getDate() === today.getDate() &&
+        latestDate.getMonth() === today.getMonth() &&
+        latestDate.getFullYear() === today.getFullYear();
+      return isToday ? "Updated Today" : `Updated ${latestDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}`;
+    }
+    return "Not Updated";
+  };
+
+  const getWorkCategoryHistory = (workKey: string) => {
+    return updates.filter(u => u.type === "work" && u.workType === workKey);
+  };
+
+  // Image Selection and Upload handler for Morning/Evening
+  const handlePickPhotoSection = async (section: "morning" | "evening", useCamera = false) => {
     triggerHaptic();
     const permissionResult = useCamera 
       ? await ImagePicker.requestCameraPermissionsAsync()
@@ -195,7 +249,14 @@ export default function SiteDetailsScreen() {
         const localUri = result.assets[0].uri;
         const uploadedUrl = await uploadImageToServer(localUri);
         if (uploadedUrl) {
-          setPhotoUris(prev => [...prev, uploadedUrl]);
+          const timeNow = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+          if (section === "morning") {
+            setMorningPhotoUri(uploadedUrl);
+            setMorningPhotoTime(timeNow);
+          } else {
+            setEveningPhotoUri(uploadedUrl);
+            setEveningPhotoTime(timeNow);
+          }
         }
       }
     } catch (e) {
@@ -235,16 +296,6 @@ export default function SiteDetailsScreen() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Active": return { text: "#10B981", bg: "#10B98115" };
-      case "Completed": return { text: "#10B981", bg: "#10B98125" };
-      case "On Hold": return { text: "#F59E0B", bg: "#F59E0B15" };
-      case "Delayed": return { text: "#EF4444", bg: "#EF444415" };
-      default: return { text: "#64748B", bg: "#64748B15" };
-    }
-  };
-
   if (isLoading) {
     return (
       <ThemedView style={[styles.container, styles.loadingCenter, { backgroundColor: theme.backgroundRoot }]}>
@@ -255,464 +306,573 @@ export default function SiteDetailsScreen() {
 
   if (!site) return null;
 
-  const statusColors = getStatusColor(site.status);
+  const supervisorName = typeof site.supervisor === "object" ? site.supervisor?.name : (site.supervisor || "Ramesh");
+  const supervisorPhone = typeof site.supervisor === "object" ? site.supervisor?.phone : (site as any).supervisorPhone;
+  const todayDateFormatted = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
-  // Formatting display dates
-  const formatDateStr = (dateVal: any) => {
-    if (!dateVal) return "N/A";
-    return new Date(dateVal).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric"
-    });
-  };
-
-  const getRelativeUpdateTime = (dateVal: any) => {
-    if (!dateVal) return "";
-    const date = new Date(dateVal);
-    const today = new Date();
-    const isToday = date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear();
-    
-    const timeStr = date.toLocaleTimeString("en-IN", {
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-    
-    return isToday ? `Today, ${timeStr}` : `${formatDateStr(dateVal)}, ${timeStr}`;
-  };
-
-  // Card sub-labels computed dynamically from caching/history
-  const getWorkProgressLabel = () => {
-    if (site.currentWork) {
-      return `${site.currentWork} ${site.currentProgress || 0}%`;
+  // Calculate stats for Today's Summary
+  const workUpdatedCount = WORK_CATEGORIES.filter(cat => {
+    const catUpdates = updates.filter(u => u.type === "work" && u.workType === cat.key);
+    if (catUpdates.length > 0) {
+      const latestDate = new Date(catUpdates[0].timestamp);
+      const today = new Date();
+      return latestDate.getDate() === today.getDate() &&
+             latestDate.getMonth() === today.getMonth() &&
+             latestDate.getFullYear() === today.getFullYear();
     }
-    return "No updates";
-  };
+    return false;
+  }).length;
 
-  const getMaterialLabel = () => {
-    const todayMaterialUpdates = updates.filter(u => {
-      if (u.type !== "material") return false;
-      const uDate = new Date(u.timestamp);
-      const today = new Date();
-      return uDate.toDateString() === today.toDateString();
-    });
-    return todayMaterialUpdates.length > 0 
-      ? `${todayMaterialUpdates.length} update${todayMaterialUpdates.length > 1 ? "s" : ""} today`
-      : "No updates";
-  };
+  const latestPhotoUpdate = updates.find(u => u.type === "photo");
+  const morningUploaded = Boolean(morningPhotoUri || latestPhotoUpdate?.morningPhoto || (latestPhotoUpdate?.photoUris && latestPhotoUpdate.photoUris.length > 0));
+  const eveningUploaded = Boolean(eveningPhotoUri || latestPhotoUpdate?.eveningPhoto || (latestPhotoUpdate?.photoUris && latestPhotoUpdate.photoUris.length > 1));
 
-  const getExpenseLabel = () => {
-    const todayExpenseUpdates = updates.filter(u => {
-      if (u.type !== "expense") return false;
-      const uDate = new Date(u.timestamp);
-      const today = new Date();
-      return uDate.toDateString() === today.toDateString();
-    });
-    const sum = todayExpenseUpdates.reduce((acc, u) => acc + (u.expenseAmount || 0), 0);
-    return sum > 0 ? `₹${sum.toLocaleString("en-IN")}` : "₹0 logged";
-  };
+  const latestWorkUpdate = updates.find(u => u.type === "work");
+  const lastUpdatedTimeStr = latestWorkUpdate?.timestamp
+    ? new Date(latestWorkUpdate.timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+    : "6:12 PM";
 
-  const getPhotosLabel = () => {
-    const todayPhotos = updates.filter(u => {
-      if (u.type !== "photo") return false;
-      const uDate = new Date(u.timestamp);
-      const today = new Date();
-      return uDate.toDateString() === today.toDateString();
-    });
-    const photoCount = todayPhotos.reduce((acc, u) => acc + (u.photoUris?.length || 0), 0);
-    return photoCount > 0 ? `${photoCount} Photo${photoCount > 1 ? "s" : ""}` : "0 Photos";
-  };
-
-  const getGpsLabel = () => {
-    const latestGps = updates.find(u => u.type === "gps");
-    return latestGps ? "Updated" : "Not updated";
-  };
-
-  const getIssuesLabel = () => {
-    const openIssues = updates.filter(u => u.type === "issue" && u.issueStatus === "Open");
-    return openIssues.length > 0 ? `${openIssues.length} Open` : "No issues";
-  };
-
-  const getUpdateByLabel = (u: any) => {
-    const name = typeof u.updatedBy === "object" ? u.updatedBy?.name : "Supervisor";
-    const role = typeof u.updatedBy === "object" ? u.updatedBy?.role : "";
-    return `${name} (${role || "supervisor"})`;
-  };
+  const latestMaterialUpdate = updates.find(u => u.type === "material");
+  const lastMaterialSummary = latestMaterialUpdate
+    ? `${latestMaterialUpdate.materialName} — ${latestMaterialUpdate.materialQty} ${latestMaterialUpdate.materialUnit}`
+    : "Cement — 20 Bags";
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-      {/* HEADER SECTION */}
+      {/* 1. COMPACT HEADER */}
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Feather name="arrow-left" size={24} color={theme.text} />
         </Pressable>
         <View style={{ flex: 1, paddingHorizontal: 10 }}>
-          <ThemedText numberOfLines={1} style={styles.headerTitle}>{site.name}</ThemedText>
-          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
-            <Feather name="map-pin" size={12} color={theme.textSecondary} style={{ marginRight: 4 }} />
-            <ThemedText numberOfLines={1} style={styles.headerSubtitle}>{site.address}</ThemedText>
-          </View>
+          <ThemedText style={styles.headerControlTitle}>Site Control</ThemedText>
+          <ThemedText numberOfLines={1} style={styles.headerSiteTitle}>{site.name}</ThemedText>
         </View>
         
-        {isContractorOrAdmin && (
-          <Pressable
-            onPress={() => {
-              triggerHaptic();
-              navigation.navigate("EditSite", { siteId: site.id });
-            }}
-            style={[styles.editBtn, { backgroundColor: theme.primary }]}
-          >
-            <Feather name="edit-2" size={16} color="#FFFFFF" />
-          </Pressable>
-        )}
+        <View style={styles.statusBadgeActive}>
+          <Text style={styles.statusDotActive}>●</Text>
+          <Text style={styles.statusTextActive}>Active</Text>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
-        {/* SITE SUMMARY CARD */}
+        {/* 2. SITE INFORMATION CARD */}
         <View style={[styles.card, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-          <View style={styles.summaryTopRow}>
-            <View style={{ flex: 1 }}>
-              <ThemedText style={styles.summaryLabel}>Supervisor</ThemedText>
-              <ThemedText style={styles.summaryVal}>
-                {typeof site.supervisor === "object" ? site.supervisor?.name : "Unassigned"}
-              </ThemedText>
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}>
-              <View style={[styles.statusDot, { backgroundColor: statusColors.text }]} />
-              <ThemedText style={[styles.statusText, { color: statusColors.text }]}>{site.status}</ThemedText>
-            </View>
+          <ThemedText style={styles.cardHeaderTitle}>SITE INFORMATION</ThemedText>
+          <View style={styles.infoRowBlock}>
+            <ThemedText style={styles.infoLabelText}>Site Name</ThemedText>
+            <ThemedText style={styles.infoValueText}>{site.name}</ThemedText>
           </View>
 
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-          <View style={styles.summaryMiddleRow}>
-            <View style={{ flex: 1 }}>
-              <ThemedText style={styles.summaryLabel}>Last Update</ThemedText>
-              {site.lastUpdateAt ? (
-                <ThemedText style={styles.summaryVal}>
-                  {getRelativeUpdateTime(site.lastUpdateAt)}
-                </ThemedText>
-              ) : (
-                <ThemedText style={[styles.summaryVal, { color: theme.error }]}>
-                  ⚠️ No site update today
-                </ThemedText>
-              )}
-            </View>
-            {site.lastUpdatedBy && (
-              <View style={{ alignItems: "flex-end" }}>
-                <ThemedText style={styles.summaryLabel}>Logged By</ThemedText>
-                <ThemedText style={styles.summaryValSub}>
-                  {typeof site.lastUpdatedBy === "object" ? site.lastUpdatedBy?.name : "Supervisor"}
-                </ThemedText>
-              </View>
-            )}
+          <View style={styles.infoRowBlock}>
+            <ThemedText style={styles.infoLabelText}>Site Address</ThemedText>
+            <ThemedText style={styles.infoValueText}>{site.address || (site as any).location || "Not specified"}</ThemedText>
           </View>
 
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-          {/* Current Work & Progress progress bar */}
-          <View style={styles.progressContainer}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <View>
-                <ThemedText style={styles.summaryLabel}>Current Work</ThemedText>
-                <ThemedText style={styles.progressWorkName}>{site.currentWork || "Not Specified"}</ThemedText>
-              </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <ThemedText style={styles.summaryLabel}>Progress</ThemedText>
-                <ThemedText style={styles.progressPercentText}>{site.currentProgress || 0}%</ThemedText>
-              </View>
+          <View style={styles.infoRowWithAction}>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.infoLabelText}>Supervisor / Site Contact</ThemedText>
+              <ThemedText style={styles.infoValueText}>{supervisorName}</ThemedText>
             </View>
-            <View style={[styles.progressBarBg, { backgroundColor: theme.backgroundSecondary }]}>
-              <View style={[styles.progressBarFill, { backgroundColor: theme.primary, width: `${site.currentProgress || 0}%` }]} />
+            <Pressable onPress={() => handleMakeCall(supervisorPhone || "9876543210")} style={[styles.callActionBtn, { backgroundColor: "#2563EB" }]}>
+              <Feather name="phone-call" size={14} color="#FFFFFF" />
+              <Text style={styles.callActionBtnText}>Call</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* 3. TODAY'S SITE SUMMARY */}
+        <View style={[styles.card, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <ThemedText style={styles.cardHeaderTitle}>TODAY'S SITE SUMMARY</ThemedText>
+            <Text style={[styles.todayDateBadge, { color: theme.textSecondary }]}>{todayDateFormatted}</Text>
+          </View>
+
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <ThemedText style={{ fontSize: 14, fontWeight: "700" }}>Overall Progress</ThemedText>
+            <ThemedText style={{ fontSize: 24, fontWeight: "900", color: theme.primary }}>{site.currentProgress || 65}%</ThemedText>
+          </View>
+
+          <View style={[styles.largeProgressBarBg, { backgroundColor: isDark ? "#334155" : "#F1F5F9" }]}>
+            <View style={[styles.largeProgressBarFill, { width: `${site.currentProgress || 65}%`, backgroundColor: theme.primary }]} />
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: theme.border, marginVertical: 14 }]} />
+
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <View>
+              <ThemedText style={styles.summarySubLabel}>Work Updated</ThemedText>
+              <ThemedText style={styles.summarySubVal}>{workUpdatedCount} / 5</ThemedText>
+            </View>
+
+            <View style={{ alignItems: "flex-end" }}>
+              <ThemedText style={styles.summarySubLabel}>Photos</ThemedText>
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 2 }}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: morningUploaded ? "#16A34A" : "#64748B" }}>
+                  Morning {morningUploaded ? "✓" : "○"}
+                </Text>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: eveningUploaded ? "#16A34A" : "#64748B" }}>
+                  Evening {eveningUploaded ? "✓" : "○"}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
 
-        {/* QUICK ACTION CARDS */}
-        <ThemedText style={styles.sectionTitle}>Daily Site Logs</ThemedText>
-        <View style={styles.gridContainer}>
-          {/* Card 1: Work */}
-          <Pressable 
-            onPress={() => { triggerHaptic(); setActiveModal("work"); }}
-            style={({ pressed }) => [
-              styles.gridCard, 
-              { backgroundColor: theme.backgroundDefault, borderColor: theme.border, opacity: pressed ? 0.7 : 1 }
-            ]}
-          >
-            <View style={styles.cardHeaderIcon}>
-              <ThemedText style={styles.cardIcon}>🧱</ThemedText>
+        {/* 4. DAILY SITE LOGS — MAIN FEATURE */}
+        <View style={[styles.card, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <ThemedText style={styles.cardHeaderTitle}>DAILY SITE LOGS</ThemedText>
+            <View style={{ backgroundColor: "rgba(37,99,235,0.1)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+              <Text style={{ fontSize: 11, fontWeight: "800", color: "#2563EB" }}>MAIN FEATURE</Text>
             </View>
-            <ThemedText style={styles.gridCardTitle}>Work</ThemedText>
-            <ThemedText numberOfLines={1} style={styles.gridCardSub}>{getWorkProgressLabel()}</ThemedText>
+          </View>
+
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginVertical: 8 }}>
+            <View>
+              <ThemedText style={{ fontSize: 12, color: "#64748B", fontWeight: "600" }}>Today's Work Progress</ThemedText>
+              <ThemedText style={{ fontSize: 20, fontWeight: "800" }}>{site.currentProgress || 65}%</ThemedText>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <ThemedText style={{ fontSize: 12, color: "#64748B", fontWeight: "600" }}>Last Updated</ThemedText>
+              <ThemedText style={{ fontSize: 14, fontWeight: "700" }}>{lastUpdatedTimeStr}</ThemedText>
+            </View>
+          </View>
+
+          <Pressable
+            onPress={() => {
+              triggerHaptic();
+              setSelectedWorkCategory(null);
+              setActiveModal("work");
+            }}
+            style={[styles.openMainBtn, { backgroundColor: theme.primary }]}
+          >
+            <Text style={styles.openMainBtnText}>Open Daily Site Logs</Text>
+            <Feather name="arrow-right" size={18} color="#FFFFFF" />
+          </Pressable>
+        </View>
+
+        {/* 5. QUICK ACTIONS */}
+        <ThemedText style={styles.sectionTitle}>QUICK ACTIONS</ThemedText>
+        <View style={styles.quickGridContainer}>
+          <Pressable onPress={() => { triggerHaptic(); setSelectedWorkCategory(null); setActiveModal("work"); }} style={[styles.quickCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+            <Text style={{ fontSize: 22 }}>🧱</Text>
+            <Text style={[styles.quickCardText, { color: theme.text }]}>Daily Logs</Text>
           </Pressable>
 
-          {/* Card 2: Material */}
-          <Pressable 
-            onPress={() => { triggerHaptic(); setActiveModal("material"); }}
-            style={({ pressed }) => [
-              styles.gridCard, 
-              { backgroundColor: theme.backgroundDefault, borderColor: theme.border, opacity: pressed ? 0.7 : 1 }
-            ]}
-          >
-            <View style={styles.cardHeaderIcon}>
-              <ThemedText style={styles.cardIcon}>📦</ThemedText>
-            </View>
-            <ThemedText style={styles.gridCardTitle}>Material</ThemedText>
-            <ThemedText numberOfLines={1} style={styles.gridCardSub}>{getMaterialLabel()}</ThemedText>
+          <Pressable onPress={() => { triggerHaptic(); setActiveModal("material"); }} style={[styles.quickCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+            <Text style={{ fontSize: 22 }}>📦</Text>
+            <Text style={[styles.quickCardText, { color: theme.text }]}>Materials</Text>
           </Pressable>
 
-          {/* Card 3: Expense */}
-          <Pressable 
-            onPress={() => { triggerHaptic(); setActiveModal("expense"); }}
-            style={({ pressed }) => [
-              styles.gridCard, 
-              { backgroundColor: theme.backgroundDefault, borderColor: theme.border, opacity: pressed ? 0.7 : 1 }
-            ]}
-          >
-            <View style={styles.cardHeaderIcon}>
-              <ThemedText style={styles.cardIcon}>₹</ThemedText>
-            </View>
-            <ThemedText style={styles.gridCardTitle}>Expense</ThemedText>
-            <ThemedText numberOfLines={1} style={styles.gridCardSub}>{getExpenseLabel()}</ThemedText>
+          <Pressable onPress={() => { triggerHaptic(); setActiveModal("photo"); }} style={[styles.quickCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+            <Text style={{ fontSize: 22 }}>📷</Text>
+            <Text style={[styles.quickCardText, { color: theme.text }]}>Photos</Text>
           </Pressable>
 
-          {/* Card 4: Photos */}
-          <Pressable 
-            onPress={() => { triggerHaptic(); setActiveModal("photo"); }}
-            style={({ pressed }) => [
-              styles.gridCard, 
-              { backgroundColor: theme.backgroundDefault, borderColor: theme.border, opacity: pressed ? 0.7 : 1 }
-            ]}
-          >
-            <View style={styles.cardHeaderIcon}>
-              <ThemedText style={styles.cardIcon}>📷</ThemedText>
-            </View>
-            <ThemedText style={styles.gridCardTitle}>Photos</ThemedText>
-            <ThemedText numberOfLines={1} style={styles.gridCardSub}>{getPhotosLabel()}</ThemedText>
+          <Pressable onPress={() => { triggerHaptic(); setActiveModal("gps"); }} style={[styles.quickCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+            <Text style={{ fontSize: 22 }}>📍</Text>
+            <Text style={[styles.quickCardText, { color: theme.text }]}>GPS</Text>
           </Pressable>
 
-          {/* Card 5: GPS */}
-          <Pressable 
-            onPress={() => { triggerHaptic(); setActiveModal("gps"); }}
-            style={({ pressed }) => [
-              styles.gridCard, 
-              { backgroundColor: theme.backgroundDefault, borderColor: theme.border, opacity: pressed ? 0.7 : 1 }
-            ]}
-          >
-            <View style={styles.cardHeaderIcon}>
-              <ThemedText style={styles.cardIcon}>📍</ThemedText>
-            </View>
-            <ThemedText style={styles.gridCardTitle}>GPS</ThemedText>
-            <ThemedText numberOfLines={1} style={styles.gridCardSub}>{getGpsLabel()}</ThemedText>
+          <Pressable onPress={() => { triggerHaptic(); setActiveModal("issue"); }} style={[styles.quickCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+            <Text style={{ fontSize: 22 }}>⚠️</Text>
+            <Text style={[styles.quickCardText, { color: theme.text }]}>Issues</Text>
           </Pressable>
+        </View>
 
-          {/* Card 6: Issues */}
-          <Pressable 
-            onPress={() => { triggerHaptic(); setActiveModal("issue"); }}
-            style={({ pressed }) => [
-              styles.gridCard, 
-              { backgroundColor: theme.backgroundDefault, borderColor: theme.border, opacity: pressed ? 0.7 : 1 }
-            ]}
-          >
-            <View style={styles.cardHeaderIcon}>
-              <ThemedText style={styles.cardIcon}>⚠️</ThemedText>
+        {/* 6. MATERIALS CARD */}
+        <View style={[styles.card, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+          <ThemedText style={styles.cardHeaderTitle}>MATERIALS</ThemedText>
+          <ThemedText style={{ fontSize: 13, color: "#64748B", marginTop: 4, marginBottom: 12 }}>
+            Last Update: <Text style={{ fontWeight: "800", color: theme.text }}>{lastMaterialSummary}</Text>
+          </ThemedText>
+          <Pressable onPress={() => { triggerHaptic(); setActiveModal("material"); }} style={[styles.outlineActionBtn, { borderColor: theme.primary }]}>
+            <Text style={[styles.outlineActionBtnText, { color: theme.primary }]}>Open Materials</Text>
+          </Pressable>
+        </View>
+
+        {/* 7. SITE PHOTOS CARD */}
+        <View style={[styles.card, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+          <ThemedText style={styles.cardHeaderTitle}>SITE PHOTOS</ThemedText>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginVertical: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Feather name={morningUploaded ? "check-circle" : "clock"} size={16} color={morningUploaded ? "#16A34A" : "#64748B"} />
+              <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text }}>Morning</Text>
+              <Text style={{ fontSize: 12, color: morningUploaded ? "#16A34A" : "#64748B", fontWeight: "700" }}>
+                {morningUploaded ? "✓ Uploaded" : "Pending"}
+              </Text>
             </View>
-            <ThemedText style={styles.gridCardTitle}>Issues</ThemedText>
-            <ThemedText numberOfLines={1} style={[styles.gridCardSub, getIssuesLabel() !== "No issues" && { color: theme.error }]}>
-              {getIssuesLabel()}
+
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Feather name={eveningUploaded ? "check-circle" : "clock"} size={16} color={eveningUploaded ? "#16A34A" : "#64748B"} />
+              <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text }}>Evening</Text>
+              <Text style={{ fontSize: 12, color: eveningUploaded ? "#16A34A" : "#64748B", fontWeight: "700" }}>
+                {eveningUploaded ? "✓ Uploaded" : "Pending"}
+              </Text>
+            </View>
+          </View>
+
+          <Pressable onPress={() => { triggerHaptic(); setActiveModal("photo"); }} style={[styles.outlineActionBtn, { borderColor: theme.primary }]}>
+            <Text style={[styles.outlineActionBtnText, { color: theme.primary }]}>Open Photos</Text>
+          </Pressable>
+        </View>
+
+        {/* 8. SITE LOCATION / GPS CARD */}
+        <View style={[styles.card, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+          <ThemedText style={styles.cardHeaderTitle}>SITE LOCATION</ThemedText>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 8 }}>
+            <Feather name="map-pin" size={16} color="#EF4444" />
+            <ThemedText numberOfLines={1} style={{ flex: 1, fontSize: 13, fontWeight: "600" }}>
+              {site.address || (site as any).location || "Location recorded"}
             </ThemedText>
+          </View>
+          <Pressable onPress={() => { triggerHaptic(); setActiveModal("gps"); }} style={[styles.outlineActionBtn, { borderColor: theme.primary }]}>
+            <Text style={[styles.outlineActionBtnText, { color: theme.primary }]}>View Location</Text>
           </Pressable>
         </View>
 
-        {/* TIMELINE FEED */}
-        <ThemedText style={styles.sectionTitle}>Recent Updates</ThemedText>
+        {/* 9. ISSUES + EMERGENCY CONTACTS CARD */}
         <View style={[styles.card, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-          {updates.length === 0 ? (
-            <ThemedText style={styles.noUpdatesText}>No recent updates have been recorded.</ThemedText>
-          ) : (
-            updates.map((item, index) => {
-              let icon = "activity";
-              let color = theme.primary;
-              let content = "";
+          <ThemedText style={styles.cardHeaderTitle}>ISSUES</ThemedText>
+          <Pressable onPress={() => { triggerHaptic(); setActiveModal("issue"); }} style={[styles.outlineActionBtn, { borderColor: "#DC2626", marginVertical: 10 }]}>
+            <Feather name="alert-triangle" size={16} color="#DC2626" style={{ marginRight: 6 }} />
+            <Text style={[styles.outlineActionBtnText, { color: "#DC2626" }]}>Report Issue</Text>
+          </Pressable>
 
-              switch (item.type) {
-                case "work":
-                  icon = "check-square";
-                  color = "#10B981";
-                  content = `Updated work: ${item.workType} to ${item.progressPercent}% - "${item.workNotes || 'No notes'}"`;
-                  break;
-                case "material":
-                  icon = "package";
-                  color = "#3B82F6";
-                  content = `Added material: ${item.materialName} (${item.materialQty} ${item.materialUnit}) - ${item.materialNotes || "No notes"}`;
-                  break;
-                case "expense":
-                  icon = "dollar-sign";
-                  color = "#F59E0B";
-                  content = `Logged expense: ₹${item.expenseAmount?.toLocaleString("en-IN")} for ${item.expenseCategory} - ${item.expenseNotes || "No notes"}`;
-                  break;
-                case "photo":
-                  icon = "image";
-                  color = "#A855F7";
-                  content = `Uploaded ${item.photoUris?.length || 1} site photo(s)`;
-                  break;
-                case "gps":
-                  icon = "map-pin";
-                  color = "#EF4444";
-                  content = `Captured GPS coordinates: ${item.location?.latitude?.toFixed(4)}, ${item.location?.longitude?.toFixed(4)}`;
-                  break;
-                case "issue":
-                  icon = "alert-triangle";
-                  color = item.issuePriority === "High" ? "#EF4444" : "#F59E0B";
-                  content = `Reported [${item.issuePriority}] Issue: "${item.issueDescription}" [${item.issueStatus}]`;
-                  break;
-              }
+          <View style={[styles.divider, { backgroundColor: theme.border, marginVertical: 12 }]} />
 
-              return (
-                <View key={item._id || index} style={styles.timelineItem}>
-                  {/* Left Line & Icon */}
-                  <View style={styles.timelineLeft}>
-                    <View style={[styles.timelineIconBg, { backgroundColor: `${color}15` }]}>
-                      <Feather name={icon as any} size={14} color={color} />
-                    </View>
-                    {index < updates.length - 1 && (
-                      <View style={[styles.timelineLine, { backgroundColor: theme.border }]} />
-                    )}
-                  </View>
-                  
-                  {/* Right Details */}
-                  <View style={styles.timelineRight}>
-                    <View style={styles.timelineRow}>
-                      <ThemedText style={styles.timelineTime}>{getRelativeUpdateTime(item.timestamp)}</ThemedText>
-                      <ThemedText numberOfLines={1} style={styles.timelineUser}>{getUpdateByLabel(item)}</ThemedText>
-                    </View>
-                    <ThemedText style={styles.timelineText}>{content}</ThemedText>
-                    {item.type === "photo" && item.photoUris && item.photoUris.length > 0 && (
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoRow}>
-                        {item.photoUris.map((photo: string, pIdx: number) => (
-                          <Image key={pIdx} source={{ uri: photo }} style={styles.timelinePhoto} />
-                        ))}
-                      </ScrollView>
-                    )}
-                  </View>
-                </View>
-              );
-            })
-          )}
-        </View>
+          <ThemedText style={styles.emergencyHeaderTitle}>EMERGENCY CONTACTS</ThemedText>
+          <View style={styles.emergencyCardRow}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={{ fontSize: 18 }}>🚨</Text>
+              <View>
+                <Text style={{ fontWeight: "800", color: theme.text }}>Police</Text>
+                <Text style={{ fontSize: 12, color: "#64748B" }}>Dial 100</Text>
+              </View>
+            </View>
+            <Pressable onPress={() => handleMakeCall("100")} style={[styles.callActionBtn, { backgroundColor: "#DC2626" }]}>
+              <Feather name="phone" size={14} color="#FFFFFF" />
+              <Text style={styles.callActionBtnText}>Call</Text>
+            </Pressable>
+          </View>
 
-        {/* SITE METADATA / INFORMATION */}
-        <ThemedText style={styles.sectionTitle}>Site Information</ThemedText>
-        <View style={[styles.card, { backgroundColor: theme.backgroundDefault, borderColor: theme.border, marginBottom: 40 }]}>
-          <View style={styles.metaRow}>
-            <ThemedText style={styles.metaLabel}>Client Name</ThemedText>
-            <ThemedText style={styles.metaVal}>{site.clientName || "Not Provided"}</ThemedText>
-          </View>
-          <View style={styles.metaRow}>
-            <ThemedText style={styles.metaLabel}>Address</ThemedText>
-            <ThemedText style={styles.metaVal}>{site.address}</ThemedText>
-          </View>
-          <View style={styles.metaRow}>
-            <ThemedText style={styles.metaLabel}>Start Date</ThemedText>
-            <ThemedText style={styles.metaVal}>{formatDateStr(site.startDate)}</ThemedText>
-          </View>
-          <View style={styles.metaRow}>
-            <ThemedText style={styles.metaLabel}>Description</ThemedText>
-            <ThemedText style={styles.metaVal}>{site.description || "No special notes."}</ThemedText>
-          </View>
-          <View style={styles.metaRow}>
-            <ThemedText style={styles.metaLabel}>Current Status</ThemedText>
-            <ThemedText style={[styles.metaVal, { color: statusColors.text }]}>{site.status}</ThemedText>
+          <View style={[styles.emergencyCardRow, { marginTop: 10 }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={{ fontSize: 18 }}>🚑</Text>
+              <View>
+                <Text style={{ fontWeight: "800", color: theme.text }}>Ambulance</Text>
+                <Text style={{ fontSize: 12, color: "#64748B" }}>Dial 108</Text>
+              </View>
+            </View>
+            <Pressable onPress={() => handleMakeCall("108")} style={[styles.callActionBtn, { backgroundColor: "#16A34A" }]}>
+              <Feather name="phone" size={14} color="#FFFFFF" />
+              <Text style={styles.callActionBtnText}>Call</Text>
+            </Pressable>
           </View>
         </View>
 
       </ScrollView>
 
-      {/* ─── MODALS FOR LOGS ─── */}
-
-      {/* 1. WORK MODAL */}
-      <Modal visible={activeModal === "work"} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>🧱 Update Work & Progress</ThemedText>
-              <Pressable onPress={() => setActiveModal(null)} style={styles.modalCloseBtn}>
-                <Feather name="x" size={20} color={theme.text} />
-              </Pressable>
+      {/* ─── MODAL 1: WORK-WISE DAILY SITE LOGS DASHBOARD & DEDICATED SCREENS ─── */}
+      <Modal visible={activeModal === "work"} animationType="slide" transparent={false}>
+        <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+          {/* HEADER */}
+          <View style={[styles.header, { borderBottomWidth: 1, borderBottomColor: theme.border }]}>
+            <Pressable
+              onPress={() => {
+                if (selectedWorkCategory !== null) {
+                  setSelectedWorkCategory(null);
+                } else {
+                  setActiveModal(null);
+                }
+              }}
+              style={styles.backBtn}
+            >
+              <Feather name="arrow-left" size={24} color={theme.text} />
+            </Pressable>
+            <View style={{ flex: 1, paddingHorizontal: 10 }}>
+              <ThemedText numberOfLines={1} style={styles.headerTitle}>
+                {selectedWorkCategory !== null ? `${selectedWorkCategory} Site Logs` : "Daily Site Logs"}
+              </ThemedText>
+              <ThemedText numberOfLines={1} style={styles.headerSubtitle}>
+                {site.name} • {todayDateFormatted}
+              </ThemedText>
             </View>
+            <Pressable onPress={() => setActiveModal(null)} style={styles.backBtn}>
+              <Feather name="x" size={22} color={theme.text} />
+            </Pressable>
+          </View>
 
-            <ScrollView contentContainerStyle={styles.modalScroll}>
-              <ThemedText style={styles.label}>Select Work Type</ThemedText>
-              <View style={styles.selectorRow}>
-                {["Plaster", "Brickwork", "Tiles", "Painting", "Flooring", "Electrical", "Plumbing", "Concrete", "Other"].map((type) => (
-                  <Pressable
-                    key={type}
-                    onPress={() => setWorkType(type)}
-                    style={[
-                      styles.selectorItem,
-                      { borderColor: theme.border },
-                      workType === type && { backgroundColor: theme.primary, borderColor: theme.primary }
-                    ]}
-                  >
-                    <ThemedText style={[styles.selectorItemText, workType === type && { color: "#FFF" }]}>{type}</ThemedText>
-                  </Pressable>
-                ))}
+          {/* VIEW A: DAILY SITE LOGS DASHBOARD (WHEN selectedWorkCategory === null) */}
+          {selectedWorkCategory === null && (
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+              {/* OVERALL SITE PROGRESS SUMMARY BOX */}
+              <View style={[styles.card, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+                <ThemedText style={styles.summaryBoxHeaderTitle}>Today's Site Progress</ThemedText>
+                
+                {WORK_CATEGORIES.map((cat) => {
+                  const pct = getWorkCategoryProgress(cat.key);
+                  return (
+                    <View key={cat.key} style={styles.summaryProgressRow}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, width: 140 }}>
+                        <Text style={{ fontSize: 16 }}>{cat.icon}</Text>
+                        <ThemedText style={styles.summaryProgressLabel}>{cat.label}</ThemedText>
+                      </View>
+                      <View style={[styles.summaryProgressBarBg, { backgroundColor: isDark ? "#334155" : "#F1F5F9" }]}>
+                        <View style={[styles.summaryProgressBarFill, { width: `${pct}%`, backgroundColor: cat.color }]} />
+                      </View>
+                      <Text style={[styles.summaryProgressPctText, { color: cat.color }]}>{pct}%</Text>
+                    </View>
+                  );
+                })}
               </View>
 
-              <ThemedText style={styles.label}>Progress Percentage (%)</ThemedText>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
-                keyboardType="numeric"
-                maxLength={3}
-                placeholder="e.g. 65"
-                placeholderTextColor={theme.textSecondary}
-                value={progressPercent}
-                onChangeText={setProgressPercent}
-              />
+              {/* INDIVIDUAL WORK CARDS GRID */}
+              <ThemedText style={styles.sectionTitle}>Work Categories</ThemedText>
+              <View style={{ gap: 12 }}>
+                {WORK_CATEGORIES.map((cat) => {
+                  const pct = getWorkCategoryProgress(cat.key);
+                  const status = getWorkCategoryStatus(cat.key);
+                  const isUpdatedToday = status === "Updated Today";
 
-              <ThemedText style={styles.label}>Notes</ThemedText>
-              <TextInput
-                style={[styles.input, styles.textArea, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
-                multiline
-                numberOfLines={3}
-                placeholder="e.g. Living room and first floor completed"
-                placeholderTextColor={theme.textSecondary}
-                value={workNotes}
-                onChangeText={setWorkNotes}
-              />
+                  return (
+                    <Pressable
+                      key={cat.key}
+                      onPress={() => {
+                        triggerHaptic();
+                        setSelectedWorkCategory(cat.key);
+                        setProgressPercent(pct > 0 ? String(pct) : "");
+                      }}
+                      style={({ pressed }) => [
+                        styles.workCategoryCard,
+                        {
+                          backgroundColor: theme.backgroundDefault,
+                          borderColor: theme.border,
+                          opacity: pressed ? 0.8 : 1,
+                        },
+                      ]}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                        <View style={[styles.workCategoryIconCircle, { backgroundColor: `${cat.color}15` }]}>
+                          <Text style={{ fontSize: 24 }}>{cat.icon}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <ThemedText style={styles.workCategoryTitle}>{cat.label}</ThemedText>
+                          <ThemedText style={styles.workCategorySubText}>
+                            Current Progress: <Text style={{ fontWeight: "800", color: cat.color }}>{pct}%</Text>
+                          </ThemedText>
+                        </View>
+                        <View style={{ alignItems: "flex-end", gap: 4 }}>
+                          <View
+                            style={[
+                              styles.workStatusBadge,
+                              { backgroundColor: isUpdatedToday ? "rgba(22,163,74,0.12)" : "rgba(100,116,139,0.12)" },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.workStatusBadgeText,
+                                { color: isUpdatedToday ? "#16A34A" : "#64748B" },
+                              ]}
+                            >
+                              {status}
+                            </Text>
+                          </View>
+                          <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          )}
 
+          {/* VIEW B: DEDICATED WORK SITE LOGS SCREEN (e.g. BRICK WORK SITE LOGS) */}
+          {selectedWorkCategory !== null && (
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+              {/* TODAY'S PROGRESS CARD */}
+              <View style={[styles.card, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <Text style={{ fontSize: 28 }}>
+                      {WORK_CATEGORIES.find((c) => c.key === selectedWorkCategory)?.icon || "🧱"}
+                    </Text>
+                    <View>
+                      <ThemedText style={styles.dedicatedWorkTitle}>{selectedWorkCategory}</ThemedText>
+                      <ThemedText style={styles.dedicatedWorkSub}>Today's Progress</ThemedText>
+                    </View>
+                  </View>
+                  <Text style={[styles.dedicatedWorkPct, { color: WORK_CATEGORIES.find((c) => c.key === selectedWorkCategory)?.color || theme.primary }]}>
+                    {getWorkCategoryProgress(selectedWorkCategory)}%
+                  </Text>
+                </View>
+
+                {/* VISUAL PROGRESS BAR */}
+                <View style={[styles.largeProgressBarBg, { backgroundColor: isDark ? "#334155" : "#F1F5F9" }]}>
+                  <View
+                    style={[
+                      styles.largeProgressBarFill,
+                      {
+                        width: `${getWorkCategoryProgress(selectedWorkCategory)}%`,
+                        backgroundColor: WORK_CATEGORIES.find((c) => c.key === selectedWorkCategory)?.color || theme.primary,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
+
+              {/* + ADD DAILY UPDATE BUTTON */}
               <Pressable
                 onPress={() => {
-                  const pct = parseInt(progressPercent);
-                  if (isNaN(pct) || pct < 0 || pct > 100) {
-                    Alert.alert("Validation Error", "Please specify progress percentage between 0 and 100.");
-                    return;
-                  }
-                  handleCreateUpdate("work", { workType, progressPercent: pct, workNotes });
+                  triggerHaptic();
+                  const currentPct = getWorkCategoryProgress(selectedWorkCategory);
+                  setProgressPercent(currentPct > 0 ? String(currentPct) : "");
+                  setWorkNotes("");
+                  setShowAddUpdateSheet(true);
                 }}
-                disabled={isActionSubmitting}
-                style={[styles.submitBtn, { backgroundColor: theme.primary }]}
+                style={[styles.addDailyUpdateBtn, { backgroundColor: theme.primary }]}
               >
-                {isActionSubmitting ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <ThemedText style={styles.submitBtnText}>Save Update</ThemedText>
-                )}
+                <Feather name="plus-circle" size={20} color="#FFFFFF" />
+                <Text style={styles.addDailyUpdateBtnText}>+ Add Daily Update</Text>
               </Pressable>
+
+              {/* RECENT DAILY LOGS FOR THIS WORK CATEGORY */}
+              <ThemedText style={styles.sectionTitle}>RECENT DAILY LOGS</ThemedText>
+              <View style={[styles.card, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+                {getWorkCategoryHistory(selectedWorkCategory).length === 0 ? (
+                  <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                    <Feather name="clock" size={32} color={theme.textSecondary} style={{ opacity: 0.5, marginBottom: 8 }} />
+                    <ThemedText style={{ color: theme.textSecondary, fontWeight: "600" }}>
+                      No daily logs recorded for {selectedWorkCategory} yet.
+                    </ThemedText>
+                  </View>
+                ) : (
+                  getWorkCategoryHistory(selectedWorkCategory).map((item, idx) => {
+                    const itemDate = new Date(item.timestamp).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    });
+                    const updaterName = typeof item.updatedBy === "object" ? item.updatedBy?.name : "Supervisor";
+
+                    return (
+                      <View key={item._id || idx} style={styles.historyItemRow}>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                            <Text style={styles.historyDateText}>{itemDate}</Text>
+                            <View style={[styles.historyPctBadge, { backgroundColor: "rgba(37,99,235,0.1)" }]}>
+                              <Text style={styles.historyPctText}>Progress: {item.progressPercent}%</Text>
+                            </View>
+                          </View>
+                          <Text style={[styles.historyNotesText, { color: isDark ? "#CBD5E1" : "#334155" }]}>
+                            "{item.workNotes || "Daily progress update logged."}"
+                          </Text>
+                          <Text style={styles.historyUpdaterText}>Logged by {updaterName}</Text>
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+              </View>
             </ScrollView>
+          )}
+        </ThemedView>
+
+        {/* BOTTOM SHEET FOR ADDING WORK CATEGORY UPDATE */}
+        <Modal visible={showAddUpdateSheet} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}>
+              <View style={styles.modalHeader}>
+                <ThemedText style={styles.modalTitle}>
+                  Add {selectedWorkCategory} Update
+                </ThemedText>
+                <Pressable onPress={() => setShowAddUpdateSheet(false)} style={styles.modalCloseBtn}>
+                  <Feather name="x" size={20} color={theme.text} />
+                </Pressable>
+              </View>
+
+              <ScrollView contentContainerStyle={styles.modalScroll}>
+                <ThemedText style={styles.label}>Date</ThemedText>
+                <View style={[styles.readOnlyDateBox, { backgroundColor: isDark ? "#0F172A" : "#F1F5F9", borderColor: theme.border }]}>
+                  <Feather name="calendar" size={16} color={theme.textSecondary} />
+                  <Text style={[styles.readOnlyDateText, { color: theme.text }]}>
+                    Today ({todayDateFormatted})
+                  </Text>
+                </View>
+
+                <ThemedText style={styles.label}>Work Progress (%) *</ThemedText>
+                <TextInput
+                  style={[styles.input, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: theme.border, color: theme.text }]}
+                  keyboardType="numeric"
+                  maxLength={3}
+                  placeholder="e.g. 65"
+                  placeholderTextColor={theme.textSecondary}
+                  value={progressPercent}
+                  onChangeText={setProgressPercent}
+                />
+
+                <ThemedText style={styles.label}>Notes</ThemedText>
+                <TextInput
+                  style={[styles.input, styles.textArea, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: theme.border, color: theme.text }]}
+                  multiline
+                  numberOfLines={3}
+                  placeholder="What was completed today?"
+                  placeholderTextColor={theme.textSecondary}
+                  value={workNotes}
+                  onChangeText={setWorkNotes}
+                />
+
+                <View style={{ flexDirection: "row", gap: 12, marginTop: 20 }}>
+                  <Pressable
+                    disabled={isActionSubmitting}
+                    onPress={() => setShowAddUpdateSheet(false)}
+                    style={[styles.cancelModalBtn, { borderColor: theme.border }]}
+                  >
+                    <Text style={[styles.cancelModalBtnText, { color: isDark ? "#CBD5E1" : "#475569" }]}>Cancel</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      const pct = parseInt(progressPercent);
+                      if (isNaN(pct) || pct < 0 || pct > 100) {
+                        Alert.alert("Validation Error", "Please specify progress percentage between 0 and 100.");
+                        return;
+                      }
+                      handleCreateUpdate("work", {
+                        workType: selectedWorkCategory,
+                        progressPercent: pct,
+                        workNotes: workNotes.trim(),
+                      });
+                    }}
+                    disabled={isActionSubmitting}
+                    style={[styles.submitModalBtn, { backgroundColor: theme.primary }]}
+                  >
+                    {isActionSubmitting ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Text style={styles.submitModalBtnText}>Save Update</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
           </View>
-        </View>
+        </Modal>
       </Modal>
 
-      {/* 2. MATERIAL MODAL */}
+      {/* ─── MODAL 2: MATERIALS ─── */}
       <Modal visible={activeModal === "material"} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}>
             <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>📦 Add Material Log</ThemedText>
+              <ThemedText style={styles.modalTitle}>📦 Material Section</ThemedText>
               <Pressable onPress={() => setActiveModal(null)} style={styles.modalCloseBtn}>
                 <Feather name="x" size={20} color={theme.text} />
               </Pressable>
@@ -721,8 +881,8 @@ export default function SiteDetailsScreen() {
             <ScrollView contentContainerStyle={styles.modalScroll}>
               <ThemedText style={styles.label}>Material Name</ThemedText>
               <TextInput
-                style={[styles.input, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
-                placeholder="e.g. Cement, Sand, Bricks"
+                style={[styles.input, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: theme.border, color: theme.text }]}
+                placeholder="e.g. Cement"
                 placeholderTextColor={theme.textSecondary}
                 value={materialName}
                 onChangeText={setMaterialName}
@@ -732,7 +892,7 @@ export default function SiteDetailsScreen() {
                 <View style={{ flex: 1 }}>
                   <ThemedText style={styles.label}>Quantity</ThemedText>
                   <TextInput
-                    style={[styles.input, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
+                    style={[styles.input, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: theme.border, color: theme.text }]}
                     keyboardType="numeric"
                     placeholder="e.g. 20"
                     placeholderTextColor={theme.textSecondary}
@@ -743,8 +903,8 @@ export default function SiteDetailsScreen() {
                 <View style={{ flex: 1 }}>
                   <ThemedText style={styles.label}>Unit</ThemedText>
                   <TextInput
-                    style={[styles.input, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
-                    placeholder="e.g. bags, trolley, brass"
+                    style={[styles.input, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: theme.border, color: theme.text }]}
+                    placeholder="e.g. Bags"
                     placeholderTextColor={theme.textSecondary}
                     value={materialUnit}
                     onChangeText={setMaterialUnit}
@@ -752,12 +912,34 @@ export default function SiteDetailsScreen() {
                 </View>
               </View>
 
+              {/* Quick Unit Chips */}
+              <View style={styles.unitChipGrid}>
+                {UNIT_OPTIONS.map((unit) => {
+                  const isSelected = materialUnit.toLowerCase() === unit.toLowerCase();
+                  return (
+                    <Pressable
+                      key={unit}
+                      onPress={() => setMaterialUnit(unit)}
+                      style={[
+                        styles.unitChip,
+                        { borderColor: theme.border },
+                        isSelected && { backgroundColor: theme.primary, borderColor: theme.primary }
+                      ]}
+                    >
+                      <Text style={[styles.unitChipText, { color: isSelected ? "#FFFFFF" : (isDark ? "#CBD5E1" : "#475569") }]}>
+                        {unit}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
               <ThemedText style={styles.label}>Notes</ThemedText>
               <TextInput
-                style={[styles.input, styles.textArea, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
+                style={[styles.input, styles.textArea, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: theme.border, color: theme.text }]}
                 multiline
                 numberOfLines={2}
-                placeholder="e.g. Received from UltraTech supplier"
+                placeholder="Required for slab work"
                 placeholderTextColor={theme.textSecondary}
                 value={materialNotes}
                 onChangeText={setMaterialNotes}
@@ -782,172 +964,127 @@ export default function SiteDetailsScreen() {
                   });
                 }}
                 disabled={isActionSubmitting}
-                style={[styles.submitBtn, { backgroundColor: theme.primary }]}
+                style={[styles.submitBtn, { backgroundColor: theme.primary, marginTop: 10 }]}
               >
                 {isActionSubmitting ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
-                  <ThemedText style={styles.submitBtnText}>Save Update</ThemedText>
+                  <ThemedText style={styles.submitBtnText}>Save Log</ThemedText>
                 )}
               </Pressable>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
 
-      {/* 3. EXPENSE MODAL */}
-      <Modal visible={activeModal === "expense"} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>₹ Add Expense Update</ThemedText>
-              <Pressable onPress={() => setActiveModal(null)} style={styles.modalCloseBtn}>
-                <Feather name="x" size={20} color={theme.text} />
-              </Pressable>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.modalScroll}>
-              <ThemedText style={styles.label}>Expense Amount (₹)</ThemedText>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
-                keyboardType="numeric"
-                placeholder="e.g. 4500"
-                placeholderTextColor={theme.textSecondary}
-                value={expenseAmount}
-                onChangeText={setExpenseAmount}
-              />
-
-              <ThemedText style={styles.label}>Category</ThemedText>
-              <View style={styles.selectorRow}>
-                {["Labour", "Material", "Transport", "Machinery", "Other"].map((cat) => (
-                  <Pressable
-                    key={cat}
-                    onPress={() => setExpenseCategory(cat)}
-                    style={[
-                      styles.selectorItem,
-                      { borderColor: theme.border },
-                      expenseCategory === cat && { backgroundColor: theme.primary, borderColor: theme.primary }
-                    ]}
-                  >
-                    <ThemedText style={[styles.selectorItemText, expenseCategory === cat && { color: "#FFF" }]}>{cat}</ThemedText>
-                  </Pressable>
-                ))}
+              {/* DISABLED FUTURE HARDWARE SHOP INTEGRATION */}
+              <View style={styles.futureHardwareBox}>
+                <Pressable disabled={true} style={styles.disabledHardwareBtn}>
+                  <Feather name="shopping-bag" size={16} color="#94A3B8" />
+                  <Text style={styles.disabledHardwareBtnText}>Send to Hardware Shop</Text>
+                </Pressable>
+                <Text style={styles.futureMaterialNotice}>This is future material.</Text>
               </View>
-
-              <ThemedText style={styles.label}>Notes</ThemedText>
-              <TextInput
-                style={[styles.input, styles.textArea, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
-                multiline
-                numberOfLines={2}
-                placeholder="e.g. Paid transporter for sand trolley delivery"
-                placeholderTextColor={theme.textSecondary}
-                value={expenseNotes}
-                onChangeText={setExpenseNotes}
-              />
-
-              <ThemedText style={styles.label}>Date (YYYY-MM-DD)</ThemedText>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={theme.textSecondary}
-                value={expenseDate}
-                onChangeText={setExpenseDate}
-              />
-
-              <Pressable
-                onPress={() => {
-                  const amt = parseFloat(expenseAmount);
-                  if (isNaN(amt) || amt <= 0) {
-                    Alert.alert("Validation Error", "Please provide a valid positive expense amount.");
-                    return;
-                  }
-                  handleCreateUpdate("expense", {
-                    expenseAmount: amt,
-                    expenseCategory,
-                    expenseNotes: expenseNotes.trim(),
-                    expenseDate
-                  });
-                }}
-                disabled={isActionSubmitting}
-                style={[styles.submitBtn, { backgroundColor: theme.primary }]}
-              >
-                {isActionSubmitting ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <ThemedText style={styles.submitBtnText}>Save Update</ThemedText>
-                )}
-              </Pressable>
             </ScrollView>
           </View>
         </View>
       </Modal>
 
-      {/* 4. PHOTOS MODAL */}
+      {/* ─── MODAL 3: SEPARATED MORNING & EVENING PHOTOS ─── */}
       <Modal visible={activeModal === "photo"} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}>
             <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>📷 Upload Site Photos</ThemedText>
+              <ThemedText style={styles.modalTitle}>📷 Site Photos</ThemedText>
               <Pressable onPress={() => setActiveModal(null)} style={styles.modalCloseBtn}>
                 <Feather name="x" size={20} color={theme.text} />
               </Pressable>
             </View>
 
             <ScrollView contentContainerStyle={styles.modalScroll}>
-              <ThemedText style={styles.label}>Choose Source</ThemedText>
-              <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>
-                <Pressable
-                  onPress={() => handlePickPhoto(true)}
-                  style={[styles.photoSourceBtn, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
-                >
-                  <Feather name="camera" size={20} color={theme.primary} />
-                  <ThemedText style={styles.photoSourceBtnText}>Camera</ThemedText>
-                </Pressable>
+              {/* SECTION A: MORNING SITE PHOTO */}
+              <View style={[styles.photoSectionCard, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
+                <ThemedText style={styles.photoSectionTitle}>MORNING SITE PHOTO</ThemedText>
 
-                <Pressable
-                  onPress={() => handlePickPhoto(false)}
-                  style={[styles.photoSourceBtn, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
-                >
-                  <Feather name="image" size={20} color={theme.primary} />
-                  <ThemedText style={styles.photoSourceBtnText}>Gallery</ThemedText>
-                </Pressable>
-              </View>
-
-              {isPhotoPicking && (
-                <View style={{ alignItems: "center", marginVertical: 10 }}>
-                  <ActivityIndicator size="small" color={theme.primary} />
-                  <ThemedText style={{ marginTop: 4, opacity: 0.7 }}>Uploading image to server...</ThemedText>
-                </View>
-              )}
-
-              {photoUris.length > 0 ? (
-                <View style={styles.uploadedImagesGrid}>
-                  {photoUris.map((uri, idx) => (
-                    <View key={idx} style={styles.uploadedImageWrapper}>
-                      <Image source={{ uri }} style={styles.uploadedImage} />
-                      <Pressable 
-                        onPress={() => setPhotoUris(prev => prev.filter((_, i) => i !== idx))} 
-                        style={styles.deletePhotoBadge}
-                      >
-                        <Feather name="trash-2" size={12} color="#FFF" />
+                {morningPhotoUri ? (
+                  <View style={styles.photoPreviewBox}>
+                    <Image source={{ uri: morningPhotoUri }} style={styles.photoPreviewImg} />
+                    <View style={styles.photoMetaRow}>
+                      <Text style={styles.photoTimeText}>Time: {morningPhotoTime}</Text>
+                      <Pressable onPress={() => setMorningPhotoUri("")} style={styles.removePhotoBtn}>
+                        <Feather name="trash-2" size={14} color="#EF4444" />
                       </Pressable>
                     </View>
-                  ))}
-                </View>
-              ) : (
-                <View style={[styles.photoPlaceholder, { borderColor: theme.border }]}>
-                  <Feather name="image" size={40} color={theme.textSecondary} style={{ opacity: 0.4 }} />
-                  <ThemedText style={{ opacity: 0.6, fontSize: 13, marginTop: 8 }}>No photos uploaded yet</ThemedText>
-                </View>
-              )}
+                  </View>
+                ) : (
+                  <View style={styles.photoUploadBtnRow}>
+                    <Pressable onPress={() => handlePickPhotoSection("morning", true)} style={styles.photoUploadBtn}>
+                      <Feather name="camera" size={18} color="#2563EB" />
+                      <Text style={styles.photoUploadBtnText}>Upload Morning Photo</Text>
+                    </Pressable>
+                    <Pressable onPress={() => handlePickPhotoSection("morning", false)} style={styles.photoUploadBtn}>
+                      <Feather name="image" size={18} color="#2563EB" />
+                      <Text style={styles.photoUploadBtnText}>Gallery</Text>
+                    </Pressable>
+                  </View>
+                )}
+
+                <ThemedText style={[styles.label, { marginTop: 10 }]}>Notes</ThemedText>
+                <TextInput
+                  style={[styles.input, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF", borderColor: theme.border, color: theme.text }]}
+                  placeholder="Brick work started from east wall"
+                  placeholderTextColor={theme.textSecondary}
+                  value={morningPhotoNotes}
+                  onChangeText={setMorningPhotoNotes}
+                />
+              </View>
+
+              <View style={{ height: 16 }} />
+
+              {/* SECTION B: EVENING SITE PHOTO */}
+              <View style={[styles.photoSectionCard, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
+                <ThemedText style={styles.photoSectionTitle}>EVENING SITE PHOTO</ThemedText>
+
+                {eveningPhotoUri ? (
+                  <View style={styles.photoPreviewBox}>
+                    <Image source={{ uri: eveningPhotoUri }} style={styles.photoPreviewImg} />
+                    <View style={styles.photoMetaRow}>
+                      <Text style={styles.photoTimeText}>Time: {eveningPhotoTime}</Text>
+                      <Pressable onPress={() => setEveningPhotoUri("")} style={styles.removePhotoBtn}>
+                        <Feather name="trash-2" size={14} color="#EF4444" />
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.photoUploadBtnRow}>
+                    <Pressable onPress={() => handlePickPhotoSection("evening", true)} style={styles.photoUploadBtn}>
+                      <Feather name="camera" size={18} color="#2563EB" />
+                      <Text style={styles.photoUploadBtnText}>Upload Evening Photo</Text>
+                    </Pressable>
+                    <Pressable onPress={() => handlePickPhotoSection("evening", false)} style={styles.photoUploadBtn}>
+                      <Feather name="image" size={18} color="#2563EB" />
+                      <Text style={styles.photoUploadBtnText}>Gallery</Text>
+                    </Pressable>
+                  </View>
+                )}
+
+                <ThemedText style={[styles.label, { marginTop: 10 }]}>Notes</ThemedText>
+                <TextInput
+                  style={[styles.input, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF", borderColor: theme.border, color: theme.text }]}
+                  placeholder="Work completed till 17 ft"
+                  placeholderTextColor={theme.textSecondary}
+                  value={eveningPhotoNotes}
+                  onChangeText={setEveningPhotoNotes}
+                />
+              </View>
 
               <Pressable
                 onPress={() => {
-                  if (photoUris.length === 0) {
-                    Alert.alert("Validation Error", "Please upload at least one photo.");
+                  if (!morningPhotoUri && !eveningPhotoUri) {
+                    Alert.alert("Validation Error", "Please upload at least one site photo (Morning or Evening).");
                     return;
                   }
-                  handleCreateUpdate("photo", { photoUris });
+                  handleCreateUpdate("photo", {
+                    morningPhoto: morningPhotoUri ? { uri: morningPhotoUri, time: morningPhotoTime, notes: morningPhotoNotes } : null,
+                    eveningPhoto: eveningPhotoUri ? { uri: eveningPhotoUri, time: eveningPhotoTime, notes: eveningPhotoNotes } : null,
+                    photoUris: [morningPhotoUri, eveningPhotoUri].filter(Boolean)
+                  });
                 }}
                 disabled={isActionSubmitting}
                 style={[styles.submitBtn, { backgroundColor: theme.primary, marginTop: 20 }]}
@@ -963,12 +1100,12 @@ export default function SiteDetailsScreen() {
         </View>
       </Modal>
 
-      {/* 5. GPS MODAL */}
+      {/* ─── MODAL 4: GPS LOCATION ─── */}
       <Modal visible={activeModal === "gps"} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}>
             <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>📍 Capture GPS Location</ThemedText>
+              <ThemedText style={styles.modalTitle}>📍 GPS / Location</ThemedText>
               <Pressable onPress={() => setActiveModal(null)} style={styles.modalCloseBtn}>
                 <Feather name="x" size={20} color={theme.text} />
               </Pressable>
@@ -976,7 +1113,7 @@ export default function SiteDetailsScreen() {
 
             <ScrollView contentContainerStyle={styles.modalScroll}>
               <ThemedText style={styles.modalDescText}>
-                Confirm you are physically present at the site to verify operations authenticity.
+                Confirm your physical presence at the site to record location authenticity.
               </ThemedText>
 
               <Pressable
@@ -997,10 +1134,10 @@ export default function SiteDetailsScreen() {
               </Pressable>
 
               {gpsCoords && (
-                <View style={[styles.gpsDisplayCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+                <View style={[styles.gpsDisplayCard, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: theme.border }]}>
                   <Feather name="check-circle" size={18} color="#10B981" />
                   <View style={{ flex: 1 }}>
-                    <ThemedText style={{ fontWeight: "700" }}>Coordinates Logged</ThemedText>
+                    <ThemedText style={{ fontWeight: "700" }}>Location Captured</ThemedText>
                     <ThemedText style={{ fontSize: 13, opacity: 0.8, marginTop: 2 }}>{gpsAddress}</ThemedText>
                   </View>
                 </View>
@@ -1034,73 +1171,90 @@ export default function SiteDetailsScreen() {
         </View>
       </Modal>
 
-      {/* 6. ISSUES MODAL */}
+      {/* ─── MODAL 5: ISSUES & EMERGENCY CONTACTS ─── */}
       <Modal visible={activeModal === "issue"} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}>
             <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>⚠️ Report Site Issue</ThemedText>
+              <ThemedText style={styles.modalTitle}>⚠️ Site Issues & Emergency</ThemedText>
               <Pressable onPress={() => setActiveModal(null)} style={styles.modalCloseBtn}>
                 <Feather name="x" size={20} color={theme.text} />
               </Pressable>
             </View>
 
             <ScrollView contentContainerStyle={styles.modalScroll}>
-              <ThemedText style={styles.label}>Issue Description</ThemedText>
+              {/* EMERGENCY CONTACTS QUICK ACCESS */}
+              <ThemedText style={[styles.label, { color: "#EF4444", fontWeight: "800" }]}>Emergency Contacts</ThemedText>
+              <View style={[styles.emergencyModalBox, { borderColor: theme.border, backgroundColor: isDark ? "#0F172A" : "#FEF2F2" }]}>
+                <View style={styles.emergencyCardRow}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ fontSize: 18 }}>🚨</Text>
+                    <View>
+                      <Text style={{ fontWeight: "800", color: isDark ? "#FFF" : "#0F172A" }}>Police</Text>
+                      <Text style={{ fontSize: 12, color: isDark ? "#94A3B8" : "#64748B" }}>100</Text>
+                    </View>
+                  </View>
+                  <Pressable onPress={() => handleMakeCall("100")} style={[styles.callActionBtn, { backgroundColor: "#DC2626" }]}>
+                    <Feather name="phone" size={12} color="#FFFFFF" />
+                    <Text style={styles.callActionBtnText}>Call</Text>
+                  </Pressable>
+                </View>
+
+                <View style={[styles.emergencyCardRow, { marginTop: 8 }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ fontSize: 18 }}>🚑</Text>
+                    <View>
+                      <Text style={{ fontWeight: "800", color: isDark ? "#FFF" : "#0F172A" }}>Ambulance</Text>
+                      <Text style={{ fontSize: 12, color: isDark ? "#94A3B8" : "#64748B" }}>108</Text>
+                    </View>
+                  </View>
+                  <Pressable onPress={() => handleMakeCall("108")} style={[styles.callActionBtn, { backgroundColor: "#16A34A" }]}>
+                    <Feather name="phone" size={12} color="#FFFFFF" />
+                    <Text style={styles.callActionBtnText}>Call</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <ThemedText style={[styles.label, { marginTop: 16 }]}>Report New Issue</ThemedText>
               <TextInput
-                style={[styles.input, styles.textArea, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
+                style={[styles.input, styles.textArea, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: theme.border, color: theme.text }]}
                 multiline
                 numberOfLines={3}
-                placeholder="Describe the problem, e.g. Cement delivery delayed."
+                placeholder="Describe the site issue..."
                 placeholderTextColor={theme.textSecondary}
                 value={issueDescription}
                 onChangeText={setIssueDescription}
               />
 
               <ThemedText style={styles.label}>Priority Level</ThemedText>
-              <View style={styles.selectorRow}>
-                {(["Low", "Medium", "High"] as const).map((pri) => (
-                  <Pressable
-                    key={pri}
-                    onPress={() => setIssuePriority(pri)}
-                    style={[
-                      styles.selectorItem,
-                      { borderColor: theme.border },
-                      issuePriority === pri && { 
-                        backgroundColor: pri === "High" ? theme.error : pri === "Medium" ? theme.primary : "#94A3B8",
-                        borderColor: pri === "High" ? theme.error : pri === "Medium" ? theme.primary : "#94A3B8"
-                      }
-                    ]}
-                  >
-                    <ThemedText style={[styles.selectorItemText, issuePriority === pri && { color: "#FFF" }]}>{pri}</ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-
-              <ThemedText style={styles.label}>Status</ThemedText>
-              <View style={styles.selectorRow}>
-                {(["Open", "Resolved"] as const).map((st) => (
-                  <Pressable
-                    key={st}
-                    onPress={() => setIssueStatus(st)}
-                    style={[
-                      styles.selectorItem,
-                      { borderColor: theme.border },
-                      issueStatus === st && { 
-                        backgroundColor: st === "Open" ? theme.error : "#10B981",
-                        borderColor: st === "Open" ? theme.error : "#10B981"
-                      }
-                    ]}
-                  >
-                    <ThemedText style={[styles.selectorItemText, issueStatus === st && { color: "#FFF" }]}>{st}</ThemedText>
-                  </Pressable>
-                ))}
+              <View style={styles.selectorGrid}>
+                {(["Low", "Medium", "High"] as const).map((pri) => {
+                  const isSelected = issuePriority === pri;
+                  return (
+                    <Pressable
+                      key={pri}
+                      onPress={() => setIssuePriority(pri)}
+                      style={[
+                        styles.selectorOption,
+                        { borderColor: theme.border },
+                        isSelected && { 
+                          backgroundColor: pri === "High" ? "#DC2626" : pri === "Medium" ? "#2563EB" : "#64748B",
+                          borderColor: pri === "High" ? "#DC2626" : pri === "Medium" ? "#2563EB" : "#64748B"
+                        }
+                      ]}
+                    >
+                      <Text style={[styles.selectorOptionText, { color: isSelected ? "#FFFFFF" : (isDark ? "#CBD5E1" : "#475569") }]}>
+                        {pri}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
 
               <Pressable
                 onPress={() => {
                   if (!issueDescription.trim()) {
-                    Alert.alert("Validation Error", "Please describe the issue.");
+                    Alert.alert("Validation Error", "Please describe the site issue.");
                     return;
                   }
                   handleCreateUpdate("issue", {
@@ -1115,7 +1269,7 @@ export default function SiteDetailsScreen() {
                 {isActionSubmitting ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
-                  <ThemedText style={styles.submitBtnText}>Save Update</ThemedText>
+                  <ThemedText style={styles.submitBtnText}>Save Issue</ThemedText>
                 )}
               </Pressable>
             </ScrollView>
@@ -1146,382 +1300,566 @@ const styles = StyleSheet.create({
   backBtn: {
     padding: 6
   },
-  headerTitle: {
+  headerControlTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.5
+  },
+  headerSiteTitle: {
     fontSize: 20,
+    fontWeight: "900"
+  },
+  headerTitle: {
+    fontSize: 18,
     fontWeight: "800"
   },
   headerSubtitle: {
     fontSize: 12,
     opacity: 0.7
   },
-  editBtn: {
-    padding: 10,
-    borderRadius: BorderRadius.xs,
-    justifyContent: "center",
+  statusBadgeActive: {
+    flexDirection: "row",
     alignItems: "center",
-    width: 38,
-    height: 38
+    gap: 4,
+    backgroundColor: "rgba(22,163,74,0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12
+  },
+  statusDotActive: {
+    color: "#16A34A",
+    fontSize: 10
+  },
+  statusTextActive: {
+    color: "#16A34A",
+    fontSize: 12,
+    fontWeight: "800"
   },
   scrollContent: {
     padding: 16,
     paddingBottom: 60
   },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    marginBottom: 10,
+    marginTop: 6
+  },
   card: {
-    borderRadius: BorderRadius.sm,
+    borderRadius: 16,
     borderWidth: 1,
     padding: 16,
-    marginBottom: 20
+    marginBottom: 16
   },
-  summaryTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start"
+  cardHeaderTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    color: "#475569"
   },
-  summaryLabel: {
-    fontSize: 11,
-    opacity: 0.5,
-    textTransform: "uppercase",
-    letterSpacing: 0.5
+  todayDateBadge: {
+    fontSize: 12,
+    fontWeight: "700"
   },
-  summaryVal: {
-    fontSize: 15,
-    fontWeight: "700",
-    marginTop: 2
+  infoRowBlock: {
+    marginTop: 8
   },
-  summaryValSub: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginTop: 2
-  },
-  statusBadge: {
+  infoRowWithAction: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12
+    justifyContent: "space-between",
+    marginTop: 8
   },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 6
-  },
-  statusText: {
+  infoLabelText: {
     fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
+    textTransform: "uppercase",
+    marginBottom: 2
+  },
+  infoValueText: {
+    fontSize: 15,
     fontWeight: "800"
   },
   divider: {
     height: 1,
-    marginVertical: 12,
-    opacity: 0.4
+    marginVertical: 10
   },
-  summaryMiddleRow: {
+  callActionBtn: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center"
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10
   },
-  progressContainer: {
-    marginTop: 4
+  callActionBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800"
   },
-  progressWorkName: {
-    fontSize: 15,
-    fontWeight: "800",
-    marginTop: 2
-  },
-  progressPercentText: {
-    fontSize: 15,
-    fontWeight: "800",
-    marginTop: 2
-  },
-  progressBarBg: {
-    height: 6,
-    borderRadius: 3,
-    marginTop: 4,
+
+  /* Today's Summary & Progress */
+  largeProgressBarBg: {
+    height: 10,
+    borderRadius: 5,
     overflow: "hidden"
   },
-  progressBarFill: {
+  largeProgressBarFill: {
     height: "100%",
-    borderRadius: 3
+    borderRadius: 5
   },
-  sectionTitle: {
-    fontSize: 14,
+  summarySubLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
+    textTransform: "uppercase"
+  },
+  summarySubVal: {
+    fontSize: 16,
     fontWeight: "800",
-    opacity: 0.9,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 10,
-    marginTop: 4
+    marginTop: 2
   },
-  gridContainer: {
+
+  /* Open Main Daily Logs Button */
+  openMainBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    height: 48,
+    borderRadius: 12,
+    marginTop: 10
+  },
+  openMainBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800"
+  },
+
+  /* Quick Actions Grid */
+  quickGridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 20
+    gap: 10,
+    marginBottom: 16
   },
-  gridCard: {
-    width: (width - 32 - 12) / 2,
-    borderRadius: BorderRadius.sm,
+  quickCard: {
+    width: "31%",
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 14,
-    alignItems: "flex-start"
-  },
-  cardHeaderIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: BorderRadius.xs,
-    justifyContent: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     alignItems: "center",
-    marginBottom: 8
+    justifyContent: "center",
+    gap: 6
   },
-  cardIcon: {
-    fontSize: 20
+  quickCardText: {
+    fontSize: 12,
+    fontWeight: "800"
   },
-  gridCardTitle: {
+
+  /* Outline Action Buttons */
+  outlineActionBtn: {
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  outlineActionBtnText: {
     fontSize: 14,
     fontWeight: "800"
   },
-  gridCardSub: {
-    fontSize: 12,
-    opacity: 0.6,
-    marginTop: 2
-  },
-  noUpdatesText: {
+
+  /* Emergency Contacts */
+  emergencyHeaderTitle: {
     fontSize: 13,
-    opacity: 0.6,
-    textAlign: "center",
-    paddingVertical: 12
+    fontWeight: "800",
+    color: "#DC2626",
+    marginBottom: 10
   },
-  timelineItem: {
+  emergencyCardRow: {
     flexDirection: "row",
-    paddingBottom: 20
-  },
-  timelineLeft: {
     alignItems: "center",
-    marginRight: 12
+    justifyContent: "space-between"
   },
-  timelineIconBg: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center"
-  },
-  timelineLine: {
-    width: 1,
-    flex: 1,
-    marginTop: 4,
-    opacity: 0.5
-  },
-  timelineRight: {
-    flex: 1
-  },
-  timelineRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center"
-  },
-  timelineTime: {
-    fontSize: 11,
-    opacity: 0.5
-  },
-  timelineUser: {
-    fontSize: 11,
-    fontWeight: "700",
-    opacity: 0.8
-  },
-  timelineText: {
-    fontSize: 13,
-    marginTop: 4,
-    lineHeight: 18
-  },
-  photoRow: {
-    flexDirection: "row",
-    marginTop: 8
-  },
-  timelinePhoto: {
-    width: 60,
-    height: 60,
-    borderRadius: BorderRadius.xs,
-    marginRight: 8
-  },
-  metaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    borderBottomWidth: 1,
-    borderBottomColor: "#FFFFFF08",
-    paddingVertical: 10
-  },
-  metaLabel: {
-    fontSize: 13,
-    opacity: 0.6,
-    width: "35%"
-  },
-  metaVal: {
-    fontSize: 13,
-    fontWeight: "700",
-    width: "60%",
-    textAlign: "right"
-  },
-  
-  // MODALS
+
+  /* Modals */
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "flex-end"
   },
   modalContent: {
-    borderTopLeftRadius: BorderRadius.md,
-    borderTopRightRadius: BorderRadius.md,
-    maxHeight: "85%",
-    padding: 16,
-    paddingBottom: Platform.OS === "ios" ? 34 : 16
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: "88%"
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#FFFFFF08",
-    paddingBottom: 14
+    marginBottom: 16
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "800"
   },
   modalCloseBtn: {
-    padding: 6
+    padding: 4
   },
   modalScroll: {
-    paddingVertical: 16
-  },
-  modalDescText: {
-    fontSize: 13,
-    opacity: 0.7,
-    marginBottom: 20,
-    lineHeight: 18
+    paddingBottom: 20
   },
   label: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
-    opacity: 0.8,
     marginBottom: 6,
     marginTop: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.5
+    color: "#475569"
   },
   input: {
+    borderRadius: 12,
     borderWidth: 1,
-    borderRadius: BorderRadius.xs,
-    height: 48,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    marginBottom: 10
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontWeight: "600"
   },
   textArea: {
     height: 80,
-    paddingTop: 10,
     textAlignVertical: "top"
   },
-  selectorRow: {
+  readOnlyDateBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12
+  },
+  readOnlyDateText: {
+    fontSize: 15,
+    fontWeight: "700"
+  },
+  selectorGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 10
+    gap: 8
   },
-  selectorItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderRadius: BorderRadius.xs
+  selectorOption: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1
   },
-  selectorItemText: {
+  selectorOptionText: {
     fontSize: 13,
-    fontWeight: "600"
+    fontWeight: "700"
+  },
+  unitChipGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 8
+  },
+  unitChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1
+  },
+  unitChipText: {
+    fontSize: 12,
+    fontWeight: "700"
   },
   submitBtn: {
-    height: 50,
-    borderRadius: BorderRadius.xs,
+    height: 48,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 16
+    marginTop: 20
   },
   submitBtnText: {
     color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800"
+  },
+
+  /* Work Dashboard & Categories */
+  summaryBoxHeaderTitle: {
     fontSize: 16,
-    fontWeight: "700"
+    fontWeight: "800",
+    marginBottom: 12
   },
-  
-  // Photo UI
-  photoSourceBtn: {
-    flex: 1,
+  summaryProgressRow: {
     flexDirection: "row",
-    height: 48,
-    borderWidth: 1,
-    borderRadius: BorderRadius.xs,
-    justifyContent: "center",
     alignItems: "center",
-    gap: 8
-  },
-  photoSourceBtnText: {
-    fontWeight: "700",
-    fontSize: 14
-  },
-  photoPlaceholder: {
-    height: 120,
-    borderWidth: 2,
-    borderStyle: "dashed",
-    borderRadius: BorderRadius.xs,
-    justifyContent: "center",
-    alignItems: "center"
-  },
-  uploadedImagesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    marginBottom: 10,
     gap: 10
   },
-  uploadedImageWrapper: {
-    position: "relative"
+  summaryProgressLabel: {
+    fontSize: 13,
+    fontWeight: "700"
   },
-  uploadedImage: {
-    width: (width - 32 - 20) / 3,
-    height: (width - 32 - 20) / 3,
-    borderRadius: BorderRadius.xs
+  summaryProgressBarBg: {
+    flex: 1,
+    height: 10,
+    borderRadius: 5,
+    overflow: "hidden"
   },
-  deletePhotoBadge: {
-    position: "absolute",
-    top: 4,
-    right: 4,
-    backgroundColor: "#EF4444",
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  summaryProgressBarFill: {
+    height: "100%",
+    borderRadius: 5
+  },
+  summaryProgressPctText: {
+    fontSize: 13,
+    fontWeight: "800",
+    width: 40,
+    textAlign: "right"
+  },
+  workCategoryCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14
+  },
+  workCategoryIconCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     justifyContent: "center",
     alignItems: "center"
   },
-  
-  // GPS UI
-  gpsCaptureBtn: {
+  workCategoryTitle: {
+    fontSize: 16,
+    fontWeight: "800"
+  },
+  workCategorySubText: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 2
+  },
+  workStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12
+  },
+  workStatusBadgeText: {
+    fontSize: 11,
+    fontWeight: "800"
+  },
+
+  /* Dedicated Work Screen Styles */
+  dedicatedWorkTitle: {
+    fontSize: 18,
+    fontWeight: "800"
+  },
+  dedicatedWorkSub: {
+    fontSize: 12,
+    color: "#64748B"
+  },
+  dedicatedWorkPct: {
+    fontSize: 32,
+    fontWeight: "900"
+  },
+  addDailyUpdateBtn: {
+    height: 50,
+    borderRadius: 14,
     flexDirection: "row",
-    height: 48,
-    borderWidth: 1.5,
-    borderRadius: BorderRadius.xs,
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
     gap: 8,
+    marginBottom: 20
+  },
+  addDailyUpdateBtnText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800"
+  },
+  historyItemRow: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0"
+  },
+  historyDateText: {
+    fontSize: 14,
+    fontWeight: "800"
+  },
+  historyPctBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8
+  },
+  historyPctText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#2563EB"
+  },
+  historyNotesText: {
+    fontSize: 14,
+    fontStyle: "italic",
+    marginVertical: 4
+  },
+  historyUpdaterText: {
+    fontSize: 11,
+    color: "#64748B"
+  },
+
+  /* Modal Bottom Sheet Actions */
+  cancelModalBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  cancelModalBtnText: {
+    fontSize: 15,
+    fontWeight: "700"
+  },
+  submitModalBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  submitModalBtnText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#FFFFFF"
+  },
+
+  /* Hardware Shop Future Disabled Section */
+  futureHardwareBox: {
+    marginTop: 20,
+    alignItems: "center",
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0"
+  },
+  disabledHardwareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    width: "100%",
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#E2E8F0",
+    opacity: 0.6
+  },
+  disabledHardwareBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#64748B"
+  },
+  futureMaterialNotice: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#94A3B8",
+    marginTop: 8
+  },
+
+  /* Separated Photo Sections */
+  photoSectionCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14
+  },
+  photoSectionTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#2563EB",
+    marginBottom: 10
+  },
+  photoUploadBtnRow: {
+    flexDirection: "row",
+    gap: 10
+  },
+  photoUploadBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#2563EB",
+    backgroundColor: "rgba(37,99,235,0.08)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6
+  },
+  photoUploadBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#2563EB"
+  },
+  photoPreviewBox: {
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#CBD5E1"
+  },
+  photoPreviewImg: {
+    width: "100%",
+    height: 160,
+    resizeMode: "cover"
+  },
+  photoMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 10,
+    backgroundColor: "#0F172A"
+  },
+  photoTimeText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  removePhotoBtn: {
+    padding: 4
+  },
+
+  /* GPS & Issues */
+  modalDescText: {
+    fontSize: 14,
+    color: "#64748B",
     marginBottom: 16
   },
+  gpsCaptureBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1
+  },
   gpsCaptureBtnText: {
-    fontWeight: "700",
-    fontSize: 14
+    fontSize: 14,
+    fontWeight: "800"
   },
   gpsDisplayCard: {
     flexDirection: "row",
-    padding: 12,
-    borderWidth: 1,
-    borderRadius: BorderRadius.xs,
     alignItems: "center",
-    gap: 10
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 14
+  },
+  emergencyModalBox: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1
   }
 });

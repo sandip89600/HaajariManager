@@ -307,7 +307,7 @@ export default function LoginScreen() {
 
   // OTP Countdown timer
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     if (otpCountdown > 0) {
       interval = setInterval(() => {
         setOtpCountdown((prev) => prev - 1);
@@ -429,7 +429,7 @@ export default function LoginScreen() {
       {/* Dynamic Linear Background gradient */}
       <LinearGradient
         colors={isDark ? ["#0F172A", "#1E293B"] : ["#F8FAFC", "#EFF6FF"]}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
 
       <KeyboardAwareScrollView

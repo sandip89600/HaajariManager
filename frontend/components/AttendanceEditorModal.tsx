@@ -54,7 +54,6 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
 
   // Form states
   const [modalStatus, setModalStatus] = useState<"P" | "A" | "H" | "OT" | "">("");
-  const [modalCustomWage, setModalCustomWage] = useState("");
   const [modalAdvance, setModalAdvance] = useState("");
   const [modalOvertimeHours, setModalOvertimeHours] = useState("");
   const [modalOvertimeWage, setModalOvertimeWage] = useState("");
@@ -72,7 +71,6 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
     if (!initialRecord) {
       return {
         status: "",
-        customWage: "",
         advance: "",
         otHours: "",
         otWage: "",
@@ -81,7 +79,6 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
     }
     const val = initialRecord.value;
     const status = typeof val === "number" ? "" : ((val as "P" | "A" | "H" | "OT") || "");
-    const customWage = typeof val === "number" ? String(val) : "";
     const advance =
       initialRecord.customWage !== undefined && initialRecord.customWage !== null
         ? String(initialRecord.customWage)
@@ -94,7 +91,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
       initialRecord.overtimeWage !== undefined && initialRecord.overtimeWage !== null
         ? String(initialRecord.overtimeWage)
         : "";
-    return { status, customWage, advance, otHours, otWage, location: initialRecord.location || null };
+    return { status, advance, otHours, otWage, location: initialRecord.location || null };
   };
 
   // Initialize values when modal opens
@@ -102,7 +99,6 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
     if (visible) {
       const initials = getInitialStates();
       setModalStatus(initials.status as any);
-      setModalCustomWage(initials.customWage);
       setModalAdvance(initials.advance);
       setModalOvertimeHours(initials.otHours);
       setModalOvertimeWage(initials.otWage);
@@ -137,7 +133,6 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
   const checkIsModified = () => {
     const initials = getInitialStates();
     const statusChanged = modalStatus !== initials.status;
-    const customWageChanged = modalCustomWage !== initials.customWage;
     const advanceChanged = modalAdvance !== initials.advance;
     const otHoursChanged = modalOvertimeHours !== initials.otHours;
     const otWageChanged = modalOvertimeWage !== initials.otWage;
@@ -147,7 +142,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
     const hasCurrentLoc = !!location?.latitude;
     const locationChanged = hasCurrentLoc && !hasInitialLoc;
 
-    return statusChanged || customWageChanged || advanceChanged || otHoursChanged || overtimeHoursChanged() || locationChanged;
+    return statusChanged || advanceChanged || otHoursChanged || overtimeHoursChanged() || locationChanged;
   };
 
   // Helper check for overtime change
@@ -190,7 +185,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
 
     const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
     return () => subscription.remove();
-  }, [visible, modalStatus, modalCustomWage, modalAdvance, modalOvertimeHours, modalOvertimeWage, location]);
+  }, [visible, modalStatus, modalAdvance, modalOvertimeHours, modalOvertimeWage, location]);
 
   const handleCaptureLocation = async () => {
     setLocationLoading(true);
@@ -265,34 +260,26 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
     if (!worker) return;
 
     const dailyRate = worker.dailyRate ?? 0;
-    const customWageNum = modalCustomWage ? parseFloat(modalCustomWage) : undefined;
     const advanceNum = modalAdvance ? parseFloat(modalAdvance) : undefined;
     const otHoursNum = modalOvertimeHours ? parseFloat(modalOvertimeHours) : undefined;
     const otWageNum = modalOvertimeWage ? parseFloat(modalOvertimeWage) : undefined;
 
-    if (!modalStatus && (customWageNum === undefined || isNaN(customWageNum))) {
-      Alert.alert("Status Required", "Please select an attendance status or enter a Custom Wage.");
+    if (!modalStatus) {
+      Alert.alert("Status Required", "Please select an attendance status.");
       return;
     }
 
-    // Resolve attendance value
-    let finalValue: AttendanceValue = "P";
-    if (customWageNum !== undefined && !isNaN(customWageNum)) {
-      finalValue = customWageNum; // custom daily rate override
-    } else if (modalStatus) {
-      finalValue = modalStatus;
-    }
-
-    // Backend compatible wage calculation
-    const dailyWageResolved = customWageNum !== undefined ? customWageNum : dailyRate;
+    const finalValue: AttendanceValue = modalStatus;
     const advanceAmount = advanceNum || 0;
     const otAmount = otWageNum || 0;
 
     let finalPay = 0;
-    if (finalValue === "P" || finalValue === "OT" || typeof finalValue === "number") {
-      finalPay = dailyWageResolved + advanceAmount + otAmount;
+    if (finalValue === "P" || finalValue === "OT") {
+      finalPay = dailyRate + advanceAmount + otAmount;
     } else if (finalValue === "H") {
-      finalPay = (dailyWageResolved / 2) + advanceAmount + otAmount;
+      finalPay = (dailyRate / 2) + advanceAmount + otAmount;
+    } else if (finalValue === "A") {
+      finalPay = 0;
     }
 
     const record: AttendanceRecord = {
@@ -321,35 +308,29 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
   // Live summary values calculation
   const getLiveSummary = () => {
     const dailyRate = worker?.dailyRate ?? 0;
-    const customWageNum = modalCustomWage ? parseFloat(modalCustomWage) : NaN;
-    const baseRate = !isNaN(customWageNum) ? customWageNum : dailyRate;
     const advanceNum = modalAdvance ? parseFloat(modalAdvance) : 0;
     const otWageNum = modalOvertimeWage ? parseFloat(modalOvertimeWage) : 0;
 
     let statusText = "Unmarked";
     let finalPay = 0;
 
-    if (!isNaN(customWageNum)) {
-      statusText = "Custom Wage Override";
-      finalPay = customWageNum; // match backend's numeric value pay assignment
-    } else if (modalStatus === "P") {
+    if (modalStatus === "P") {
       statusText = "Present";
-      finalPay = baseRate + advanceNum + otWageNum;
+      finalPay = dailyRate + advanceNum + otWageNum;
     } else if (modalStatus === "A") {
       statusText = "Absent";
       finalPay = 0;
     } else if (modalStatus === "H") {
       statusText = "Half Day";
-      finalPay = (baseRate / 2) + advanceNum + otWageNum;
+      finalPay = (dailyRate / 2) + advanceNum + otWageNum;
     } else if (modalStatus === "OT") {
       statusText = "Overtime";
-      finalPay = baseRate + advanceNum + otWageNum;
+      finalPay = dailyRate + advanceNum + otWageNum;
     }
 
     return {
       status: statusText,
       dailyRate: dailyRate,
-      customWage: !isNaN(customWageNum) ? customWageNum : null,
       advance: advanceNum,
       finalPay: finalPay,
     };
@@ -414,153 +395,166 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
               ATTENDANCE STATUS
             </Text>
             <View style={styles.statusGrid}>
-              {/* Present */}
+              {/* Present (P) */}
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setModalStatus("P");
-                  setModalCustomWage("");
                 }}
                 style={[
                   styles.statusCell,
                   {
-                    backgroundColor: isDark ? "#1E293B" : "#F8FAFC",
-                    borderColor: modalStatus === "P" && !modalCustomWage ? colors.presentGreen : borderCol,
-                    borderWidth: modalStatus === "P" && !modalCustomWage ? 2 : 1,
+                    backgroundColor:
+                      modalStatus === "P"
+                        ? isDark ? "rgba(34, 197, 94, 0.15)" : "#F0FDF4"
+                        : isDark ? "#1E293B" : "#F8FAFC",
+                    borderColor: modalStatus === "P" ? colors.presentGreen : borderCol,
+                    borderWidth: modalStatus === "P" ? 2 : 1,
                   },
                 ]}
               >
-                <View style={styles.statusCellHeader}>
-                  <Ionicons 
-                    name="checkmark-circle" 
-                    size={20} 
-                    color={modalStatus === "P" && !modalCustomWage ? colors.presentGreen : colors.textSecondary} 
-                  />
-                  <Text style={[styles.statusCellCode, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>P</Text>
-                </View>
-                <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>Present</Text>
+                <Text
+                  style={[
+                    styles.statusCellCode,
+                    {
+                      color:
+                        modalStatus === "P"
+                          ? colors.presentGreen
+                          : isDark ? "#FFFFFF" : "#1E293B",
+                    },
+                  ]}
+                >
+                  P
+                </Text>
+                <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>
+                  Present
+                </Text>
               </Pressable>
 
-              {/* Absent */}
+              {/* Absent (A) */}
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setModalStatus("A");
-                  setModalCustomWage("");
                 }}
                 style={[
                   styles.statusCell,
                   {
-                    backgroundColor: isDark ? "#1E293B" : "#F8FAFC",
-                    borderColor: modalStatus === "A" && !modalCustomWage ? colors.absentRed : borderCol,
-                    borderWidth: modalStatus === "A" && !modalCustomWage ? 2 : 1,
+                    backgroundColor:
+                      modalStatus === "A"
+                        ? isDark ? "rgba(239, 68, 68, 0.15)" : "#FEF2F2"
+                        : isDark ? "#1E293B" : "#F8FAFC",
+                    borderColor: modalStatus === "A" ? colors.absentRed : borderCol,
+                    borderWidth: modalStatus === "A" ? 2 : 1,
                   },
                 ]}
               >
-                <View style={styles.statusCellHeader}>
-                  <Ionicons 
-                    name="close-circle" 
-                    size={20} 
-                    color={modalStatus === "A" && !modalCustomWage ? colors.absentRed : colors.textSecondary} 
-                  />
-                  <Text style={[styles.statusCellCode, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>A</Text>
-                </View>
-                <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>Absent</Text>
+                <Text
+                  style={[
+                    styles.statusCellCode,
+                    {
+                      color:
+                        modalStatus === "A"
+                          ? colors.absentRed
+                          : isDark ? "#FFFFFF" : "#1E293B",
+                    },
+                  ]}
+                >
+                  A
+                </Text>
+                <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>
+                  Absent
+                </Text>
               </Pressable>
 
-              {/* Half Day */}
+              {/* Half Day (1/2) */}
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setModalStatus("H");
-                  setModalCustomWage("");
                 }}
                 style={[
                   styles.statusCell,
                   {
-                    backgroundColor: isDark ? "#1E293B" : "#F8FAFC",
-                    borderColor: modalStatus === "H" && !modalCustomWage ? colors.halfDayYellow : borderCol,
-                    borderWidth: modalStatus === "H" && !modalCustomWage ? 2 : 1,
+                    backgroundColor:
+                      modalStatus === "H"
+                        ? isDark ? "rgba(245, 158, 11, 0.15)" : "#FFFBEB"
+                        : isDark ? "#1E293B" : "#F8FAFC",
+                    borderColor: modalStatus === "H" ? colors.halfDayYellow : borderCol,
+                    borderWidth: modalStatus === "H" ? 2 : 1,
                   },
                 ]}
               >
-                <View style={styles.statusCellHeader}>
-                  <Ionicons 
-                    name="time" 
-                    size={20} 
-                    color={modalStatus === "H" && !modalCustomWage ? colors.halfDayYellow : colors.textSecondary} 
-                  />
-                  <Text style={[styles.statusCellCode, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>1/2</Text>
-                </View>
-                <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>Half Day</Text>
+                <Text
+                  style={[
+                    styles.statusCellCode,
+                    {
+                      color:
+                        modalStatus === "H"
+                          ? colors.halfDayYellow
+                          : isDark ? "#FFFFFF" : "#1E293B",
+                    },
+                  ]}
+                >
+                  1/2
+                </Text>
+                <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>
+                  Half Day
+                </Text>
               </Pressable>
 
-              {/* Overtime */}
+              {/* Overtime (OT) */}
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setModalStatus("OT");
-                  setModalCustomWage("");
                 }}
                 style={[
                   styles.statusCell,
                   {
-                    backgroundColor: isDark ? "#1E293B" : "#F8FAFC",
-                    borderColor: modalStatus === "OT" && !modalCustomWage ? colors.overtimePurple : borderCol,
-                    borderWidth: modalStatus === "OT" && !modalCustomWage ? 2 : 1,
+                    backgroundColor:
+                      modalStatus === "OT"
+                        ? isDark ? "rgba(168, 85, 247, 0.15)" : "#FAF5FF"
+                        : isDark ? "#1E293B" : "#F8FAFC",
+                    borderColor: modalStatus === "OT" ? colors.overtimePurple : borderCol,
+                    borderWidth: modalStatus === "OT" ? 2 : 1,
                   },
                 ]}
               >
-                <View style={styles.statusCellHeader}>
-                  <Ionicons 
-                    name="flash" 
-                    size={20} 
-                    color={modalStatus === "OT" && !modalCustomWage ? colors.overtimePurple : colors.textSecondary} 
-                  />
-                  <Text style={[styles.statusCellCode, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>OT</Text>
-                </View>
-                <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>Overtime</Text>
+                <Text
+                  style={[
+                    styles.statusCellCode,
+                    {
+                      color:
+                        modalStatus === "OT"
+                          ? colors.overtimePurple
+                          : isDark ? "#FFFFFF" : "#1E293B",
+                    },
+                  ]}
+                >
+                  OT
+                </Text>
+                <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>
+                  Overtime
+                </Text>
               </Pressable>
             </View>
 
-            {/* Wage & Payment Section */}
+            {/* Advance Payment Section */}
             <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
-              WAGE & PAYMENT
+              ADVANCE PAYMENT
             </Text>
-            <View style={styles.wagesRow}>
-              {/* Custom Wage Input */}
-              <View style={styles.inputWrapper}>
-                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Custom Wage (Override)</Text>
-                <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: bgInput }]}>
-                  <Text style={[styles.currencyPrefix, { color: colors.textSecondary }]}>₹</Text>
-                  <TextInput
-                    keyboardType="numeric"
-                    placeholder="Override rate"
-                    placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
-                    style={[styles.modalInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
-                    value={modalCustomWage}
-                    onChangeText={(val) => {
-                      setModalCustomWage(val);
-                      if (val) setModalStatus(""); // clear status icons if custom override value entered
-                    }}
-                  />
-                </View>
-              </View>
-
-              {/* Advance Input */}
-              <View style={styles.inputWrapper}>
-                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Advance Payment</Text>
-                <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: bgInput }]}>
-                  <Text style={[styles.currencyPrefix, { color: colors.textSecondary }]}>₹</Text>
-                  <TextInput
-                    keyboardType="numeric"
-                    placeholder="e.g. 500"
-                    placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
-                    style={[styles.modalInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
-                    value={modalAdvance}
-                    onChangeText={setModalAdvance}
-                  />
-                </View>
+            <View style={styles.inputWrapper}>
+              <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: bgInput }]}>
+                <Text style={[styles.currencyPrefix, { color: colors.textSecondary }]}>₹</Text>
+                <TextInput
+                  keyboardType="numeric"
+                  placeholder="Advance amount (e.g. 500)"
+                  placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
+                  style={[styles.modalInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
+                  value={modalAdvance}
+                  onChangeText={setModalAdvance}
+                />
               </View>
             </View>
 
@@ -639,15 +633,6 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                   ₹{summary.dailyRate}
                 </Text>
               </View>
-
-              {summary.customWage !== null && (
-                <View style={styles.summaryItemRow}>
-                  <Text style={[styles.summaryItemKey, { color: colors.textSecondary }]}>Custom Wage:</Text>
-                  <Text style={[styles.summaryItemVal, { color: colors.amountBlue }]}>
-                    ₹{summary.customWage}
-                  </Text>
-                </View>
-              )}
 
               <View style={styles.summaryItemRow}>
                 <Text style={[styles.summaryItemKey, { color: colors.textSecondary }]}>Advance:</Text>
@@ -845,25 +830,23 @@ const styles = StyleSheet.create({
   },
   statusCell: {
     width: (SCREEN_WIDTH - 50) / 2,
-    height: 68,
-    borderRadius: 14,
+    height: 80,
+    borderRadius: 16,
     borderWidth: 1,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     justifyContent: "center",
-  },
-  statusCellHeader: {
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
   },
   statusCellCode: {
-    fontSize: 18,
+    fontSize: 26,
     fontWeight: "900",
+    textAlign: "center",
   },
   statusCellLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     marginTop: 4,
+    textAlign: "center",
   },
   wagesRow: {
     flexDirection: "row",

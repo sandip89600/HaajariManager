@@ -72,7 +72,7 @@ export default function ForgotPasswordScreen() {
 
   // Cooldown timer
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setInterval>;
     if (cooldown > 0) {
       timer = setInterval(() => {
         setCooldown((prev) => prev - 1);

@@ -3,7 +3,20 @@ import { useAuthStore } from '../stores/authStore';
 
 const DEFAULT_API_URL = 'https://haajarimanager.onrender.com/api';
 
-const BASE_URL = import.meta.env.VITE_API_URL || DEFAULT_API_URL;
+const getSanitizedApiUrl = () => {
+  let url = (import.meta.env.VITE_API_URL || DEFAULT_API_URL).trim();
+  // Remove trailing slashes
+  url = url.replace(/\/+$/, '');
+  // Prevent double /api/api if user specified /api/
+  if (url.endsWith('/api/api')) {
+    url = url.substring(0, url.length - 4);
+  } else if (!url.endsWith('/api')) {
+    url = `${url}/api`;
+  }
+  return url;
+};
+
+const BASE_URL = getSanitizedApiUrl();
 
 export const api = axios.create({
   baseURL: BASE_URL,

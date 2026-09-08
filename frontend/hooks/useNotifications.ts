@@ -1,10 +1,9 @@
-import { useEffect, useCallback } from "react";
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
 import { Platform } from "react-native";
 import { authenticatedFetch, API_URL, storage } from "@/utils/storage";
 import { useSocket } from "@/hooks/useSocket";
+import { registerExpoPushToken, isRunningInExpoGo, getNotificationsModule } from "@/utils/notifications";
 
 export interface NotificationItem {
   _id: string;
@@ -29,17 +28,6 @@ export interface NotificationItem {
   createdAt: string;
 }
 
-// Configure default notification handler for foreground push notifications in Expo SDK 54
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
-
 export function useNotifications() {
   const queryClient = useQueryClient();
 
@@ -58,7 +46,7 @@ export function useNotifications() {
         unreadCount: data.unreadCount || 0,
       };
     },
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 60 * 1000,
   });
 
   // 2. Query unread count independently for fast badge updates
@@ -170,6 +158,35 @@ export function useNotifications() {
     }
   }, [socket, queryClient]);
 
+  // 7. Register Expo notification foreground & response listeners safely with Expo Go check
+  useEffect(() => {
+    if (Platform.OS === "web" || (Platform.OS === "android" && isRunningInExpoGo())) {
+      return;
+    }
+
+    const Notifications = getNotificationsModule();
+    if (!Notifications) return;
+
+    try {
+      const notificationListener = Notifications.addNotificationReceivedListener((notification) => {
+        console.log("[Notifications] Received in foreground:", notification.request.content.title);
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        queryClient.invalidateQueries({ queryKey: ["notifications-unread-count"] });
+      });
+
+      const responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
+        console.log("[Notifications] User tapped notification response:", response.notification.request.content.data);
+      });
+
+      return () => {
+        notificationListener.remove();
+        responseListener.remove();
+      };
+    } catch (e) {
+      console.warn("[Notifications] Listener setup warning:", e);
+    }
+  }, [queryClient]);
+
   return {
     notifications: notificationsQuery.data?.notifications || [],
     unreadCount: unreadCountQuery.data ?? notificationsQuery.data?.unreadCount ?? 0,
@@ -183,33 +200,11 @@ export function useNotifications() {
 }
 
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  if (Platform.OS === "web") return null;
+  const token = await registerExpoPushToken();
 
-  if (!Device.isDevice) {
-    console.log("Must use physical device for Push Notifications");
-    return null;
-  }
-
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-
-  if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-
-  if (finalStatus !== "granted") {
-    console.log("Push notification permissions denied by user.");
-    return null;
-  }
-
-  try {
-    const tokenData = await Notifications.getExpoPushTokenAsync();
-    const token = tokenData.data;
-
-    // Send push token to backend for user device mapping
+  if (token) {
     const auth = await storage.getAuth();
-    if (auth?.token && token) {
+    if (auth?.token) {
       await fetch(`${API_URL}/auth/push-token`, {
         method: "POST",
         headers: {
@@ -219,10 +214,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
         body: JSON.stringify({ pushToken: token }),
       }).catch(() => {});
     }
-
-    return token;
-  } catch (e) {
-    console.warn("Failed to get Expo push token:", e);
-    return null;
   }
+
+  return token;
 }

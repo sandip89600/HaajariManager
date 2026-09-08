@@ -12,6 +12,8 @@ import exportRoutes from "./exportRoutes";
 import voiceRoutes from "./voiceRoutes";
 import siteRoutes from "./siteRoutes";
 import subscriptionRoutes from "./subscriptionRoutes";
+import subscriptionV2Routes from "./subscriptionV2Routes";
+import adminSubscriptionV2Routes from "./adminSubscriptionV2Routes";
 import recoveryRoutes from "./recoveryRoutes";
 import appConfigRoutes from "./appConfigRoutes";
 import paymentHandoverRoutes from "./paymentHandoverRoutes";
@@ -19,6 +21,7 @@ import haiRoutes from "./haiRoutes";
 import notificationRoutes from "./notificationRoutes";
 import razorpayRoutes from "./razorpayRoutes";
 import feedbackRoutes from "./feedbackRoutes";
+import webhookRoutes from "./webhookRoutes";
 
 const router = Router();
 
@@ -36,7 +39,16 @@ router.use("/feedback", feedbackRoutes);
 router.use("/export", exportRoutes);
 router.use("/voice", voiceRoutes);
 router.use("/sites", siteRoutes);
-router.use("/subscription", subscriptionRoutes);
+
+// Version 2 Subscription & Admin Subscription APIs
+router.use("/v2/subscription", subscriptionV2Routes);
+router.use("/v2/admin/subscription", adminSubscriptionV2Routes);
+
+// Legacy subscription aliases pointing to v2 for backwards safety
+router.use("/subscription", subscriptionV2Routes);
+router.use("/subscriptions", subscriptionV2Routes);
+
+router.use("/webhooks", webhookRoutes);
 router.use("/app", appConfigRoutes);
 router.use("/payment-handover", paymentHandoverRoutes);
 router.use("/hai", haiRoutes);
@@ -44,5 +56,3 @@ router.use("/notifications", notificationRoutes);
 router.use("/", razorpayRoutes);
 
 export default router;
-
-

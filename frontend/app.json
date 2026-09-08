@@ -13,6 +13,7 @@
     },
     "android": {
       "scheme": "haajari",
+      "googleServicesFile": "./google-services.json",
       "intentFilters": [
         {
           "action": "VIEW",
@@ -39,6 +40,7 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "INTERNET",
+        "POST_NOTIFICATIONS",
         "READ_EXTERNAL_STORAGE",
         "RECORD_AUDIO",
         "SYSTEM_ALERT_WINDOW",
@@ -55,8 +57,20 @@
     "plugins": [
       "@react-native-google-signin/google-signin",
       "expo-local-authentication",
-      "expo-location",
-      "expo-audio",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#F97316",
+          "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Haajari Manager to access your location for site attendance."
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -68,7 +82,15 @@
             "backgroundColor": "#0F172A"
           }
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-audio",
+      "expo-font",
+      "expo-image",
+      "expo-secure-store",
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "reactCompiler": true

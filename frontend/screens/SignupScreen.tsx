@@ -85,9 +85,9 @@ export default function SignupScreen() {
   const [phoneState, setPhoneState] = useState<"idle" | "checking" | "available" | "error">("idle");
   const [phoneMsg, setPhoneMsg] = useState("");
 
-  const usernameTimer = useRef<NodeJS.Timeout | null>(null);
-  const emailTimer = useRef<NodeJS.Timeout | null>(null);
-  const phoneTimer = useRef<NodeJS.Timeout | null>(null);
+  const usernameTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const emailTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const phoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {

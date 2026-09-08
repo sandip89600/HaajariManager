@@ -186,7 +186,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       {children}
 
       {isActive && (
-        <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           {activeTarget ? (
             <>
               {/* Highlight backdrop masks */}
@@ -231,7 +231,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
               />
             </>
           ) : (
-            <View style={[styles.maskDark, StyleSheet.absoluteFillObject]} />
+            <View style={[styles.maskDark, StyleSheet.absoluteFill]} />
           )}
 
           {/* Pointing Arrow Indicator */}

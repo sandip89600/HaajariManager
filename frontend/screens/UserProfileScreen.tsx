@@ -23,6 +23,7 @@ import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { ProfileHeaderCard } from "@/components/ProfileHeaderCard";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/hooks/useAuth";
 import { storage, User, authenticatedFetch, API_URL } from "@/utils/storage";
@@ -31,15 +32,6 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { translateWorkerName } from "@/utils/transliteration";
 import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
 import { Language, languageNames } from "@/constants/i18n";
-
-const AVATAR_COLORS = [
-  "#FF6B6B",
-  "#4ECDC4",
-  "#45B7D1",
-  "#96CEB4",
-  "#FFEAA7",
-  "#DDA15E",
-];
 
 export default function UserProfileScreen() {
   const { theme, themeMode, setThemeMode, isDark } = useTheme();
@@ -60,7 +52,6 @@ export default function UserProfileScreen() {
   const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editAddress, setEditAddress] = useState("");
-  const [editAvatarColor, setEditAvatarColor] = useState("");
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
@@ -379,7 +370,6 @@ export default function UserProfileScreen() {
       setEditEmail(user.email || "");
       setEditPhone(user.phone || "");
       setEditAddress(user.address || "");
-      setEditAvatarColor(user.avatarColor || "#4ECDC4");
       setShowEditModal(true);
     }
   };
@@ -414,7 +404,6 @@ export default function UserProfileScreen() {
           email: editEmail.trim() || undefined,
           phone: editPhone.trim(),
           address: editAddress.trim(),
-          avatarColor: editAvatarColor,
         }),
       });
 
@@ -459,7 +448,6 @@ export default function UserProfileScreen() {
         email: editEmail.trim(),
         phone: editPhone.trim(),
         address: editAddress.trim(),
-        avatarColor: editAvatarColor,
       };
       await storage.updateUser(updated);
       setUser(updated);
@@ -608,127 +596,21 @@ export default function UserProfileScreen() {
       <ScrollView
         contentContainerStyle={{
           paddingHorizontal: Spacing.lg,
-          paddingTop: Spacing.md,
+          paddingTop: Math.max(insets.top + Spacing.lg, finalHeaderHeight > 0 ? finalHeaderHeight + 8 : 24),
           paddingBottom: insets.bottom + Spacing.xl,
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── TOP HERO PROFILE CARD (Updated Layout) ── */}
-        <View
-          style={[
-            styles.heroCard,
-            {
-              backgroundColor: theme.backgroundDefault,
-              borderColor: theme.border,
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={
-              isDark
-                ? ["rgba(99, 102, 241, 0.12)", "rgba(15, 23, 42, 0.98)"]
-                : ["rgba(30, 58, 95, 0.06)", "rgba(255, 255, 255, 0.99)"]
-            }
-            style={styles.heroGradient}
-          >
-            {/* Edit Profile Action Button Top-Right */}
-            <Pressable
-              onPress={openEditModal}
-              style={{
-                position: "absolute",
-                top: 14,
-                right: 14,
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 16,
-              }}
-            >
-              <Feather name="edit-2" size={13} color={theme.primary} style={{ marginRight: 4 }} />
-              <ThemedText style={{ fontSize: 12, fontWeight: "600", color: theme.primary }}>
-                {t.common?.edit || "Edit"}
-              </ThemedText>
-            </Pressable>
-
-            {/* Circular Profile Picture */}
-            <Pressable
-              onPress={() => setShowImageModal(true)}
-              style={styles.avatarContainer}
-            >
-              {user.profileImage ? (
-                <Image
-                  source={{ uri: user.profileImage }}
-                  style={styles.avatarImage}
-                />
-              ) : (
-                <View
-                  style={[
-                    styles.avatarPlaceholder,
-                    { backgroundColor: user.avatarColor || "#4ECDC4" },
-                  ]}
-                >
-                  <ThemedText style={styles.avatarInitials}>
-                    {initials}
-                  </ThemedText>
-                </View>
-              )}
-              <View style={styles.cameraIconContainer}>
-                <Feather name="camera" size={12} color="#FFFFFF" />
-              </View>
-            </Pressable>
-
-            {/* User Name */}
-            <ThemedText type="h2" style={styles.userName}>
-              {user.name}
-            </ThemedText>
-
-            {/* User Meta Row (Role & Company) */}
-            <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", justifyContent: "center", gap: 8, marginTop: 6, marginBottom: 4 }}>
-              {/* User Role Badge */}
-              <View
-                style={[
-                  styles.badge,
-                  {
-                    backgroundColor: getRoleColor(user.role) + "15",
-                    borderColor: getRoleColor(user.role),
-                  },
-                ]}
-              >
-                <ThemedText
-                  style={[styles.badgeText, { color: getRoleColor(user.role) }]}
-                >
-                  {getRoleLabel(user.role)}
-                </ThemedText>
-              </View>
-
-              {/* Company Name */}
-              {user.companyName ? (
-                <ThemedText
-                  type="body"
-                  style={[styles.companyName, { color: theme.textSecondary }]}
-                >
-                  🏢 {user.companyName}
-                </ThemedText>
-              ) : null}
-            </View>
-
-            {/* Upgraded Plan Badge ONLY (Free and Basic Badges Removed) */}
-            {user.plan && user.plan !== "free" && user.plan !== "basic" && (
-              <View
-                style={[
-                  styles.planBadge,
-                  { backgroundColor: getPlanColor(user.plan), marginTop: 8 },
-                ]}
-              >
-                <ThemedText style={styles.planBadgeText}>
-                  {t.profile.plan || "Plan"}: {getPlanLabel(user.plan)}
-                </ThemedText>
-              </View>
-            )}
-          </LinearGradient>
-        </View>
+        {/* ── TOP HERO PROFILE CARD (Modern UI Header Card) ── */}
+        <ProfileHeaderCard
+          name={user.name || "Ganesh Pandit"}
+          phone={user.phone || "8055813694"}
+          email={user.email || "panditganesh8055@gmail.com"}
+          companyName={user.companyName || "Ravi Construction"}
+          profileImage={user.profileImage}
+          avatarColor={user.avatarColor}
+          onAvatarPress={() => setShowImageModal(true)}
+        />
 
         {/* ── ACCOUNT DETAILS SECTION ── */}
         <View
@@ -1076,27 +958,6 @@ export default function UserProfileScreen() {
                 placeholder={t.profile.businessAddress}
                 placeholderTextColor={theme.textSecondary}
               />
-
-              {/* Avatar Color Selector */}
-              <ThemedText type="small" style={styles.label}>
-                {t.profile.avatarColor}
-              </ThemedText>
-              <View style={styles.colorPalette}>
-                {AVATAR_COLORS.map((c) => (
-                  <Pressable
-                    key={c}
-                    onPress={() => setEditAvatarColor(c)}
-                    style={[
-                      styles.colorOption,
-                      {
-                        backgroundColor: c,
-                        borderWidth: editAvatarColor === c ? 3 : 0,
-                        borderColor: theme.text,
-                      },
-                    ]}
-                  />
-                ))}
-              </View>
 
               {isUpdating ? (
                 <ActivityIndicator
@@ -1728,16 +1589,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     marginBottom: Spacing.xs,
-  },
-  colorPalette: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    marginVertical: Spacing.xs,
-  },
-  colorOption: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
   },
   formActions: {
     flexDirection: "row",

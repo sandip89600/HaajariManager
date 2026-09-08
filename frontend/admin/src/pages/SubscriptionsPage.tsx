@@ -1,432 +1,545 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Gem, Search, Calendar, RefreshCw, AlertCircle, Settings, Sliders, Shield } from 'lucide-react';
+import {
+  Gem, Search, RefreshCw, Power, DollarSign,
+  TrendingUp, Users, CheckCircle2, XCircle, Tag,
+  Clock, Shield, Edit3, ArrowUpRight
+} from 'lucide-react';
 import toast from 'react-hot-toast';
-import { api } from '../utils/api';
-import { startRazorpayWebCheckout } from '../utils/razorpayCheckout';
-
-interface PlanSubscription {
-  _id: string;
-  company: string;
-  plan: 'basic' | 'super' | 'premium';
-  amount: number;
-  cycle: 'monthly' | '3 months' | 'yearly';
-  renewalDate: string;
-  autoRenew: boolean;
-  status: 'Active' | 'Expired' | 'Pending';
-}
+import {
+  AdminSubscriptionApi,
+  AdminSubscriptionPlan,
+  AdminTransaction,
+} from '../services/adminSubscriptionApi';
 
 export default function SubscriptionsPage() {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<'overview' | 'plans' | 'transactions' | 'analytics'>('overview');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [editingPriceOption, setEditingPriceOption] = useState<{
+    planId: string;
+    optionId: string;
+    price: number;
+    promotionalPrice: number;
+    promotionEnabled: boolean;
+  } | null>(null);
 
-  // Fetch subscriptions list
-  const { data: subs = [], isLoading: isSubsLoading } = useQuery<PlanSubscription[]>({
-    queryKey: ['planSubscriptionsList'],
-    queryFn: async () => {
-      const res = await api.get('/admin/subscriptions');
-      return res.data;
-    }
+  // 1. Query Global Subscription Config
+  const { data: configData, isLoading: isConfigLoading } = useQuery({
+    queryKey: ['adminSubConfigV2'],
+    queryFn: AdminSubscriptionApi.getConfig,
   });
 
-  // Fetch centralized configurations
-  const { data: config, isLoading: isConfigLoading } = useQuery({
-    queryKey: ['subscriptionConfig'],
-    queryFn: async () => {
-      const res = await api.get('/admin/subscription-config');
-      return res.data;
-    }
+  // 2. Query Plans & Billing Options
+  const { data: plansData, isLoading: isPlansLoading } = useQuery({
+    queryKey: ['adminSubPlansV2'],
+    queryFn: AdminSubscriptionApi.getPlans,
   });
 
-  // Mutation to save settings on backend
-  const updateMutation = useMutation({
-    mutationFn: async (updatedData: any) => {
-      return api.put('/admin/subscription-config', updatedData);
+  // 3. Query Transactions Ledger
+  const { data: transactionsData, isLoading: isTxnLoading } = useQuery({
+    queryKey: ['adminSubTransactionsV2'],
+    queryFn: AdminSubscriptionApi.getTransactions,
+  });
+
+  // 4. Query Analytics
+  const { data: analyticsData, isLoading: isAnalyticsLoading } = useQuery({
+    queryKey: ['adminSubAnalyticsV2'],
+    queryFn: AdminSubscriptionApi.getAnalytics,
+  });
+
+  // Global Config Toggle Mutation
+  const configMutation = useMutation({
+    mutationFn: (newGlobalState: boolean) => AdminSubscriptionApi.updateConfig(newGlobalState),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['adminSubConfigV2'] });
+      queryClient.invalidateQueries({ queryKey: ['adminSubAnalyticsV2'] });
+      toast.success(
+        data.globalEnabled
+          ? 'Global Subscription Mode turned ON (Paid Subscription Mode)'
+          : 'Global Subscription Mode turned OFF (Free Mode Active)'
+      );
     },
+    onError: () => toast.error('Failed to update global subscription switch.'),
+  });
+
+  // Plan Active Toggle Mutation
+  const planToggleMutation = useMutation({
+    mutationFn: ({ planId, active }: { planId: string; active: boolean }) =>
+      AdminSubscriptionApi.togglePlanStatus(planId, active),
     onSuccess: () => {
-      toast.success('App configuration updated successfully');
-      queryClient.invalidateQueries({ queryKey: ['subscriptionConfig'] });
+      queryClient.invalidateQueries({ queryKey: ['adminSubPlansV2'] });
+      toast.success('Plan status updated.');
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to save configuration');
-    }
+    onError: () => toast.error('Failed to update plan status.'),
   });
 
-  const handleToggleSubscriptions = () => {
-    if (!config) return;
-    const newVal = !config.subscriptionsEnabled;
-    const msg = newVal
-      ? "Are you sure you want to enable subscription enforcement? Premium/paid features will start restricting access based on user subscription levels."
-      : "Are you sure you want to disable subscription enforcement? All users will access the default launch settings.";
-
-    if (window.confirm(msg)) {
-      updateMutation.mutate({
-        ...config,
-        subscriptionsEnabled: newVal
-      });
-    }
-  };
-
-  const handleToggleSupervisorRestricted = () => {
-    if (!config) return;
-    const newVal = !config.supervisorManagementRestrictedToPaid;
-    updateMutation.mutate({
-      ...config,
-      supervisorManagementRestrictedToPaid: newVal
-    });
-  };
-
-  const handleToggleFeature = (featureKey: string) => {
-    if (!config) return;
-    const updatedFeatures = config.features.map((f: any) => {
-      if (f.key === featureKey) {
-        return { ...f, enabled: !f.enabled };
-      }
-      return f;
-    });
-
-    updateMutation.mutate({
-      ...config,
-      features: updatedFeatures
-    });
-  };
-
-  const handleChangeFeaturePlan = (featureKey: string, minPlan: string) => {
-    if (!config) return;
-    const updatedFeatures = config.features.map((f: any) => {
-      if (f.key === featureKey) {
-        return { ...f, minPlan };
-      }
-      return f;
-    });
-
-    updateMutation.mutate({
-      ...config,
-      features: updatedFeatures
-    });
-  };
-
-  const filteredSubs = subs.filter((sub) => {
-    return sub.company.toLowerCase().includes(search.toLowerCase()) ||
-           sub.plan.toLowerCase().includes(search.toLowerCase());
+  // Billing Option Toggle / Edit Mutation
+  const billingOptionMutation = useMutation({
+    mutationFn: (params: {
+      planId: string;
+      optionId: string;
+      active?: boolean;
+      promotionEnabled?: boolean;
+      price?: number;
+      promotionalPrice?: number;
+    }) =>
+      AdminSubscriptionApi.toggleBillingOptionStatus(params.planId, params.optionId, params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminSubPlansV2'] });
+      toast.success('Billing option updated.');
+      setEditingPriceOption(null);
+    },
+    onError: () => toast.error('Failed to update billing option.'),
   });
 
-  const isLoading = isSubsLoading || isConfigLoading;
+  const isGlobalOn = configData?.globalEnabled ?? false;
+
+  const filteredTransactions = (transactionsData || []).filter((txn: AdminTransaction) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      txn.transactionId.toLowerCase().includes(q) ||
+      txn.planNameSnapshot.toLowerCase().includes(q) ||
+      txn.userId?.name?.toLowerCase().includes(q) ||
+      txn.tenantId?.name?.toLowerCase().includes(q)
+    );
+  });
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-white">SaaS Subscriptions & Features</h1>
-          <p className="text-slate-400 text-sm mt-1">Configure global monetization logic, feature toggles, and audit tier access</p>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <Gem className="h-7 w-7 text-indigo-600" />
+            Subscription System Architecture
+          </h1>
+          <p className="text-slate-500 text-sm mt-1">
+            Control global free/paid mode, plans, ₹2 promo offers, flexible billing durations, and payment ledgers.
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              startRazorpayWebCheckout({
-                amount: 149,
-                planName: 'super',
-                billingCycle: 'monthly',
-                userName: 'Haajari Admin User',
-                userEmail: 'admin@haajari.app',
-                onSuccess: () => {
-                  queryClient.invalidateQueries({ queryKey: ['planSubscriptionsList'] });
-                  queryClient.invalidateQueries({ queryKey: ['subscriptionConfig'] });
-                },
-              });
-            }}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-extrabold transition-all inline-flex items-center gap-2 shadow-lg shadow-orange-500/20 active:scale-95"
-          >
-            <Gem className="w-4 h-4" />
-            <span>Pay with Razorpay (₹149)</span>
-          </button>
-          <button
-            onClick={() => {
-              queryClient.invalidateQueries({ queryKey: ['planSubscriptionsList'] });
-              queryClient.invalidateQueries({ queryKey: ['subscriptionConfig'] });
-              toast.success('Information refreshed');
-            }}
-            disabled={isLoading}
-            className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-855 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
+
+        <button
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ['adminSubConfigV2'] });
+            queryClient.invalidateQueries({ queryKey: ['adminSubPlansV2'] });
+            queryClient.invalidateQueries({ queryKey: ['adminSubTransactionsV2'] });
+            queryClient.invalidateQueries({ queryKey: ['adminSubAnalyticsV2'] });
+            toast.success('Subscription data refreshed.');
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 font-medium hover:bg-slate-50 shadow-sm"
+        >
+          <RefreshCw className="h-4 w-4" /> Refresh
+        </button>
+      </div>
+
+      {/* GLOBAL MASTER SWITCH CARD */}
+      <div className={`p-6 rounded-2xl border-2 transition-all ${
+        isGlobalOn
+          ? 'bg-gradient-to-r from-emerald-900 to-slate-900 border-emerald-500 text-white shadow-xl'
+          : 'bg-gradient-to-r from-indigo-900 to-slate-900 border-indigo-500 text-white shadow-xl'
+      }`}>
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <span className={`px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase ${
+                isGlobalOn ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-slate-950'
+              }`}>
+                {isGlobalOn ? 'Paid Subscription Mode' : 'Currently Free Mode'}
+              </span>
+              <span className="text-slate-300 text-xs flex items-center gap-1">
+                <Shield className="h-3.5 w-3.5" /> Admin Controlled Master Switch
+              </span>
+            </div>
+
+            <h2 className="text-2xl font-extrabold tracking-tight">
+              Global Subscription System: <span className={isGlobalOn ? 'text-emerald-400' : 'text-amber-300'}>
+                {isGlobalOn ? 'ON' : 'OFF'}
+              </span>
+            </h2>
+
+            <p className="text-slate-300 text-sm max-w-2xl leading-relaxed">
+              {isGlobalOn
+                ? 'Paid Subscription Mode is active. Normal users will see active plans according to configuration, and plan entitlement limits are enforced.'
+                : 'Free Mode is active. The entire app is 100% FREE. No paywalls, upgrade popups, or restrictions appear. All plans remain saved for future activation.'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4 bg-white/10 p-4 rounded-xl backdrop-blur-md border border-white/20">
+            <div className="text-right">
+              <div className="text-xs text-slate-300 font-semibold uppercase">Toggle Mode</div>
+              <div className="text-sm font-bold text-white">{isGlobalOn ? 'Switch to FREE' : 'Switch to PAID'}</div>
+            </div>
+
+            <button
+              disabled={configMutation.isPending || isConfigLoading}
+              onClick={() => configMutation.mutate(!isGlobalOn)}
+              className={`relative inline-flex h-8 w-16 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                isGlobalOn ? 'bg-emerald-500' : 'bg-slate-600'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  isGlobalOn ? 'translate-x-8' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ─── CENTRAL CONTROL: SUBSCRIPTION & FEATURE SYSTEM ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Subscription Control Card */}
-        <div className="glass-card p-6 rounded-2xl border border-slate-850 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Settings className="w-5 h-5 text-orange-500" />
-              <h3 className="text-lg font-bold text-white">Subscription Control</h3>
-            </div>
-            <p className="text-slate-400 text-xs leading-relaxed mb-6">
-              Toggle subscription enforcement globally. If disabled, all features operate under a free trial launch phase. If enabled, features respect configured plans.
-            </p>
-            <div className="flex items-center gap-3 mb-6 bg-slate-950/40 p-4 rounded-xl border border-slate-900">
-              <span className="text-xs font-semibold text-slate-450 uppercase tracking-wide">System Status:</span>
-              {config?.subscriptionsEnabled ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  Active
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">
-                  <span className="w-2 h-2 rounded-full bg-slate-500"></span>
-                  Inactive
-                </span>
-              )}
-            </div>
+      {/* Metrics Summary Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+            <Users className="h-6 w-6" />
           </div>
-
-          <button
-            onClick={handleToggleSubscriptions}
-            disabled={updateMutation.isPending}
-            className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 ${
-              config?.subscriptionsEnabled
-                ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/30'
-                : 'bg-emerald-500/20 text-emerald-455 hover:bg-emerald-500/30 border border-emerald-500/30'
-            }`}
-          >
-            {config?.subscriptionsEnabled ? 'Turn OFF Subscription Enforcement' : 'Turn ON Subscription Enforcement'}
-          </button>
+          <div>
+            <p className="text-xs text-slate-500 font-medium uppercase">Active Subscribers</p>
+            <p className="text-2xl font-bold text-slate-900">{analyticsData?.activeSubscribers || 0}</p>
+          </div>
         </div>
 
-        {/* Supervisor Creation Subscription Requirement Control Card */}
-        <div className="glass-card p-6 rounded-2xl border border-slate-850 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Shield className="w-5 h-5 text-purple-400" />
-              <h3 className="text-lg font-bold text-white">Create Supervisor Subscription Control</h3>
-            </div>
-            <p className="text-slate-400 text-xs leading-relaxed mb-6">
-              Enable or Disable subscription plan enforcement when creating supervisor accounts.
-              <br/>
-              <span className="text-emerald-400 font-semibold">• DISABLED (OFF):</span> Create supervisors freely on all plans without any subscription messages or upgrade errors.
-              <br/>
-              <span className="text-amber-400 font-semibold">• ENABLED (ON):</span> Restrict supervisor creation to paid subscription plans only.
-            </p>
-            <div className="flex items-center gap-3 mb-6 bg-slate-950/40 p-4 rounded-xl border border-slate-900">
-              <span className="text-xs font-semibold text-slate-450 uppercase tracking-wide">Subscription Enforcement:</span>
-              {config?.supervisorManagementRestrictedToPaid ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                  ENABLED (Paid Required)
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  DISABLED (Create Freely)
-                </span>
-              )}
-            </div>
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+            <DollarSign className="h-6 w-6" />
           </div>
-
-          <button
-            onClick={handleToggleSupervisorRestricted}
-            disabled={updateMutation.isPending}
-            className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 ${
-              config?.supervisorManagementRestrictedToPaid
-                ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30'
-                : 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30'
-            }`}
-          >
-            {config?.supervisorManagementRestrictedToPaid ? 'Disable Restriction (Create Supervisors Freely)' : 'Enable Restriction (Require Paid Subscription)'}
-          </button>
+          <div>
+            <p className="text-xs text-slate-500 font-medium uppercase">Total Revenue</p>
+            <p className="text-2xl font-bold text-slate-900">₹{analyticsData?.totalRevenue || 0}</p>
+          </div>
         </div>
 
-        {/* Feature Management Panel */}
-        <div className="lg:col-span-2 glass-card p-6 rounded-2xl border border-slate-850">
-          <div className="flex items-center gap-2 mb-4">
-            <Sliders className="w-5 h-5 text-orange-500" />
-            <div>
-              <h3 className="text-lg font-bold text-white">Feature Management</h3>
-              <p className="text-slate-400 text-xs mt-0.5">Control feature rollouts and tier requirements dynamically</p>
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+            <Tag className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 font-medium uppercase">Configured Plans</p>
+            <p className="text-2xl font-bold text-slate-900">{plansData?.length || 0}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+            <TrendingUp className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 font-medium uppercase">Total Transactions</p>
+            <p className="text-2xl font-bold text-slate-900">{analyticsData?.totalTransactions || 0}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200 space-x-6">
+        {[
+          { key: 'overview', label: 'Subscription Master' },
+          { key: 'plans', label: 'Plans & Pricing (₹2 Promo)' },
+          { key: 'transactions', label: 'Transaction Ledger' },
+          { key: 'analytics', label: 'Analytics' },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key as any)}
+            className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === tab.key
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* TAB 1: OVERVIEW / PLANS CONTROL */}
+      {(activeTab === 'overview' || activeTab === 'plans') && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-bold text-slate-900">Configured Subscription Plans</h3>
+            <p className="text-xs text-slate-500">Toggle individual plans and billing option durations ON/OFF.</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {(plansData || []).map((plan: AdminSubscriptionPlan) => (
+              <div
+                key={plan.planId}
+                className={`bg-white rounded-xl border p-6 flex flex-col justify-between shadow-sm ${
+                  plan.active ? 'border-slate-200' : 'border-slate-200 opacity-60 bg-slate-50'
+                }`}
+              >
+                <div>
+                  {/* Plan Top Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">
+                        {plan.planId}
+                      </span>
+                      <h4 className="text-xl font-bold text-slate-900">{plan.name}</h4>
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        planToggleMutation.mutate({ planId: plan.planId, active: !plan.active })
+                      }
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition ${
+                        plan.active
+                          ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                          : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                      }`}
+                    >
+                      <Power className="h-3.5 w-3.5" />
+                      {plan.active ? 'Active' : 'Inactive'}
+                    </button>
+                  </div>
+
+                  <p className="text-slate-500 text-xs mb-4 min-h-[36px]">{plan.description}</p>
+
+                  {/* Features Summary */}
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 mb-4 space-y-1.5 text-xs text-slate-700">
+                    <div className="font-semibold text-slate-900">Plan Features:</div>
+                    <div>• Max Workers: {plan.features.maxWorkers === -1 ? 'Unlimited' : plan.features.maxWorkers}</div>
+                    <div>• Max Sites: {plan.features.maxProjects === -1 ? 'Unlimited' : plan.features.maxProjects}</div>
+                    <div>• Max Supervisors: {plan.features.maxSupervisors === -1 ? 'Unlimited' : plan.features.maxSupervisors}</div>
+                  </div>
+
+                  {/* Billing Options List */}
+                  <div className="space-y-3">
+                    <div className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      Billing Durations & Pricing
+                    </div>
+
+                    {plan.billingOptions.map((opt) => (
+                      <div
+                        key={opt.optionId}
+                        className="p-3 bg-white rounded-lg border border-slate-200 text-xs space-y-2"
+                      >
+                        <div className="flex justify-between items-center font-bold text-slate-900">
+                          <span>{opt.billingLabel} ({opt.durationMonths}M)</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() =>
+                                billingOptionMutation.mutate({
+                                  planId: plan.planId,
+                                  optionId: opt.optionId,
+                                  active: !opt.active,
+                                })
+                              }
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                opt.active
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-slate-200 text-slate-600'
+                              }`}
+                            >
+                              {opt.active ? 'ACTIVE' : 'OFF'}
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                billingOptionMutation.mutate({
+                                  planId: plan.planId,
+                                  optionId: opt.optionId,
+                                  promotionEnabled: !opt.promotionEnabled,
+                                })
+                              }
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                opt.promotionEnabled
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              PROMO {opt.promotionEnabled ? 'ON' : 'OFF'}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center text-slate-600">
+                          <div>
+                            Price: <span className="font-bold text-slate-900">₹{opt.price}</span>
+                            {opt.promotionEnabled && (
+                              <span className="ml-2 font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+                                Promo: ₹{opt.promotionalPrice ?? 2}
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            onClick={() =>
+                              setEditingPriceOption({
+                                planId: plan.planId,
+                                optionId: opt.optionId,
+                                price: opt.price,
+                                promotionalPrice: opt.promotionalPrice ?? 2,
+                                promotionEnabled: opt.promotionEnabled,
+                              })
+                            }
+                            className="text-indigo-600 hover:text-indigo-800 font-semibold text-[11px] flex items-center gap-1"
+                          >
+                            <Edit3 className="h-3 w-3" /> Edit
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: TRANSACTIONS LEDGER */}
+      {activeTab === 'transactions' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <h3 className="text-lg font-bold text-slate-900">Subscription Transaction Ledger</h3>
+
+            <div className="relative w-full md:w-72">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search transaction ID, user, plan..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
           </div>
 
-          {isConfigLoading ? (
-            <div className="py-12 text-center text-slate-500 text-xs font-semibold flex justify-center items-center gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin text-orange-500" />
-              <span>Loading feature flags...</span>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-850/60 text-slate-450 uppercase font-bold tracking-wider pb-2">
-                    <th className="py-2.5 pr-4">Feature Name / Scope</th>
-                    <th className="py-2.5 px-2">Type</th>
-                    <th className="py-2.5 px-2">Min Plan Requirement</th>
-                    <th className="py-2.5 pl-2 text-right">Toggle Status</th>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                  <th className="p-3">Transaction ID</th>
+                  <th className="p-3">User / Tenant</th>
+                  <th className="p-3">Plan Snapshot</th>
+                  <th className="p-3">Amount</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-8 text-slate-400">
+                      No transaction records found.
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-850/30 text-slate-300">
-                  {config?.features?.map((feat: any) => (
-                    <tr key={feat.key} className="hover:bg-slate-900/10 transition-colors">
-                      <td className="py-3.5 pr-4">
-                        <div className="font-bold text-white text-sm">{feat.name}</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">{feat.description}</div>
+                ) : (
+                  filteredTransactions.map((txn: AdminTransaction) => (
+                    <tr key={txn._id} className="hover:bg-slate-50">
+                      <td className="p-3 font-mono font-bold text-slate-900">{txn.transactionId}</td>
+                      <td className="p-3">
+                        <div className="font-semibold text-slate-900">{txn.userId?.name || 'User'}</div>
+                        <div className="text-slate-400 text-[11px]">{txn.tenantId?.name || 'Organization'}</div>
                       </td>
-                      <td className="py-3.5 px-2">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          feat.premium ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                      <td className="p-3 font-medium text-slate-700">{txn.planNameSnapshot}</td>
+                      <td className="p-3 font-bold text-indigo-600">₹{txn.amount}</td>
+                      <td className="p-3">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          txn.status === 'paid'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-100 text-slate-700'
                         }`}>
-                          {feat.premium ? 'Premium' : 'Free'}
+                          {txn.status}
                         </span>
                       </td>
-                      <td className="py-3.5 px-2">
-                        {feat.premium ? (
-                          <select
-                            value={feat.minPlan}
-                            onChange={(e) => handleChangeFeaturePlan(feat.key, e.target.value)}
-                            className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-350 focus:outline-none focus:ring-1 focus:ring-orange-500/50 text-[11px] font-medium"
-                          >
-                            <option value="free">Free</option>
-                            <option value="basic">Basic</option>
-                            <option value="super">Super</option>
-                            <option value="premium">Premium</option>
-                          </select>
-                        ) : (
-                          <span className="text-slate-600">—</span>
-                        )}
-                      </td>
-                      <td className="py-3.5 pl-2 text-right">
-                        <button
-                          onClick={() => handleToggleFeature(feat.key)}
-                          className={`px-3 py-1 rounded-lg font-bold text-[10px] uppercase transition-all duration-150 active:scale-95 ${
-                            feat.enabled
-                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'
-                              : 'bg-slate-800/40 text-slate-500 border border-slate-700/60 hover:bg-slate-800/60'
-                          }`}
-                        >
-                          {feat.enabled ? 'ON' : 'OFF'}
-                        </button>
+                      <td className="p-3 text-slate-500">
+                        {new Date(txn.createdAt).toLocaleDateString()}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Price Edit Modal */}
+      {editingPriceOption && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-slate-900">Edit Price & Promotion</h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700">Regular Price (₹)</label>
+                <input
+                  type="number"
+                  value={editingPriceOption.price}
+                  onChange={(e) =>
+                    setEditingPriceOption({
+                      ...editingPriceOption,
+                      price: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  className="w-full mt-1 p-2.5 border border-slate-200 rounded-lg text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700">Promotional Price (₹)</label>
+                <input
+                  type="number"
+                  value={editingPriceOption.promotionalPrice}
+                  onChange={(e) =>
+                    setEditingPriceOption({
+                      ...editingPriceOption,
+                      promotionalPrice: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  className="w-full mt-1 p-2.5 border border-slate-200 rounded-lg text-sm"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="promoToggle"
+                  checked={editingPriceOption.promotionEnabled}
+                  onChange={(e) =>
+                    setEditingPriceOption({
+                      ...editingPriceOption,
+                      promotionEnabled: e.target.checked,
+                    })
+                  }
+                  className="h-4 w-4 text-indigo-600 rounded border-slate-300"
+                />
+                <label htmlFor="promoToggle" className="text-xs font-bold text-slate-700">
+                  Enable Promotional Pricing Offer
+                </label>
+              </div>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Stats header */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="glass-card p-6 rounded-2xl border border-slate-850 flex items-center justify-between">
-          <div>
-            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Active Subscriptions</p>
-            <h3 className="text-2xl font-bold text-white">{subs.filter(s => s.status === 'Active').length} Clients</h3>
-          </div>
-          <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-xl text-orange-500">
-            <Gem className="w-6 h-6" />
-          </div>
-        </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <button
+                onClick={() => setEditingPriceOption(null)}
+                className="px-4 py-2 text-slate-600 border border-slate-200 rounded-lg text-sm font-semibold"
+              >
+                Cancel
+              </button>
 
-        <div className="glass-card p-6 rounded-2xl border border-slate-850 flex items-center justify-between">
-          <div>
-            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Auto Renewal Enabled</p>
-            <h3 className="text-2xl font-bold text-white">{subs.filter(s => s.autoRenew && s.status === 'Active').length} Clients</h3>
-          </div>
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-500">
-            <RefreshCw className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div className="glass-card p-6 rounded-2xl border border-slate-850 flex items-center justify-between">
-          <div>
-            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Expired Accounts</p>
-            <h3 className="text-2xl font-bold text-rose-450">{subs.filter(s => s.status === 'Expired').length} Clients</h3>
-          </div>
-          <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-500">
-            <AlertCircle className="w-6 h-6" />
+              <button
+                onClick={() =>
+                  billingOptionMutation.mutate({
+                    planId: editingPriceOption.planId,
+                    optionId: editingPriceOption.optionId,
+                    price: editingPriceOption.price,
+                    promotionalPrice: editingPriceOption.promotionalPrice,
+                    promotionEnabled: editingPriceOption.promotionEnabled,
+                  })
+                }
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-sm"
+              >
+                Save Pricing
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Filter panel */}
-      <div className="glass-card p-4 rounded-2xl border border-slate-850">
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Search by subscriber name or plan category..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="premium-input pl-11 py-2.5 text-sm"
-          />
-        </div>
-      </div>
-
-      {/* Subscriptions table */}
-      <div className="glass-card rounded-2xl border border-slate-850 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-900/30 border-b border-slate-850/60 text-slate-400 text-xs font-bold uppercase tracking-wider">
-                <th className="px-6 py-4.5">Client Organization</th>
-                <th className="px-6 py-4.5">Tier Plan</th>
-                <th className="px-6 py-4.5">Plan Amount</th>
-                <th className="px-6 py-4.5">Billing Cycle</th>
-                <th className="px-6 py-4.5">Renewal / Expiry Date</th>
-                <th className="px-6 py-4.5">Auto Renewal</th>
-                <th className="px-6 py-4.5">Account Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-850/30 text-sm text-slate-300">
-              {filteredSubs.length > 0 ? (
-                filteredSubs.map((sub) => (
-                  <tr key={sub._id} className="hover:bg-slate-900/20 transition-colors">
-                    <td className="px-6 py-4 font-bold text-white">{sub.company}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold uppercase border ${
-                        sub.plan === 'premium' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                        sub.plan === 'super' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
-                        'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                      }`}>
-                        {sub.plan}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 font-extrabold text-white">₹{sub.amount}</td>
-                    <td className="px-6 py-4 font-semibold text-slate-400 uppercase">{sub.cycle}</td>
-                    <td className="px-6 py-4 font-medium text-slate-500">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-4 h-4 text-slate-500" />
-                        <span>{sub.renewalDate}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {sub.autoRenew ? (
-                        <span className="text-xs text-emerald-450 font-bold uppercase tracking-wider">✔ Enabled</span>
-                      ) : (
-                        <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">— Disabled</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                        sub.status === 'Active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
-                      }`}>
-                        {sub.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="text-center py-8 text-slate-500 font-medium">
-                    No subscriptions registered.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

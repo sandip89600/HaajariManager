@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./useAuth";
 import { storage, API_URL } from "@/utils/storage";
+import { SubscriptionApi, SubscriptionStatusResponse } from "@/services/subscriptionApi";
 
 export interface FeatureFlag {
   key: string;
@@ -11,17 +12,28 @@ export interface FeatureFlag {
   minPlan: "free" | "basic" | "super" | "premium";
 }
 
+export interface ModuleVisibilityFlag {
+  key: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+}
+
 export interface AppConfig {
   subscriptionsEnabled: boolean;
   supervisorManagementRestrictedToPaid?: boolean;
   features: FeatureFlag[];
+  moduleVisibility?: ModuleVisibilityFlag[];
 }
 
 interface FeatureAccessContextType {
   config: AppConfig | null;
+  subscriptionStatus: SubscriptionStatusResponse | null;
+  isSubscriptionEnabled: boolean;
   isLoading: boolean;
   refetch: () => Promise<void>;
   hasFeature: (featureKey: string) => boolean;
+  isModuleVisible: (moduleKey: string) => boolean;
   isSupervisorManagementAllowed: (userPlan?: string) => boolean;
   getFeatureStatus: (featureKey: string) => {
     enabled: boolean;
@@ -37,25 +49,26 @@ const FeatureAccessContext = createContext<FeatureAccessContextType | null>(null
 export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isLoggedIn, user } = useAuth();
   const [config, setConfig] = useState<AppConfig | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatusResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchConfig = async () => {
     try {
+      // 1. Fetch App Config
       const auth = await storage.getAuth();
-      if (!auth || !auth.token) {
-        setIsLoading(false);
-        return;
+      if (auth && auth.token) {
+        const res = await fetch(`${API_URL}/app/config`, {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setConfig(data);
+        }
       }
 
-      const res = await fetch(`${API_URL}/app/config`, {
-        headers: {
-          Authorization: `Bearer ${auth.token}`
-        }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setConfig(data);
-      }
+      // 2. Fetch Subscription v2 Status
+      const subStatus = await SubscriptionApi.getStatus();
+      setSubscriptionStatus(subStatus);
     } catch (err) {
       console.warn("[FeatureAccess] Failed to fetch app configuration:", err);
     } finally {
@@ -68,23 +81,29 @@ export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
       fetchConfig();
     } else {
       setConfig(null);
+      setSubscriptionStatus(null);
       setIsLoading(false);
     }
   }, [isLoggedIn]);
 
+  const isSubscriptionEnabled = subscriptionStatus?.subscriptionEnabled ?? false;
+
   const hasFeature = (featureKey: string): boolean => {
-    if (!config) return true; // Default to true while loading
-    const feature = config.features.find(f => f.key === featureKey);
+    if (!config) return true;
+    const feature = config.features?.find((f) => f.key === featureKey);
     if (!feature) return true;
     return feature.enabled;
   };
 
-  const isSupervisorManagementAllowed = (userPlan: string = "free"): boolean => {
-    if (!config) return true;
-    if (!config.subscriptionsEnabled) return true;
-    const restricted = config.supervisorManagementRestrictedToPaid ?? false;
-    if (!restricted) return true; // Admin set OFF: Free for all plans
-    return userPlan !== "free" && userPlan !== "basic"; // Admin set ON: Only allowed on paid plans
+  const isModuleVisible = (moduleKey: string): boolean => {
+    if (!config || !config.moduleVisibility) return true;
+    const mod = config.moduleVisibility.find((m) => m.key === moduleKey);
+    if (!mod) return true;
+    return mod.enabled;
+  };
+
+  const isSupervisorManagementAllowed = (_userPlan: string = "free"): boolean => {
+    return true; // Always allowed on all plans when global mode is free
   };
 
   const getFeatureStatus = (featureKey: string) => {
@@ -93,12 +112,17 @@ export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
       accessible: true,
       premium: false,
       minPlan: "free" as const,
-      showUpgradeUI: false
+      showUpgradeUI: false,
     };
+
+    // If global subscription is OFF, all features are 100% accessible with no upgrade UI
+    if (!isSubscriptionEnabled) {
+      return defaultStatus;
+    }
 
     if (!config) return defaultStatus;
 
-    const feature = config.features.find(f => f.key === featureKey);
+    const feature = config.features?.find((f) => f.key === featureKey);
     if (!feature) return defaultStatus;
 
     const enabled = feature.enabled;
@@ -108,31 +132,16 @@ export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
         accessible: false,
         premium: feature.premium,
         minPlan: feature.minPlan,
-        showUpgradeUI: false
+        showUpgradeUI: false,
       };
     }
 
     let accessible = true;
     let showUpgradeUI = false;
 
-    if (config.subscriptionsEnabled && feature.premium) {
-      const planHierarchy = ["free", "basic", "super", "premium"];
-      
-      // Standardize user's plan name
-      const rawUserPlan = user?.plan || "free";
-      let userPlan = rawUserPlan;
-      if (rawUserPlan === "professional") {
-        userPlan = "super"; // treat professional as super
-      } else if (rawUserPlan === "starter") {
-        userPlan = "basic"; // treat starter as basic
-      } else if (rawUserPlan === "business") {
-        userPlan = "premium"; // treat business as premium
-      }
-
-      const userPlanIdx = planHierarchy.indexOf(userPlan);
-      const minPlanIdx = planHierarchy.indexOf(feature.minPlan || "premium");
-
-      if (userPlanIdx < minPlanIdx) {
+    if (isSubscriptionEnabled && feature.premium) {
+      const activeSub = subscriptionStatus?.userSubscription;
+      if (!activeSub || activeSub.status !== "active") {
         accessible = false;
         showUpgradeUI = true;
       }
@@ -143,7 +152,7 @@ export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
       accessible,
       premium: feature.premium,
       minPlan: feature.minPlan,
-      showUpgradeUI
+      showUpgradeUI,
     };
   };
 
@@ -151,11 +160,14 @@ export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
     <FeatureAccessContext.Provider
       value={{
         config,
+        subscriptionStatus,
+        isSubscriptionEnabled,
         isLoading,
         refetch: fetchConfig,
         hasFeature,
+        isModuleVisible,
         isSupervisorManagementAllowed,
-        getFeatureStatus
+        getFeatureStatus,
       }}
     >
       {children}

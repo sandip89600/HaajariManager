@@ -403,7 +403,6 @@ export default function SiteDetailControlScreen() {
             { id: "overview", label: "Timeline & Stages" },
             { id: "workers", label: "Workers & Wages" },
             { id: "materials", label: "Materials" },
-            { id: "expenses", label: "Expenses Ledger" },
             { id: "reports", label: "Reports & Docs" },
             { id: "analytics", label: "Analytics" },
             { id: "photos", label: "Photos" },

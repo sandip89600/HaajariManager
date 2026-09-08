@@ -60,6 +60,32 @@ export const authenticateJWT = (
   }
 };
 
+export const optionalAuthenticateJWT = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    const token = authHeader.split(" ")[1];
+    const secret = process.env.JWT_SECRET;
+    if (secret) {
+      jwt.verify(token, secret, (err, decodedUser: any) => {
+        if (!err && decodedUser) {
+          req.user = {
+            id: decodedUser.id,
+            tenantId: decodedUser.tenantId,
+            role: decodedUser.role,
+          };
+        }
+        next();
+      });
+      return;
+    }
+  }
+  next();
+};
+
 export const requireAdmin = (
   req: AuthenticatedRequest,
   res: Response,

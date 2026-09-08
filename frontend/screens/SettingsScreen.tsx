@@ -36,6 +36,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { ProfileHeaderCard } from "@/components/ProfileHeaderCard";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { translateWorkerName } from "@/utils/transliteration";
@@ -1069,64 +1070,33 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
         )}
 
 
-        {/* ─── 1. USER PROFILE CARD (UPDATED LAYOUT - BADGES REMOVED) ─── */}
+        {/* ─── 1. USER PROFILE CARD (MODERN DESIGN) ─── */}
         {!isGuest && (currentUser || authUser) && (() => {
           const displayUser = currentUser || authUser;
           if (!displayUser) return null;
-          const userInitials = displayUser.name
-            ? displayUser.name.split(" ").map((n) => n[0]).join("").toUpperCase()
-            : "HM";
 
           return (
-            <Pressable
-              onPress={() => {
+            <ProfileHeaderCard
+              name={displayUser.name || "Ganesh Pandit"}
+              phone={displayUser.phone || "8055813694"}
+              email={displayUser.email || "panditganesh8055@gmail.com"}
+              companyName={displayUser.companyName || "Ravi Construction"}
+              profileImage={displayUser.profileImage}
+              avatarColor={displayUser.avatarColor}
+              onEditPress={() => {
                 if (isInDrawer && onClose) {
                   onClose();
                 }
                 navigation.navigate("UserProfile");
               }}
-              style={[
-                styles.profileCard,
-                {
-                  backgroundColor: theme.backgroundSecondary,
-                  borderColor: theme.border,
-                  padding: 16,
-                  borderRadius: 16,
-                  flexDirection: "row",
-                  alignItems: "center",
-                },
-              ]}
-            >
-              <View style={[styles.profileAvatar, { backgroundColor: displayUser.avatarColor || theme.primary, width: 52, height: 52, borderRadius: 26, justifyContent: "center", alignItems: "center" }]}>
-                <ThemedText style={[styles.profileAvatarText, { fontSize: 20, fontWeight: "700" }]}>
-                  {userInitials}
-                </ThemedText>
-              </View>
-              <View style={[styles.profileDetails, { flex: 1, marginLeft: 14 }]}>
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <ThemedText style={[styles.profileName, { fontSize: 17, fontWeight: "700" }]}>{displayUser.name}</ThemedText>
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <ThemedText type="small" style={{ color: theme.primary, fontWeight: "600", marginRight: 4 }}>
-                      {t.profile?.editProfile || "View Profile"}
-                    </ThemedText>
-                    <Feather name="chevron-right" size={16} color={theme.primary} />
-                  </View>
-                </View>
-                <ThemedText type="small" style={[styles.profileMeta, { marginTop: 2, color: theme.textSecondary }]}>
-                  📞 {displayUser.phone}
-                </ThemedText>
-                {displayUser.email ? (
-                  <ThemedText type="small" style={[styles.profileMeta, { color: theme.textSecondary }]}>
-                    📧 {displayUser.email}
-                  </ThemedText>
-                ) : null}
-                {displayUser.companyName ? (
-                  <ThemedText type="small" style={[styles.profileMeta, { color: theme.textSecondary }]}>
-                    🏢 {displayUser.companyName}
-                  </ThemedText>
-                ) : null}
-              </View>
-            </Pressable>
+              onAvatarPress={() => {
+                if (isInDrawer && onClose) {
+                  onClose();
+                }
+                navigation.navigate("UserProfile");
+              }}
+              editLabel="Edit Profile >"
+            />
           );
         })()}
 

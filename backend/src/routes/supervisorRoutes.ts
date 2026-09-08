@@ -8,7 +8,7 @@ const router = Router();
 router.use(authenticateJWT as any);
 
 router.get("/", getSupervisors as any);
-router.post("/", checkPlanLimit("supervisors") as any, createSupervisor as any);
+router.post("/", createSupervisor as any);
 router.put("/:id", updateSupervisor as any);
 router.delete("/:id", deleteSupervisor as any);
 

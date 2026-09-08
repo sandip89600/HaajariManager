@@ -94,7 +94,7 @@ export default function DashboardScreen() {
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
-  const { config: featureConfig } = useFeatureAccess();
+  const { config: featureConfig, isModuleVisible } = useFeatureAccess();
   const subscriptionsEnabled = featureConfig?.subscriptionsEnabled ?? true;
   const { socket, connectSocket } = useSocket();
   const { unreadCount } = useNotifications();
@@ -129,7 +129,7 @@ export default function DashboardScreen() {
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [showToast, setShowToast] = useState(false);
-  const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showSuccessToast = useCallback((msg: string) => {
     if (toastTimerRef.current) {
@@ -671,28 +671,30 @@ export default function DashboardScreen() {
         </Animated.View>
 
         {/* ── 3. Attendance Grid Launcher Card ──────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(200).springify()} style={{ paddingHorizontal: 16, marginTop: 12 }}>
-          <Pressable
-            onPress={() => {
-              triggerHaptic();
-              navigation.navigate("AttendanceDetail");
-            }}
-            style={[styles.attendanceGridLauncherCard, { backgroundColor: isDark ? "#1E293B" : "#FFF7ED", borderColor: "#F97316" }]}
-          >
-            <View style={styles.launcherIconCircle}>
-              <Feather name="calendar" size={20} color="#FFFFFF" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <ThemedText style={[styles.launcherTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
-                📅 Attendance Grid
-              </ThemedText>
-              <ThemedText style={[styles.launcherSubtitle, { color: isDark ? "#94A3B8" : "#92400E" }]}>
-                View worker attendance by date
-              </ThemedText>
-            </View>
-            <Feather name="chevron-right" size={20} color="#F97316" />
-          </Pressable>
-        </Animated.View>
+        {isModuleVisible("attendance") && (
+          <Animated.View entering={FadeInDown.delay(200).springify()} style={{ paddingHorizontal: 16, marginTop: 12 }}>
+            <Pressable
+              onPress={() => {
+                triggerHaptic();
+                navigation.navigate("AttendanceDetail");
+              }}
+              style={[styles.attendanceGridLauncherCard, { backgroundColor: isDark ? "#1E293B" : "#FFF7ED", borderColor: "#F97316" }]}
+            >
+              <View style={styles.launcherIconCircle}>
+                <Feather name="calendar" size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <ThemedText style={[styles.launcherTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
+                  📅 Attendance Grid
+                </ThemedText>
+                <ThemedText style={[styles.launcherSubtitle, { color: isDark ? "#94A3B8" : "#92400E" }]}>
+                  View worker attendance by date
+                </ThemedText>
+              </View>
+              <Feather name="chevron-right" size={20} color="#F97316" />
+            </Pressable>
+          </Animated.View>
+        )}
 
         {/* ── 4. Quick Actions Grid ─────────────────────────────────── */}
         <Animated.View
@@ -703,27 +705,40 @@ export default function DashboardScreen() {
         >
           <SectionHeader title={t.dashboard?.quickActions || "Quick Actions"} />
           <View style={styles.quickActionsGrid}>
-            {getQuickActions(t).map((action) => (
-              <AnimatedPressable
-                key={action.id}
-                style={[styles.quickActionCard, { backgroundColor: cardBg, borderColor }]}
-                onPress={() => {
-                  triggerHaptic();
-                  trackInteraction("screen_navigated");
-                  navigation.navigate(action.screen);
-                }}
-              >
-                <LinearGradient colors={action.colors} style={styles.quickActionIconWrap}>
-                  <Feather name={action.icon as any} size={20} color="#FFFFFF" />
-                </LinearGradient>
-                <ThemedText style={[styles.quickActionLabel, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>{action.label}</ThemedText>
-              </AnimatedPressable>
-            ))}
+            {getQuickActions(t)
+              .filter((action) => {
+                if (action.screen === "AddWorker" || action.screen === "Workers") {
+                  return isModuleVisible("workers");
+                }
+                if (action.screen === "ProjectManagement" || action.screen === "SiteList" || action.screen === "CreateSite") {
+                  return isModuleVisible("siteControl");
+                }
+                if (action.screen === "ReportsTab" || action.screen === "Summary") {
+                  return isModuleVisible("reports");
+                }
+                return true;
+              })
+              .map((action) => (
+                <AnimatedPressable
+                  key={action.id}
+                  style={[styles.quickActionCard, { backgroundColor: cardBg, borderColor }]}
+                  onPress={() => {
+                    triggerHaptic();
+                    trackInteraction("screen_navigated");
+                    navigation.navigate(action.screen);
+                  }}
+                >
+                  <LinearGradient colors={action.colors} style={styles.quickActionIconWrap}>
+                    <Feather name={action.icon as any} size={20} color="#FFFFFF" />
+                  </LinearGradient>
+                  <ThemedText style={[styles.quickActionLabel, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>{action.label}</ThemedText>
+                </AnimatedPressable>
+              ))}
           </View>
         </Animated.View>
 
         {/* ── Active Site Card ──────────────────────────────────────── */}
-        {activeSite ? (
+        {activeSite && isModuleVisible("siteControl") ? (
           <Animated.View
             entering={FadeInDown.delay(280).springify()}
             style={[styles.siteCard, { backgroundColor: cardBg, borderColor }]}

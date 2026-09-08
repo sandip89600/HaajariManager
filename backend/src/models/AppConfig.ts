@@ -9,10 +9,18 @@ export interface IFeatureConfig {
   minPlan: "free" | "basic" | "super" | "premium";
 }
 
+export interface IModuleVisibilityConfig {
+  key: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+}
+
 export interface IAppConfig extends Document {
   subscriptionsEnabled: boolean;
   supervisorManagementRestrictedToPaid?: boolean;
   features: IFeatureConfig[];
+  moduleVisibility?: IModuleVisibilityConfig[];
   updatedBy: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -31,10 +39,18 @@ const FeatureConfigSchema = new Schema<IFeatureConfig>({
   }
 });
 
+const ModuleVisibilityConfigSchema = new Schema<IModuleVisibilityConfig>({
+  key: { type: String, required: true },
+  name: { type: String, required: true },
+  description: { type: String, required: true },
+  enabled: { type: Boolean, required: true, default: true }
+});
+
 const AppConfigSchema = new Schema<IAppConfig>({
   subscriptionsEnabled: { type: Boolean, required: true, default: false },
   supervisorManagementRestrictedToPaid: { type: Boolean, default: false },
   features: [FeatureConfigSchema],
+  moduleVisibility: [ModuleVisibilityConfigSchema],
   updatedBy: { type: Schema.Types.ObjectId, ref: "User", required: true }
 }, {
   timestamps: true

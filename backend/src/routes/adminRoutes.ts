@@ -35,10 +35,24 @@ import {
   getAllSalariesAdmin,
   getAllNotificationsAdmin,
   getAllSubscriptionsAdmin,
+  assignSubscriptionAdmin,
+  manageSubscriptionActionAdmin,
   getAllSupportTicketsAdmin,
   getAllDevicesAdmin,
 } from "../controllers/adminController";
 import { getSubscriptionConfig, updateSubscriptionConfig } from "../controllers/adminConfigController";
+import {
+  getAdminSubscriptionStats,
+  getAdminPlans,
+  updateAdminPlanPrice,
+  getAdminPromotions,
+  updateAdminPromotion,
+  getAdminCustomers,
+  grantManualSubscription,
+  getAdminPayments,
+  getAdminRenewals,
+  getAdminSubscriptionAuditLogs,
+} from "../controllers/adminSubscriptionController";
 import {
   sendAdminNotification,
   getAdminNotificationHistory,
@@ -68,6 +82,25 @@ router.delete("/users/:id", deleteUser as any);
 router.delete("/users-wipe", deleteAllUsers as any);
 
 // Subscription / Tenant Plan Management
+router.get("/subscription-config", getSubscriptionConfig as any);
+router.get("/subscription/config", getSubscriptionConfig as any);
+router.put("/subscription-config", updateSubscriptionConfig as any);
+router.put("/subscription/config", updateSubscriptionConfig as any);
+
+router.get("/subscriptions", getAllSubscriptionsAdmin as any);
+router.get("/subscriptions/list", getAllSubscriptionsAdmin as any);
+router.get("/subscriptions/stats", getAdminSubscriptionStats as any);
+router.get("/subscriptions/plans", getAdminPlans as any);
+router.put("/subscriptions/plans/price", updateAdminPlanPrice as any);
+router.get("/subscriptions/promotions", getAdminPromotions as any);
+router.put("/subscriptions/promotions/:id", updateAdminPromotion as any);
+router.get("/subscriptions/customers", getAdminCustomers as any);
+router.post("/subscriptions/grant", grantManualSubscription as any);
+router.post("/subscriptions/assign", assignSubscriptionAdmin as any);
+router.post("/subscriptions/action", manageSubscriptionActionAdmin as any);
+router.get("/subscriptions/payments", getAdminPayments as any);
+router.get("/subscriptions/renewals", getAdminRenewals as any);
+router.get("/subscriptions/audit-logs", getAdminSubscriptionAuditLogs as any);
 router.put("/tenants/:tenantId/plan", updateTenantPlan as any);
 router.delete("/tenants/:id", deleteTenantAdmin as any);
 

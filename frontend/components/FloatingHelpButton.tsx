@@ -146,7 +146,7 @@ export default function HelpSheet({ visible, onClose, onTourStart }: HelpSheetPr
     >
       <View style={styles.overlay}>
         {/* Backdrop */}
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={handleHide} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleHide} />
 
         {/* Sheet */}
         <Animated.View

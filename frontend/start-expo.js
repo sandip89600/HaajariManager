@@ -58,7 +58,7 @@ const args = ["expo", "start"];
 
 const userArgs = process.argv.slice(2);
 if (!userArgs.includes("--dev-client") && !userArgs.includes("--go")) {
-  args.push("--dev-client");
+  args.push("--go");
 }
 
 userArgs.forEach((arg) => {

@@ -8,6 +8,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import SecurityAlertModal from "@/components/SecurityAlertModal";
 import {
   getCommonScreenOptions,
@@ -139,14 +140,21 @@ function AttendanceNavigator() {
 function MainTabs() {
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
+  const { isModuleVisible } = useFeatureAccess();
+
+  const isDashboardVisible = isModuleVisible("dashboard");
+  const isSiteControlVisible = isModuleVisible("siteControl");
+  const isReportsVisible = isModuleVisible("reports");
+  const isWorkersVisible = isModuleVisible("workers");
+  const isSettingsVisible = isModuleVisible("settings");
 
   const tabBarStyle = {
-    position: "absolute" as const,
-    backgroundColor: Platform.select({
-      ios: "transparent",
-      android: theme.backgroundRoot,
-    }),
-    borderTopWidth: 0,
+    backgroundColor: Platform.OS === "ios" ? "transparent" : theme.backgroundSecondary,
+    borderTopColor: theme.border,
+    borderTopWidth: 1,
+    height: Platform.OS === "ios" ? 85 : 65,
+    paddingBottom: Platform.OS === "ios" ? 25 : 10,
+    paddingTop: 8,
     elevation: 0,
   };
 
@@ -176,6 +184,7 @@ function MainTabs() {
         options={{
           title: t.tabs?.dashboard || "Dashboard",
           headerShown: false,
+          tabBarItemStyle: isDashboardVisible ? undefined : { display: "none" },
           tabBarIcon: ({ color, size }) => (
             <Feather name="grid" size={size} color={color} />
           ),
@@ -187,6 +196,7 @@ function MainTabs() {
         options={{
           title: t.tabs?.siteControl || "Site Control",
           headerShown: false,
+          tabBarItemStyle: isSiteControlVisible ? undefined : { display: "none" },
           tabBarIcon: ({ color, size }) => (
             <Feather name="layers" size={size} color={color} />
           ),
@@ -198,6 +208,7 @@ function MainTabs() {
         options={{
           title: t.tabs?.reports || t.summary.title || "Reports",
           headerTitle: t.summary.title,
+          tabBarItemStyle: isReportsVisible ? undefined : { display: "none" },
           tabBarIcon: ({ color, size }) => (
             <Feather name="bar-chart-2" size={size} color={color} />
           ),
@@ -209,6 +220,7 @@ function MainTabs() {
         options={{
           title: t.tabs?.workers || t.workers.title || "Workers",
           headerTitle: t.workers.title,
+          tabBarItemStyle: isWorkersVisible ? undefined : { display: "none" },
           tabBarIcon: ({ color, size }) => (
             <Feather name="users" size={size} color={color} />
           ),
@@ -220,6 +232,7 @@ function MainTabs() {
         options={{
           title: t.tabs?.settings || t.settings.title || "Settings",
           headerTitle: t.settings.title,
+          tabBarItemStyle: isSettingsVisible ? undefined : { display: "none" },
           tabBarIcon: ({ color, size }) => (
             <Feather name="settings" size={size} color={color} />
           ),

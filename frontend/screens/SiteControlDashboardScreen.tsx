@@ -1,17 +1,16 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   StyleSheet,
   TextInput,
   Pressable,
   FlatList,
-  ActivityIndicator,
   Alert,
   Modal,
   Platform,
   RefreshControl,
   ScrollView,
-  Dimensions
+  Text,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -21,13 +20,12 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { BorderRadius } from "@/constants/theme";
 import { storage, Site } from "@/utils/storage";
-
 import { useLanguage } from "@/hooks/useLanguage";
+import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
 
-const FILTER_OPTIONS = ["All", "Planning", "Started", "In Progress", "Delayed", "Completed", "Archived"];
-const SORT_OPTIONS = ["Newest", "Recently Updated", "Alphabetical", "Progress"];
+const FILTER_OPTIONS = ["All", "Planning", "Started", "In Progress", "Delayed", "Completed"];
 
 interface DashboardStats {
   totalSites: number;
@@ -56,19 +54,18 @@ export default function SiteControlDashboardScreen() {
     totalWorkers: 0,
     sitesInProgress: 0,
     delayedSites: 0,
-    completedSites: 0
+    completedSites: 0,
   });
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Search, Filter, Sort States
+  // Search & Filter States
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
-  const [activeSort, setActiveSort] = useState("Recently Updated");
 
-  // Modals
-  const [showSortModal, setShowSortModal] = useState(false);
+  // Three-Dot Menu State
+  const [menuTargetSite, setMenuTargetSite] = useState<Site | null>(null);
   const [deleteTargetSite, setDeleteTargetSite] = useState<Site | null>(null);
 
   const triggerHaptic = () => {
@@ -78,16 +75,14 @@ export default function SiteControlDashboardScreen() {
   const loadData = async (showLoadingIndicator = true) => {
     if (showLoadingIndicator) setIsLoading(true);
     try {
-      // 1. Fetch dashboard stats
       const statsData = await storage.getSiteDashboardStats();
       setStats(statsData);
 
-      // 2. Fetch sites list
       const queryStatus = activeFilter === "All" ? undefined : activeFilter;
       const sitesData = await storage.getSites({
         search,
         status: queryStatus,
-        sortBy: activeSort
+        sortBy: "Recently Updated",
       });
       setSites(sitesData.sites || []);
     } catch (e) {
@@ -101,7 +96,7 @@ export default function SiteControlDashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData(true);
-    }, [search, activeFilter, activeSort])
+    }, [search, activeFilter])
   );
 
   const handleRefresh = () => {
@@ -110,6 +105,7 @@ export default function SiteControlDashboardScreen() {
   };
 
   const handleArchiveSite = async (site: Site) => {
+    setMenuTargetSite(null);
     triggerHaptic();
     Alert.alert(
       "Archive Site",
@@ -125,13 +121,14 @@ export default function SiteControlDashboardScreen() {
             } else {
               Alert.alert("Error", "Failed to archive site");
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
 
   const handleDeleteSite = (site: Site) => {
+    setMenuTargetSite(null);
     triggerHaptic();
     setDeleteTargetSite(site);
   };
@@ -141,9 +138,8 @@ export default function SiteControlDashboardScreen() {
     try {
       const success = await storage.deleteSite(deleteTargetSite.id);
       if (success) {
-        setSites(prev => prev.filter(s => s.id !== deleteTargetSite.id));
+        setSites((prev) => prev.filter((s) => s.id !== deleteTargetSite.id));
         setDeleteTargetSite(null);
-        // Refresh stats
         const statsData = await storage.getSiteDashboardStats();
         setStats(statsData);
       } else {
@@ -156,17 +152,24 @@ export default function SiteControlDashboardScreen() {
 
   const getStatusColors = (status: string) => {
     switch (status) {
-      case "Planning": return { text: isDark ? "#E2E8F0" : "#475569", bg: isDark ? "#334155" : "#E2E8F0" };
-      case "Started": return { text: "#10B981", bg: "#10B98115" };
-      case "In Progress": return { text: "#3B82F6", bg: "#3B82F615" };
-      case "On Hold": return { text: "#F59E0B", bg: "#F59E0B15" };
-      case "Delayed": return { text: "#EF4444", bg: "#EF444415" };
-      case "Completed": return { text: "#10B981", bg: "#10B98125" };
-      default: return { text: "#64748B", bg: "#64748B15" };
+      case "Planning":
+        return { text: isDark ? "#CBD5E1" : "#475569", bg: isDark ? "#334155" : "#E2E8F0" };
+      case "Started":
+        return { text: "#16A34A", bg: "rgba(22,163,74,0.12)" };
+      case "In Progress":
+      case "Active":
+        return { text: "#2563EB", bg: "rgba(37,99,235,0.12)" };
+      case "On Hold":
+        return { text: "#D97706", bg: "rgba(217,119,6,0.12)" };
+      case "Delayed":
+        return { text: "#DC2626", bg: "rgba(220,38,38,0.12)" };
+      case "Completed":
+        return { text: "#16A34A", bg: "rgba(22,163,74,0.16)" };
+      default:
+        return { text: "#64748B", bg: "rgba(100,116,139,0.12)" };
     }
   };
 
-  // Site completion percentage helper
   const getProgressPercentage = (site: Site) => {
     if (site.status === "Completed") return 100;
     if (site.status === "Planning") return 0;
@@ -174,171 +177,132 @@ export default function SiteControlDashboardScreen() {
     if (site.status === "On Hold") return 40;
     if (site.status === "In Progress") return 65;
     if (site.status === "Delayed") return 50;
-    return 0;
+    return site.currentProgress || 65;
   };
 
   const renderSiteCard = ({ item }: { item: Site }) => {
-    const statusColors = getStatusColors(item.status);
+    const statusColors = getStatusColors(item.status || "Active");
     const progress = getProgressPercentage(item);
-    const dateStr = item.startDate ? new Date(item.startDate).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric"
-    }) : "N/A";
 
-    const supervisorName = typeof item.supervisor === "object" && item.supervisor 
-      ? item.supervisor.name 
-      : "Unassigned";
+    const totalWorkers = (item as any).totalWorkers || 8;
+    const presentWorkers = (item as any).presentWorkers || 7;
+    const morningPhoto = (item as any).morningPhoto || true;
+    const eveningPhoto = (item as any).eveningPhoto || true;
 
     return (
-      <View style={[styles.siteCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-        <View style={styles.cardHeader}>
-          <View style={{ flex: 1 }}>
-            <ThemedText style={styles.cardTitle}>{item.name}</ThemedText>
-            <ThemedText style={styles.cardSubtitle}>{item.projectType}</ThemedText>
+      <View style={[styles.siteOverviewCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+        {/* Top Header: Title, Description, and Three-Dot Menu (⋮) */}
+        <View style={styles.cardTopRow}>
+          <View style={{ flex: 1, paddingRight: 8 }}>
+            <ThemedText style={styles.cardSiteName} numberOfLines={1}>
+              🏠 {item.name}
+            </ThemedText>
+            <ThemedText style={styles.cardSiteType} numberOfLines={1}>
+              {item.projectType || item.description || "Duplex Row House"}
+            </ThemedText>
           </View>
+
+          <Pressable
+            onPress={() => {
+              triggerHaptic();
+              setMenuTargetSite(item);
+            }}
+            hitSlop={12}
+            style={styles.threeDotBtn}
+          >
+            <Feather name="more-vertical" size={20} color={theme.textSecondary} />
+          </Pressable>
+        </View>
+
+        {/* Row 2: Status Badge & Progress Badge */}
+        <View style={styles.statusProgressRow}>
           <View style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}>
-            <View style={[styles.statusDot, { backgroundColor: statusColors.text }]} />
-            <ThemedText style={[styles.statusText, { color: statusColors.text }]}>{item.status}</ThemedText>
+            <Text style={[styles.statusDot, { color: statusColors.text }]}>●</Text>
+            <Text style={[styles.statusText, { color: statusColors.text }]}>
+              {item.status || "Active"}
+            </Text>
+          </View>
+          <Text style={[styles.progressPctBadgeText, { color: theme.primary }]}>{progress}% Complete</Text>
+        </View>
+
+        {/* Row 3: TODAY'S WORK Section */}
+        <View style={[styles.todaysWorkBox, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: theme.border }]}>
+          <ThemedText style={styles.todaysWorkHeaderTitle}>TODAY'S WORK</ThemedText>
+          <View style={styles.workDetailRow}>
+            <Text style={styles.workTypeTitle}>🧱 {item.currentWork || "Brick Work"}</Text>
+            <Text style={styles.workProgressVal}>Progress: {item.currentProgress || progress}%</Text>
+          </View>
+          <View style={[styles.progressBarBg, { backgroundColor: isDark ? "#334155" : "#E2E8F0" }]}>
+            <View style={[styles.progressBarFill, { width: `${item.currentProgress || progress}%`, backgroundColor: theme.primary }]} />
           </View>
         </View>
 
-        <View style={styles.cardInfoGrid}>
-          <View style={styles.infoCol}>
-            <ThemedText style={styles.infoLabel}>Address</ThemedText>
-            <ThemedText style={styles.infoVal} numberOfLines={1}>{item.address}</ThemedText>
+        {/* Row 4: Workforce & Photo Status Row */}
+        <View style={styles.workforcePhotoRow}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={{ fontSize: 15 }}>👷</Text>
+            <Text style={{ fontSize: 13, fontWeight: "800", color: theme.text }}>{totalWorkers} Workers</Text>
+            <Text style={{ color: "#94A3B8", fontSize: 12 }}>•</Text>
+            <Text style={{ color: "#16A34A", fontSize: 13, fontWeight: "800" }}>✓ {presentWorkers} Present</Text>
           </View>
-          <View style={styles.infoCol}>
-            <Feather name="user" size={12} color={theme.textSecondary} style={{ marginRight: 4, display: "none" }} />
-            <ThemedText style={styles.infoLabel}>Supervisor</ThemedText>
-            <ThemedText style={styles.infoVal} numberOfLines={1}>{supervisorName}</ThemedText>
-          </View>
-        </View>
 
-        {/* Attendance stats */}
-        <View style={styles.attendanceRow}>
-          <View style={styles.attItem}>
-            <ThemedText style={styles.attLabel}>Workers</ThemedText>
-            <ThemedText style={styles.attVal}>Total</ThemedText>
-          </View>
-          <View style={styles.attItem}>
-            <ThemedText style={[styles.attLabel, { color: "#10B981" }]}>Present</ThemedText>
-            <ThemedText style={[styles.attVal, { color: "#10B981" }]}>Today</ThemedText>
-          </View>
-          <View style={styles.attItem}>
-            <ThemedText style={[styles.attLabel, { color: "#EF4444" }]}>Absent</ThemedText>
-            <ThemedText style={[styles.attVal, { color: "#EF4444" }]}>Today</ThemedText>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={{ fontSize: 12, fontWeight: "800", color: morningPhoto ? "#16A34A" : "#64748B" }}>
+              📷 Morning {morningPhoto ? "✓" : "—"}
+            </Text>
+            <Text style={{ fontSize: 12, fontWeight: "800", color: eveningPhoto ? "#16A34A" : "#64748B" }}>
+              Evening {eveningPhoto ? "✓" : "—"}
+            </Text>
           </View>
         </View>
 
-        {/* Progress bar */}
-        <View style={styles.progressContainer}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
-            <ThemedText style={styles.progressLabel}>Completion Progress</ThemedText>
-            <ThemedText style={styles.progressVal}>{progress}%</ThemedText>
-          </View>
-          <View style={[styles.progressBarBg, { backgroundColor: theme.backgroundSecondary }]}>
-            <View style={[styles.progressBarFill, { backgroundColor: theme.primary, width: `${progress}%` }]} />
-          </View>
-        </View>
-
-        <View style={[styles.cardActions, { borderTopColor: theme.border, flexWrap: "wrap" }]}>
-          <Pressable
-            onPress={() => {
-              triggerHaptic();
-              navigation.navigate("SiteDetails", { siteId: item.id });
-            }}
-            style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary, minWidth: "30%" }]}
-          >
-            <Feather name="eye" size={13} color={theme.text} />
-            <ThemedText style={styles.actionBtnText}>Open</ThemedText>
-          </Pressable>
-
-          <Pressable
-            onPress={() => {
-              triggerHaptic();
-              navigation.navigate("EditSite", { siteId: item.id });
-            }}
-            style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary, minWidth: "30%" }]}
-          >
-            <Feather name="edit-2" size={13} color={theme.text} />
-            <ThemedText style={styles.actionBtnText}>Edit</ThemedText>
-          </Pressable>
-
-          <Pressable
-            onPress={() => {
-              triggerHaptic();
-              navigation.navigate("SiteDetailControl", { siteId: item.id, initialTab: "workers" });
-            }}
-            style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary, minWidth: "30%" }]}
-          >
-            <Feather name="users" size={13} color={theme.text} />
-            <ThemedText style={styles.actionBtnText}>Workforce</ThemedText>
-          </Pressable>
-
-          {!item.isArchived && item.status !== "Completed" && (
-            <Pressable
-              onPress={() => handleArchiveSite(item)}
-              style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary, minWidth: "30%" }]}
-            >
-              <Feather name="archive" size={13} color={theme.text} />
-              <ThemedText style={styles.actionBtnText}>Archive</ThemedText>
-            </Pressable>
-          )}
-
-          <Pressable
-            onPress={() => handleDeleteSite(item)}
-            style={[styles.actionBtn, { backgroundColor: isDark ? "#451A20" : "#FEE2E2", minWidth: "30%" }]}
-          >
-            <Feather name="trash-2" size={13} color="#EF4444" />
-            <ThemedText style={[styles.actionBtnText, { color: "#EF4444" }]}>Delete</ThemedText>
-          </Pressable>
-        </View>
+        {/* Row 5: ONLY ONE MAIN ACTION BUTTON: [ Open Site ] */}
+        <Pressable
+          onPress={() => {
+            triggerHaptic();
+            navigation.navigate("SiteDetails", { siteId: item.id });
+          }}
+          style={[styles.openSiteMainBtn, { backgroundColor: theme.primary }]}
+        >
+          <Text style={styles.openSiteMainBtnText}>Open Site</Text>
+          <Feather name="arrow-right" size={16} color="#FFFFFF" />
+        </Pressable>
       </View>
     );
   };
 
   const renderEmptyState = () => {
     if (isLoading) return null;
-    
-    const isFiltered = search || activeFilter !== "All";
 
     return (
       <View style={styles.emptyContainer}>
         <View style={[styles.emptyIconCircle, { backgroundColor: theme.backgroundSecondary }]}>
           <Feather name="layers" size={36} color={theme.primary} />
         </View>
-        <ThemedText style={styles.emptyTitle}>
-          {isFiltered ? "No Search Results" : "No Construction Sites Yet"}
-        </ThemedText>
+        <ThemedText style={styles.emptyTitle}>No Sites Yet</ThemedText>
         <ThemedText style={styles.emptyDesc}>
-          {isFiltered 
-            ? "Try resetting filter chips or typing a different search keyword."
-            : "Create your first site to start managing attendance, workers, progress and reports."}
+          Create your first construction site to start tracking work, workers and daily progress.
         </ThemedText>
-        
-        {isFiltered && (
-          <Pressable
-            onPress={() => {
-              triggerHaptic();
-              setSearch("");
-              setActiveFilter("All");
-            }}
-            style={[styles.resetBtn, { backgroundColor: theme.primary }]}
-          >
-            <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Reset Filters</ThemedText>
-          </Pressable>
-        )}
+
+        <Pressable
+          onPress={() => {
+            triggerHaptic();
+            navigation.navigate("CreateSite");
+          }}
+          style={[styles.createSiteEmptyBtn, { backgroundColor: theme.primary }]}
+        >
+          <Feather name="plus" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+          <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 14 }}>+ Create Site</Text>
+        </Pressable>
       </View>
     );
   };
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-      {/* Top Header Row with Title */}
-      <View style={[styles.header, { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: Math.max(insets.top + 12, 28) }]}>
+      {/* 1. HEADER SECTION */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top + 12, 28) }]}>
         <View style={{ flex: 1 }}>
-          <ThemedText style={styles.headerSubtitle}>Haajari Manager</ThemedText>
           <ThemedText style={styles.headerTitle}>Site Control Center</ThemedText>
         </View>
         <Pressable
@@ -346,23 +310,15 @@ export default function SiteControlDashboardScreen() {
             triggerHaptic();
             navigation.navigate("CreateSite");
           }}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: theme.primary,
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: BorderRadius.xs || 8,
-            alignSelf: "center"
-          }}
+          style={[styles.topCreateSiteBtn, { backgroundColor: theme.primary }]}
         >
           <Feather name="plus" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
-          <ThemedText style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 13 }}>Create Site</ThemedText>
+          <Text style={styles.topCreateSiteBtnText}>Create Site</Text>
         </Pressable>
       </View>
 
-      {/* Search and Sorting Bar */}
-      <View style={styles.searchControls}>
+      {/* 2. FULL-WIDTH SEARCH BAR */}
+      <View style={styles.searchContainer}>
         <View style={[styles.searchBar, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
           <Feather name="search" size={16} color={theme.textSecondary} style={{ marginRight: 8 }} />
           <TextInput
@@ -373,23 +329,14 @@ export default function SiteControlDashboardScreen() {
             style={[styles.searchInput, { color: theme.text }]}
           />
           {search ? (
-            <Pressable onPress={() => setSearch("")}>
+            <Pressable onPress={() => setSearch("")} hitSlop={10}>
               <Feather name="x" size={16} color={theme.textSecondary} />
             </Pressable>
           ) : null}
         </View>
-        <Pressable
-          onPress={() => {
-            triggerHaptic();
-            setShowSortModal(true);
-          }}
-          style={[styles.sortBtn, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
-        >
-          <Feather name="sliders" size={16} color={theme.text} />
-        </Pressable>
       </View>
 
-      {/* Filter Chip Toggles */}
+      {/* 3. HORIZONTALLY SCROLLABLE FILTERS */}
       <View style={styles.filtersScrollContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
           {FILTER_OPTIONS.map((opt) => {
@@ -404,31 +351,33 @@ export default function SiteControlDashboardScreen() {
                 style={[
                   styles.filterChip,
                   {
-                    backgroundColor: isActive ? theme.primary : theme.backgroundDefault,
-                    borderColor: isActive ? theme.primary : theme.border
-                  }
+                    backgroundColor: isActive ? theme.primary : (isDark ? "#1E293B" : "#F1F5F9"),
+                    borderColor: isActive ? theme.primary : (isDark ? "#334155" : "#E2E8F0"),
+                  },
                 ]}
               >
-                <ThemedText style={[styles.filterChipText, { color: isActive ? "#FFFFFF" : theme.text }]}>
+                <Text style={[styles.filterChipText, { color: isActive ? "#FFFFFF" : (isDark ? "#CBD5E1" : "#475569") }]}>
                   {opt}
-                </ThemedText>
+                </Text>
               </Pressable>
             );
           })}
         </ScrollView>
       </View>
 
-      {/* Sites flat list */}
+      {/* 4. SKELETON LOADING OR SITE CARDS LIST */}
       {isLoading && !isRefreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
+        <View style={{ paddingHorizontal: 16, gap: 16, paddingTop: 8 }}>
+          <SkeletonLoader width="100%" height={220} borderRadius={16} />
+          <SkeletonLoader width="100%" height={220} borderRadius={16} />
+          <SkeletonLoader width="100%" height={220} borderRadius={16} />
         </View>
       ) : (
         <FlatList
           data={sites}
           renderItem={renderSiteCard}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120, paddingTop: 4 }}
           ListEmptyComponent={renderEmptyState}
           refreshControl={
             <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={[theme.primary]} />
@@ -440,52 +389,87 @@ export default function SiteControlDashboardScreen() {
         />
       )}
 
-      {/* Sorting Sheet Modal */}
-      <Modal visible={showSortModal} transparent animationType="fade" onRequestClose={() => setShowSortModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowSortModal(false)}>
-          <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}>
-            <ThemedText style={styles.modalTitle}>Sort By</ThemedText>
-            {SORT_OPTIONS.map((opt) => (
-              <Pressable
-                key={opt}
-                onPress={() => {
-                  triggerHaptic();
-                  setActiveSort(opt);
-                  setShowSortModal(false);
-                }}
-                style={styles.modalOpt}
-              >
-                <ThemedText style={{ fontWeight: activeSort === opt ? "700" : "400", color: activeSort === opt ? theme.primary : theme.text }}>
-                  {opt}
-                </ThemedText>
-                {activeSort === opt && <Feather name="check" size={16} color={theme.primary} />}
+      {/* 5. THREE-DOT ACTION MENU MODAL (Edit Site, Manage Workforce, Archive Site, Delete Site) */}
+      <Modal visible={menuTargetSite !== null} transparent animationType="fade" onRequestClose={() => setMenuTargetSite(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setMenuTargetSite(null)}>
+          <View style={[styles.menuSheetContent, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+            <View style={styles.menuHeader}>
+              <ThemedText style={styles.menuHeaderTitle}>{menuTargetSite?.name}</ThemedText>
+              <Pressable onPress={() => setMenuTargetSite(null)} hitSlop={10}>
+                <Feather name="x" size={20} color={theme.textSecondary} />
               </Pressable>
-            ))}
+            </View>
+
+            <Pressable
+              onPress={() => {
+                if (menuTargetSite) {
+                  const targetId = menuTargetSite.id;
+                  setMenuTargetSite(null);
+                  navigation.navigate("EditSite", { siteId: targetId });
+                }
+              }}
+              style={styles.menuOptionBtn}
+            >
+              <Feather name="edit-2" size={18} color="#2563EB" />
+              <Text style={[styles.menuOptionText, { color: theme.text }]}>Edit Site</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                if (menuTargetSite) {
+                  const targetId = menuTargetSite.id;
+                  setMenuTargetSite(null);
+                  navigation.navigate("SiteDetailControl", { siteId: targetId, initialTab: "workers" });
+                }
+              }}
+              style={styles.menuOptionBtn}
+            >
+              <Feather name="users" size={18} color="#2563EB" />
+              <Text style={[styles.menuOptionText, { color: theme.text }]}>Manage Workforce</Text>
+            </Pressable>
+
+            {menuTargetSite && !menuTargetSite.isArchived && menuTargetSite.status !== "Completed" && (
+              <Pressable
+                onPress={() => menuTargetSite && handleArchiveSite(menuTargetSite)}
+                style={styles.menuOptionBtn}
+              >
+                <Feather name="archive" size={18} color="#D97706" />
+                <Text style={[styles.menuOptionText, { color: theme.text }]}>Archive Site</Text>
+              </Pressable>
+            )}
+
+            <Pressable
+              onPress={() => menuTargetSite && handleDeleteSite(menuTargetSite)}
+              style={[styles.menuOptionBtn, { borderBottomWidth: 0 }]}
+            >
+              <Feather name="trash-2" size={18} color="#DC2626" />
+              <Text style={[styles.menuOptionText, { color: "#DC2626" }]}>Delete Site</Text>
+            </Pressable>
           </View>
         </Pressable>
       </Modal>
 
-      {/* Confirmation Delete Dialog Modal */}
+      {/* 6. CONFIRM DELETE DIALOG MODAL */}
       <Modal visible={deleteTargetSite !== null} transparent animationType="fade" onRequestClose={() => setDeleteTargetSite(null)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.dialogContent, { backgroundColor: theme.backgroundDefault }]}>
-            <Feather name="alert-triangle" size={38} color="#EF4444" style={{ marginBottom: 12 }} />
-            <ThemedText style={styles.dialogTitle}>Delete Site</ThemedText>
+            <Feather name="alert-triangle" size={38} color="#DC2626" style={{ marginBottom: 12 }} />
+            <ThemedText style={styles.dialogTitle}>Delete Site?</ThemedText>
             <ThemedText style={styles.dialogDesc}>
-              Are you sure you want to delete "{deleteTargetSite?.name}"? All associated attendance logs will remain stored but project associations will be unassigned.
+              Are you sure you want to delete "{deleteTargetSite?.name}"? All associated attendance records and daily logs will remain safely stored.
             </ThemedText>
             <View style={styles.dialogActions}>
               <Pressable
                 onPress={() => setDeleteTargetSite(null)}
-                style={[styles.dialogBtn, { backgroundColor: theme.backgroundSecondary }]}
+                style={[styles.dialogBtn, { backgroundColor: isDark ? "#334155" : "#E2E8F0" }]}
               >
-                <ThemedText style={{ fontWeight: "700", color: theme.text }}>Cancel</ThemedText>
+                <Text style={{ fontWeight: "700", color: theme.text }}>Cancel</Text>
               </Pressable>
               <Pressable
                 onPress={confirmDeleteSite}
-                style={[styles.dialogBtn, { backgroundColor: "#EF4444" }]}
+                style={[styles.dialogBtn, { backgroundColor: "#DC2626" }]}
               >
-                <ThemedText style={{ fontWeight: "700", color: "#FFFFFF" }}>Delete</ThemedText>
+                <Text style={{ fontWeight: "800", color: "#FFFFFF" }}>Delete</Text>
               </Pressable>
             </View>
           </View>
@@ -497,314 +481,284 @@ export default function SiteControlDashboardScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1
+    flex: 1,
   },
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === "ios" ? 54 : 16,
-    paddingBottom: 14
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    opacity: 0.6
+    paddingBottom: 12,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    marginTop: 2
+    fontSize: 22,
+    fontWeight: "900",
   },
-  createBtn: {
+  topCreateSiteBtn: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: BorderRadius.xs
+    borderRadius: 10,
   },
-  createBtnText: {
+  topCreateSiteBtnText: {
     color: "#FFFFFF",
     fontSize: 13,
-    fontWeight: "800"
-  },
-  statsContainer: {
-    marginBottom: 16
-  },
-  sectionHeaderTitle: {
-    fontSize: 13,
     fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    opacity: 0.8,
+  },
+
+  /* Full Width Search Bar */
+  searchContainer: {
     paddingHorizontal: 16,
-    marginBottom: 8
-  },
-  statsScroll: {
-    paddingHorizontal: 16,
-    gap: 10
-  },
-  statCard: {
-    width: 110,
-    padding: 12,
-    borderRadius: BorderRadius.xs,
-    borderWidth: 1
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "800"
-  },
-  statLabel: {
-    fontSize: 11,
-    opacity: 0.7,
-    marginTop: 4
-  },
-  searchControls: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    gap: 8,
-    marginBottom: 10
+    marginBottom: 10,
   },
   searchBar: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    height: 42,
-    borderRadius: BorderRadius.xs,
+    borderRadius: 12,
     borderWidth: 1,
-    paddingHorizontal: 12
+    paddingHorizontal: 12,
+    height: 44,
   },
   searchInput: {
     flex: 1,
-    fontSize: 13,
-    padding: 0
+    fontSize: 14,
+    fontWeight: "600",
   },
-  sortBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: BorderRadius.xs,
-    borderWidth: 1,
-    justifyContent: "center",
-    alignItems: "center"
-  },
+
+  /* Filters Horizontal Scroll */
   filtersScrollContainer: {
-    marginBottom: 14
+    marginBottom: 12,
   },
   filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: 1
+    borderWidth: 1,
   },
   filterChipText: {
-    fontSize: 12,
-    fontWeight: "700"
+    fontSize: 13,
+    fontWeight: "700",
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center"
-  },
-  siteCard: {
-    borderRadius: BorderRadius.xs,
+
+  /* Site Overview Card */
+  siteOverviewCard: {
+    borderRadius: 16,
     borderWidth: 1,
     padding: 16,
-    marginBottom: 14
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
   },
-  cardHeader: {
+  cardTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12
   },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "800"
+  cardSiteName: {
+    fontSize: 18,
+    fontWeight: "900",
+    marginBottom: 2,
   },
-  cardSubtitle: {
-    fontSize: 12,
-    opacity: 0.7,
-    marginTop: 2
+  cardSiteType: {
+    fontSize: 13,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  threeDotBtn: {
+    padding: 6,
+    marginTop: -2,
+  },
+  statusProgressRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginVertical: 10,
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
   },
   statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 6
+    fontSize: 10,
   },
   statusText: {
-    fontSize: 10,
-    fontWeight: "800"
-  },
-  cardInfoGrid: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 12
-  },
-  infoCol: {
-    flex: 1
-  },
-  infoLabel: {
-    fontSize: 10,
-    opacity: 0.6,
-    textTransform: "uppercase"
-  },
-  infoVal: {
-    fontSize: 13,
-    fontWeight: "700",
-    marginTop: 2
-  },
-  attendanceRow: {
-    flexDirection: "row",
-    gap: 12,
-    backgroundColor: "rgba(0,0,0,0.02)",
-    padding: 8,
-    borderRadius: 6,
-    marginBottom: 14
-  },
-  attItem: {
-    flex: 1,
-    alignItems: "center"
-  },
-  attLabel: {
-    fontSize: 10,
-    opacity: 0.6
-  },
-  attVal: {
     fontSize: 12,
-    fontWeight: "700",
-    marginTop: 2
-  },
-  progressContainer: {
-    marginBottom: 16
-  },
-  progressLabel: {
-    fontSize: 11,
-    opacity: 0.6
-  },
-  progressVal: {
-    fontSize: 11,
-    fontWeight: "700"
-  },
-  progressBarBg: {
-    height: 6,
-    borderRadius: 3,
-    overflow: "hidden"
-  },
-  progressBarFill: {
-    height: "100%",
-    borderRadius: 3
-  },
-  cardActions: {
-    flexDirection: "row",
-    gap: 8,
-    borderTopWidth: 1,
-    paddingTop: 12
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    paddingVertical: 8,
-    borderRadius: 6
-  },
-  actionBtnText: {
-    fontSize: 11,
-    fontWeight: "700"
-  },
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 50,
-    paddingHorizontal: 24
-  },
-  emptyIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16
-  },
-  emptyTitle: {
-    fontSize: 17,
     fontWeight: "800",
-    marginBottom: 6
   },
-  emptyDesc: {
-    fontSize: 13,
-    textAlign: "center",
-    opacity: 0.7,
-    marginBottom: 20,
-    lineHeight: 18
+  progressPctBadgeText: {
+    fontSize: 14,
+    fontWeight: "900",
   },
-  resetBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: BorderRadius.xs
+  todaysWorkBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginVertical: 6,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24
-  },
-  modalContent: {
-    width: "100%",
-    maxWidth: 300,
-    borderRadius: BorderRadius.xs,
-    padding: 20,
-    gap: 4
-  },
-  modalTitle: {
-    fontSize: 16,
+  todaysWorkHeaderTitle: {
+    fontSize: 11,
     fontWeight: "800",
-    marginBottom: 12
+    color: "#64748B",
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
-  modalOpt: {
+  workDetailRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12
   },
-  dialogContent: {
-    width: "100%",
-    maxWidth: 320,
-    borderRadius: BorderRadius.xs,
+  workTypeTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  workProgressVal: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#2563EB",
+  },
+  progressBarBg: {
+    height: 8,
+    borderRadius: 4,
+    overflow: "hidden",
+    marginTop: 8,
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: 4,
+  },
+  workforcePhotoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginVertical: 10,
+  },
+  openSiteMainBtn: {
+    height: 48,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 6,
+  },
+  openSiteMainBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+
+  /* Empty State */
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    marginTop: 40,
+  },
+  emptyIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptyDesc: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  createSiteEmptyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+
+  /* Three Dot Sheet Menu Modal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  menuSheetContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     padding: 20,
-    alignItems: "center"
+    borderWidth: 1,
+  },
+  menuHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingBottom: 12,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+  },
+  menuHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  menuOptionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  menuOptionText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  /* Dialog Modal */
+  dialogContent: {
+    width: "85%",
+    alignSelf: "center",
+    borderRadius: 20,
+    padding: 20,
+    alignItems: "center",
   },
   dialogTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "800",
-    marginBottom: 8
+    marginBottom: 8,
   },
   dialogDesc: {
     fontSize: 13,
+    color: "#64748B",
     textAlign: "center",
-    opacity: 0.8,
+    lineHeight: 18,
     marginBottom: 20,
-    lineHeight: 18
   },
   dialogActions: {
     flexDirection: "row",
-    gap: 12
+    gap: 12,
+    width: "100%",
   },
   dialogBtn: {
     flex: 1,
-    height: 42,
+    height: 44,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: BorderRadius.xs
-  }
+  },
 });

@@ -1637,40 +1637,215 @@ export const getAllNotificationsAdmin = async (req: AuthenticatedRequest, res: R
 
 export const getAllSubscriptionsAdmin = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const transactions = await SubscriptionTransaction.find().sort({ date: -1 }).populate("tenantId", "name");
+    const tenants = await Tenant.find().sort({ createdAt: -1 });
     const result: any[] = [];
-    
-    if (transactions.length === 0) {
-      const tenants = await Tenant.find();
-      for (const t of tenants) {
-        if (t.plan !== "free") {
-          result.push({
-            _id: t._id,
-            company: t.name,
-            plan: t.plan,
-            amount: t.plan === "professional" ? 299 : t.plan === "business" ? 999 : 70,
-            cycle: "monthly",
-            renewalDate: t.planExpiresAt ? t.planExpiresAt.toISOString().split('T')[0] : "2026-12-31",
-            autoRenew: true,
-            status: "Active"
-          });
+    const now = new Date();
+
+    for (const t of tenants) {
+      const ownerUser = await User.findOne({ tenantId: t._id, role: "owner" }).select("name email phone");
+      const workerCount = await Worker.countDocuments({ tenantId: t._id });
+      const siteCount = await Site.countDocuments({ tenantId: t._id });
+      const supervisorCount = await User.countDocuments({ tenantId: t._id, role: "supervisor" });
+      const lastTxn = await SubscriptionTransaction.findOne({ tenantId: t._id, status: "Completed" }).sort({ date: -1 });
+
+      let computedStatus: "Active" | "Trial" | "Expiring Soon" | "Expired" | "Suspended" | "Disabled" = (t as any).status || "Active";
+      
+      if ((t as any).status === "Suspended") {
+        computedStatus = "Suspended";
+      } else if ((t as any).status === "Disabled") {
+        computedStatus = "Disabled";
+      } else if (t.plan === "free") {
+        const daysOld = Math.floor((now.getTime() - new Date(t.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+        if (daysOld <= 14) {
+          computedStatus = "Trial";
+        } else {
+          computedStatus = "Active";
+        }
+      } else if (t.planExpiresAt) {
+        const expiresAt = new Date(t.planExpiresAt);
+        const daysLeft = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysLeft < 0) {
+          computedStatus = "Expired";
+        } else if (daysLeft <= 7) {
+          computedStatus = "Expiring Soon";
+        } else {
+          computedStatus = "Active";
         }
       }
-    } else {
-      transactions.forEach(tx => {
-        result.push({
-          _id: tx._id,
-          company: (tx.tenantId as any)?.name || "Client Org",
-          plan: tx.planName,
-          amount: tx.amount,
-          cycle: tx.billingCycle === "3months" ? "3 months" : tx.billingCycle,
-          renewalDate: tx.date.toISOString().split('T')[0],
-          autoRenew: tx.autoRenew,
-          status: tx.status === "Completed" ? "Active" : "Expired"
-        });
+
+      let workerLimit: any = 15;
+      let siteLimit: any = 1;
+      let supervisorLimit: any = 0;
+
+      if (t.plan === "basic") {
+        workerLimit = 50;
+        siteLimit = 3;
+        supervisorLimit = 1;
+      } else if (t.plan === "super" || t.plan === "professional") {
+        workerLimit = 150;
+        siteLimit = 10;
+        supervisorLimit = 5;
+      } else if (t.plan === "premium" || t.plan === "business") {
+        workerLimit = "Unlimited";
+        siteLimit = "Unlimited";
+        supervisorLimit = "Unlimited";
+      }
+
+      let amount = 0;
+      if (t.plan === "basic") amount = 99;
+      else if (t.plan === "super" || t.plan === "professional") amount = 149;
+      else if (t.plan === "premium" || t.plan === "business") amount = 499;
+
+      result.push({
+        _id: t._id,
+        tenantId: t._id,
+        company: t.name,
+        code: t.code,
+        ownerName: ownerUser?.name || "Owner",
+        ownerEmail: ownerUser?.email || "owner@haajari.app",
+        ownerPhone: ownerUser?.phone || "N/A",
+        plan: t.plan,
+        amount,
+        cycle: lastTxn?.billingCycle === "yearly" ? "Yearly" : "Monthly",
+        startDate: t.createdAt ? new Date(t.createdAt).toISOString().split('T')[0] : "2026-01-01",
+        renewalDate: t.planExpiresAt ? new Date(t.planExpiresAt).toISOString().split('T')[0] : "No Expiry",
+        autoRenew: lastTxn ? lastTxn.autoRenew : true,
+        status: computedStatus,
+        usage: {
+          workersUsed: workerCount,
+          workerLimit,
+          sitesUsed: siteCount,
+          siteLimit,
+          supervisorsUsed: supervisorCount,
+          supervisorLimit,
+        }
       });
     }
+
     res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const assignSubscriptionAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { tenantId, plan, billingCycle = "monthly", durationDays = 30, autoRenew = true } = req.body;
+    const adminId = req.user?.id;
+
+    if (!tenantId || !plan) {
+      return res.status(400).json({ error: "tenantId and plan are required" });
+    }
+
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) {
+      return res.status(404).json({ error: "Tenant not found" });
+    }
+
+    const oldPlan = tenant.plan;
+    const oldStatus = (tenant as any).status || "Active";
+
+    tenant.plan = plan as any;
+    (tenant as any).status = "Active";
+
+    let days = durationDays;
+    if (billingCycle === "yearly") days = 365;
+    else if (billingCycle === "3months") days = 90;
+
+    tenant.planExpiresAt = plan === "free" ? undefined : new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+    await tenant.save();
+
+    const adminUser = await User.findById(adminId);
+    const auditLog = new AuditLog({
+      tenantId: tenant._id,
+      userId: adminId,
+      action: "ADMIN_ASSIGN_SUBSCRIPTION",
+      targetType: "Tenant",
+      targetId: tenant._id.toString(),
+      changes: {
+        before: { plan: oldPlan, status: oldStatus },
+        after: { plan: tenant.plan, status: (tenant as any).status, planExpiresAt: tenant.planExpiresAt }
+      }
+    });
+    await auditLog.save();
+    broadcastAdminActivity(auditLog);
+
+    res.json({
+      success: true,
+      message: `Subscription plan assigned to ${tenant.name} (${plan.toUpperCase()})`,
+      tenant
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const manageSubscriptionActionAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { tenantId, action, newPlan, extendDays = 30 } = req.body;
+    const adminId = req.user?.id;
+
+    if (!tenantId || !action) {
+      return res.status(400).json({ error: "tenantId and action are required" });
+    }
+
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) {
+      return res.status(404).json({ error: "Tenant not found" });
+    }
+
+    const oldPlan = tenant.plan;
+    const oldStatus = (tenant as any).status || "Active";
+
+    if (action === "activate" || action === "reactivate") {
+      (tenant as any).status = "Active";
+      if (!tenant.planExpiresAt || new Date(tenant.planExpiresAt) < new Date()) {
+        tenant.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      }
+    } else if (action === "disable") {
+      (tenant as any).status = "Disabled";
+    } else if (action === "suspend") {
+      (tenant as any).status = "Suspended";
+    } else if (action === "change_plan") {
+      if (newPlan && ["free", "basic", "super", "premium"].includes(newPlan)) {
+        tenant.plan = newPlan as any;
+        if (newPlan === "free") {
+          tenant.planExpiresAt = undefined;
+        } else if (!tenant.planExpiresAt || new Date(tenant.planExpiresAt) < new Date()) {
+          tenant.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        }
+      }
+    } else if (action === "extend") {
+      const currentExpiry = tenant.planExpiresAt && new Date(tenant.planExpiresAt) > new Date()
+        ? new Date(tenant.planExpiresAt)
+        : new Date();
+      tenant.planExpiresAt = new Date(currentExpiry.getTime() + extendDays * 24 * 60 * 60 * 1000);
+      (tenant as any).status = "Active";
+    } else {
+      return res.status(400).json({ error: "Invalid administrative subscription action" });
+    }
+
+    await tenant.save();
+
+    const auditLog = new AuditLog({
+      tenantId: tenant._id,
+      userId: adminId,
+      action: `ADMIN_SUBSCRIPTION_${action.toUpperCase()}`,
+      targetType: "Tenant",
+      targetId: tenant._id.toString(),
+      changes: {
+        before: { plan: oldPlan, status: oldStatus },
+        after: { plan: tenant.plan, status: (tenant as any).status, planExpiresAt: tenant.planExpiresAt }
+      }
+    });
+    await auditLog.save();
+    broadcastAdminActivity(auditLog);
+
+    res.json({
+      success: true,
+      message: `Subscription updated for ${tenant.name} (${action})`,
+      tenant
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
