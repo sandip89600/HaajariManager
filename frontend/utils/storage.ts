@@ -223,7 +223,7 @@ export interface AuthData {
   isLoggedIn: boolean;
   userId: string;
   userType: "admin" | "user" | "guest";
-  role?: "contractor" | "builder" | "supervisor" | "admin" | "guest";
+  role?: "contractor" | "builder" | "supervisor" | "labor" | "admin" | "guest";
   phone?: string;
   email?: string;
   username?: string;
@@ -250,7 +250,7 @@ export interface User {
   address?: string;
   avatarColor: string;
   profileImage?: string;
-  role: "contractor" | "builder" | "supervisor" | "admin";
+  role: "contractor" | "builder" | "supervisor" | "labor" | "admin";
   isActive: boolean;
   isVerified?: boolean;
   isPhoneVerified?: boolean;
