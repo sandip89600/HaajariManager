@@ -32,10 +32,12 @@ interface AuthContextType {
     name: string,
     phone: string,
     password?: string,
-    role?: "contractor" | "builder",
+    role?: "contractor" | "builder" | "supervisor" | "labor",
     companyName?: string,
     email?: string,
     username?: string,
+    contractorName?: string,
+    contractorCompany?: string,
   ) => Promise<{ success: boolean; field?: string; message?: string }>;
   loginAsGuest: () => void;
   logout: () => Promise<void>;
@@ -332,10 +334,12 @@ export function useAuthProvider() {
       name: string,
       phone: string,
       password?: string,
-      role?: "contractor" | "builder",
+      role?: "contractor" | "builder" | "supervisor" | "labor",
       companyName?: string,
       email?: string,
       username?: string,
+      contractorName?: string,
+      contractorCompany?: string,
     ): Promise<{
       success: boolean;
       field?: string;
@@ -346,7 +350,16 @@ export function useAuthProvider() {
 
       // 1. Try server signup
       try {
-        const res = await fetch(`${API_URL}/auth/signup`, {
+        let endpoint = `${API_URL}/auth/signup`;
+        if (role === "contractor") {
+          endpoint = `${API_URL}/auth/register/contractor`;
+        } else if (role === "supervisor") {
+          endpoint = `${API_URL}/auth/register/supervisor`;
+        } else if (role === "labor") {
+          endpoint = `${API_URL}/auth/register/labor`;
+        }
+
+        const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -355,6 +368,8 @@ export function useAuthProvider() {
             password,
             role,
             companyName,
+            contractorName,
+            contractorCompany,
             email: email ? email.toLowerCase().trim() : undefined,
             username: username ? username.toLowerCase().trim() : undefined,
           }),

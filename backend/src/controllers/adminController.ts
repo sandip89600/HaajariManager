@@ -1895,4 +1895,132 @@ export const getAllDevicesAdmin = async (req: AuthenticatedRequest, res: Respons
   }
 };
 
+export const getContractorDetailsAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const contractor = await User.findById(id).populate("tenantId").select("-passwordHash -refreshTokens");
+    if (!contractor) {
+      return res.status(404).json({ success: false, message: "Contractor account not found." });
+    }
+
+    const tenantId = (contractor.tenantId as any)?._id || contractor.tenantId;
+
+    const [supervisors, laborWorkers, sites] = await Promise.all([
+      User.find({ tenantId, role: "supervisor" }).select("-passwordHash -refreshTokens"),
+      User.find({ tenantId, role: "labor" }).select("-passwordHash -refreshTokens"),
+      Site.find({ tenantId }),
+    ]);
+
+    const activeWorkersCount = await Worker.countDocuments({ tenantId, isArchived: false });
+
+    return res.json({
+      success: true,
+      contractor,
+      supervisors: {
+        total: supervisors.length,
+        connected: supervisors.filter((s) => s.connectionStatus === "connected" || !s.connectionStatus).length,
+        pending: supervisors.filter((s) => s.connectionStatus === "pending").length,
+        declined: supervisors.filter((s) => s.connectionStatus === "declined").length,
+        list: supervisors,
+      },
+      labor: {
+        total: laborWorkers.length,
+        active: laborWorkers.filter((l) => l.isActive).length,
+        list: laborWorkers,
+      },
+      workers: {
+        totalActive: activeWorkersCount,
+      },
+      sites: {
+        total: sites.length,
+        active: sites.filter((st: any) => st.status === "Active" || st.isActive !== false).length,
+        list: sites,
+      },
+    });
+  } catch (error: any) {
+    console.error("getContractorDetailsAdmin error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getSupervisorDetailsAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const supervisor = await User.findById(id).select("-passwordHash -refreshTokens");
+    if (!supervisor) {
+      return res.status(404).json({ success: false, message: "Supervisor account not found." });
+    }
+
+    let contractor = null;
+    if (supervisor.contractorId) {
+      contractor = await User.findById(supervisor.contractorId).select("name phone email companyName");
+    }
+
+    let tenant = null;
+    if (supervisor.tenantId) {
+      tenant = await Tenant.findById(supervisor.tenantId);
+    }
+
+    const assignedSites = await Site.find({
+      $or: [
+        { _id: { $in: supervisor.assignedProjects || [] } },
+        { _id: { $in: supervisor.assignedSiteIds || [] } },
+      ],
+    });
+
+    return res.json({
+      success: true,
+      supervisor,
+      contractor: contractor || {
+        name: supervisor.contractorName || "N/A",
+        company: supervisor.contractorCompany || tenant?.name || "N/A",
+      },
+      connectionStatus: supervisor.connectionStatus || "connected",
+      assignedSites,
+    });
+  } catch (error: any) {
+    console.error("getSupervisorDetailsAdmin error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getLaborDetailsAdmin = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const labor = await User.findById(id).select("-passwordHash -refreshTokens");
+    if (!labor) {
+      return res.status(404).json({ success: false, message: "Labor account not found." });
+    }
+
+    let contractor = null;
+    if (labor.contractorId) {
+      contractor = await User.findById(labor.contractorId).select("name phone email companyName");
+    }
+
+    let tenant = null;
+    if (labor.tenantId) {
+      tenant = await Tenant.findById(labor.tenantId);
+    }
+
+    const assignedSites = await Site.find({
+      _id: { $in: labor.assignedSiteIds || [] },
+    });
+
+    return res.json({
+      success: true,
+      labor,
+      contractor: contractor || {
+        name: labor.contractorName || "Unassigned",
+        company: labor.contractorCompany || tenant?.name || "Unassigned",
+      },
+      connectionStatus: labor.connectionStatus || "not_connected",
+      assignedSites,
+    });
+  } catch (error: any) {
+    console.error("getLaborDetailsAdmin error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
 

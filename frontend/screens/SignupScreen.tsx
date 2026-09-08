@@ -40,17 +40,17 @@ type SignupScreenNavigationProp = NativeStackNavigationProp<
 >;
 
 type Step = 1 | 2;
-type UserRole = "contractor" | "builder" | "supervisor";
+type UserRole = "contractor" | "labor" | "supervisor";
 
 export default function SignupScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { signup, loginWithGoogle } = useAuth();
   const { t } = useLanguage();
   const navigation = useNavigation<SignupScreenNavigationProp>();
   const insets = useSafeAreaInsets();
 
-  const [step, setStep] = useState<Step>(2);
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>("contractor");
+  const [step, setStep] = useState<Step>(1);
+  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
 
   // Form Fields
   const [name, setName] = useState("");
@@ -58,8 +58,12 @@ export default function SignupScreen() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [contractorName, setContractorName] = useState("");
+  const [contractorCompany, setContractorCompany] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
@@ -67,13 +71,9 @@ export default function SignupScreen() {
   const [showMobileCompletionModal, setShowMobileCompletionModal] = useState(false);
   const [pendingGoogleProfile, setPendingGoogleProfile] = useState<any>(null);
 
-  // Real-time password validation criteria
-  const isMinLength = password.length >= 8;
-  const hasUppercase = /[A-Z]/.test(password);
-  const hasLowercase = /[a-z]/.test(password);
-  const hasNumber = /[0-9]/.test(password);
-  const hasSpecial = /[^A-Za-z0-9]/.test(password);
-  const isPasswordStrong = isMinLength && hasUppercase && hasLowercase && hasNumber && hasSpecial;
+  // Password validation criteria
+  const isMinLength = password.length >= 6;
+  const isPasswordMatching = password.length > 0 && password === confirmPassword;
 
   // Validation States
   const [usernameState, setUsernameState] = useState<"idle" | "checking" | "available" | "error">("idle");
@@ -108,70 +108,6 @@ export default function SignupScreen() {
   const animatedButtonStyle = useAnimatedStyle(() => ({
     transform: [{ scale: buttonScale.value }],
   }));
-
-  const handleGoogleSignIn = async () => {
-    setIsLoading(true);
-    try {
-      const googleRes = await promptGoogleSignIn();
-      if (googleRes.type === "cancel") {
-        setIsLoading(false);
-        return;
-      }
-      if (googleRes.type === "error") {
-        setIsLoading(false);
-        Alert.alert("Google Sign-In", googleRes.error || "Unable to connect to Google.");
-        return;
-      }
-
-      const userRole = selectedRole === "builder" ? "builder" : "contractor";
-      const res = await loginWithGoogle(
-        googleRes.idToken,
-        googleRes.accessToken,
-        undefined,
-        undefined,
-        name,
-        companyName,
-        userRole
-      );
-      setIsLoading(false);
-
-      if (res.requiresMobileCompletion) {
-        setPendingGoogleProfile({
-          ...res.googleProfile,
-          idToken: googleRes.idToken,
-          accessToken: googleRes.accessToken,
-        });
-        setShowMobileCompletionModal(true);
-      } else if (!res.success) {
-        Alert.alert("Google Sign-In", res.message || "Google Sign-In failed.");
-      }
-    } catch (err: any) {
-      setIsLoading(false);
-      Alert.alert("Google Sign-In", "Unable to sign in with Google right now.");
-    }
-  };
-
-  const handleCompleteGoogleRegistration = async (phoneStr: string) => {
-    if (!pendingGoogleProfile) return;
-    const userRole = selectedRole === "builder" ? "builder" : "contractor";
-    const res = await loginWithGoogle(
-      pendingGoogleProfile.idToken,
-      pendingGoogleProfile.accessToken,
-      phoneStr,
-      undefined,
-      name || pendingGoogleProfile.name,
-      companyName,
-      userRole,
-      pendingGoogleProfile.googleId,
-      pendingGoogleProfile.email
-    );
-    if (res.success) {
-      setShowMobileCompletionModal(false);
-      setPendingGoogleProfile(null);
-    } else {
-      throw new Error(res.message || "Failed to create account.");
-    }
-  };
 
   const runFieldValidation = async (field: "username" | "email" | "phone", val: string) => {
     const trimmed = val.trim();
@@ -234,7 +170,7 @@ export default function SignupScreen() {
       } else {
         if (field === "username") {
           setUsernameState("error");
-          setUsernameMsg(data.message || "Username already exists.");
+          setUsernameMsg(data.message || "Username is already in use.");
         } else if (field === "email") {
           setEmailState("error");
           setEmailMsg(data.message || "Email is already registered.");
@@ -244,49 +180,30 @@ export default function SignupScreen() {
         }
       }
     } catch (err) {
-      if (field === "username") {
-        setUsernameState("error");
-        setUsernameMsg("Verification server unreachable.");
-      } else if (field === "email") {
-        setEmailState("error");
-        setEmailMsg("Verification server unreachable.");
-      } else if (field === "phone") {
-        setPhoneState("error");
-        setPhoneMsg("Verification server unreachable.");
-      }
+      if (field === "username") { setUsernameState("idle"); setUsernameMsg(""); }
+      if (field === "email") { setEmailState("idle"); setEmailMsg(""); }
+      if (field === "phone") { setPhoneState("idle"); setPhoneMsg(""); }
     }
   };
 
   const handleUsernameChange = (val: string) => {
     setUsername(val);
     const cleaned = val.trim();
-    if (!cleaned) {
-      setUsernameState("idle");
-      setUsernameMsg("");
-      return;
-    }
+    if (!cleaned) { setUsernameState("idle"); setUsernameMsg(""); return; }
     setUsernameState("checking");
     setUsernameMsg("Typing...");
     if (usernameTimer.current) clearTimeout(usernameTimer.current);
-    usernameTimer.current = setTimeout(() => {
-      runFieldValidation("username", cleaned);
-    }, 500);
+    usernameTimer.current = setTimeout(() => { runFieldValidation("username", cleaned); }, 500);
   };
 
   const handleEmailChange = (val: string) => {
     setEmail(val);
     const cleaned = val.trim();
-    if (!cleaned) {
-      setEmailState("idle");
-      setEmailMsg("");
-      return;
-    }
+    if (!cleaned) { setEmailState("idle"); setEmailMsg(""); return; }
     setEmailState("checking");
     setEmailMsg("Typing...");
     if (emailTimer.current) clearTimeout(emailTimer.current);
-    emailTimer.current = setTimeout(() => {
-      runFieldValidation("email", cleaned);
-    }, 500);
+    emailTimer.current = setTimeout(() => { runFieldValidation("email", cleaned); }, 500);
   };
 
   const handlePhoneChange = (val: string) => {
@@ -294,22 +211,16 @@ export default function SignupScreen() {
     setOtpSent(false);
     setOtpVerified(false);
     const cleaned = val.trim();
-    if (!cleaned) {
-      setPhoneState("idle");
-      setPhoneMsg("");
-      return;
-    }
+    if (!cleaned) { setPhoneState("idle"); setPhoneMsg(""); return; }
     setPhoneState("checking");
     setPhoneMsg("Typing...");
     if (phoneTimer.current) clearTimeout(phoneTimer.current);
-    phoneTimer.current = setTimeout(() => {
-      runFieldValidation("phone", cleaned);
-    }, 500);
+    phoneTimer.current = setTimeout(() => { runFieldValidation("phone", cleaned); }, 500);
   };
 
   const handleSendOTP = () => {
-    if (phoneState !== "available") {
-      Alert.alert("Error", phoneMsg || "Please enter a valid, unregistered mobile number");
+    if (phoneState !== "available" && phone.trim().length !== 10) {
+      Alert.alert("Error", phoneMsg || "Please enter a valid, unregistered 10-digit mobile number");
       return;
     }
 
@@ -320,7 +231,7 @@ export default function SignupScreen() {
       setOtpSent(true);
       Alert.alert(
         "Verification Code",
-        `Your verification code is: ${mockOtp}\n\n(In production, this OTP is sent via SMS)`,
+        `Your verification code is: ${mockOtp}\n\n(SMS simulation)`,
       );
     } finally {
       setIsLoading(false);
@@ -329,7 +240,7 @@ export default function SignupScreen() {
 
   const handleVerifyOTP = () => {
     if (!otpCode.trim()) {
-      Alert.alert("Error", "Please enter the OTP verification code");
+      Alert.alert("Error", "Please enter the verification code");
       return;
     }
     if (otpCode.trim() === generatedOtp || otpCode.trim() === "123456") {
@@ -340,66 +251,48 @@ export default function SignupScreen() {
     }
   };
 
-  const handleNextStep = () => {
-    if (!selectedRole) {
-      Alert.alert("Error", "Please select your business role first");
-      return;
-    }
-
-    if (selectedRole === "supervisor") {
-      Alert.alert(
-        "Invite Only",
-        "Supervisor accounts must be created or invited by a Contractor or Builder. Self-registration is not allowed for supervisors.",
-      );
-      return;
-    }
-
+  const selectRoleAndNext = (role: UserRole) => {
+    setSelectedRole(role);
     setStep(2);
   };
 
   const handleSignup = async () => {
-    if (isLoading) return; // Guard against multiple taps
+    if (isLoading) return;
 
     if (!name.trim()) {
-      Alert.alert("Error", "Please enter your full name");
+      Alert.alert("Error", "Full Name is required.");
       return;
     }
     if (!username.trim()) {
-      Alert.alert("Error", "Please enter a username");
+      Alert.alert("Error", "Username is required.");
       return;
     }
-    if (usernameState !== "available") {
-      Alert.alert("Error", usernameMsg || "Please choose a valid available username");
-      return;
-    }
-    if (emailState !== "available") {
-      Alert.alert("Error", emailMsg || "Please enter a valid available email address");
+    if (usernameState === "error") {
+      Alert.alert("Error", usernameMsg || "Username is already in use.");
       return;
     }
     if (!phone.trim()) {
-      Alert.alert("Error", "Please enter your mobile number");
+      Alert.alert("Error", "Mobile Number is required.");
       return;
     }
-    if (!otpVerified) {
-      Alert.alert("Error", "Please verify your mobile number via OTP first");
+    if (phoneState === "error") {
+      Alert.alert("Error", phoneMsg || "Mobile number is already registered.");
       return;
     }
-    if (!companyName.trim()) {
-      Alert.alert("Error", "Please enter your company name");
+    if (emailState === "error") {
+      Alert.alert("Error", emailMsg || "Email is already registered.");
       return;
     }
-    if (!isPasswordStrong) {
-      Alert.alert(
-        "Error",
-        "Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, one number, and one special character."
-      );
+    if (selectedRole === "contractor" && !companyName.trim()) {
+      Alert.alert("Error", "Company Name is required for Contractor registration.");
       return;
     }
-    if (!agreedToTerms) {
-      Alert.alert(
-        "Error",
-        "You must agree to the Terms and Conditions to proceed",
-      );
+    if (!isMinLength) {
+      Alert.alert("Error", "Password must be at least 6 characters long.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match.");
       return;
     }
 
@@ -409,16 +302,39 @@ export default function SignupScreen() {
         name.trim(),
         phone.trim(),
         password,
-        selectedRole as "contractor" | "builder",
+        selectedRole as UserRole,
         companyName.trim(),
         email.trim(),
         username.trim(),
+        contractorName.trim(),
+        contractorCompany.trim()
       );
 
       if (result.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Success", "Account created successfully!");
-        try { navigation.replace("Main"); } catch (e) {}
+        const roleLabel =
+          selectedRole === "contractor"
+            ? "Contractor"
+            : selectedRole === "supervisor"
+            ? "Supervisor"
+            : "Labor";
+
+        Alert.alert(
+          "Success",
+          `${roleLabel} account created successfully!`,
+          [
+            {
+              text: "Continue to Login",
+              onPress: () => {
+                try {
+                  navigation.replace("Login");
+                } catch (e) {
+                  navigation.navigate("Main");
+                }
+              },
+            },
+          ]
+        );
       } else {
         if (result.field === "email") {
           setEmailState("error");
@@ -430,7 +346,7 @@ export default function SignupScreen() {
           setPhoneState("error");
           setPhoneMsg(`❌ ${result.message}`);
         }
-        Alert.alert("Error", result.message || "Signup failed.");
+        Alert.alert("Registration Error", result.message || "Failed to create account.");
       }
     } finally {
       setIsLoading(false);
@@ -453,20 +369,15 @@ export default function SignupScreen() {
 
   const isSubmitDisabled =
     isLoading ||
-    usernameState === "checking" ||
-    usernameState === "error" ||
-    emailState === "checking" ||
-    emailState === "error" ||
-    phoneState === "checking" ||
-    phoneState === "error" ||
     !name.trim() ||
     !username.trim() ||
-    !email.trim() ||
     !phone.trim() ||
-    !otpVerified ||
-    !companyName.trim() ||
-    !isPasswordStrong ||
-    !agreedToTerms;
+    !password ||
+    password !== confirmPassword ||
+    (selectedRole === "contractor" && !companyName.trim()) ||
+    usernameState === "error" ||
+    phoneState === "error" ||
+    emailState === "error";
 
   const ScrollContainer =
     Platform.OS === "web" ? ScrollView : KeyboardAwareScrollView;
@@ -478,185 +389,148 @@ export default function SignupScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: insets.top + Spacing.xl,
+            paddingTop: insets.top + Spacing.lg,
             paddingBottom: insets.bottom + Spacing.xl,
           },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* Header navigation & title */}
         <View style={styles.header}>
           <Pressable
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (step === 2) {
+                setStep(1);
+              } else {
+                navigation.goBack();
+              }
+            }}
             style={styles.backButton}
           >
             <Feather name="arrow-left" size={24} color={theme.text} />
           </Pressable>
+
           <ThemedText style={styles.title}>
-            Create Account
+            {step === 1
+              ? "Create Your Account"
+              : selectedRole === "contractor"
+              ? "Create Contractor Account"
+              : selectedRole === "supervisor"
+              ? "Create Supervisor Account"
+              : "Create Labor Account"}
           </ThemedText>
-          <ThemedText
-            style={[styles.subtitle, { color: theme.textSecondary }]}
-          >
-            Please fill in the fields below to register
+
+          <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
+            {step === 1
+              ? "Choose your account type:"
+              : "Fill in your details below to set up your profile"}
           </ThemedText>
         </View>
 
+        {/* ── STEP 1: ROLE SELECTION ── */}
         {step === 1 ? (
-          /* Step 1: Role Selection */
           <View style={styles.stepContent}>
-            <ThemedText style={styles.questionText}>
-              Who are you?
-            </ThemedText>
-
+            {/* 1. CONTRACTOR CARD */}
             <Pressable
-              onPress={() => setSelectedRole("contractor")}
-              style={[
+              onPress={() => selectRoleAndNext("contractor")}
+              style={({ pressed }) => [
                 styles.roleCard,
                 {
-                  borderColor:
-                    selectedRole === "contractor"
-                      ? theme.primary
-                      : theme.border,
-                  backgroundColor:
-                    selectedRole === "contractor"
-                      ? theme.primary + "0A"
-                      : theme.backgroundDefault,
+                  backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                  borderColor: theme.border,
+                  opacity: pressed ? 0.9 : 1,
                 },
               ]}
             >
               <View style={styles.roleCardHeader}>
-                <ThemedText style={styles.roleEmoji}>
-                  👷
-                </ThemedText>
+                <View style={[styles.roleIconBadge, { backgroundColor: "#FFF7ED" }]}>
+                  <ThemedText style={styles.roleEmoji}>👷</ThemedText>
+                </View>
                 <View style={styles.roleCardInfo}>
-                  <ThemedText style={styles.roleTitle}>
-                    Contractor
-                  </ThemedText>
-                  <ThemedText
-                    style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}
-                  >
-                    Primary customer: Manage workers, attendance, payments, and
-                    supervisors.
+                  <ThemedText style={styles.roleTitle}>Contractor</ThemedText>
+                  <ThemedText style={[styles.roleSubtitle, { color: theme.textSecondary }]}>
+                    Manage workers, sites and supervisors
                   </ThemedText>
                 </View>
+                <Feather name="chevron-right" size={22} color="#F97316" />
               </View>
             </Pressable>
 
+            {/* 2. LABOR CARD */}
             <Pressable
-              onPress={() => setSelectedRole("builder")}
-              style={[
+              onPress={() => selectRoleAndNext("labor")}
+              style={({ pressed }) => [
                 styles.roleCard,
                 {
-                  borderColor:
-                    selectedRole === "builder" ? theme.primary : theme.border,
-                  backgroundColor:
-                    selectedRole === "builder"
-                      ? theme.primary + "0A"
-                      : theme.backgroundDefault,
+                  backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                  borderColor: theme.border,
+                  opacity: pressed ? 0.9 : 1,
                 },
               ]}
             >
               <View style={styles.roleCardHeader}>
-                <ThemedText style={styles.roleEmoji}>
-                  🏗️
-                </ThemedText>
+                <View style={[styles.roleIconBadge, { backgroundColor: "#F0FDF4" }]}>
+                  <ThemedText style={styles.roleEmoji}>🧑‍🔧</ThemedText>
+                </View>
                 <View style={styles.roleCardInfo}>
-                  <ThemedText style={styles.roleTitle}>
-                    Builder / Company Owner
-                  </ThemedText>
-                  <ThemedText
-                    style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}
-                  >
-                    Enterprise customer: Manage projects, contractors,
-                    analytics, and workforce.
+                  <ThemedText style={styles.roleTitle}>Labor</ThemedText>
+                  <ThemedText style={[styles.roleSubtitle, { color: theme.textSecondary }]}>
+                    Manage your work account
                   </ThemedText>
                 </View>
+                <Feather name="chevron-right" size={22} color="#10B981" />
               </View>
             </Pressable>
 
+            {/* 3. SUPERVISOR CARD */}
             <Pressable
-              onPress={() => setSelectedRole("supervisor")}
-              style={[
+              onPress={() => selectRoleAndNext("supervisor")}
+              style={({ pressed }) => [
                 styles.roleCard,
-                styles.supervisorCard,
                 {
-                  borderColor:
-                    selectedRole === "supervisor"
-                      ? Colors.light.error
-                      : theme.border,
-                  backgroundColor:
-                    selectedRole === "supervisor"
-                      ? Colors.light.error + "08"
-                      : theme.backgroundDefault,
+                  backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                  borderColor: theme.border,
+                  opacity: pressed ? 0.9 : 1,
                 },
               ]}
             >
               <View style={styles.roleCardHeader}>
-                <ThemedText style={styles.roleEmoji}>
-                  👨💼
-                </ThemedText>
+                <View style={[styles.roleIconBadge, { backgroundColor: "#EFF6FF" }]}>
+                  <ThemedText style={styles.roleEmoji}>👨‍💼</ThemedText>
+                </View>
                 <View style={styles.roleCardInfo}>
-                  <View style={styles.badgeRow}>
-                    <ThemedText style={styles.roleTitle}>
-                      Supervisor
-                    </ThemedText>
-                    <View style={styles.inviteBadge}>
-                      <ThemedText style={styles.inviteBadgeText}>
-                        Invite Only
-                      </ThemedText>
-                    </View>
-                  </View>
-                  <ThemedText
-                    style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}
-                  >
-                    Mark attendance, view assigned workers and projects.
-                    Accounts created by owner.
+                  <ThemedText style={styles.roleTitle}>Supervisor</ThemedText>
+                  <ThemedText style={[styles.roleSubtitle, { color: theme.textSecondary }]}>
+                    Manage assigned site work
                   </ThemedText>
                 </View>
+                <Feather name="chevron-right" size={22} color="#3B82F6" />
               </View>
             </Pressable>
 
-            {selectedRole === "supervisor" && (
-              <View style={styles.errorAlert}>
-                <Feather
-                  name="alert-triangle"
-                  size={18}
-                  color={Colors.light.error}
-                />
-                <ThemedText style={styles.errorAlertText}>
-                  Supervisors cannot register themselves. Ask your Contractor or
-                  Builder to add you from their settings dashboard.
-                </ThemedText>
-              </View>
-            )}
-
-            <Pressable
-              onPress={handleNextStep}
-              style={[
-                styles.nextButton,
-                {
-                  backgroundColor:
-                    selectedRole && selectedRole !== "supervisor"
-                      ? theme.primary
-                      : theme.border,
-                },
-              ]}
-              disabled={!selectedRole || selectedRole === "supervisor"}
-            >
-              <ThemedText style={styles.nextButtonText}>
-                Continue
+            {/* Existing User Login Prompt */}
+            <View style={styles.loginPromptContainer}>
+              <ThemedText style={{ color: theme.textSecondary, fontSize: 14 }}>
+                Already have an account?{" "}
               </ThemedText>
-              <Feather name="arrow-right" size={18} color="#FFFFFF" />
-            </Pressable>
+              <Pressable onPress={() => navigation.navigate("Login")}>
+                <ThemedText style={{ color: "#F97316", fontWeight: "700", fontSize: 14 }}>
+                  Log In
+                </ThemedText>
+              </Pressable>
+            </View>
           </View>
         ) : (
-          /* Step 2: Form Details */
+          /* ── STEP 2: ROLE-SPECIFIC REGISTRATION FORM ── */
           <View style={styles.stepContent}>
+            {/* Section Header: PERSONAL INFORMATION */}
+            <ThemedText style={styles.sectionHeaderTitle}>PERSONAL INFORMATION</ThemedText>
+
             {/* Full Name */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                {t.auth.fullName || "Full Name"} <ThemedText style={{ color: "red" }}>*</ThemedText>
+                Full Name <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View
                 style={[
@@ -667,15 +541,10 @@ export default function SignupScreen() {
                   },
                 ]}
               >
-                <Feather
-                  name="user"
-                  size={20}
-                  color={theme.textSecondary}
-                  style={styles.inputIcon}
-                />
+                <Feather name="user" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder={t.auth.fullName || "Full Name"}
+                  placeholder="Enter full name"
                   placeholderTextColor={theme.textSecondary}
                   value={name}
                   onChangeText={setName}
@@ -687,7 +556,7 @@ export default function SignupScreen() {
             {/* Username */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                Username <ThemedText style={{ color: "red" }}>*</ThemedText>
+                Username <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View
                 style={[
@@ -698,28 +567,17 @@ export default function SignupScreen() {
                   },
                 ]}
               >
-                <Feather
-                  name="at-sign"
-                  size={20}
-                  color={theme.textSecondary}
-                  style={styles.inputIcon}
-                />
+                <Feather name="at-sign" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Username"
+                  placeholder="Choose username"
                   placeholderTextColor={theme.textSecondary}
                   value={username}
                   onChangeText={handleUsernameChange}
-                  onBlur={() => {
-                    if (usernameTimer.current) clearTimeout(usernameTimer.current);
-                    runFieldValidation("username", username);
-                  }}
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                {usernameState === "checking" && (
-                  <ActivityIndicator size="small" color={theme.primary} />
-                )}
+                {usernameState === "checking" && <ActivityIndicator size="small" color="#F97316" />}
               </View>
               {usernameMsg !== "" && (
                 <Text style={[styles.validationMsg, { color: getValidationColor(usernameState) }]}>
@@ -728,11 +586,9 @@ export default function SignupScreen() {
               )}
             </View>
 
-            {/* Email Address */}
+            {/* Email */}
             <View style={styles.inputContainer}>
-              <ThemedText style={styles.inputLabel}>
-                Email Address <ThemedText style={{ color: "red" }}>*</ThemedText>
-              </ThemedText>
+              <ThemedText style={styles.inputLabel}>Email</ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -742,29 +598,18 @@ export default function SignupScreen() {
                   },
                 ]}
               >
-                <Feather
-                  name="mail"
-                  size={20}
-                  color={theme.textSecondary}
-                  style={styles.inputIcon}
-                />
+                <Feather name="mail" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Email Address"
+                  placeholder="Enter email"
                   placeholderTextColor={theme.textSecondary}
                   value={email}
                   onChangeText={handleEmailChange}
-                  onBlur={() => {
-                    if (emailTimer.current) clearTimeout(emailTimer.current);
-                    runFieldValidation("email", email);
-                  }}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                {emailState === "checking" && (
-                  <ActivityIndicator size="small" color={theme.primary} />
-                )}
+                {emailState === "checking" && <ActivityIndicator size="small" color="#F97316" />}
               </View>
               {emailMsg !== "" && (
                 <Text style={[styles.validationMsg, { color: getValidationColor(emailState) }]}>
@@ -773,10 +618,10 @@ export default function SignupScreen() {
               )}
             </View>
 
-            {/* Mobile Number & Send OTP */}
+            {/* Mobile Number & Optional OTP Verification */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                Mobile Number <ThemedText style={{ color: "red" }}>*</ThemedText>
+                Mobile Number <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View style={styles.phoneInputRow}>
                 <View
@@ -789,29 +634,17 @@ export default function SignupScreen() {
                     },
                   ]}
                 >
-                  <Feather
-                    name="phone"
-                    size={20}
-                    color={theme.textSecondary}
-                    style={styles.inputIcon}
-                  />
+                  <Feather name="phone" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                   <TextInput
                     style={[styles.input, { color: theme.text }]}
-                    placeholder="Mobile Number"
+                    placeholder="Enter mobile number"
                     placeholderTextColor={theme.textSecondary}
                     value={phone}
                     onChangeText={handlePhoneChange}
-                    onBlur={() => {
-                      if (phoneTimer.current) clearTimeout(phoneTimer.current);
-                      runFieldValidation("phone", phone);
-                    }}
                     keyboardType="phone-pad"
                     maxLength={10}
-                    editable={!otpVerified}
                   />
-                  {phoneState === "checking" && (
-                    <ActivityIndicator size="small" color={theme.primary} />
-                  )}
+                  {phoneState === "checking" && <ActivityIndicator size="small" color="#F97316" />}
                 </View>
 
                 <Pressable
@@ -820,12 +653,12 @@ export default function SignupScreen() {
                     styles.otpButton,
                     {
                       backgroundColor:
-                        phone.trim().length === 10 && !otpVerified && phoneState === "available"
-                          ? theme.primary
+                        phone.trim().length === 10 && !otpVerified
+                          ? "#F97316"
                           : theme.border,
                     },
                   ]}
-                  disabled={phone.trim().length !== 10 || otpVerified || phoneState !== "available"}
+                  disabled={phone.trim().length !== 10 || otpVerified}
                 >
                   <ThemedText style={styles.otpButtonText}>
                     {otpSent ? "Resend" : "Send OTP"}
@@ -839,12 +672,10 @@ export default function SignupScreen() {
               )}
             </View>
 
-            {/* OTP Code Verification */}
+            {/* OTP Code Box */}
             {otpSent && !otpVerified && (
               <View style={styles.inputContainer}>
-                <ThemedText style={styles.inputLabel}>
-                  Verification Code <ThemedText style={{ color: "red" }}>*</ThemedText>
-                </ThemedText>
+                <ThemedText style={styles.inputLabel}>OTP Code</ThemedText>
                 <View style={styles.phoneInputRow}>
                   <View
                     style={[
@@ -856,15 +687,10 @@ export default function SignupScreen() {
                       },
                     ]}
                   >
-                    <Feather
-                      name="shield"
-                      size={20}
-                      color={theme.textSecondary}
-                      style={styles.inputIcon}
-                    />
+                    <Feather name="shield" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: theme.text }]}
-                      placeholder="Enter verification code"
+                      placeholder="Enter OTP"
                       placeholderTextColor={theme.textSecondary}
                       value={otpCode}
                       onChangeText={setOtpCode}
@@ -872,69 +698,133 @@ export default function SignupScreen() {
                       maxLength={6}
                     />
                   </View>
-
                   <Pressable
                     onPress={handleVerifyOTP}
-                    style={[
-                      styles.otpButton,
-                      { backgroundColor: theme.success },
-                    ]}
+                    style={[styles.otpButton, { backgroundColor: "#10B981" }]}
                   >
-                    <ThemedText style={styles.otpButtonText}>
-                      Verify
-                    </ThemedText>
+                    <ThemedText style={styles.otpButtonText}>Verify</ThemedText>
                   </Pressable>
                 </View>
               </View>
             )}
 
-            {/* Verification Status Pill */}
+            {/* OTP Verified badge */}
             {otpVerified && (
               <View style={styles.verifiedContainer}>
-                <Feather name="check-circle" size={16} color={theme.success} />
-                <ThemedText
-                  style={[styles.verifiedText, { color: theme.success }]}
-                >
-                  Mobile number verified successfully
+                <Feather name="check-circle" size={16} color="#10B981" />
+                <ThemedText style={[styles.verifiedText, { color: "#10B981" }]}>
+                  Mobile number verified
                 </ThemedText>
               </View>
             )}
 
-            {/* Company Name */}
-            <View style={styles.inputContainer}>
-              <ThemedText style={styles.inputLabel}>
-                {t.auth.companyName || "Company Name"} <ThemedText style={{ color: "red" }}>*</ThemedText>
-              </ThemedText>
-              <View
-                style={[
-                  styles.inputWrapper,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <Feather
-                  name="briefcase"
-                  size={20}
-                  color={theme.textSecondary}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={[styles.input, { color: theme.text }]}
-                  placeholder={t.auth.companyName || "Company Name"}
-                  placeholderTextColor={theme.textSecondary}
-                  value={companyName}
-                  onChangeText={setCompanyName}
-                  autoCorrect={false}
-                />
+            {/* ── ROLE SPECIFIC SECTIONS ── */}
+
+            {/* CONTRACTOR SPECIFIC: COMPANY INFORMATION */}
+            {selectedRole === "contractor" && (
+              <>
+                <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>
+                  COMPANY INFORMATION
+                </ThemedText>
+                <View style={styles.inputContainer}>
+                  <ThemedText style={styles.inputLabel}>
+                    Company Name <Text style={{ color: "red" }}>*</Text>
+                  </ThemedText>
+                  <View
+                    style={[
+                      styles.inputWrapper,
+                      {
+                        backgroundColor: theme.backgroundDefault,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Feather name="briefcase" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { color: theme.text }]}
+                      placeholder="Enter company name"
+                      placeholderTextColor={theme.textSecondary}
+                      value={companyName}
+                      onChangeText={setCompanyName}
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+              </>
+            )}
+
+            {/* SUPERVISOR SPECIFIC: CONTRACTOR INFORMATION */}
+            {selectedRole === "supervisor" && (
+              <>
+                <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>
+                  CONTRACTOR INFORMATION
+                </ThemedText>
+
+                <View style={styles.inputContainer}>
+                  <ThemedText style={styles.inputLabel}>Contractor Name</ThemedText>
+                  <View
+                    style={[
+                      styles.inputWrapper,
+                      {
+                        backgroundColor: theme.backgroundDefault,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Feather name="user-check" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { color: theme.text }]}
+                      placeholder="Enter contractor name (optional)"
+                      placeholderTextColor={theme.textSecondary}
+                      value={contractorName}
+                      onChangeText={setContractorName}
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <ThemedText style={styles.inputLabel}>Contractor Company</ThemedText>
+                  <View
+                    style={[
+                      styles.inputWrapper,
+                      {
+                        backgroundColor: theme.backgroundDefault,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Feather name="briefcase" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { color: theme.text }]}
+                      placeholder="Enter contractor company (optional)"
+                      placeholderTextColor={theme.textSecondary}
+                      value={contractorCompany}
+                      onChangeText={setContractorCompany}
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+              </>
+            )}
+
+            {/* LABOR SPECIFIC NOTE */}
+            {selectedRole === "labor" && (
+              <View style={styles.laborInfoCard}>
+                <Feather name="info" size={16} color="#3B82F6" />
+                <ThemedText style={{ color: theme.textSecondary, fontSize: 12.5, flex: 1, marginLeft: 8 }}>
+                  Contractor / Company connection can be established later via invitation.
+                </ThemedText>
               </View>
-            </View>
+            )}
+
+            {/* ── PASSWORD SECTION ── */}
+            <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>PASSWORD</ThemedText>
 
             {/* Password */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                {t.auth.password} <ThemedText style={{ color: "red" }}>*</ThemedText>
+                Password <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View
                 style={[
@@ -945,15 +835,10 @@ export default function SignupScreen() {
                   },
                 ]}
               >
-                <Feather
-                  name="lock"
-                  size={20}
-                  color={theme.textSecondary}
-                  style={styles.inputIcon}
-                />
+                <Feather name="lock" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder={t.auth.password}
+                  placeholder="Create password"
                   placeholderTextColor={theme.textSecondary}
                   value={password}
                   onChangeText={setPassword}
@@ -966,97 +851,57 @@ export default function SignupScreen() {
                   style={styles.eyeButton}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Feather
-                    name={showPassword ? "eye-off" : "eye"}
-                    size={20}
-                    color={theme.textSecondary}
-                  />
+                  <Feather name={showPassword ? "eye-off" : "eye"} size={18} color={theme.textSecondary} />
                 </Pressable>
               </View>
-
-              {/* Password Validation Requirements */}
-              {password.length > 0 && (
-                <View style={styles.passwordRulesContainer}>
-                  <View style={styles.ruleRow}>
-                    <Feather
-                      name={isMinLength ? "check-circle" : "circle"}
-                      size={14}
-                      color={isMinLength ? "#22C55E" : theme.textSecondary}
-                    />
-                    <ThemedText style={[styles.ruleText, { color: isMinLength ? "#22C55E" : theme.textSecondary }]}>
-                      Minimum 8 characters
-                    </ThemedText>
-                  </View>
-                  <View style={styles.ruleRow}>
-                    <Feather
-                      name={hasUppercase ? "check-circle" : "circle"}
-                      size={14}
-                      color={hasUppercase ? "#22C55E" : theme.textSecondary}
-                    />
-                    <ThemedText style={[styles.ruleText, { color: hasUppercase ? "#22C55E" : theme.textSecondary }]}>
-                      One uppercase letter
-                    </ThemedText>
-                  </View>
-                  <View style={styles.ruleRow}>
-                    <Feather
-                      name={hasLowercase ? "check-circle" : "circle"}
-                      size={14}
-                      color={hasLowercase ? "#22C55E" : theme.textSecondary}
-                    />
-                    <ThemedText style={[styles.ruleText, { color: hasLowercase ? "#22C55E" : theme.textSecondary }]}>
-                      One lowercase letter
-                    </ThemedText>
-                  </View>
-                  <View style={styles.ruleRow}>
-                    <Feather
-                      name={hasNumber ? "check-circle" : "circle"}
-                      size={14}
-                      color={hasNumber ? "#22C55E" : theme.textSecondary}
-                    />
-                    <ThemedText style={[styles.ruleText, { color: hasNumber ? "#22C55E" : theme.textSecondary }]}>
-                      One number
-                    </ThemedText>
-                  </View>
-                  <View style={styles.ruleRow}>
-                    <Feather
-                      name={hasSpecial ? "check-circle" : "circle"}
-                      size={14}
-                      color={hasSpecial ? "#22C55E" : theme.textSecondary}
-                    />
-                    <ThemedText style={[styles.ruleText, { color: hasSpecial ? "#22C55E" : theme.textSecondary }]}>
-                      One special character
-                    </ThemedText>
-                  </View>
-                </View>
-              )}
             </View>
 
-            {/* Terms and Conditions */}
-            <Pressable
-              onPress={() => setAgreedToTerms(!agreedToTerms)}
-              style={styles.termsRow}
-            >
+            {/* Confirm Password */}
+            <View style={styles.inputContainer}>
+              <ThemedText style={styles.inputLabel}>
+                Confirm Password <Text style={{ color: "red" }}>*</Text>
+              </ThemedText>
               <View
                 style={[
-                  styles.checkbox,
+                  styles.inputWrapper,
                   {
-                    borderColor: agreedToTerms ? theme.primary : theme.border,
-                    backgroundColor: agreedToTerms
-                      ? theme.primary
-                      : "transparent",
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor:
+                      confirmPassword.length > 0
+                        ? isPasswordMatching
+                          ? "#22C55E"
+                          : "#EF4444"
+                        : theme.border,
                   },
                 ]}
               >
-                {agreedToTerms && (
-                  <Feather name="check" size={14} color="#FFFFFF" />
-                )}
+                <Feather name="lock" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { color: theme.text }]}
+                  placeholder="Confirm password"
+                  placeholderTextColor={theme.textSecondary}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Pressable
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={styles.eyeButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Feather name={showConfirmPassword ? "eye-off" : "eye"} size={18} color={theme.textSecondary} />
+                </Pressable>
               </View>
-              <ThemedText style={styles.termsText}>
-                I agree to the Terms & Conditions
-              </ThemedText>
-            </Pressable>
+              {confirmPassword.length > 0 && !isPasswordMatching && (
+                <Text style={[styles.validationMsg, { color: "#EF4444" }]}>
+                  Passwords do not match
+                </Text>
+              )}
+            </View>
 
-            {/* Submit Button */}
+            {/* Primary Action Button */}
             <AnimatedPressable
               onPress={handleSignup}
               onPressIn={() => (buttonScale.value = withSpring(0.96))}
@@ -1064,48 +909,23 @@ export default function SignupScreen() {
               disabled={isSubmitDisabled}
               style={[
                 styles.signupButton,
-                { backgroundColor: isSubmitDisabled ? theme.border : theme.primary },
+                { backgroundColor: isSubmitDisabled ? theme.border : "#F97316" },
                 animatedButtonStyle,
               ]}
             >
               <ThemedText style={styles.signupButtonText}>
-                {isLoading ? t.common.loading : t.auth.signUp}
+                {isLoading
+                  ? "Creating Account..."
+                  : selectedRole === "contractor"
+                  ? "Create Contractor Account"
+                  : selectedRole === "supervisor"
+                  ? "Create Supervisor Account"
+                  : "Create Labor Account"}
               </ThemedText>
             </AnimatedPressable>
-
-            {/* Google Sign-In Option */}
-            <View style={styles.dividerRow}>
-              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-              <ThemedText style={[styles.dividerLabel, { color: theme.textSecondary }]}>or continue with</ThemedText>
-              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-            </View>
-
-            <Pressable
-              style={[
-                styles.googleBtn,
-                {
-                  backgroundColor: theme.backgroundDefault,
-                  borderColor: theme.border,
-                },
-              ]}
-              onPress={handleGoogleSignIn}
-              disabled={isLoading}
-            >
-              <Ionicons name="logo-google" size={18} color="#4285F4" style={{ marginRight: 10 }} />
-              <ThemedText style={[styles.googleBtnLabel, { color: theme.text }]}>
-                Continue with Google
-              </ThemedText>
-            </Pressable>
           </View>
         )}
       </ScrollContainer>
-
-      <GoogleMobileCompletionModal
-        visible={showMobileCompletionModal}
-        googleProfile={pendingGoogleProfile}
-        onClose={() => setShowMobileCompletionModal(false)}
-        onSuccess={handleCompleteGoogleRegistration}
-      />
     </ThemedView>
   );
 }
@@ -1115,195 +935,156 @@ const styles = StyleSheet.create({
   scrollView: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
   },
   header: {
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: BorderRadius.full,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.md,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
     marginBottom: Spacing.xs,
   },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
   subtitle: {
-    fontSize: 16,
-  },
-  stepIndicatorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginVertical: Spacing.lg,
-  },
-  stepDot: {
-    width: 12,
-    height: 12,
-    borderRadius: BorderRadius.full,
-  },
-  stepLine: {
-    width: 60,
-    height: 3,
+    fontSize: 14,
   },
   stepContent: {
     flex: 1,
-    marginTop: Spacing.md,
-  },
-  questionText: {
-    fontSize: 22,
-    fontWeight: "600",
-    marginBottom: Spacing.xl,
-    textAlign: "center",
   },
   roleCard: {
-    borderWidth: 2,
-    borderRadius: BorderRadius.xs,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
+    borderWidth: 1.5,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
-  supervisorCard: {},
   roleCardHeader: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
+  },
+  roleIconBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
   },
   roleEmoji: {
-    fontSize: 32,
-    marginRight: Spacing.md,
+    fontSize: 24,
   },
   roleCardInfo: {
     flex: 1,
   },
-  badgeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.xs,
-  },
   roleTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  inviteBadge: {
-    backgroundColor: Colors.light.error,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-  },
-  inviteBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 10,
+    fontSize: 17,
     fontWeight: "700",
+    marginBottom: 2,
   },
-  errorAlert: {
+  roleSubtitle: {
+    fontSize: 13,
+  },
+  loginPromptContainer: {
     flexDirection: "row",
-    backgroundColor: Colors.light.error + "10",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.xs,
-    alignItems: "center",
-    marginBottom: Spacing.xl,
-  },
-  errorAlertText: {
-    color: Colors.light.error,
-    marginLeft: Spacing.sm,
-    flex: 1,
-  },
-  nextButton: {
-    flexDirection: "row",
-    height: Spacing.buttonHeight,
-    borderRadius: BorderRadius.xs,
-    alignItems: "center",
     justifyContent: "center",
-    marginTop: Spacing.xl,
-    gap: Spacing.sm,
+    alignItems: "center",
+    marginTop: 24,
   },
-  nextButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 16,
+  sectionHeaderTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#F97316",
+    letterSpacing: 1,
+    marginBottom: 12,
   },
-  inputContainer: { marginBottom: Spacing.lg },
+  inputContainer: { marginBottom: 14 },
   inputLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
-    marginBottom: Spacing.xs,
-    marginLeft: 4,
+    marginBottom: 6,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    height: Spacing.inputHeight,
-    borderRadius: BorderRadius.xs,
+    height: 48,
+    borderRadius: 12,
     borderWidth: 1,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: 12,
   },
-  inputIcon: { marginRight: Spacing.sm },
+  inputIcon: { marginRight: 8 },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     height: "100%",
   },
-  eyeButton: { padding: Spacing.xs },
+  eyeButton: { padding: 4 },
   phoneInputRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
+    gap: 8,
   },
   phoneInputWrapper: {
     flex: 1,
   },
   otpButton: {
-    height: Spacing.inputHeight,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.xs,
+    height: 48,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   otpButtonText: {
     color: "#FFFFFF",
-    fontWeight: "600",
+    fontWeight: "700",
+    fontSize: 13,
   },
   verifiedContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: Spacing.lg,
-    paddingHorizontal: Spacing.xs,
+    marginBottom: 12,
   },
   verifiedText: {
-    marginLeft: Spacing.sm,
-    fontSize: 14,
-    fontWeight: "500",
+    marginLeft: 6,
+    fontSize: 13,
+    fontWeight: "600",
   },
-  termsRow: {
+  laborInfoCard: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: Spacing.lg,
+    backgroundColor: "#EFF6FF",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 14,
   },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 4,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.sm,
-  },
-  termsText: { fontSize: 14 },
   signupButton: {
-    height: Spacing.buttonHeight,
-    borderRadius: BorderRadius.xs,
+    height: 52,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: Spacing.md,
+    marginTop: 16,
+    marginBottom: 24,
   },
   signupButtonText: {
     color: "#FFFFFF",
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 16,
   },
   validationMsg: {
@@ -1311,43 +1092,5 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 4,
     marginLeft: 4,
-  },
-  passwordRulesContainer: {
-    marginTop: 8,
-    paddingHorizontal: 4,
-    gap: 4,
-  },
-  ruleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  ruleText: {
-    fontSize: 12,
-  },
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: Spacing.lg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-  },
-  dividerLabel: {
-    fontSize: 12,
-    marginHorizontal: Spacing.md,
-  },
-  googleBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 48,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-  },
-  googleBtnLabel: {
-    fontSize: 14,
-    fontWeight: "600",
   },
 });

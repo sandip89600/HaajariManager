@@ -22,11 +22,16 @@ import notificationRoutes from "./notificationRoutes";
 import razorpayRoutes from "./razorpayRoutes";
 import feedbackRoutes from "./feedbackRoutes";
 import webhookRoutes from "./webhookRoutes";
+import connectionRoutes from "./connectionRoutes";
 
 const router = Router();
 
 router.use("/auth", authRoutes);
+router.use("/v2/auth", authRoutes);
+router.use("/", connectionRoutes);
+router.use("/v2", connectionRoutes);
 router.use("/recovery", recoveryRoutes);
+
 router.use("/workers", workerRoutes);
 router.use("/attendance", attendanceRoutes);
 router.use("/payments", paymentRoutes);

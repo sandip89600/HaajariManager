@@ -209,6 +209,18 @@ export class SubscriptionServiceV2 {
       await config.save();
     }
 
+    // Sync AppConfig document so legacy app endpoints remain 100% in sync
+    try {
+      const { AppConfig } = await import("../models/AppConfig");
+      let appConfig = await AppConfig.findOne();
+      if (!appConfig) {
+        await AppConfig.create({ subscriptionsEnabled: globalEnabled });
+      } else {
+        appConfig.subscriptionsEnabled = globalEnabled;
+        await appConfig.save();
+      }
+    } catch {}
+
     // Ensure default plans exist in DB
     await this.seedDefaultPlans();
 

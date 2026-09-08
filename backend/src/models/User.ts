@@ -7,7 +7,12 @@ export interface IUser extends Document {
   email?: string;
   passwordHash: string;
   phone: string;
-  role: "contractor" | "builder" | "supervisor" | "admin";
+  role: "contractor" | "builder" | "supervisor" | "labor" | "admin";
+  connectionStatus?: "connected" | "pending" | "declined" | "not_connected";
+  contractorId?: mongoose.Types.ObjectId;
+  contractorName?: string;
+  contractorCompany?: string;
+  assignedSiteIds?: mongoose.Types.ObjectId[];
   assignedProjects?: mongoose.Types.ObjectId[];
   isActive: boolean;
   isVerified: boolean;
@@ -82,7 +87,12 @@ const UserSchema = new Schema<IUser>({
   email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
   passwordHash: { type: String, required: true },
   phone: { type: String, required: true, unique: true, trim: true },
-  role: { type: String, enum: ["contractor", "builder", "supervisor", "admin"], default: "contractor" },
+  role: { type: String, enum: ["contractor", "builder", "supervisor", "labor", "admin"], default: "contractor" },
+  connectionStatus: { type: String, enum: ["connected", "pending", "declined", "not_connected"], default: "not_connected" },
+  contractorId: { type: Schema.Types.ObjectId, ref: "User" },
+  contractorName: { type: String, trim: true },
+  contractorCompany: { type: String, trim: true },
+  assignedSiteIds: [{ type: Schema.Types.ObjectId, ref: "Site" }],
   assignedProjects: [{ type: Schema.Types.ObjectId, ref: "Project" }],
   isActive: { type: Boolean, default: true },
   isVerified: { type: Boolean, default: true },

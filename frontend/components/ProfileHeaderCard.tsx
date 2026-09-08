@@ -3,6 +3,7 @@ import { View, StyleSheet, Pressable, Image, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
+import { useTheme } from "@/hooks/useTheme";
 
 export interface ProfileHeaderCardProps {
   name: string;
@@ -27,6 +28,8 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
   onAvatarPress,
   editLabel,
 }) => {
+  const { theme, isDark } = useTheme();
+
   // Compute initials (e.g. "Ganesh Pandit" -> "GP")
   const getInitials = (fullName: string) => {
     if (!fullName) return "GP";
@@ -40,9 +43,21 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
   const initials = getInitials(name);
 
   return (
-    <View style={styles.cardWrapper}>
+    <View
+      style={[
+        styles.cardWrapper,
+        {
+          backgroundColor: theme.backgroundDefault,
+          borderColor: isDark ? "#334155" : theme.border,
+        },
+      ]}
+    >
       <LinearGradient
-        colors={["#0F172A", "#1E293B", "#0F172A"]}
+        colors={
+          isDark
+            ? ["#0F172A", "#1E293B", "#0F172A"]
+            : [theme.backgroundDefault, theme.backgroundSecondary || "#F8FAFC"]
+        }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.cardGradient}
@@ -72,7 +87,7 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
           <View style={styles.detailsContainer}>
             {/* Top Row: User Name & Optional Edit Action */}
             <View style={styles.topRow}>
-              <ThemedText style={styles.nameText} numberOfLines={1}>
+              <ThemedText style={[styles.nameText, { color: theme.text }]} numberOfLines={1}>
                 {name || "Ganesh Pandit"}
               </ThemedText>
 
@@ -86,41 +101,47 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
             {/* Vertically Stacked Contact List */}
             <View style={styles.contactList}>
               {/* Phone Row */}
-              <View style={styles.contactItem}>
-                <View style={styles.iconBox}>
-                  <Feather name="phone" size={13} color="#94A3B8" />
+              {phone ? (
+                <View style={styles.contactItem}>
+                  <View style={styles.iconBox}>
+                    <Feather name="phone" size={13} color={theme.textSecondary} />
+                  </View>
+                  <ThemedText style={[styles.contactText, { color: theme.textSecondary }]} numberOfLines={1}>
+                    {phone}
+                  </ThemedText>
                 </View>
-                <ThemedText style={styles.contactText} numberOfLines={1}>
-                  {phone}
-                </ThemedText>
-              </View>
+              ) : null}
 
               {/* Email Row */}
-              <View style={styles.contactItem}>
-                <View style={styles.iconBox}>
-                  <Feather name="mail" size={13} color="#94A3B8" />
+              {email ? (
+                <View style={styles.contactItem}>
+                  <View style={styles.iconBox}>
+                    <Feather name="mail" size={13} color={theme.textSecondary} />
+                  </View>
+                  <ThemedText style={[styles.contactText, { color: theme.textSecondary }]} numberOfLines={1}>
+                    {email}
+                  </ThemedText>
                 </View>
-                <ThemedText style={styles.contactText} numberOfLines={1}>
-                  {email}
-                </ThemedText>
-              </View>
+              ) : null}
 
               {/* Company Row */}
-              <View style={styles.contactItem}>
-                <View style={styles.iconBox}>
-                  <Feather name="briefcase" size={13} color="#94A3B8" />
+              {companyName ? (
+                <View style={styles.contactItem}>
+                  <View style={styles.iconBox}>
+                    <Feather name="briefcase" size={13} color={theme.textSecondary} />
+                  </View>
+                  <ThemedText style={[styles.contactText, { color: theme.textSecondary }]} numberOfLines={1}>
+                    {companyName}
+                  </ThemedText>
                 </View>
-                <ThemedText style={styles.contactText} numberOfLines={1}>
-                  {companyName}
-                </ThemedText>
-              </View>
+              ) : null}
             </View>
           </View>
         </View>
 
         {/* ── Bottom-Right Accent Sparkle ── */}
         <View style={styles.sparkleAccent} pointerEvents="none">
-          <Feather name="star" size={15} color="#2DD4BF" />
+          <Feather name="star" size={15} color={isDark ? "#2DD4BF" : "#F97316"} />
         </View>
       </LinearGradient>
     </View>
@@ -129,20 +150,19 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
 
 const styles = StyleSheet.create({
   cardWrapper: {
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: "#2DD4BF",
+    borderRadius: 20,
+    borderWidth: 1,
     overflow: "hidden",
     marginVertical: 12,
     ...Platform.select({
       ios: {
-        shadowColor: "#2DD4BF",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.35,
-        shadowRadius: 10,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 8,
+        elevation: 3,
       },
     }),
   },
@@ -169,7 +189,7 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
+        shadowOpacity: 0.15,
         shadowRadius: 4,
       },
       android: {
@@ -208,7 +228,6 @@ const styles = StyleSheet.create({
   nameText: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#FFFFFF",
     flex: 1,
     marginRight: 8,
   },
@@ -236,7 +255,6 @@ const styles = StyleSheet.create({
   contactText: {
     fontSize: 12.5,
     fontWeight: "400",
-    color: "#CBD5E1", // Soft light gray font
     flex: 1,
   },
   sparkleAccent: {

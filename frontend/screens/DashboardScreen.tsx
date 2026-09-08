@@ -94,8 +94,8 @@ export default function DashboardScreen() {
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
-  const { config: featureConfig, isModuleVisible } = useFeatureAccess();
-  const subscriptionsEnabled = featureConfig?.subscriptionsEnabled ?? true;
+  const { config: featureConfig, isSubscriptionEnabled, isModuleVisible } = useFeatureAccess();
+  const subscriptionsEnabled = isSubscriptionEnabled;
   const { socket, connectSocket } = useSocket();
   const { unreadCount } = useNotifications();
   const insets = useSafeAreaInsets();

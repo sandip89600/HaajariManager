@@ -4,6 +4,9 @@ import {
   updateUserInfo,
   toggleUserStatus,
   deleteUser,
+  getContractorDetailsAdmin,
+  getSupervisorDetailsAdmin,
+  getLaborDetailsAdmin,
   updateTenantPlan,
   getAdminAnalytics,
   getAllWorkers,
@@ -76,10 +79,14 @@ router.use(requireAdmin as any);
 
 // User Management
 router.get("/users", getAllUsers as any);
+router.get("/contractors/:id", getContractorDetailsAdmin as any);
+router.get("/supervisors/:id", getSupervisorDetailsAdmin as any);
+router.get("/labor/:id", getLaborDetailsAdmin as any);
 router.put("/users/:id", updateUserInfo as any);
 router.put("/users/:id/status", toggleUserStatus as any);
 router.delete("/users/:id", deleteUser as any);
 router.delete("/users-wipe", deleteAllUsers as any);
+
 
 // Subscription / Tenant Plan Management
 router.get("/subscription-config", getSubscriptionConfig as any);

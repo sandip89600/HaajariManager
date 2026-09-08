@@ -2859,3 +2859,351 @@ export const googleAuth = async (req: AuthenticatedRequest, res: Response) => {
     res.status(500).json({ success: false, message: error.message || "Failed to authenticate with Google." });
   }
 };
+
+export const registerContractor = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { name, username, email, phone, companyName, password } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, field: "name", message: "Full name is required." });
+    }
+    if (!companyName || !companyName.trim()) {
+      return res.status(400).json({ success: false, field: "companyName", message: "Company name is required." });
+    }
+
+    const isMinLength = password && password.length >= 6;
+    if (!isMinLength) {
+      return res.status(400).json({ success: false, field: "password", message: "Password must be at least 6 characters long." });
+    }
+
+    const emailResult = validateField("email", email);
+    if (!emailResult.isValid) {
+      return res.status(emailResult.status || 400).json({ success: false, field: "email", message: emailResult.message });
+    }
+    const emailClean = emailResult.cleanValue!;
+
+    const usernameResult = validateField("username", username);
+    if (!usernameResult.isValid) {
+      return res.status(usernameResult.status || 400).json({ success: false, field: "username", message: usernameResult.message });
+    }
+    const usernameClean = usernameResult.cleanValue!;
+
+    const phoneResult = validateField("phone", phone);
+    if (!phoneResult.isValid) {
+      return res.status(phoneResult.status || 400).json({ success: false, field: "mobile", message: phoneResult.message });
+    }
+    const phoneClean = phoneResult.cleanValue!;
+
+    const existingPhone = await User.findOne({ phone: phoneClean });
+    if (existingPhone) {
+      return res.status(409).json({ success: false, field: "mobile", message: "Mobile number is already registered." });
+    }
+
+    const existingEmail = await User.findOne({ email: emailClean });
+    if (existingEmail) {
+      return res.status(409).json({ success: false, field: "email", message: "Email is already registered." });
+    }
+
+    const existingUsername = await User.findOne({ username: usernameClean });
+    if (existingUsername) {
+      return res.status(409).json({ success: false, field: "username", message: "Username is already in use." });
+    }
+
+    const tenantCode = companyName.replace(/\s+/g, "").toLowerCase() + "_" + Date.now().toString(36);
+    const tenant = new Tenant({
+      name: companyName.trim(),
+      code: tenantCode,
+      plan: "free",
+    });
+    await tenant.save();
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const user = new User({
+      tenantId: tenant._id,
+      name: name.trim(),
+      phone: phoneClean,
+      email: emailClean,
+      username: usernameClean,
+      passwordHash,
+      role: "contractor",
+      isActive: true,
+      isVerified: true,
+      isPhoneVerified: true,
+      status: "active",
+      refreshTokens: [],
+    });
+
+    await user.save();
+
+    const token = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+    user.refreshTokens.push(refreshToken);
+    await user.save();
+
+    await logActivity({
+      req,
+      action: "USER_SIGNUP",
+      targetType: "User",
+      targetId: user._id.toString(),
+      userId: user._id.toString(),
+      tenantId: tenant._id.toString(),
+      userName: user.name,
+      role: "contractor",
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Contractor account created successfully.",
+      token,
+      refreshToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        tenantId: tenant._id,
+        companyName: tenant.name,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error: any) {
+    console.error("registerContractor error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const registerSupervisor = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { name, username, email, phone, contractorName, contractorCompany, password } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, field: "name", message: "Full name is required." });
+    }
+
+    const isMinLength = password && password.length >= 6;
+    if (!isMinLength) {
+      return res.status(400).json({ success: false, field: "password", message: "Password must be at least 6 characters long." });
+    }
+
+    const emailResult = validateField("email", email);
+    if (!emailResult.isValid) {
+      return res.status(emailResult.status || 400).json({ success: false, field: "email", message: emailResult.message });
+    }
+    const emailClean = emailResult.cleanValue!;
+
+    const usernameResult = validateField("username", username);
+    if (!usernameResult.isValid) {
+      return res.status(usernameResult.status || 400).json({ success: false, field: "username", message: usernameResult.message });
+    }
+    const usernameClean = usernameResult.cleanValue!;
+
+    const phoneResult = validateField("phone", phone);
+    if (!phoneResult.isValid) {
+      return res.status(phoneResult.status || 400).json({ success: false, field: "mobile", message: phoneResult.message });
+    }
+    const phoneClean = phoneResult.cleanValue!;
+
+    const existingPhone = await User.findOne({ phone: phoneClean });
+    if (existingPhone) {
+      return res.status(409).json({ success: false, field: "mobile", message: "Mobile number is already registered." });
+    }
+
+    const existingEmail = await User.findOne({ email: emailClean });
+    if (existingEmail) {
+      return res.status(409).json({ success: false, field: "email", message: "Email is already registered." });
+    }
+
+    const existingUsername = await User.findOne({ username: usernameClean });
+    if (existingUsername) {
+      return res.status(409).json({ success: false, field: "username", message: "Username is already in use." });
+    }
+
+    let standaloneTenant = await Tenant.findOne({ code: "STANDALONE_SUPERVISOR" });
+    if (!standaloneTenant) {
+      standaloneTenant = new Tenant({
+        name: "Standalone Supervisors",
+        code: "STANDALONE_SUPERVISOR",
+        plan: "free",
+      });
+      await standaloneTenant.save();
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const supervisor = new User({
+      tenantId: standaloneTenant._id,
+      name: name.trim(),
+      phone: phoneClean,
+      email: emailClean,
+      username: usernameClean,
+      passwordHash,
+      role: "supervisor",
+      connectionStatus: "not_connected",
+      contractorName: contractorName ? contractorName.trim() : "",
+      contractorCompany: contractorCompany ? contractorCompany.trim() : "",
+      isActive: true,
+      isVerified: true,
+      isPhoneVerified: true,
+      status: "active",
+      refreshTokens: [],
+    });
+
+    await supervisor.save();
+
+    const token = generateAccessToken(supervisor);
+    const refreshToken = generateRefreshToken(supervisor);
+    supervisor.refreshTokens.push(refreshToken);
+    await supervisor.save();
+
+    await logActivity({
+      req,
+      action: "USER_SIGNUP",
+      targetType: "User",
+      targetId: supervisor._id.toString(),
+      userId: supervisor._id.toString(),
+      tenantId: standaloneTenant._id.toString(),
+      userName: supervisor.name,
+      role: "supervisor",
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Supervisor account created successfully.",
+      token,
+      refreshToken,
+      user: {
+        id: supervisor._id,
+        name: supervisor.name,
+        phone: supervisor.phone,
+        email: supervisor.email,
+        username: supervisor.username,
+        role: supervisor.role,
+        connectionStatus: supervisor.connectionStatus,
+        contractorName: supervisor.contractorName,
+        contractorCompany: supervisor.contractorCompany,
+        createdAt: supervisor.createdAt,
+      },
+    });
+  } catch (error: any) {
+    console.error("registerSupervisor error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const registerLabor = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { name, username, email, phone, password } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, field: "name", message: "Full name is required." });
+    }
+
+    const isMinLength = password && password.length >= 6;
+    if (!isMinLength) {
+      return res.status(400).json({ success: false, field: "password", message: "Password must be at least 6 characters long." });
+    }
+
+    const emailResult = validateField("email", email);
+    if (!emailResult.isValid) {
+      return res.status(emailResult.status || 400).json({ success: false, field: "email", message: emailResult.message });
+    }
+    const emailClean = emailResult.cleanValue!;
+
+    const usernameResult = validateField("username", username);
+    if (!usernameResult.isValid) {
+      return res.status(usernameResult.status || 400).json({ success: false, field: "username", message: usernameResult.message });
+    }
+    const usernameClean = usernameResult.cleanValue!;
+
+    const phoneResult = validateField("phone", phone);
+    if (!phoneResult.isValid) {
+      return res.status(phoneResult.status || 400).json({ success: false, field: "mobile", message: phoneResult.message });
+    }
+    const phoneClean = phoneResult.cleanValue!;
+
+    const existingPhone = await User.findOne({ phone: phoneClean });
+    if (existingPhone) {
+      return res.status(409).json({ success: false, field: "mobile", message: "Mobile number is already registered." });
+    }
+
+    const existingEmail = await User.findOne({ email: emailClean });
+    if (existingEmail) {
+      return res.status(409).json({ success: false, field: "email", message: "Email is already registered." });
+    }
+
+    const existingUsername = await User.findOne({ username: usernameClean });
+    if (existingUsername) {
+      return res.status(409).json({ success: false, field: "username", message: "Username is already in use." });
+    }
+
+    let standaloneTenant = await Tenant.findOne({ code: "STANDALONE_LABOR" });
+    if (!standaloneTenant) {
+      standaloneTenant = new Tenant({
+        name: "Standalone Labor Accounts",
+        code: "STANDALONE_LABOR",
+        plan: "free",
+      });
+      await standaloneTenant.save();
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const laborUser = new User({
+      tenantId: standaloneTenant._id,
+      name: name.trim(),
+      phone: phoneClean,
+      email: emailClean,
+      username: usernameClean,
+      passwordHash,
+      role: "labor",
+      connectionStatus: "not_connected",
+      isActive: true,
+      isVerified: true,
+      isPhoneVerified: true,
+      status: "active",
+      refreshTokens: [],
+    });
+
+    await laborUser.save();
+
+    const token = generateAccessToken(laborUser);
+    const refreshToken = generateRefreshToken(laborUser);
+    laborUser.refreshTokens.push(refreshToken);
+    await laborUser.save();
+
+    await logActivity({
+      req,
+      action: "USER_SIGNUP",
+      targetType: "User",
+      targetId: laborUser._id.toString(),
+      userId: laborUser._id.toString(),
+      tenantId: standaloneTenant._id.toString(),
+      userName: laborUser.name,
+      role: "labor",
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Labor account created successfully.",
+      token,
+      refreshToken,
+      user: {
+        id: laborUser._id,
+        name: laborUser.name,
+        phone: laborUser.phone,
+        email: laborUser.email,
+        username: laborUser.username,
+        role: laborUser.role,
+        connectionStatus: laborUser.connectionStatus,
+        createdAt: laborUser.createdAt,
+      },
+    });
+  } catch (error: any) {
+    console.error("registerLabor error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
