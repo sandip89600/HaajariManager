@@ -18,7 +18,32 @@
     "viewRules": "Tap to view rules",
     "confirmPassword": "Confirm Password",
     "fullName": "Full Name",
-    "companyName": "Company Name"
+    "companyName": "Company Name",
+    "confirmPasswordPlaceholder": "नया पासवर्ड पुनः दर्ज करें",
+    "enterOtp": "6-अंकीय कोड दर्ज करें",
+    "forgotPassword": "अपना खाता खोजें",
+    "forgotPasswordDesc": "6-अंकीय रिकवरी कोड प्राप्त करने के लिए अपने हाजिरी खाते से जुड़ा मोबाइल नंबर दर्ज करें।",
+    "lowercaseReq": "कम से कम एक छोटा अक्षर (a-z)",
+    "min8Chars": "न्यूनतम 8 वर्ण",
+    "newPassword": "नया पासवर्ड",
+    "newPasswordPlaceholder": "नया पासवर्ड दर्ज करें",
+    "numberReq": "कम से कम एक संख्या (0-9)",
+    "otpSentTo": "हमने 6-अंकीय सत्यापन कोड भेजा है:",
+    "passwordRequirementsDesc": "एक नया पासवर्ड बनाएं जो कम से कम 8 वर्ण लंबा हो और जिसमें संख्याएं और विशेष प्रतीक हों।",
+    "passwordsDoNotMatch": "पासवर्ड मेल नहीं खाते",
+    "passwordsMatch": "पासवर्ड मेल खाते हैं",
+    "phonePlaceholder": "10-अंकीय मोबाइल नंबर दर्ज करें",
+    "registeredPhone": "पंजीकृत मोबाइल नंबर",
+    "resendOtp": "कोड पुनः भेजें",
+    "resendOtpIn": "पुनः कोड भेजें:",
+    "resetPassword": "पासवर्ड रीसेट करें",
+    "resetPasswordDesc": "खाते की पहुँच पुनः प्राप्त करने के लिए नीचे अपना नया सुरक्षित पासवर्ड दर्ज करें",
+    "resettingPassword": "पासवर्ड रीसेट हो रहा है...",
+    "searchingAccount": "खाता खोजा जा रहा है...",
+    "sendRecoveryCode": "रिकवरी कोड भेजें",
+    "specialCharReq": "कम से कम एक विशेष वर्ण (!@#$%)",
+    "uppercaseReq": "कम से कम एक बड़ा अक्षर (A-Z)",
+    "verifyingOtp": "कोड सत्यापित किया जा रहा है..."
   },
   "tabs": {
     "dashboard": "Dashboard",
@@ -50,7 +75,14 @@
     "recentSites": "Recent Sites",
     "viewAll": "View All",
     "markAttendance": "Mark Attendance",
-    "smartInsights": "Smart Insights"
+    "smartInsights": "Smart Insights",
+    "allPresent": "सभी उपस्थित",
+    "dayStreak": "दिन की लय",
+    "startManaging": "कार्यबल प्रबंधन शुरू करें",
+    "tapToMarkHoldForOptions": "हाजिरी के लिए टैप करें, विकल्पों के लिए दबाए रखें।",
+    "used": "उपयोग किया",
+    "viewAttendanceByDate": "तारीख के अनुसार कर्मचारी हाजिरी देखें",
+    "workersOnSite": "साइट पर कर्मचारी"
   },
   "sites": {
     "title": "Site Control",
@@ -111,7 +143,46 @@
     "otherWork": "अन्य काम का प्रकार",
     "enterCustomWork": "कस्टम काम का नाम दर्ज करें",
     "startWorkBtn": "काम शुरू करें",
-    "completeWorkBtn": "आज का काम पूरा करें"
+    "completeWorkBtn": "आज का काम पूरा करें",
+    "addressRequired": "साइट का पता आवश्यक है",
+    "analytics": "एनालिटिक्स",
+    "archiveSiteDesc": "इस साइट को आर्काइव करें (सक्रिय सूची से छिपाएं)",
+    "assignedRosterList": "असाइन किए गए कर्मचारियों की सूची",
+    "budget": "बजट",
+    "changeStatus": "स्थिति बदलें",
+    "chooseSupervisor": "सुपरवाइजर चुनें",
+    "clientName": "ग्राहक का नाम",
+    "complete": "पूर्ण",
+    "constructionStagesCompletion": "निर्माण चरणों की पूर्णता",
+    "createError": "साइट बनाने में विफल",
+    "createSuccess": "साइट सफलतापूर्वक बनाई गई",
+    "dailyWageBudget": "दैनिक मजदूरी बजट",
+    "defaultLocation": "डिफ़ॉल्ट स्थान",
+    "description": "विवरण",
+    "done": "पूर्ण",
+    "gettingLocation": "स्थान निर्देशांक प्राप्त किए जा रहे हैं...",
+    "nameRequired": "साइट का नाम आवश्यक है",
+    "noLocationData": "अभी तक कोई स्थान डेटा रिकॉर्ड नहीं हुआ है।",
+    "noStagesRegistered": "इस प्रोजेक्ट के लिए कोई चरण पंजीकृत नहीं है।",
+    "noWorkersMatch": "चयनित श्रेणी से कोई कर्मचारी मेल नहीं खाता।",
+    "openSite": "साइट खोलें",
+    "projectType": "प्रोजेक्ट प्रकार",
+    "projectTypeRequired": "प्रोजेक्ट प्रकार आवश्यक है",
+    "refreshLocation": "स्थान रीफ्रेश करें",
+    "reportsDocs": "रिपोर्ट्स और दस्तावेज",
+    "searchPlaceholder": "साइट, क्लाइंट, सुपरवाइजर से खोजें...",
+    "selectSupervisor": "सुपरवाइजर चुनें (वैकल्पिक)",
+    "siteClientDetails": "साइट और क्लाइंट विवरण",
+    "startDate": "प्रारंभ तिथि",
+    "startDateRequired": "एक मान्य प्रारंभ तिथि आवश्यक है (YYYY-MM-DD)",
+    "status": "साइट स्थिति",
+    "timeline": "समयरेखा",
+    "timelineStages": "समयरेखा और चरण",
+    "updateError": "साइट अपडेट करने में विफल",
+    "updateSite": "साइट अपडेट करें",
+    "updateSuccess": "साइट विवरण सफलतापूर्वक अपडेट किया गया",
+    "workersAssigned": "असाइन किए गए कर्मचारी",
+    "workersWages": "कर्मचारी और मजदूरी"
   },
   "feedback": {
     "title": "Report a Problem",
@@ -146,7 +217,20 @@
     "gpsCapturing": "Getting location...",
     "gpsCaptured": "Location captured",
     "gpsFailed": "Could not get location",
-    "gpsOptional": "GPS location is optional"
+    "gpsOptional": "GPS location is optional",
+    "clearAttendance": "हाजिरी हटाएं",
+    "clearAttendanceConfirm": "क्या आप इस तिथि पर इस कर्मचारी की हाजिरी हटाना चाहते हैं?",
+    "confirmSave": "हाजिरी सहेजें / पुष्टि करें",
+    "finalPay": "आज का कुल भुगतान",
+    "multiplierNotice": "मानक दर गुणक",
+    "otHours": "ओवरटाइम घंटे",
+    "otMultiplier": "ओटी गुणक",
+    "otWage": "ओटी दर / मजदूरी",
+    "selectStatusDesc": "कृपया एक हाजिरी स्थिति चुनें।",
+    "statusRequired": "स्थिति आवश्यक है",
+    "tapCellDesc": "हाजिरी लगाने के लिए सेल पर टैप करें",
+    "unmarked": "अचिह्नित",
+    "status": "హాజరు స్థితి"
   },
   "workers": {
     "title": "కార్మికులు",
@@ -178,7 +262,9 @@
     "changePhoto": "Change Photo",
     "optional": "Optional",
     "contactInfo": "Contact Info",
-    "additionalInfo": "Additional Info"
+    "additionalInfo": "Additional Info",
+    "dailyWage": "दैनिक दर",
+    "generalWorker": "सामान्य कामगार"
   },
   "categories": {
     "labour": "Labour",
@@ -308,7 +394,10 @@
     "privacyPolicy": "Privacy Policy",
     "termsConditions": "Terms & Conditions",
     "versionText": "Version 1.0.2 (Production Build)",
-    "haiDesc": "HAI (Haajari Artificial Intelligence) is the intelligent assistant powering the Haajari App. It helps contractors, builders, and supervisors manage workers, attendance, payments, advances, reports, and navigation using AI."
+    "haiDesc": "HAI (Haajari Artificial Intelligence) is the intelligent assistant powering the Haajari App. It helps contractors, builders, and supervisors manage workers, attendance, payments, advances, reports, and navigation using AI.",
+    "basicPlan": "बेसिक प्लान",
+    "premiumPlan": "प्रीमियम प्लान",
+    "superPlan": "सुपर प्लान"
   },
   "gps": {
     "permissionDenied": "Location permission denied",
@@ -322,7 +411,16 @@
     "permissionRequired": "Allow notifications to receive reminders",
     "openSettings": "Open Settings",
     "enabled": "Enabled",
-    "disabled": "Disabled"
+    "disabled": "Disabled",
+    "allCaughtUp": "आप पूरी तरह अपडेट हैं! कोई अपठित सूचना नहीं है।",
+    "empty": "कोई सूचना नहीं",
+    "emptyDesc": "सूचनाएं और स्वचालित अनुस्मारक यहाँ दिखाई देंगे।",
+    "markAllRead": "सभी को पढ़ा हुआ चिह्नित करें",
+    "markRead": "पढ़ा हुआ चिह्नित करें",
+    "reminders": "अनुस्मारक",
+    "system": "सिस्टम",
+    "title": "सूचनाएं",
+    "unread": "अपठित"
   },
   "admin": {
     "dashboard": "HAI Control Center",
@@ -397,7 +495,9 @@
     "fullAmount": "Full Amount",
     "partialAmount": "Partial Amount",
     "deletePayment": "Delete Payment",
-    "deletePaymentConfirm": "Remove this payment record?"
+    "deletePaymentConfirm": "Remove this payment record?",
+    "advancePlaceholder": "अग्रिम राशि (उदा. 500)",
+    "paymentMethod": "भुगतान विधि"
   },
   "history": {
     "title": "Payment History",
@@ -423,7 +523,13 @@
     "filter": "Filter",
     "clear": "Clear",
     "share": "Share",
-    "total": "Total"
+    "total": "Total",
+    "assign": "असाइन करें",
+    "continue": "जारी रखें",
+    "manage": "प्रबंधन करें",
+    "notApplied": "लागू नहीं",
+    "unlimited": "असीमित",
+    "all": "అన్నీ"
   },
   "profile": {
     "title": "User Profile",
@@ -599,7 +705,8 @@
     "upgradeFree": "Supervisor accounts are not available on the Free Plan. Upgrade to a Professional or Business Plan to invite supervisors.",
     "upgradeProfessional": "You have reached the limit of 2 supervisor accounts on the Professional Plan. Upgrade to the Business Plan to unlock unlimited supervisors.",
     "viewPricingPlans": "View Pricing Plans",
-    "notNow": "Not Now"
+    "notNow": "Not Now",
+    "notAssigned": "असाइन नहीं किया गया"
   },
   "support": {
     "title": "Support & Help Center",
@@ -749,5 +856,8 @@
     "privacy": "గోప్యతా సెట్టింగ్‌లు",
     "devices": "పరికర నిర్వహణ",
     "terms": "నిబంధనలు & షరతులు"
+  },
+  "supervisors": {
+    "noSupervisors": "कोई सुपरवाइजर नहीं मिला।"
   }
 }

@@ -18,7 +18,32 @@
     "viewRules": "Tap to view rules",
     "confirmPassword": "Confirm Password",
     "fullName": "Full Name",
-    "companyName": "Company Name"
+    "companyName": "Company Name",
+    "confirmPasswordPlaceholder": "Re-enter new password",
+    "enterOtp": "Enter 6-Digit Code",
+    "forgotPassword": "Find Your Account",
+    "forgotPasswordDesc": "Enter your mobile number linked to your Haajari account to receive a 6-digit recovery code.",
+    "lowercaseReq": "At least one lowercase letter (a-z)",
+    "min8Chars": "Minimum 8 characters",
+    "newPassword": "New Password",
+    "newPasswordPlaceholder": "Enter new password",
+    "numberReq": "At least one number (0-9)",
+    "otpSentTo": "We sent a 6-digit verification code to",
+    "passwordRequirementsDesc": "Create a new password that is at least 8 characters long with numbers and special symbols.",
+    "passwordsDoNotMatch": "Passwords do not match",
+    "passwordsMatch": "Passwords match",
+    "phonePlaceholder": "Enter 10-digit mobile number",
+    "registeredPhone": "Registered Mobile Number",
+    "resendOtp": "Resend Code",
+    "resendOtpIn": "Resend code in",
+    "resetPassword": "Reset Password",
+    "resetPasswordDesc": "Enter your new secure password below to regain account access",
+    "resettingPassword": "Resetting Password...",
+    "searchingAccount": "Searching Account...",
+    "sendRecoveryCode": "Send Recovery Code",
+    "specialCharReq": "At least one special character (!@#$%)",
+    "uppercaseReq": "At least one uppercase letter (A-Z)",
+    "verifyingOtp": "Verifying Code..."
   },
   "tabs": {
     "dashboard": "Dashboard",
@@ -50,7 +75,14 @@
     "recentSites": "Recent Sites",
     "viewAll": "View All",
     "markAttendance": "Mark Attendance",
-    "smartInsights": "Smart Insights"
+    "smartInsights": "Smart Insights",
+    "allPresent": "All Present",
+    "dayStreak": "day streak",
+    "startManaging": "Start Managing Workforce",
+    "tapToMarkHoldForOptions": "Tap row to mark, hold for options.",
+    "used": "Used",
+    "viewAttendanceByDate": "View worker attendance by date",
+    "workersOnSite": "workers on site"
   },
   "sites": {
     "title": "Site Control",
@@ -111,7 +143,46 @@
     "otherWork": "Other Work Type",
     "enterCustomWork": "Enter custom work name",
     "startWorkBtn": "Start Work",
-    "completeWorkBtn": "Complete Today's Work"
+    "completeWorkBtn": "Complete Today's Work",
+    "addressRequired": "Site Address is required",
+    "analytics": "Analytics",
+    "archiveSiteDesc": "Archive this site (hides from active lists)",
+    "assignedRosterList": "Assigned Roster List",
+    "budget": "Budget",
+    "changeStatus": "Change Status",
+    "chooseSupervisor": "Choose Supervisor",
+    "clientName": "Client Name",
+    "complete": "Complete",
+    "constructionStagesCompletion": "Construction Stages Completion",
+    "createError": "Failed to create site",
+    "createSuccess": "Site created successfully",
+    "dailyWageBudget": "Daily Wage Budget",
+    "defaultLocation": "Default Location",
+    "description": "Description",
+    "done": "done",
+    "gettingLocation": "Getting location coordinates...",
+    "nameRequired": "Site Name is required",
+    "noLocationData": "No location data captured yet.",
+    "noStagesRegistered": "No stages registered for this project.",
+    "noWorkersMatch": "No workers match the selected category.",
+    "openSite": "Open Site",
+    "projectType": "Project Type",
+    "projectTypeRequired": "Project Type is required",
+    "refreshLocation": "Refresh Location",
+    "reportsDocs": "Reports & Docs",
+    "searchPlaceholder": "Search by site, client, supervisor...",
+    "selectSupervisor": "Select Supervisor (optional)",
+    "siteClientDetails": "Site & Client Details",
+    "startDate": "Start Date",
+    "startDateRequired": "A valid Start Date is required (YYYY-MM-DD)",
+    "status": "Site Status",
+    "timeline": "Timeline",
+    "timelineStages": "Timeline & Stages",
+    "updateError": "Failed to update site",
+    "updateSite": "Update Site",
+    "updateSuccess": "Site details updated successfully",
+    "workersAssigned": "Workers Assigned",
+    "workersWages": "Workers & Wages"
   },
   "feedback": {
     "title": "Report a Problem",
@@ -146,7 +217,20 @@
     "gpsCapturing": "Getting location...",
     "gpsCaptured": "Location captured",
     "gpsFailed": "Could not get location",
-    "gpsOptional": "GPS location is optional"
+    "gpsOptional": "GPS location is optional",
+    "clearAttendance": "Clear Attendance",
+    "clearAttendanceConfirm": "Clear attendance for this worker on this date?",
+    "confirmSave": "Confirm / Save Attendance",
+    "finalPay": "Final Today's Pay",
+    "multiplierNotice": "Standard rate multiplier",
+    "otHours": "OT Hours",
+    "otMultiplier": "OT Multiplier",
+    "otWage": "OT Wage / Rate",
+    "selectStatusDesc": "Please select an attendance status.",
+    "statusRequired": "Status Required",
+    "tapCellDesc": "Tap cell to mark attendance",
+    "unmarked": "Unmarked",
+    "status": "Attendance Status"
   },
   "workers": {
     "title": "Workers",
@@ -178,7 +262,9 @@
     "changePhoto": "Change Photo",
     "optional": "Optional",
     "contactInfo": "Contact Info",
-    "additionalInfo": "Additional Info"
+    "additionalInfo": "Additional Info",
+    "dailyWage": "Daily Rate",
+    "generalWorker": "General Worker"
   },
   "categories": {
     "labour": "Labour",
@@ -308,7 +394,10 @@
     "privacyPolicy": "Privacy Policy",
     "termsConditions": "Terms & Conditions",
     "versionText": "Version 1.0.2 (Production Build)",
-    "haiDesc": "HAI (Haajari Artificial Intelligence) is the intelligent assistant powering the Haajari App. It helps contractors, builders, and supervisors manage workers, attendance, payments, advances, reports, and navigation using AI."
+    "haiDesc": "HAI (Haajari Artificial Intelligence) is the intelligent assistant powering the Haajari App. It helps contractors, builders, and supervisors manage workers, attendance, payments, advances, reports, and navigation using AI.",
+    "basicPlan": "Basic Plan",
+    "premiumPlan": "Premium Plan",
+    "superPlan": "Super Plan"
   },
   "gps": {
     "permissionDenied": "Location permission denied",
@@ -322,7 +411,16 @@
     "permissionRequired": "Allow notifications to receive reminders",
     "openSettings": "Open Settings",
     "enabled": "Enabled",
-    "disabled": "Disabled"
+    "disabled": "Disabled",
+    "allCaughtUp": "You're all caught up! No unread notifications.",
+    "empty": "No Notifications",
+    "emptyDesc": "Notifications and automated reminders will appear here.",
+    "markAllRead": "Mark All Read",
+    "markRead": "Mark Read",
+    "reminders": "Reminders",
+    "system": "System",
+    "title": "Notifications",
+    "unread": "Unread"
   },
   "admin": {
     "dashboard": "HAI Control Center",
@@ -397,7 +495,9 @@
     "fullAmount": "Full Amount",
     "partialAmount": "Partial Amount",
     "deletePayment": "Delete Payment",
-    "deletePaymentConfirm": "Remove this payment record?"
+    "deletePaymentConfirm": "Remove this payment record?",
+    "advancePlaceholder": "Advance amount (e.g. 500)",
+    "paymentMethod": "Payment Method"
   },
   "history": {
     "title": "Payment History",
@@ -423,7 +523,13 @@
     "filter": "Filter",
     "clear": "Clear",
     "share": "Share",
-    "total": "Total"
+    "total": "Total",
+    "assign": "Assign",
+    "continue": "Continue",
+    "manage": "Manage",
+    "notApplied": "Not Applied",
+    "unlimited": "Unlimited",
+    "all": "All"
   },
   "profile": {
     "title": "User Profile",
@@ -599,7 +705,8 @@
     "upgradeFree": "Supervisor accounts are not available on the Free Plan. Upgrade to a Professional or Business Plan to invite supervisors.",
     "upgradeProfessional": "You have reached the limit of 2 supervisor accounts on the Professional Plan. Upgrade to the Business Plan to unlock unlimited supervisors.",
     "viewPricingPlans": "View Pricing Plans",
-    "notNow": "Not Now"
+    "notNow": "Not Now",
+    "notAssigned": "Not Assigned"
   },
   "support": {
     "title": "Support & Help Center",
@@ -749,5 +856,8 @@
     "privacy": "Privacy Settings",
     "devices": "Device Management",
     "terms": "Terms & Conditions"
+  },
+  "supervisors": {
+    "noSupervisors": "No supervisors found."
   }
 }
