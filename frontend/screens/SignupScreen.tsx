@@ -60,6 +60,8 @@ export default function SignupScreen() {
   const [companyName, setCompanyName] = useState("");
   const [contractorName, setContractorName] = useState("");
   const [contractorCompany, setContractorCompany] = useState("");
+  const [workerCategory, setWorkerCategory] = useState("Labour");
+  const [dailyWage, setDailyWage] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -307,7 +309,9 @@ export default function SignupScreen() {
         email.trim(),
         username.trim(),
         contractorName.trim(),
-        contractorCompany.trim()
+        contractorCompany.trim(),
+        selectedRole === "labor" ? workerCategory : undefined,
+        selectedRole === "labor" && dailyWage ? parseFloat(dailyWage) : undefined
       );
 
       if (result.success) {
@@ -808,14 +812,95 @@ export default function SignupScreen() {
               </>
             )}
 
-            {/* LABOR SPECIFIC NOTE */}
+            {/* WORKER / LABOR SPECIFIC FIELDS */}
             {selectedRole === "labor" && (
-              <View style={styles.laborInfoCard}>
-                <Feather name="info" size={16} color="#3B82F6" />
-                <ThemedText style={{ color: theme.textSecondary, fontSize: 12.5, flex: 1, marginLeft: 8 }}>
-                  Contractor / Company connection can be established later via invitation.
+              <>
+                <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>
+                  WORKER DETAILS & TRADE
                 </ThemedText>
-              </View>
+
+                {/* Worker Category / Trade Selection */}
+                <View style={styles.inputContainer}>
+                  <ThemedText style={styles.inputLabel}>
+                    Trade / Skill <Text style={{ color: "red" }}>*</Text>
+                  </ThemedText>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: "row", marginVertical: 4 }}>
+                    {[
+                      "Labour",
+                      "Mistri",
+                      "Electrician",
+                      "Plumber",
+                      "Painter",
+                      "Carpenter",
+                      "Tile Mason",
+                      "Helper",
+                      "Welder",
+                      "Bar Bender",
+                    ].map((cat) => (
+                      <Pressable
+                        key={cat}
+                        onPress={() => {
+                          setWorkerCategory(cat);
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        }}
+                        style={[
+                          {
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            borderRadius: BorderRadius.md,
+                            marginRight: 8,
+                            borderWidth: 1.5,
+                            backgroundColor:
+                              workerCategory === cat ? (isDark ? "#064E3B" : "#ECFDF5") : theme.backgroundDefault,
+                            borderColor: workerCategory === cat ? "#10B981" : theme.border,
+                          },
+                        ]}
+                      >
+                        <ThemedText
+                          style={{
+                            fontSize: 13,
+                            fontWeight: workerCategory === cat ? "700" : "500",
+                            color: workerCategory === cat ? "#059669" : theme.text,
+                          }}
+                        >
+                          {cat}
+                        </ThemedText>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                {/* Daily Wage Rate (Optional) */}
+                <View style={styles.inputContainer}>
+                  <ThemedText style={styles.inputLabel}>Daily Wage Rate (₹ / Day - Optional)</ThemedText>
+                  <View
+                    style={[
+                      styles.inputWrapper,
+                      {
+                        backgroundColor: theme.backgroundDefault,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Feather name="dollar-sign" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { color: theme.text }]}
+                      placeholder="e.g. 500"
+                      placeholderTextColor={theme.textSecondary}
+                      value={dailyWage}
+                      onChangeText={setDailyWage}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.laborInfoCard}>
+                  <Feather name="info" size={16} color="#10B981" />
+                  <ThemedText style={{ color: theme.textSecondary, fontSize: 12.5, flex: 1, marginLeft: 8 }}>
+                    A permanent Unique ID (HM-W-XXXXXX) will be generated for your worker account.
+                  </ThemedText>
+                </View>
+              </>
             )}
 
             {/* ── PASSWORD SECTION ── */}

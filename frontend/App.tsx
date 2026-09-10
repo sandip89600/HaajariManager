@@ -1,6 +1,6 @@
 import React from "react";
 import "./global.css";
-import { StyleSheet, View, ActivityIndicator, Platform } from "react-native";
+import { StyleSheet, View, ActivityIndicator, Platform, LogBox } from "react-native";
 import {
   NavigationContainer,
   getStateFromPath,
@@ -10,6 +10,12 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+
+LogBox.ignoreLogs([
+  "[MISSING_TRANSLATION]",
+  "MISSING_TRANSLATION",
+  "Non-serializable values were found in the navigation state",
+]);
 
 import * as Linking from "expo-linking";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

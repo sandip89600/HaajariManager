@@ -145,12 +145,14 @@ export function getTranslation(language: Language): TranslationApi {
   const merged = language === "en" ? translations.en : deepMergeFallback(translations.en, selected);
 
   const tFunc = function (keyPath: string, fallback?: string): string {
-    const val = resolvePath(merged, keyPath) || resolvePath(translations.en, keyPath);
-    if (val !== undefined) return val;
-
-    if (__DEV__) {
-      console.warn(`[MISSING_TRANSLATION] language=${language} key=${keyPath}`);
+    if (!keyPath || typeof keyPath !== "string") {
+      return fallback || "";
     }
+    const val =
+      resolvePath(merged, keyPath) ||
+      resolvePath(translations.hi, keyPath) ||
+      resolvePath(translations.en, keyPath);
+    if (val !== undefined && val !== null) return String(val);
 
     if (fallback !== undefined) return fallback;
 

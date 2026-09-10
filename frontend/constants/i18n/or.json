@@ -43,7 +43,8 @@
     "sendRecoveryCode": "रिकवरी कोड भेजें",
     "specialCharReq": "कम से कम एक विशेष वर्ण (!@#$%)",
     "uppercaseReq": "कम से कम एक बड़ा अक्षर (A-Z)",
-    "verifyingOtp": "कोड सत्यापित किया जा रहा है..."
+    "verifyingOtp": "कोड सत्यापित किया जा रहा है...",
+    "uniqueId": "यूनिक आईडी (Unique ID)"
   },
   "tabs": {
     "dashboard": "Dashboard",
@@ -706,7 +707,14 @@
     "upgradeProfessional": "You have reached the limit of 2 supervisor accounts on the Professional Plan. Upgrade to the Business Plan to unlock unlimited supervisors.",
     "viewPricingPlans": "View Pricing Plans",
     "notNow": "Not Now",
-    "notAssigned": "असाइन नहीं किया गया"
+    "notAssigned": "असाइन नहीं किया गया",
+    "dashboardGreeting": "नमस्ते, सुपरवाइजर",
+    "assignedContractor": "संबंधित ठेकेदार / कंपनी",
+    "noContractorAssigned": "ठेकेदार से लिंक नहीं",
+    "assignedSites": "मेरी साइट्स",
+    "assignedWorkers": "आवंटित कर्मचारी",
+    "noAssignedSites": "वर्तमान में कोई साइट आवंटित नहीं है।",
+    "viewAttendancePrompt": "दैनिक हाजिरी और कार्य प्रगति देखें"
   },
   "support": {
     "title": "Support & Help Center",
@@ -840,7 +848,24 @@
     "pendingRequests": "लंबित अनुरोध",
     "noRequests": "कोई लंबित कनेक्शन अनुरोध नहीं है।",
     "connectSupervisor": "सुपरवाइजर जोड़ें",
-    "connectLabor": "कामगार जोड़ें"
+    "connectLabor": "कामगार जोड़ें",
+    "connectUserTitle": "नया व्यक्ति जोड़ें (Connect Account)",
+    "selectRoleToConnect": "खाता प्रकार चुनें (Role to Connect)",
+    "workerIdPrompt": "वर्कर की यूनिक आईडी दर्ज करें (e.g. HM-W-123456)",
+    "supervisorIdPrompt": "सुपरवाइजर की यूनिक आईडी दर्ज करें (e.g. HM-S-123456)",
+    "enterUniqueIdError": "कृपया यूनिक आईडी या मोबाइल नंबर दर्ज करें।",
+    "userNotFound": "इस आईडी के साथ कोई खाता नहीं मिला।",
+    "findAccount": "खाता खोजें (Search)",
+    "uniqueIdInstruction": "💡 सुपरवाइजर या वर्कर के ऐप में ऊपर दिख रही यूनिक आईडी (HM-...) यहां डालें।",
+    "confirmPrompt": "क्या आप इस व्यक्ति से जुड़ना चाहते हैं?",
+    "confirmSubtext": "अनुरोध भेजने पर उनके फोन पर एक 6-अंकों का कोड जाएगा, जिसे आपको यहां दर्ज करना होगा।",
+    "sendRequestBtn": "कोड भेजें (Send Request)",
+    "enterReceivedCodeTitle": "6-अंकों का कोड दर्ज करें",
+    "askUserForCode": "के स्क्रीन पर दिख रहा 6-अंकों का कोड पूछकर यहां डालें:",
+    "codeValidTenMin": "⏱️ यह कोड 10 मिनट के लिए मान्य है।",
+    "verifyAndConnectBtn": "सत्यापित करें (Verify & Connect)",
+    "connectedSuccess": "सफलतापूर्वक कनेक्ट हो गए हैं!",
+    "invalidCode": "अमान्य या समाप्त हो चुका कोड। कृपया पुनः प्रयास करें।"
   },
   "navigation": {
     "dashboard": "डैशबोर्ड",
@@ -859,5 +884,30 @@
   },
   "supervisors": {
     "noSupervisors": "कोई सुपरवाइजर नहीं मिला।"
+  },
+  "roles": {
+    "contractor": "ठेकेदार (Contractor)",
+    "supervisor": "सुपरवाइजर (Supervisor)",
+    "worker": "वर्कर / लेबर (Worker)",
+    "admin": "एडमिन"
+  },
+  "worker": {
+    "uniqueIdLabel": "वर्कर यूनिक आईडी (Worker ID)",
+    "pendingConnectionTitle": "ठेकेदार कनेक्शन अनुरोध (Connection Request)",
+    "pendingConnectionHelp": "ठेकेदार को यह 6-अंकों का कोड बताएं:",
+    "codeValidTenMin": "यह कोड 10 मिनट के लिए मान्य है",
+    "contractorDetails": "संबंधित ठेकेदार / कंपनी",
+    "notConnected": "ठेकेदार से लिंक नहीं",
+    "statusConnected": "जुड़े हुए (Connected)",
+    "statusSolo": "अलग (Independent)",
+    "howToConnectTip": "💡 ठेकेदार से जुड़ने के लिए अपनी वर्कर आईडी (Unique ID) ठेकेदार को दें।",
+    "todayStatus": "आज की हाजिरी (Today's Status)",
+    "viewOnlyNotice": "🔒 हाजिरी केवल साइट सुपरवाइजर या ठेकेदार द्वारा दर्ज की जाती है।",
+    "monthlySummary": "मासिक हाजिरी एवं वेतन विवरण",
+    "totalEarnings": "कुल अर्जित राशि (Gross Earned)",
+    "advanceDeductions": "उठाव / अग्रिम (Advance Taken)",
+    "netPayable": "शुद्ध प्राप्य राशि (Net Balance)",
+    "dailyBreakdown": "दैनिक विवरण (Daily Attendance History)",
+    "noRecordsThisMonth": "इस माह के लिए कोई रिकॉर्ड नहीं मिला।"
   }
 }

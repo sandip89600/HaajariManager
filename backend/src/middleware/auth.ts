@@ -6,7 +6,7 @@ export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     tenantId?: string;
-    role: "contractor" | "builder" | "supervisor" | "admin";
+    role: "contractor" | "builder" | "supervisor" | "labor" | "admin" | "worker";
   };
 }
 
@@ -98,28 +98,25 @@ export const requireAdmin = (
   }
 };
 
-export const optionalAuth = (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader) {
-    const token = authHeader.split(" ")[1];
-    const secret = process.env.JWT_SECRET;
-    if (secret && token) {
-      jwt.verify(token, secret, (err, decodedUser: any) => {
-        if (!err && decodedUser) {
-          req.user = {
-            id: decodedUser.id,
-            tenantId: decodedUser.tenantId,
-            role: decodedUser.role,
-          };
-        }
-        next();
-      });
-      return;
+export const requireRoles = (allowedRoles: string[]) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
     }
-  }
-  next();
+    const userRole = (req.user.role || "").toLowerCase();
+    const normalizedUserRole = userRole === "labor" ? "worker" : userRole;
+    const normalizedAllowed = allowedRoles.map((r) => (r.toLowerCase() === "labor" ? "worker" : r.toLowerCase()));
+
+    if (normalizedAllowed.includes(normalizedUserRole) || userRole === "admin") {
+      return next();
+    }
+    return res.status(403).json({
+      error: `Forbidden: Access restricted to [${allowedRoles.join(", ")}] roles.`,
+    });
+  };
 };
+
+export const requireContractor = requireRoles(["contractor", "builder", "admin"]);
+export const requireContractorOrSupervisor = requireRoles(["contractor", "builder", "supervisor", "admin"]);
+
+export const optionalAuth = optionalAuthenticateJWT;

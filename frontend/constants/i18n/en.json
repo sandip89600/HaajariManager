@@ -43,7 +43,8 @@
     "sendRecoveryCode": "Send Recovery Code",
     "specialCharReq": "At least one special character (!@#$%)",
     "uppercaseReq": "At least one uppercase letter (A-Z)",
-    "verifyingOtp": "Verifying Code..."
+    "verifyingOtp": "Verifying Code...",
+    "uniqueId": "Unique ID"
   },
   "tabs": {
     "dashboard": "Dashboard",
@@ -706,7 +707,14 @@
     "upgradeProfessional": "You have reached the limit of 2 supervisor accounts on the Professional Plan. Upgrade to the Business Plan to unlock unlimited supervisors.",
     "viewPricingPlans": "View Pricing Plans",
     "notNow": "Not Now",
-    "notAssigned": "Not Assigned"
+    "notAssigned": "Not Assigned",
+    "dashboardGreeting": "Hello, Supervisor",
+    "assignedContractor": "Assigned Contractor / Company",
+    "noContractorAssigned": "Not Connected",
+    "assignedSites": "My Assigned Sites",
+    "assignedWorkers": "Assigned Workers",
+    "noAssignedSites": "No sites currently assigned.",
+    "viewAttendancePrompt": "View daily attendance and work progress"
   },
   "support": {
     "title": "Support & Help Center",
@@ -840,7 +848,24 @@
     "pendingRequests": "Pending Requests",
     "noRequests": "No pending connection requests.",
     "connectSupervisor": "Connect Supervisor",
-    "connectLabor": "Connect Worker"
+    "connectLabor": "Connect Worker",
+    "connectUserTitle": "Connect Account",
+    "selectRoleToConnect": "Select Role to Connect",
+    "workerIdPrompt": "Enter Worker Unique ID (e.g. HM-W-123456)",
+    "supervisorIdPrompt": "Enter Supervisor Unique ID (e.g. HM-S-123456)",
+    "enterUniqueIdError": "Please enter Unique ID or mobile number.",
+    "userNotFound": "No account found with this ID.",
+    "findAccount": "Search Account",
+    "uniqueIdInstruction": "💡 Enter the permanent Unique ID (HM-...) from the user's app.",
+    "confirmPrompt": "Do you want to connect with this user?",
+    "confirmSubtext": "Sending a request will display a 6-digit code on their screen for you to verify.",
+    "sendRequestBtn": "Send Request",
+    "enterReceivedCodeTitle": "Enter 6-Digit Code",
+    "askUserForCode": "Enter the 6-digit code shown on user's screen:",
+    "codeValidTenMin": "⏱️ This code is valid for 10 minutes.",
+    "verifyAndConnectBtn": "Verify & Connect",
+    "connectedSuccess": "successfully connected!",
+    "invalidCode": "Invalid or expired code. Please try again."
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -859,5 +884,30 @@
   },
   "supervisors": {
     "noSupervisors": "No supervisors found."
+  },
+  "roles": {
+    "contractor": "Contractor",
+    "supervisor": "Supervisor",
+    "worker": "Worker / Labour",
+    "admin": "Admin"
+  },
+  "worker": {
+    "uniqueIdLabel": "Worker Unique ID",
+    "pendingConnectionTitle": "Connection Request from Contractor",
+    "pendingConnectionHelp": "Share this 6-digit code with your contractor:",
+    "codeValidTenMin": "This code is valid for 10 minutes",
+    "contractorDetails": "Contractor / Company Details",
+    "notConnected": "Not Connected",
+    "statusConnected": "Connected",
+    "statusSolo": "Independent",
+    "howToConnectTip": "💡 Share your Worker Unique ID with your contractor to connect.",
+    "todayStatus": "Today's Attendance Status",
+    "viewOnlyNotice": "🔒 Attendance is recorded by your site supervisor or contractor.",
+    "monthlySummary": "Monthly Attendance & Wage Summary",
+    "totalEarnings": "Total Gross Earned",
+    "advanceDeductions": "Advance Deductions",
+    "netPayable": "Net Payable Balance",
+    "dailyBreakdown": "Daily Attendance History",
+    "noRecordsThisMonth": "No records found for this month."
   }
 }

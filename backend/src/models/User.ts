@@ -7,7 +7,10 @@ export interface IUser extends Document {
   email?: string;
   passwordHash: string;
   phone: string;
+  uniqueId: string;
   role: "contractor" | "builder" | "supervisor" | "labor" | "admin";
+  workerCategory?: string;
+  dailyWage?: number;
   connectionStatus?: "connected" | "pending" | "declined" | "not_connected";
   contractorId?: mongoose.Types.ObjectId;
   contractorName?: string;
@@ -87,7 +90,10 @@ const UserSchema = new Schema<IUser>({
   email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
   passwordHash: { type: String, required: true },
   phone: { type: String, required: true, unique: true, trim: true },
+  uniqueId: { type: String, unique: true, uppercase: true, trim: true },
   role: { type: String, enum: ["contractor", "builder", "supervisor", "labor", "admin"], default: "contractor" },
+  workerCategory: { type: String, trim: true },
+  dailyWage: { type: Number, min: 0 },
   connectionStatus: { type: String, enum: ["connected", "pending", "declined", "not_connected"], default: "not_connected" },
   contractorId: { type: Schema.Types.ObjectId, ref: "User" },
   contractorName: { type: String, trim: true },
@@ -159,5 +165,38 @@ const UserSchema = new Schema<IUser>({
 });
 
 UserSchema.index({ tenantId: 1 });
+UserSchema.index({ uniqueId: 1 }, { unique: true, sparse: true });
+
+export function generateUserUniqueId(role: string): string {
+  const r = (role || "").toLowerCase();
+  let prefix = "HM-C";
+  if (r === "supervisor") {
+    prefix = "HM-S";
+  } else if (r === "labor" || r === "worker") {
+    prefix = "HM-W";
+  }
+  const randomNum = Math.floor(100000 + Math.random() * 900000);
+  return `${prefix}-${randomNum}`;
+}
+
+UserSchema.pre<IUser>("save", async function (next) {
+  if (!this.uniqueId) {
+    let uniqueId = generateUserUniqueId(this.role);
+    let attempts = 0;
+    while (attempts < 10) {
+      const existing = await mongoose.models.User?.findOne({ uniqueId });
+      if (!existing) {
+        this.uniqueId = uniqueId;
+        break;
+      }
+      uniqueId = generateUserUniqueId(this.role);
+      attempts++;
+    }
+    if (!this.uniqueId) {
+      this.uniqueId = uniqueId;
+    }
+  }
+  next();
+});
 
 export const User = mongoose.model<IUser>("User", UserSchema);

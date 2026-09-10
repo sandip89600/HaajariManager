@@ -16,12 +16,18 @@ interface AuthContextType {
   isGuest: boolean;
   isLoading: boolean;
   userId: string;
+  uniqueId: string;
+  role: "contractor" | "builder" | "supervisor" | "labor" | "admin" | "worker";
+  isContractor: boolean;
+  isSupervisor: boolean;
+  isWorker: boolean;
   userType: "admin" | "user" | "guest";
   email: string; // Used as the identifier (phone/email/username)
   user: User | null;
   newDeviceAlert: any | null;
   clearNewDeviceAlert: () => void;
   setNewDeviceAlert: (info: any) => void;
+  refreshUserProfile: () => Promise<void>;
   login: (
     phone: string,
     password?: string,
@@ -32,12 +38,14 @@ interface AuthContextType {
     name: string,
     phone: string,
     password?: string,
-    role?: "contractor" | "builder" | "supervisor" | "labor",
+    role?: "contractor" | "builder" | "supervisor" | "labor" | "worker",
     companyName?: string,
     email?: string,
     username?: string,
     contractorName?: string,
     contractorCompany?: string,
+    workerCategory?: string,
+    dailyWage?: number,
   ) => Promise<{ success: boolean; field?: string; message?: string }>;
   loginAsGuest: () => void;
   logout: () => Promise<void>;
@@ -107,6 +115,7 @@ export function useAuthProvider() {
                 const tenantObj = typeof serverUser.tenantId === "object" ? serverUser.tenantId : null;
                 userData = {
                   id: serverUser._id || serverUser.id || auth.userId,
+                  uniqueId: serverUser.uniqueId || (userData ? userData.uniqueId : ""),
                   name: serverUser.name || (userData ? userData.name : ""),
                   phone: serverUser.phone || "",
                   email: serverUser.email || "",
@@ -116,6 +125,11 @@ export function useAuthProvider() {
                   profileImage: serverUser.profileImage || undefined,
                   address: serverUser.address || "",
                   role: serverUser.role || auth.role || "contractor",
+                  workerCategory: serverUser.workerCategory || (userData ? userData.workerCategory : ""),
+                  dailyWage: serverUser.dailyWage !== undefined ? serverUser.dailyWage : (userData ? userData.dailyWage : undefined),
+                  contractorName: serverUser.contractorName || (userData ? userData.contractorName : ""),
+                  contractorCompany: serverUser.contractorCompany || (userData ? userData.contractorCompany : ""),
+                  connectionStatus: serverUser.connectionStatus || (userData ? userData.connectionStatus : "not_connected"),
                   isActive: true,
                   createdAt: serverUser.createdAt
                     ? new Date(serverUser.createdAt).getTime()
@@ -234,6 +248,7 @@ export function useAuthProvider() {
 
           const userData: User = {
             id: data.user.id,
+            uniqueId: data.user.uniqueId || "",
             name: data.user.name,
             phone: data.user.phone || "",
             email: data.user.email || "",
@@ -243,6 +258,11 @@ export function useAuthProvider() {
             profileImage: data.user.profileImage || undefined,
             address: data.user.address || "",
             role: role,
+            workerCategory: data.user.workerCategory,
+            dailyWage: data.user.dailyWage,
+            contractorName: data.user.contractorName,
+            contractorCompany: data.user.contractorCompany,
+            connectionStatus: data.user.connectionStatus || "not_connected",
             isActive: true,
             createdAt: data.user.createdAt
               ? new Date(data.user.createdAt).getTime()
@@ -334,12 +354,14 @@ export function useAuthProvider() {
       name: string,
       phone: string,
       password?: string,
-      role?: "contractor" | "builder" | "supervisor" | "labor",
+      role?: "contractor" | "builder" | "supervisor" | "labor" | "worker",
       companyName?: string,
       email?: string,
       username?: string,
       contractorName?: string,
       contractorCompany?: string,
+      workerCategory?: string,
+      dailyWage?: number,
     ): Promise<{
       success: boolean;
       field?: string;
@@ -355,7 +377,7 @@ export function useAuthProvider() {
           endpoint = `${API_URL}/auth/register/contractor`;
         } else if (role === "supervisor") {
           endpoint = `${API_URL}/auth/register/supervisor`;
-        } else if (role === "labor") {
+        } else if (role === "labor" || role === "worker") {
           endpoint = `${API_URL}/auth/register/labor`;
         }
 
@@ -366,10 +388,12 @@ export function useAuthProvider() {
             name,
             phone: phoneTrimmed,
             password,
-            role,
+            role: role === "worker" ? "labor" : role,
             companyName,
             contractorName,
             contractorCompany,
+            workerCategory,
+            dailyWage,
             email: email ? email.toLowerCase().trim() : undefined,
             username: username ? username.toLowerCase().trim() : undefined,
           }),
@@ -402,6 +426,7 @@ export function useAuthProvider() {
 
           const userData: User = {
             id: data.user.id,
+            uniqueId: data.user.uniqueId || "",
             name: data.user.name,
             phone: data.user.phone || "",
             email: data.user.email || "",
@@ -411,6 +436,11 @@ export function useAuthProvider() {
             profileImage: data.user.profileImage || undefined,
             address: data.user.address || "",
             role: data.user.role,
+            workerCategory: data.user.workerCategory,
+            dailyWage: data.user.dailyWage,
+            contractorName: data.user.contractorName,
+            contractorCompany: data.user.contractorCompany,
+            connectionStatus: data.user.connectionStatus || "not_connected",
             isActive: true,
             createdAt: data.user.createdAt
               ? new Date(data.user.createdAt).getTime()
@@ -712,17 +742,72 @@ export function useAuthProvider() {
     return () => sub.remove();
   }, [logout]);
 
+  const refreshUserProfile = useCallback(async () => {
+    try {
+      const auth = await storage.getAuth();
+      if (!auth?.token) return;
+      const res = await authenticatedFetch(`${API_URL}/auth/profile`);
+      if (res.ok) {
+        const profileData = await res.json();
+        const serverUser = profileData.user;
+        if (serverUser) {
+          const tenantObj = typeof serverUser.tenantId === "object" ? serverUser.tenantId : null;
+          const updatedUser: User = {
+            id: serverUser._id || serverUser.id || auth.userId,
+            uniqueId: serverUser.uniqueId || "",
+            name: serverUser.name || (user ? user.name : ""),
+            phone: serverUser.phone || "",
+            email: serverUser.email || "",
+            username: serverUser.username || "",
+            isPhoneVerified: !!serverUser.isPhoneVerified,
+            avatarColor: serverUser.avatarColor || "#4ECDC4",
+            profileImage: serverUser.profileImage || undefined,
+            address: serverUser.address || "",
+            role: serverUser.role || auth.role || "contractor",
+            workerCategory: serverUser.workerCategory,
+            dailyWage: serverUser.dailyWage,
+            contractorName: serverUser.contractorName,
+            contractorCompany: serverUser.contractorCompany,
+            connectionStatus: serverUser.connectionStatus || "not_connected",
+            isActive: true,
+            createdAt: serverUser.createdAt
+              ? new Date(serverUser.createdAt).getTime()
+              : Date.now(),
+            loginHistory: user ? user.loginHistory : [Date.now()],
+            companyName: tenantObj?.name || serverUser.companyName || "",
+            plan: tenantObj?.plan || serverUser.plan || auth.plan || "free",
+          };
+          await storage.updateUser(updatedUser);
+          setUser(updatedUser);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to refresh user profile:", e);
+    }
+  }, [user]);
+
+  const currentRole = user?.role || "contractor";
+  const isContractor = currentRole === "contractor" || currentRole === "builder" || userType === "admin";
+  const isSupervisor = currentRole === "supervisor";
+  const isWorker = currentRole === "labor" || (currentRole as string) === "worker";
+
   return {
     isLoggedIn,
     isGuest,
     isLoading,
     userId,
+    uniqueId: user?.uniqueId || "",
+    role: currentRole,
+    isContractor,
+    isSupervisor,
+    isWorker,
     userType,
     email,
     user,
     newDeviceAlert,
     clearNewDeviceAlert,
     setNewDeviceAlert,
+    refreshUserProfile,
     login,
     signup,
     loginAsGuest,

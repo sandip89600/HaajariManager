@@ -1,9 +1,71 @@
 import { Response } from "express";
+import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 import { AuthenticatedRequest } from "../middleware/auth";
-import { User, Tenant, ConnectionRequest, AuditLog } from "../models";
-import { getIO, broadcastAdminActivity } from "../utils/socket";
+import { User, Tenant, ConnectionRequest, Worker } from "../models";
+import { getIO } from "../utils/socket";
 
-// Search Supervisors by Username, Mobile Number, or Email
+// 1. Safe Lookup by Unique ID, Phone, or Username
+export const lookupByUniqueId = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { uniqueId, query } = req.query;
+    const searchTerm = String(uniqueId || query || "").trim();
+
+    if (!searchTerm) {
+      return res.status(400).json({ success: false, message: "Unique ID or search query is required." });
+    }
+
+    const cleanUpper = searchTerm.toUpperCase();
+    const cleanLower = searchTerm.toLowerCase();
+    const phoneOnlyDigits = searchTerm.replace(/\D/g, "");
+
+    const searchConditions: any[] = [
+      { uniqueId: cleanUpper },
+      { username: cleanLower },
+      { email: cleanLower },
+    ];
+
+    if (phoneOnlyDigits.length >= 8) {
+      searchConditions.push({ phone: new RegExp(phoneOnlyDigits.slice(-10) + "$") });
+    }
+
+    const targetUser = await User.findOne({
+      $or: searchConditions,
+      isActive: true,
+    }).select("name uniqueId role workerCategory dailyWage connectionStatus avatarColor profileImage contractorName contractorCompany");
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: "User not found with this Unique ID or phone." });
+    }
+
+    // Do not allow self-connection
+    if (targetUser._id.toString() === req.user?.id) {
+      return res.status(400).json({ success: false, message: "You cannot connect to your own account." });
+    }
+
+    return res.json({
+      success: true,
+      user: {
+        id: targetUser._id,
+        name: targetUser.name,
+        uniqueId: targetUser.uniqueId,
+        role: targetUser.role === "labor" ? "worker" : targetUser.role,
+        workerCategory: targetUser.workerCategory || (targetUser.role === "labor" ? "Labour / Worker" : targetUser.role),
+        dailyWage: targetUser.dailyWage || 0,
+        connectionStatus: targetUser.connectionStatus,
+        avatarColor: targetUser.avatarColor,
+        profileImage: targetUser.profileImage,
+        contractorName: targetUser.contractorName,
+        contractorCompany: targetUser.contractorCompany,
+      },
+    });
+  } catch (error: any) {
+    console.error("lookupByUniqueId error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 2. Search Supervisors (Legacy + Enhanced)
 export const searchSupervisors = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { query } = req.query;
@@ -11,13 +73,16 @@ export const searchSupervisors = async (req: AuthenticatedRequest, res: Response
       return res.status(400).json({ success: false, message: "Search query is required." });
     }
 
-    const cleanQuery = query.trim().toLowerCase();
+    const cleanQuery = query.trim();
+    const cleanUpper = cleanQuery.toUpperCase();
+    const cleanLower = cleanQuery.toLowerCase();
     const phoneOnlyDigits = cleanQuery.replace(/\D/g, "");
 
     const searchConditions: any[] = [
-      { username: cleanQuery },
-      { email: cleanQuery },
-      { phone: cleanQuery },
+      { uniqueId: cleanUpper },
+      { username: cleanLower },
+      { email: cleanLower },
+      { phone: cleanLower },
     ];
 
     if (phoneOnlyDigits.length >= 8) {
@@ -27,7 +92,7 @@ export const searchSupervisors = async (req: AuthenticatedRequest, res: Response
     const supervisors = await User.find({
       role: "supervisor",
       $or: searchConditions,
-    }).select("name username email phone contractorName contractorCompany connectionStatus avatarColor profileImage createdAt");
+    }).select("name uniqueId username email phone contractorName contractorCompany connectionStatus avatarColor profileImage createdAt");
 
     return res.json({ success: true, supervisors });
   } catch (error: any) {
@@ -36,210 +101,7 @@ export const searchSupervisors = async (req: AuthenticatedRequest, res: Response
   }
 };
 
-// Contractor Sends Connection Request to Supervisor
-export const sendSupervisorConnectionRequest = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const contractorId = req.user?.id;
-    const tenantId = req.user?.tenantId;
-    const { supervisorId } = req.body;
-
-    if (!supervisorId) {
-      return res.status(400).json({ success: false, message: "Supervisor ID is required." });
-    }
-
-    const supervisor = await User.findById(supervisorId);
-    if (!supervisor || supervisor.role !== "supervisor") {
-      return res.status(404).json({ success: false, message: "Supervisor account not found." });
-    }
-
-    const contractor = await User.findById(contractorId);
-    const tenant = await Tenant.findById(tenantId);
-    const companyName = tenant?.name || contractor?.name || "Contractor Company";
-
-    // Check existing pending or accepted request
-    const existingReq = await ConnectionRequest.findOne({
-      senderId: contractorId,
-      receiverId: supervisorId,
-      status: { $in: ["pending", "accepted"] },
-    });
-
-    if (existingReq) {
-      if (existingReq.status === "accepted") {
-        return res.status(400).json({ success: false, message: "Supervisor is already connected." });
-      }
-      return res.status(400).json({ success: false, message: "Connection request is already pending." });
-    }
-
-    const connectionReq = new ConnectionRequest({
-      senderId: contractorId,
-      receiverId: supervisorId,
-      tenantId,
-      targetRole: "supervisor",
-      status: "pending",
-    });
-
-    await connectionReq.save();
-
-    supervisor.connectionStatus = "pending";
-    await supervisor.save();
-
-    // Emit Socket.IO notification to Supervisor
-    try {
-      const io = getIO();
-      io.to(`user_${supervisorId}`).emit("supervisor:connectionRequest", {
-        requestId: connectionReq._id,
-        contractorName: contractor?.name,
-        companyName,
-        createdAt: connectionReq.createdAt,
-      });
-      io.emit("admin_dashboard_update");
-    } catch (socketErr) {
-      console.warn("Socket broadcast failed:", socketErr);
-    }
-
-    return res.status(201).json({
-      success: true,
-      message: "Connection request sent successfully.",
-      connectionRequest: connectionReq,
-    });
-  } catch (error: any) {
-    console.error("sendSupervisorConnectionRequest error:", error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Supervisor Accepts Connection Request
-export const acceptSupervisorConnectionRequest = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const supervisorId = req.user?.id;
-    const { id: requestId } = req.params;
-
-    const connectionReq = await ConnectionRequest.findById(requestId);
-    if (!connectionReq || connectionReq.receiverId.toString() !== supervisorId) {
-      return res.status(404).json({ success: false, message: "Connection request not found." });
-    }
-
-    if (connectionReq.status === "accepted") {
-      return res.status(400).json({ success: false, message: "Request has already been accepted." });
-    }
-
-    connectionReq.status = "accepted";
-    await connectionReq.save();
-
-    const contractor = await User.findById(connectionReq.senderId);
-    const tenant = await Tenant.findById(connectionReq.tenantId);
-
-    const supervisor = await User.findById(supervisorId);
-    if (supervisor) {
-      supervisor.tenantId = connectionReq.tenantId;
-      supervisor.contractorId = connectionReq.senderId;
-      supervisor.contractorName = contractor?.name || "";
-      supervisor.contractorCompany = tenant?.name || "";
-      supervisor.connectionStatus = "connected";
-      await supervisor.save();
-    }
-
-    // Emit Real-time Socket.IO notification to Contractor & Admin
-    try {
-      const io = getIO();
-      io.to(`user_${connectionReq.senderId}`).emit("supervisor:connectionAccepted", {
-        supervisorId,
-        supervisorName: supervisor?.name,
-        requestId: connectionReq._id,
-      });
-      io.emit("admin_dashboard_update");
-    } catch (socketErr) {
-      console.warn("Socket broadcast failed:", socketErr);
-    }
-
-    return res.json({
-      success: true,
-      message: "Connection request accepted successfully.",
-      supervisor,
-    });
-  } catch (error: any) {
-    console.error("acceptSupervisorConnectionRequest error:", error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Supervisor Declines Connection Request
-export const declineSupervisorConnectionRequest = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const supervisorId = req.user?.id;
-    const { id: requestId } = req.params;
-
-    const connectionReq = await ConnectionRequest.findById(requestId);
-    if (!connectionReq || connectionReq.receiverId.toString() !== supervisorId) {
-      return res.status(404).json({ success: false, message: "Connection request not found." });
-    }
-
-    connectionReq.status = "declined";
-    await connectionReq.save();
-
-    const supervisor = await User.findById(supervisorId);
-    if (supervisor) {
-      supervisor.connectionStatus = "declined";
-      await supervisor.save();
-    }
-
-    try {
-      const io = getIO();
-      io.to(`user_${connectionReq.senderId}`).emit("supervisor:connectionDeclined", {
-        supervisorId,
-        supervisorName: supervisor?.name,
-        requestId: connectionReq._id,
-      });
-      io.emit("admin_dashboard_update");
-    } catch (socketErr) {
-      console.warn("Socket broadcast failed:", socketErr);
-    }
-
-    return res.json({
-      success: true,
-      message: "Connection request declined.",
-    });
-  } catch (error: any) {
-    console.error("declineSupervisorConnectionRequest error:", error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Get Contractor's Supervisors (Connected, Pending, Declined)
-export const getContractorSupervisors = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const tenantId = req.user?.tenantId;
-    const contractorId = req.user?.id;
-
-    // Connected supervisors (in contractor's tenantId)
-    const connectedSupervisors = await User.find({
-      tenantId,
-      role: "supervisor",
-    }).select("-passwordHash -refreshTokens").populate("assignedProjects");
-
-    // Pending requests sent by this contractor
-    const pendingRequests = await ConnectionRequest.find({
-      senderId: contractorId,
-      status: "pending",
-      targetRole: "supervisor",
-    }).populate("receiverId", "name username phone email connectionStatus");
-
-    return res.json({
-      success: true,
-      supervisors: connectedSupervisors,
-      pendingRequests: pendingRequests.map((r) => ({
-        requestId: r._id,
-        supervisor: r.receiverId,
-        createdAt: r.createdAt,
-      })),
-    });
-  } catch (error: any) {
-    console.error("getContractorSupervisors error:", error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Search Labor Accounts by Username, Mobile Number, or Email
+// 3. Search Labor / Worker
 export const searchLabor = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { query } = req.query;
@@ -247,13 +109,16 @@ export const searchLabor = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(400).json({ success: false, message: "Search query is required." });
     }
 
-    const cleanQuery = query.trim().toLowerCase();
+    const cleanQuery = query.trim();
+    const cleanUpper = cleanQuery.toUpperCase();
+    const cleanLower = cleanQuery.toLowerCase();
     const phoneOnlyDigits = cleanQuery.replace(/\D/g, "");
 
     const searchConditions: any[] = [
-      { username: cleanQuery },
-      { email: cleanQuery },
-      { phone: cleanQuery },
+      { uniqueId: cleanUpper },
+      { username: cleanLower },
+      { email: cleanLower },
+      { phone: cleanLower },
     ];
 
     if (phoneOnlyDigits.length >= 8) {
@@ -261,9 +126,9 @@ export const searchLabor = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const laborUsers = await User.find({
-      role: "labor",
+      role: { $in: ["labor", "worker"] },
       $or: searchConditions,
-    }).select("name username email phone connectionStatus avatarColor profileImage createdAt");
+    }).select("name uniqueId username email phone workerCategory dailyWage connectionStatus avatarColor profileImage createdAt");
 
     return res.json({ success: true, labor: laborUsers });
   } catch (error: any) {
@@ -272,58 +137,82 @@ export const searchLabor = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-// Contractor Sends Connection Request to Labor
-export const sendLaborConnectionRequest = async (req: AuthenticatedRequest, res: Response) => {
+// 4. Create Connection Request with 6-Digit Temporary Code (10-minute TTL)
+export const createConnectionRequest = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const contractorId = req.user?.id;
     const tenantId = req.user?.tenantId;
-    const { laborId } = req.body;
+    const { targetUniqueId, targetUserId } = req.body;
 
-    if (!laborId) {
-      return res.status(400).json({ success: false, message: "Labor ID is required." });
+    if (!targetUniqueId && !targetUserId) {
+      return res.status(400).json({ success: false, message: "Target Unique ID or User ID is required." });
     }
 
-    const laborUser = await User.findById(laborId);
-    if (!laborUser || laborUser.role !== "labor") {
-      return res.status(404).json({ success: false, message: "Labor account not found." });
+    let targetUser = null;
+    if (targetUniqueId) {
+      targetUser = await User.findOne({ uniqueId: String(targetUniqueId).trim().toUpperCase() });
+    } else if (targetUserId) {
+      targetUser = await User.findById(targetUserId);
+    }
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: "Target account not found." });
+    }
+
+    if (targetUser._id.toString() === contractorId) {
+      return res.status(400).json({ success: false, message: "Cannot send connection request to yourself." });
     }
 
     const contractor = await User.findById(contractorId);
     const tenant = await Tenant.findById(tenantId);
     const companyName = tenant?.name || contractor?.name || "Contractor Company";
 
-    const existingReq = await ConnectionRequest.findOne({
-      senderId: contractorId,
-      receiverId: laborId,
-      status: { $in: ["pending", "accepted"] },
-    });
+    // Generate 6-digit random connection code (cryptographically uniform)
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const codeHash = await bcrypt.hash(code, 8);
+    const codeExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    if (existingReq) {
-      if (existingReq.status === "accepted") {
-        return res.status(400).json({ success: false, message: "Labor account is already connected." });
-      }
-      return res.status(400).json({ success: false, message: "Connection request is already pending." });
-    }
-
-    const connectionReq = new ConnectionRequest({
+    // Check existing request
+    let connectionReq = await ConnectionRequest.findOne({
       senderId: contractorId,
-      receiverId: laborId,
-      tenantId,
-      targetRole: "labor",
+      receiverId: targetUser._id,
       status: "pending",
     });
 
-    await connectionReq.save();
+    if (connectionReq) {
+      // Refresh code and expiration
+      connectionReq.code = code;
+      connectionReq.codeHash = codeHash;
+      connectionReq.codeExpiresAt = codeExpiresAt;
+      connectionReq.codeAttempts = 0;
+      await connectionReq.save();
+    } else {
+      connectionReq = new ConnectionRequest({
+        senderId: contractorId,
+        receiverId: targetUser._id,
+        tenantId,
+        targetRole: targetUser.role === "supervisor" ? "supervisor" : "labor",
+        status: "pending",
+        code,
+        codeHash,
+        codeExpiresAt,
+        codeAttempts: 0,
+      });
+      await connectionReq.save();
+    }
 
-    laborUser.connectionStatus = "pending";
-    await laborUser.save();
+    targetUser.connectionStatus = "pending";
+    await targetUser.save();
 
+    // Broadcast Real-Time socket notification
     try {
       const io = getIO();
-      io.to(`user_${laborId}`).emit("labor:connectionRequest", {
+      io.to(`user_${targetUser._id}`).emit("connection:newRequest", {
         requestId: connectionReq._id,
         contractorName: contractor?.name,
         companyName,
+        code,
+        expiresAt: codeExpiresAt,
         createdAt: connectionReq.createdAt,
       });
       io.emit("admin_dashboard_update");
@@ -333,144 +222,161 @@ export const sendLaborConnectionRequest = async (req: AuthenticatedRequest, res:
 
     return res.status(201).json({
       success: true,
-      message: "Labor connection request sent successfully.",
-      connectionRequest: connectionReq,
+      message: "Connection request sent. The target user has received the 6-digit connection code.",
+      connectionRequest: {
+        id: connectionReq._id,
+        targetUser: {
+          id: targetUser._id,
+          name: targetUser.name,
+          uniqueId: targetUser.uniqueId,
+          role: targetUser.role,
+        },
+        expiresAt: codeExpiresAt,
+      },
     });
   } catch (error: any) {
-    console.error("sendLaborConnectionRequest error:", error);
+    console.error("createConnectionRequest error:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Labor Accepts Connection Request
-export const acceptLaborConnectionRequest = async (req: AuthenticatedRequest, res: Response) => {
+// 5. Verify 6-Digit Connection Code and Activate Connection
+export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const laborId = req.user?.id;
-    const { id: requestId } = req.params;
-
-    const connectionReq = await ConnectionRequest.findById(requestId);
-    if (!connectionReq || connectionReq.receiverId.toString() !== laborId) {
-      return res.status(404).json({ success: false, message: "Connection request not found." });
-    }
-
-    if (connectionReq.status === "accepted") {
-      return res.status(400).json({ success: false, message: "Request has already been accepted." });
-    }
-
-    connectionReq.status = "accepted";
-    await connectionReq.save();
-
-    const contractor = await User.findById(connectionReq.senderId);
-    const tenant = await Tenant.findById(connectionReq.tenantId);
-
-    const laborUser = await User.findById(laborId);
-    if (laborUser) {
-      laborUser.tenantId = connectionReq.tenantId;
-      laborUser.contractorId = connectionReq.senderId;
-      laborUser.contractorName = contractor?.name || "";
-      laborUser.contractorCompany = tenant?.name || "";
-      laborUser.connectionStatus = "connected";
-      await laborUser.save();
-    }
-
-    try {
-      const io = getIO();
-      io.to(`user_${connectionReq.senderId}`).emit("labor:connectionAccepted", {
-        laborId,
-        laborName: laborUser?.name,
-        requestId: connectionReq._id,
-      });
-      io.emit("admin_dashboard_update");
-    } catch (socketErr) {
-      console.warn("Socket broadcast failed:", socketErr);
-    }
-
-    return res.json({
-      success: true,
-      message: "Connection request accepted successfully.",
-      labor: laborUser,
-    });
-  } catch (error: any) {
-    console.error("acceptLaborConnectionRequest error:", error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Labor Declines Connection Request
-export const declineLaborConnectionRequest = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const laborId = req.user?.id;
-    const { id: requestId } = req.params;
-
-    const connectionReq = await ConnectionRequest.findById(requestId);
-    if (!connectionReq || connectionReq.receiverId.toString() !== laborId) {
-      return res.status(404).json({ success: false, message: "Connection request not found." });
-    }
-
-    connectionReq.status = "declined";
-    await connectionReq.save();
-
-    const laborUser = await User.findById(laborId);
-    if (laborUser) {
-      laborUser.connectionStatus = "declined";
-      await laborUser.save();
-    }
-
-    try {
-      const io = getIO();
-      io.to(`user_${connectionReq.senderId}`).emit("labor:connectionDeclined", {
-        laborId,
-        laborName: laborUser?.name,
-        requestId: connectionReq._id,
-      });
-      io.emit("admin_dashboard_update");
-    } catch (socketErr) {
-      console.warn("Socket broadcast failed:", socketErr);
-    }
-
-    return res.json({
-      success: true,
-      message: "Connection request declined.",
-    });
-  } catch (error: any) {
-    console.error("declineLaborConnectionRequest error:", error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Get Contractor's Connected Labor Accounts
-export const getContractorLabor = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const tenantId = req.user?.tenantId;
     const contractorId = req.user?.id;
+    const tenantId = req.user?.tenantId;
+    const { targetUniqueId, targetUserId, code } = req.body;
 
-    const connectedLabor = await User.find({
-      tenantId,
-      role: "labor",
-    }).select("-passwordHash -refreshTokens");
+    if (!code || typeof code !== "string" || code.trim().length !== 6) {
+      return res.status(400).json({ success: false, message: "Valid 6-digit connection code is required." });
+    }
 
-    const pendingRequests = await ConnectionRequest.find({
+    let targetUser = null;
+    if (targetUniqueId) {
+      targetUser = await User.findOne({ uniqueId: String(targetUniqueId).trim().toUpperCase() });
+    } else if (targetUserId) {
+      targetUser = await User.findById(targetUserId);
+    }
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: "Target user not found." });
+    }
+
+    const connectionReq = await ConnectionRequest.findOne({
       senderId: contractorId,
+      receiverId: targetUser._id,
       status: "pending",
-      targetRole: "labor",
-    }).populate("receiverId", "name username phone email connectionStatus");
+    });
+
+    if (!connectionReq) {
+      return res.status(404).json({ success: false, message: "No active connection request found for this user." });
+    }
+
+    // Check expiration
+    if (connectionReq.codeExpiresAt && connectionReq.codeExpiresAt.getTime() < Date.now()) {
+      connectionReq.status = "expired";
+      await connectionReq.save();
+      return res.status(400).json({ success: false, message: "Connection code has expired. Please request a new one." });
+    }
+
+    // Check rate-limiting on failed attempts
+    if ((connectionReq.codeAttempts || 0) >= 5) {
+      connectionReq.status = "expired";
+      await connectionReq.save();
+      return res.status(429).json({ success: false, message: "Too many failed attempts. Please send a new connection request." });
+    }
+
+    // Verify code
+    const isCodeMatch =
+      (connectionReq.code && connectionReq.code === code.trim()) ||
+      (connectionReq.codeHash && (await bcrypt.compare(code.trim(), connectionReq.codeHash)));
+
+    if (!isCodeMatch) {
+      connectionReq.codeAttempts = (connectionReq.codeAttempts || 0) + 1;
+      await connectionReq.save();
+      const remaining = 5 - connectionReq.codeAttempts;
+      return res.status(400).json({
+        success: false,
+        message: `Incorrect connection code. ${remaining} attempts remaining.`,
+      });
+    }
+
+    // Code matched! Activate connection
+    connectionReq.status = "active";
+    connectionReq.connectedAt = new Date();
+    await connectionReq.save();
+
+    const contractor = await User.findById(contractorId);
+    const tenant = await Tenant.findById(tenantId);
+
+    if (tenantId) targetUser.tenantId = new mongoose.Types.ObjectId(tenantId);
+    if (contractorId) targetUser.contractorId = new mongoose.Types.ObjectId(contractorId);
+    targetUser.contractorName = contractor?.name || "";
+    targetUser.contractorCompany = tenant?.name || "";
+    targetUser.connectionStatus = "connected";
+    await targetUser.save();
+
+    // If target is worker / labor, ensure a corresponding Worker record exists in the tenant
+    if (targetUser.role === "labor" || (targetUser.role as string) === "worker") {
+      let existingWorker = await Worker.findOne({
+        tenantId,
+        $or: [
+          { phone: targetUser.phone },
+          { name: targetUser.name },
+        ],
+      });
+
+      if (!existingWorker) {
+        existingWorker = new Worker({
+          tenantId,
+          name: targetUser.name,
+          phone: targetUser.phone,
+          category: targetUser.workerCategory || "Labour",
+          dailyRate: targetUser.dailyWage || 500,
+          skillCategory: "skilled",
+          paymentType: "daily",
+          isArchived: false,
+        });
+        await existingWorker.save();
+      }
+    }
+
+    // Real-time socket notification
+    try {
+      const io = getIO();
+      io.to(`user_${targetUser._id}`).emit("connection:verified", {
+        contractorName: contractor?.name,
+        companyName: tenant?.name,
+        connectedAt: connectionReq.connectedAt,
+      });
+      io.to(`user_${contractorId}`).emit("connection:verified", {
+        targetUserName: targetUser.name,
+        uniqueId: targetUser.uniqueId,
+        connectedAt: connectionReq.connectedAt,
+      });
+      io.emit("admin_dashboard_update");
+    } catch (socketErr) {
+      console.warn("Socket broadcast failed:", socketErr);
+    }
 
     return res.json({
       success: true,
-      labor: connectedLabor,
-      pendingRequests: pendingRequests.map((r) => ({
-        requestId: r._id,
-        labor: r.receiverId,
-        createdAt: r.createdAt,
-      })),
+      message: `Successfully connected with ${targetUser.name}!`,
+      user: {
+        id: targetUser._id,
+        name: targetUser.name,
+        uniqueId: targetUser.uniqueId,
+        role: targetUser.role,
+        connectionStatus: "connected",
+      },
     });
   } catch (error: any) {
-    console.error("getContractorLabor error:", error);
+    console.error("verifyConnectionCode error:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Get Pending Connection Requests for Logged-In User (Supervisor / Labor)
+// 6. Get Pending Connection Requests for Logged-In User (Supervisor or Worker)
 export const getPendingUserConnectionRequests = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -478,15 +384,21 @@ export const getPendingUserConnectionRequests = async (req: AuthenticatedRequest
     const pendingRequests = await ConnectionRequest.find({
       receiverId: userId,
       status: "pending",
-    }).populate("senderId", "name phone email").populate("tenantId", "name");
+      codeExpiresAt: { $gt: new Date() },
+    })
+      .populate("senderId", "name phone email uniqueId")
+      .populate("tenantId", "name");
 
     return res.json({
       success: true,
       requests: pendingRequests.map((r) => ({
         requestId: r._id,
         contractorName: (r.senderId as any)?.name || "Contractor",
+        contractorUniqueId: (r.senderId as any)?.uniqueId || "",
         companyName: (r.tenantId as any)?.name || "Company",
         targetRole: r.targetRole,
+        code: r.code,
+        expiresAt: r.codeExpiresAt,
         createdAt: r.createdAt,
       })),
     });
@@ -495,3 +407,106 @@ export const getPendingUserConnectionRequests = async (req: AuthenticatedRequest
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// 7. Disconnect Connection (Preserves All Historical Records)
+export const disconnectConnection = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const currentUserId = req.user?.id;
+    const { targetUserId, targetUniqueId } = req.body;
+
+    let targetUser = null;
+    if (targetUserId) {
+      targetUser = await User.findById(targetUserId);
+    } else if (targetUniqueId) {
+      targetUser = await User.findOne({ uniqueId: String(targetUniqueId).trim().toUpperCase() });
+    }
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: "User not found to disconnect." });
+    }
+
+    // Update connection requests
+    await ConnectionRequest.updateMany(
+      {
+        $or: [
+          { senderId: currentUserId, receiverId: targetUser._id },
+          { senderId: targetUser._id, receiverId: currentUserId },
+        ],
+        status: { $in: ["active", "accepted", "pending"] },
+      },
+      {
+        $set: {
+          status: "disconnected",
+          disconnectedAt: new Date(),
+        },
+      }
+    );
+
+    // Update target user connection status
+    targetUser.connectionStatus = "not_connected";
+    targetUser.contractorId = undefined;
+    targetUser.contractorName = undefined;
+    targetUser.contractorCompany = undefined;
+    await targetUser.save();
+
+    return res.json({
+      success: true,
+      message: "Disconnected successfully. All past records, attendance, and work data are preserved.",
+    });
+  } catch (error: any) {
+    console.error("disconnectConnection error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 8. Get Contractor's Connected Users (Supervisors + Workers)
+export const getContractorConnections = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    const contractorId = req.user?.id;
+
+    const connectedSupervisors = await User.find({
+      tenantId,
+      role: "supervisor",
+      connectionStatus: "connected",
+    }).select("name uniqueId email phone avatarColor profileImage createdAt assignedProjects");
+
+    const connectedWorkers = await User.find({
+      tenantId,
+      role: { $in: ["labor", "worker"] },
+      connectionStatus: "connected",
+    }).select("name uniqueId email phone workerCategory dailyWage avatarColor profileImage createdAt");
+
+    const pendingRequests = await ConnectionRequest.find({
+      senderId: contractorId,
+      status: "pending",
+      codeExpiresAt: { $gt: new Date() },
+    }).populate("receiverId", "name uniqueId phone email role workerCategory connectionStatus");
+
+    return res.json({
+      success: true,
+      supervisors: connectedSupervisors,
+      workers: connectedWorkers,
+      pendingRequests: pendingRequests.map((r) => ({
+        requestId: r._id,
+        user: r.receiverId,
+        code: r.code,
+        expiresAt: r.codeExpiresAt,
+        createdAt: r.createdAt,
+      })),
+    });
+  } catch (error: any) {
+    console.error("getContractorConnections error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 9. Legacy controller handlers for backward compatibility
+export const sendSupervisorConnectionRequest = createConnectionRequest;
+export const acceptSupervisorConnectionRequest = verifyConnectionCode;
+export const declineSupervisorConnectionRequest = disconnectConnection;
+export const getContractorSupervisors = getContractorConnections;
+export const sendLaborConnectionRequest = createConnectionRequest;
+export const acceptLaborConnectionRequest = verifyConnectionCode;
+export const declineLaborConnectionRequest = disconnectConnection;
+export const getContractorLabor = getContractorConnections;

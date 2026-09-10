@@ -28,6 +28,8 @@ import DeviceManagementScreen from "@/screens/DeviceManagementScreen";
 import SiteControlDashboardScreen from "@/screens/SiteControlDashboardScreen";
 import SiteDetailControlScreen from "@/screens/SiteDetailControlScreen";
 import DashboardScreen from "@/screens/DashboardScreen";
+import SupervisorDashboardScreen from "@/screens/SupervisorDashboardScreen";
+import WorkerDashboardScreen from "@/screens/WorkerDashboardScreen";
 import SiteListScreen from "@/screens/SiteListScreen";
 import CreateSiteScreen from "@/screens/CreateSiteScreen";
 import EditSiteScreen from "@/screens/EditSiteScreen";
@@ -97,6 +99,13 @@ const AttendanceStack = createNativeStackNavigator<AttendanceStackParamList>();
 function AttendanceNavigator() {
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
+  const { isSupervisor, isWorker } = useAuth();
+
+  const DashboardComponent = isWorker
+    ? WorkerDashboardScreen
+    : isSupervisor
+    ? SupervisorDashboardScreen
+    : DashboardScreen;
 
   return (
     <AttendanceStack.Navigator
@@ -107,7 +116,7 @@ function AttendanceNavigator() {
     >
       <AttendanceStack.Screen
         name="Dashboard"
-        component={DashboardScreen}
+        component={DashboardComponent}
         options={{
           headerShown: false,
         }}
@@ -140,12 +149,13 @@ function AttendanceNavigator() {
 function MainTabs() {
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
+  const { isSupervisor, isWorker } = useAuth();
   const { isModuleVisible } = useFeatureAccess();
 
   const isDashboardVisible = isModuleVisible("dashboard");
-  const isSiteControlVisible = isModuleVisible("siteControl");
+  const isSiteControlVisible = !isWorker && isModuleVisible("siteControl");
   const isReportsVisible = isModuleVisible("reports");
-  const isWorkersVisible = isModuleVisible("workers");
+  const isWorkersVisible = !isWorker && !isSupervisor && isModuleVisible("workers");
   const isSettingsVisible = isModuleVisible("settings");
 
   const tabBarStyle = {
@@ -182,7 +192,11 @@ function MainTabs() {
         name="AttendanceTab"
         component={AttendanceNavigator}
         options={{
-          title: t.tabs?.dashboard || "Dashboard",
+          title: isWorker
+            ? t("roles.worker", "डैशबोर्ड")
+            : isSupervisor
+            ? t("roles.supervisor", "डैशबोर्ड")
+            : t.tabs?.dashboard || "Dashboard",
           headerShown: false,
           tabBarItemStyle: isDashboardVisible ? undefined : { display: "none" },
           tabBarIcon: ({ color, size }) => (
@@ -194,7 +208,9 @@ function MainTabs() {
         name="SiteManagementTab"
         component={SiteControlDashboardScreen}
         options={{
-          title: t.tabs?.siteControl || "Site Control",
+          title: isSupervisor
+            ? t("supervisor.assignedSites", "मेरी साइट्स")
+            : t.tabs?.siteControl || "Site Control",
           headerShown: false,
           tabBarItemStyle: isSiteControlVisible ? undefined : { display: "none" },
           tabBarIcon: ({ color, size }) => (
@@ -206,7 +222,9 @@ function MainTabs() {
         name="ReportsTab"
         component={SummaryScreen}
         options={{
-          title: t.tabs?.reports || t.summary.title || "Reports",
+          title: isWorker
+            ? t("attendance.title", "हाजिरी / वेतन")
+            : t.tabs?.reports || t.summary.title || "Reports",
           headerTitle: t.summary.title,
           tabBarItemStyle: isReportsVisible ? undefined : { display: "none" },
           tabBarIcon: ({ color, size }) => (

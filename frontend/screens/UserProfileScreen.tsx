@@ -12,12 +12,14 @@ import {
   ActivityIndicator,
   Linking,
   Dimensions,
+  Share,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import * as ImagePicker from "expo-image-picker";
-import { Feather } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 
@@ -581,6 +583,26 @@ export default function UserProfileScreen() {
     return theme.primary;
   };
 
+  const copyUniqueId = async () => {
+    if (user?.uniqueId) {
+      await Clipboard.setStringAsync(user.uniqueId);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(t("common.copied", "Copied"), `Unique ID ${user.uniqueId} copied to clipboard!`);
+    }
+  };
+
+  const shareUniqueId = async () => {
+    if (user?.uniqueId) {
+      try {
+        await Share.share({
+          message: `Haajari Manager ID: ${user.uniqueId}\nName: ${user.name}\nRole: ${user.role?.toUpperCase()}`,
+        });
+      } catch (err) {
+        console.warn("Share error:", err);
+      }
+    }
+  };
+
   if (!user) {
     return (
       <ThemedView style={styles.loadingContainer}>
@@ -611,6 +633,72 @@ export default function UserProfileScreen() {
           avatarColor={user.avatarColor}
           onAvatarPress={() => setShowImageModal(true)}
         />
+
+        {/* ── PERMANENT UNIQUE ID CARD ── */}
+        <View
+          style={[
+            {
+              backgroundColor: isDark ? "#0F172A" : "#EFF6FF",
+              borderColor: "#3B82F6",
+              borderWidth: 1.5,
+              borderRadius: BorderRadius.lg,
+              padding: 14,
+              marginTop: 12,
+              marginBottom: 4,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            },
+          ]}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: "rgba(59, 130, 246, 0.15)",
+                justifyContent: "center",
+                alignItems: "center",
+                marginRight: 10,
+              }}
+            >
+              <MaterialCommunityIcons name="card-account-details-outline" size={22} color="#2563EB" />
+            </View>
+            <View>
+              <ThemedText style={{ fontSize: 11, fontWeight: "600", color: "#3B82F6" }}>
+                {t("auth.uniqueId", "यूनिक आईडी (Unique ID)")}
+              </ThemedText>
+              <ThemedText style={{ fontSize: 16, fontWeight: "800", letterSpacing: 1, color: isDark ? "#93C5FD" : "#1D4ED8" }}>
+                {user.uniqueId || "HM-PENDING"}
+              </ThemedText>
+            </View>
+          </View>
+
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Pressable
+              onPress={copyUniqueId}
+              style={{
+                padding: 8,
+                borderRadius: BorderRadius.md,
+                backgroundColor: "rgba(59, 130, 246, 0.12)",
+                marginRight: 8,
+              }}
+            >
+              <Feather name="copy" size={16} color="#2563EB" />
+            </Pressable>
+            <Pressable
+              onPress={shareUniqueId}
+              style={{
+                padding: 8,
+                borderRadius: BorderRadius.md,
+                backgroundColor: "rgba(59, 130, 246, 0.12)",
+              }}
+            >
+              <Feather name="share-2" size={16} color="#2563EB" />
+            </Pressable>
+          </View>
+        </View>
 
         {/* ── ACCOUNT DETAILS SECTION ── */}
         <View

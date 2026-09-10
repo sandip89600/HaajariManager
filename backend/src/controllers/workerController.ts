@@ -12,7 +12,15 @@ export const getWorkers = async (req: AuthenticatedRequest, res: Response) => {
 
     let query: any = { tenantId, isArchived: false };
 
-    if (role === "supervisor") {
+    if (role === "labor" || role === "worker") {
+      const user = await User.findById(userId);
+      const myWorker = await Worker.find({
+        tenantId,
+        isArchived: false,
+        $or: [{ phone: user?.phone }, { name: user?.name }],
+      }).lean();
+      return res.json(myWorker);
+    } else if (role === "supervisor") {
       const supervisor = await User.findById(userId).select("assignedProjects").lean();
       const assignedProjects = supervisor?.assignedProjects || [];
       query.projectId = { $in: assignedProjects };
@@ -30,6 +38,11 @@ export const getWorkers = async (req: AuthenticatedRequest, res: Response) => {
 export const addWorker = async (req: AuthenticatedRequest, res: Response) => {
   const startTime = Date.now();
   try {
+    const role = req.user?.role;
+    if (role === "labor" || role === "worker") {
+      return res.status(403).json({ error: "Forbidden: Workers cannot create worker profiles." });
+    }
+
     const tenantId = req.user?.tenantId;
     const userId = req.user?.id;
     const { name, category, dailyRate, phone, address, notes, photoUri, projectId } = req.body;
@@ -89,6 +102,11 @@ export const addWorker = async (req: AuthenticatedRequest, res: Response) => {
 
 export const updateWorker = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const role = req.user?.role;
+    if (role === "labor" || role === "worker") {
+      return res.status(403).json({ error: "Forbidden: Workers cannot update worker profiles." });
+    }
+
     const tenantId = req.user?.tenantId;
     const userId = req.user?.id;
     const { id } = req.params;
@@ -147,6 +165,11 @@ export const updateWorker = async (req: AuthenticatedRequest, res: Response) => 
 
 export const deleteWorker = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const role = req.user?.role;
+    if (role === "labor" || role === "worker") {
+      return res.status(403).json({ error: "Forbidden: Workers cannot delete worker profiles." });
+    }
+
     const tenantId = req.user?.tenantId;
     const userId = req.user?.id;
     const { id } = req.params;

@@ -20,7 +20,17 @@ export const getAttendanceForMonth = async (req: AuthenticatedRequest, res: Resp
       month: parseInt(month as string),
     };
 
-    if (req.user?.role === "supervisor") {
+    if (req.user?.role === "labor" || req.user?.role === "worker") {
+      const user = await User.findById(req.user.id);
+      const worker = await Worker.findOne({
+        tenantId,
+        $or: [{ phone: user?.phone }, { name: user?.name }],
+      });
+      if (!worker) {
+        return res.json([]);
+      }
+      query.workerId = worker._id;
+    } else if (req.user?.role === "supervisor") {
       const supervisor = await User.findById(req.user.id);
       const assignedProjects = supervisor?.assignedProjects || [];
       const workers = await Worker.find({ tenantId, isArchived: false, projectId: { $in: assignedProjects } });
@@ -37,6 +47,11 @@ export const getAttendanceForMonth = async (req: AuthenticatedRequest, res: Resp
 
 export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const role = req.user?.role;
+    if (role === "labor" || role === "worker") {
+      return res.status(403).json({ error: "Forbidden: Workers are not authorized to mark or edit attendance." });
+    }
+
     const tenantId = req.user?.tenantId;
     const userId = req.user?.id;
     const { workerId, year, month, day, value, location, projectId, overtimeHours, overtimeWage } = req.body;
@@ -130,6 +145,11 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
 
 export const syncAttendance = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const role = req.user?.role;
+    if (role === "labor" || role === "worker") {
+      return res.status(403).json({ error: "Forbidden: Workers cannot sync attendance." });
+    }
+
     const tenantId = req.user?.tenantId;
     const { records } = req.body;
 
@@ -218,6 +238,11 @@ export const syncAttendance = async (req: AuthenticatedRequest, res: Response) =
 
 export const deleteAttendanceRecord = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const role = req.user?.role;
+    if (role === "labor" || role === "worker") {
+      return res.status(403).json({ error: "Forbidden: Workers cannot delete attendance." });
+    }
+
     const tenantId = req.user?.tenantId;
     const userId = req.user?.id;
     const { id } = req.params;
@@ -240,6 +265,94 @@ export const deleteAttendanceRecord = async (req: AuthenticatedRequest, res: Res
 
     res.json({ success: true, message: "Attendance record deleted successfully" });
   } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Worker Personal Attendance & Summary
+export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const { year, month } = req.query;
+
+    // Find linked worker record in user's tenant
+    const worker = await Worker.findOne({
+      tenantId: user.tenantId,
+      $or: [{ phone: user.phone }, { name: user.name }],
+    });
+
+    let query: any = { tenantId: user.tenantId };
+    if (worker) {
+      query.workerId = worker._id;
+    } else {
+      return res.json({
+        worker: null,
+        records: [],
+        summary: {
+          presentDays: 0,
+          absentDays: 0,
+          halfDays: 0,
+          overtimeHours: 0,
+          totalEarned: 0,
+          advancePaid: 0,
+          netPayable: 0,
+        },
+      });
+    }
+
+    if (year) query.year = parseInt(year as string);
+    if (month) query.month = parseInt(month as string);
+
+    const records = await Attendance.find(query).sort({ year: -1, month: -1, day: -1 }).lean();
+
+    let presentDays = 0;
+    let absentDays = 0;
+    let halfDays = 0;
+    let overtimeHours = 0;
+    let totalEarned = 0;
+    let advancePaid = 0;
+
+    for (const rec of records) {
+      if (rec.value === "P") presentDays++;
+      else if (rec.value === "A") absentDays++;
+      else if (rec.value === "H") halfDays += 0.5;
+      else if (rec.value === "OT") {
+        presentDays++;
+        overtimeHours += rec.overtimeHours || 0;
+      }
+      totalEarned += rec.finalPay || 0;
+      if (rec.customWage && rec.customWage > 0) {
+        advancePaid += rec.customWage;
+      }
+    }
+
+    return res.json({
+      worker: {
+        id: worker._id,
+        name: worker.name,
+        category: worker.category,
+        dailyRate: worker.dailyRate,
+        contractorName: user.contractorName || "Contractor",
+        contractorCompany: user.contractorCompany || "Company",
+      },
+      records,
+      summary: {
+        presentDays,
+        absentDays,
+        halfDays,
+        overtimeHours,
+        totalEarned,
+        advancePaid,
+        netPayable: Math.max(0, totalEarned - advancePaid),
+      },
+    });
+  } catch (error: any) {
+    console.error("getMyAttendance error:", error);
     res.status(500).json({ error: error.message });
   }
 };

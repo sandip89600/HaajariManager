@@ -469,6 +469,7 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
       refreshToken,
       user: {
         id: user._id,
+        uniqueId: user.uniqueId,
         name: user.name,
         phone: user.phone,
         email: user.email || "",
@@ -886,12 +887,18 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       newDeviceInfo: newDeviceInfoPayload,
       user: {
         id: user._id,
+        uniqueId: user.uniqueId,
         name: user.name,
         phone: user.phone,
         email: user.email || "",
         username: user.username || "",
         role: user.role,
+        workerCategory: user.workerCategory,
+        dailyWage: user.dailyWage,
         tenantId: user.tenantId,
+        connectionStatus: user.connectionStatus,
+        contractorName: user.contractorName,
+        contractorCompany: user.contractorCompany,
         isVerified: user.isVerified,
         isPhoneVerified: !!user.isPhoneVerified,
         plan: tenant?.plan || "free",
@@ -2959,6 +2966,7 @@ export const registerContractor = async (req: AuthenticatedRequest, res: Respons
       refreshToken,
       user: {
         id: user._id,
+        uniqueId: user.uniqueId,
         name: user.name,
         phone: user.phone,
         email: user.email,
@@ -3076,6 +3084,7 @@ export const registerSupervisor = async (req: AuthenticatedRequest, res: Respons
       refreshToken,
       user: {
         id: supervisor._id,
+        uniqueId: supervisor.uniqueId,
         name: supervisor.name,
         phone: supervisor.phone,
         email: supervisor.email,
@@ -3095,7 +3104,7 @@ export const registerSupervisor = async (req: AuthenticatedRequest, res: Respons
 
 export const registerLabor = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { name, username, email, phone, password } = req.body;
+    const { name, username, email, phone, password, workerCategory, dailyWage } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, field: "name", message: "Full name is required." });
@@ -3159,6 +3168,8 @@ export const registerLabor = async (req: AuthenticatedRequest, res: Response) =>
       username: usernameClean,
       passwordHash,
       role: "labor",
+      workerCategory: workerCategory ? workerCategory.trim() : "Labour",
+      dailyWage: dailyWage ? Number(dailyWage) : 500,
       connectionStatus: "not_connected",
       isActive: true,
       isVerified: true,
@@ -3192,11 +3203,14 @@ export const registerLabor = async (req: AuthenticatedRequest, res: Response) =>
       refreshToken,
       user: {
         id: laborUser._id,
+        uniqueId: laborUser.uniqueId,
         name: laborUser.name,
         phone: laborUser.phone,
         email: laborUser.email,
         username: laborUser.username,
         role: laborUser.role,
+        workerCategory: laborUser.workerCategory,
+        dailyWage: laborUser.dailyWage,
         connectionStatus: laborUser.connectionStatus,
         createdAt: laborUser.createdAt,
       },
