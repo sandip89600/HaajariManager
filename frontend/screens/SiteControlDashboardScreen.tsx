@@ -219,18 +219,18 @@ export default function SiteControlDashboardScreen() {
           <View style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}>
             <Text style={[styles.statusDot, { color: statusColors.text }]}>●</Text>
             <Text style={[styles.statusText, { color: statusColors.text }]}>
-              {item.status || "Active"}
+              {t.translateSiteStatus(item.status || "ACTIVE")}
             </Text>
           </View>
-          <Text style={[styles.progressPctBadgeText, { color: theme.primary }]}>{progress}% Complete</Text>
+          <Text style={[styles.progressPctBadgeText, { color: theme.primary }]}>{progress}% {t("sites.complete", "Complete")}</Text>
         </View>
 
         {/* Row 3: TODAY'S WORK Section */}
         <View style={[styles.todaysWorkBox, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: theme.border }]}>
-          <ThemedText style={styles.todaysWorkHeaderTitle}>TODAY'S WORK</ThemedText>
+          <ThemedText style={styles.todaysWorkHeaderTitle}>{(t.sites?.todaysWork || "TODAY'S WORK").toUpperCase()}</ThemedText>
           <View style={styles.workDetailRow}>
-            <Text style={styles.workTypeTitle}>🧱 {item.currentWork || "Brick Work"}</Text>
-            <Text style={styles.workProgressVal}>Progress: {item.currentProgress || progress}%</Text>
+            <Text style={styles.workTypeTitle}>🧱 {item.currentWork ? t.translateWorkType(item.currentWork) : t.translateWorkType("BRICK_WORK")}</Text>
+            <Text style={styles.workProgressVal}>{t.sites?.progress || "Progress"}: {item.currentProgress || progress}%</Text>
           </View>
           <View style={[styles.progressBarBg, { backgroundColor: isDark ? "#334155" : "#E2E8F0" }]}>
             <View style={[styles.progressBarFill, { width: `${item.currentProgress || progress}%`, backgroundColor: theme.primary }]} />
@@ -241,17 +241,17 @@ export default function SiteControlDashboardScreen() {
         <View style={styles.workforcePhotoRow}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={{ fontSize: 15 }}>👷</Text>
-            <Text style={{ fontSize: 13, fontWeight: "800", color: theme.text }}>{totalWorkers} Workers</Text>
+            <Text style={{ fontSize: 13, fontWeight: "800", color: theme.text }}>{totalWorkers} {t.workers?.title || "Workers"}</Text>
             <Text style={{ color: "#94A3B8", fontSize: 12 }}>•</Text>
-            <Text style={{ color: "#16A34A", fontSize: 13, fontWeight: "800" }}>✓ {presentWorkers} Present</Text>
+            <Text style={{ color: "#16A34A", fontSize: 13, fontWeight: "800" }}>✓ {presentWorkers} {t.summary?.present || "Present"}</Text>
           </View>
 
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text style={{ fontSize: 12, fontWeight: "800", color: morningPhoto ? "#16A34A" : "#64748B" }}>
-              📷 Morning {morningPhoto ? "✓" : "—"}
+              📷 {t.sites?.morning || "Morning"} {morningPhoto ? "✓" : "—"}
             </Text>
             <Text style={{ fontSize: 12, fontWeight: "800", color: eveningPhoto ? "#16A34A" : "#64748B" }}>
-              Evening {eveningPhoto ? "✓" : "—"}
+              {t.sites?.evening || "Evening"} {eveningPhoto ? "✓" : "—"}
             </Text>
           </View>
         </View>
@@ -264,7 +264,7 @@ export default function SiteControlDashboardScreen() {
           }}
           style={[styles.openSiteMainBtn, { backgroundColor: theme.primary }]}
         >
-          <Text style={styles.openSiteMainBtnText}>Open Site</Text>
+          <Text style={styles.openSiteMainBtnText}>{t("sites.openSite", "Open Site")}</Text>
           <Feather name="arrow-right" size={16} color="#FFFFFF" />
         </Pressable>
       </View>
@@ -279,9 +279,9 @@ export default function SiteControlDashboardScreen() {
         <View style={[styles.emptyIconCircle, { backgroundColor: theme.backgroundSecondary }]}>
           <Feather name="layers" size={36} color={theme.primary} />
         </View>
-        <ThemedText style={styles.emptyTitle}>No Sites Yet</ThemedText>
+        <ThemedText style={styles.emptyTitle}>{t.sites?.noSites || "No Sites Yet"}</ThemedText>
         <ThemedText style={styles.emptyDesc}>
-          Create your first construction site to start tracking work, workers and daily progress.
+          {t.project?.noProjects || "Create your first construction site to start tracking work, workers and daily progress."}
         </ThemedText>
 
         <Pressable
@@ -292,7 +292,7 @@ export default function SiteControlDashboardScreen() {
           style={[styles.createSiteEmptyBtn, { backgroundColor: theme.primary }]}
         >
           <Feather name="plus" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-          <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 14 }}>+ Create Site</Text>
+          <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 14 }}>+ {t.sites?.addSite || "Create Site"}</Text>
         </Pressable>
       </View>
     );
@@ -322,7 +322,7 @@ export default function SiteControlDashboardScreen() {
         <View style={[styles.searchBar, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
           <Feather name="search" size={16} color={theme.textSecondary} style={{ marginRight: 8 }} />
           <TextInput
-            placeholder="Search by site, client, supervisor..."
+            placeholder={t("sites.searchPlaceholder", "Search by site, client, supervisor...")}
             placeholderTextColor={theme.textSecondary}
             value={search}
             onChangeText={setSearch}
@@ -341,6 +341,7 @@ export default function SiteControlDashboardScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
           {FILTER_OPTIONS.map((opt) => {
             const isActive = activeFilter === opt;
+            const label = opt === "All" ? (t.common?.all || "All") : t.translateSiteStatus(opt);
             return (
               <Pressable
                 key={opt}
@@ -357,7 +358,7 @@ export default function SiteControlDashboardScreen() {
                 ]}
               >
                 <Text style={[styles.filterChipText, { color: isActive ? "#FFFFFF" : (isDark ? "#CBD5E1" : "#475569") }]}>
-                  {opt}
+                  {label}
                 </Text>
               </Pressable>
             );

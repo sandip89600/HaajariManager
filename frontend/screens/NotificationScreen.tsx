@@ -15,10 +15,12 @@ import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useNotifications, NotificationItem } from "@/hooks/useNotifications";
+import { useLanguage } from "@/hooks/useLanguage";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 
 export default function NotificationScreen() {
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
 
@@ -222,7 +224,7 @@ export default function NotificationScreen() {
             >
               <Feather name="check" size={13} color={theme.primary} />
               <ThemedText style={[styles.actionText, { color: theme.primary }]}>
-                Mark Read
+                {t("notifications.markRead", "Mark Read")}
               </ThemedText>
             </Pressable>
           )}
@@ -235,7 +237,7 @@ export default function NotificationScreen() {
           >
             <Feather name="trash-2" size={13} color={theme.textSecondary} />
             <ThemedText style={[styles.actionText, { color: theme.textSecondary }]}>
-              Delete
+              {t("common.delete", "Delete")}
             </ThemedText>
           </Pressable>
         </View>
@@ -260,13 +262,13 @@ export default function NotificationScreen() {
           <Feather name="arrow-left" size={20} color={theme.text} />
         </Pressable>
         <ThemedText type="h2" style={{ fontWeight: "800", flex: 1, marginLeft: 8 }}>
-          Notifications
+          {t("notifications.title", "Notifications")}
         </ThemedText>
         {unreadCount > 0 && (
           <Pressable onPress={handleMarkAllRead} style={styles.markAllBtn}>
             <Feather name="check-circle" size={14} color={theme.primary} />
             <ThemedText style={{ color: theme.primary, fontSize: 13, fontWeight: "700", marginLeft: 4 }}>
-              Mark All Read
+              {t("notifications.markAllRead", "Mark All Read")}
             </ThemedText>
           </Pressable>
         )}
@@ -278,12 +280,12 @@ export default function NotificationScreen() {
           const isActive = activeFilter === filter;
           const label =
             filter === "all"
-              ? "All"
+              ? (t.common?.all || "All")
               : filter === "unread"
-              ? `Unread (${unreadCount})`
+              ? `${t("notifications.unread", "Unread")} (${unreadCount})`
               : filter === "reminders"
-              ? "Reminders"
-              : "System";
+              ? t("notifications.reminders", "Reminders")
+              : t("notifications.system", "System");
 
           return (
             <Pressable
@@ -323,12 +325,12 @@ export default function NotificationScreen() {
         <View style={styles.emptyContainer}>
           <Feather name="bell-off" size={48} color={theme.textSecondary} style={{ marginBottom: 12 }} />
           <ThemedText type="h3" style={{ fontWeight: "700", color: theme.text }}>
-            No Notifications
+            {t("notifications.empty", "No Notifications")}
           </ThemedText>
           <ThemedText style={{ color: theme.textSecondary, textAlign: "center", marginTop: 4, fontSize: 13 }}>
             {activeFilter === "unread"
-              ? "You're all caught up! No unread notifications."
-              : "Notifications and automated reminders will appear here."}
+              ? t("notifications.allCaughtUp", "You're all caught up! No unread notifications.")
+              : t("notifications.emptyDesc", "Notifications and automated reminders will appear here.")}
           </ThemedText>
         </View>
       ) : (

@@ -2059,7 +2059,7 @@ export default function SummaryScreen() {
             marginBottom: 6,
           }}
         >
-          Payment Method
+          {t("payment.paymentMethod", "Payment Method")}
         </ThemedText>
         <View style={[styles.methodSelectorRow, { flexWrap: "wrap", gap: 6, marginBottom: 12 }]}>
           {(["Cash", "UPI", "Bank Transfer", "Cheque", "Other"] as const).map((method) => {
@@ -2092,7 +2092,7 @@ export default function SummaryScreen() {
                     fontSize: 11,
                   }}
                 >
-                  {method}
+                  {t.translatePaymentMethod(method)}
                 </ThemedText>
               </Pressable>
             );

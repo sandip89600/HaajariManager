@@ -650,5 +650,104 @@
     "errorRetry": "Please try again.",
     "errorNotUnderstood": "I didn't understand that.",
     "errorOffline": "No internet connection."
+  },
+  "enums": {
+    "attendance": {
+      "PRESENT": "Present",
+      "ABSENT": "Absent",
+      "HALF_DAY": "Half Day",
+      "OVERTIME": "Overtime",
+      "HOLIDAY": "Holiday",
+      "PAID_LEAVE": "Paid Leave"
+    },
+    "siteStatus": {
+      "ACTIVE": "Active",
+      "COMPLETED": "Completed",
+      "IN_PROGRESS": "In Progress",
+      "PLANNING": "Planning",
+      "DELAYED": "Delayed",
+      "ARCHIVED": "Archived",
+      "NOT_STARTED": "Not Started"
+    },
+    "roles": {
+      "CONTRACTOR": "Contractor",
+      "SUPERVISOR": "Supervisor",
+      "LABOR": "Labor",
+      "WORKER": "Worker",
+      "ADMIN": "Admin"
+    },
+    "workTypes": {
+      "BRICK_WORK": "Brick Work",
+      "PLASTER": "Plaster",
+      "PAINTING": "Painting",
+      "ELECTRICIAN": "Electrician",
+      "CONCRETE": "Concrete",
+      "PLUMBING": "Plumbing",
+      "CARPENTRY": "Carpentry",
+      "TILES": "Tiles Work",
+      "OTHER": "Other Work"
+    },
+    "paymentType": {
+      "ADVANCE": "Advance",
+      "SALARY": "Salary",
+      "BONUS": "Bonus",
+      "DEDUCTION": "Deduction",
+      "SETTLEMENT": "Settlement",
+      "DAILY": "Daily Rate",
+      "WEEKLY": "Weekly",
+      "MONTHLY": "Monthly",
+      "PIECE_RATE": "Piece Rate"
+    },
+    "connectionStatus": {
+      "connected": "Connected",
+      "pending": "Pending Connection",
+      "notConnected": "Not Connected",
+      "rejected": "Declined"
+    }
+  },
+  "registration": {
+    "title": "Create Your Account",
+    "chooseRole": "Choose your account type:",
+    "contractorRoleTitle": "Contractor",
+    "contractorRoleDesc": "Manage workers, sites and supervisors",
+    "laborRoleTitle": "Labor / Worker",
+    "laborRoleDesc": "Track your work and attendance",
+    "supervisorRoleTitle": "Supervisor",
+    "supervisorRoleDesc": "Mark attendance and daily updates",
+    "username": "Username",
+    "usernamePlaceholder": "e.g. ganesh123",
+    "contractorName": "Contractor Name",
+    "contractorCompany": "Contractor Company Name",
+    "registerSuccess": "Account created successfully!",
+    "registerError": "Registration failed. Please try again."
+  },
+  "connection": {
+    "title": "Connection Requests",
+    "searchPlaceholder": "Search by Username or Mobile...",
+    "sendRequest": "Send Request",
+    "requestSent": "Connection request sent successfully.",
+    "accept": "Accept",
+    "decline": "Decline",
+    "accepted": "Connection accepted.",
+    "declined": "Connection declined.",
+    "pendingRequests": "Pending Requests",
+    "noRequests": "No pending connection requests.",
+    "connectSupervisor": "Connect Supervisor",
+    "connectLabor": "Connect Worker"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "workers": "Workers",
+    "attendance": "Attendance",
+    "siteControl": "Site Control",
+    "reports": "Reports",
+    "settings": "Settings",
+    "summary": "Summary",
+    "profile": "Profile",
+    "supervisors": "Supervisors",
+    "support": "Support & Help",
+    "privacy": "Privacy Settings",
+    "devices": "Device Management",
+    "terms": "Terms & Conditions"
   }
 }

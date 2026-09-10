@@ -240,12 +240,12 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
 
   const handleClear = () => {
     Alert.alert(
-      "Clear Attendance",
-      `Clear attendance for this worker on this date?`,
+      t("attendance.clearAttendance", "Clear Attendance"),
+      t("attendance.clearAttendanceConfirm", "Clear attendance for this worker on this date?"),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("common.cancel", "Cancel"), style: "cancel" },
         {
-          text: "Clear Attendance",
+          text: t("attendance.clearAttendance", "Clear Attendance"),
           style: "destructive",
           onPress: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -265,7 +265,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
     const otWageNum = modalOvertimeWage ? parseFloat(modalOvertimeWage) : undefined;
 
     if (!modalStatus) {
-      Alert.alert("Status Required", "Please select an attendance status.");
+      Alert.alert(t("attendance.statusRequired", "Status Required"), t("attendance.selectStatusDesc", "Please select an attendance status."));
       return;
     }
 
@@ -311,20 +311,20 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
     const advanceNum = modalAdvance ? parseFloat(modalAdvance) : 0;
     const otWageNum = modalOvertimeWage ? parseFloat(modalOvertimeWage) : 0;
 
-    let statusText = "Unmarked";
+    let statusText = t("attendance.unmarked", "Unmarked");
     let finalPay = 0;
 
     if (modalStatus === "P") {
-      statusText = "Present";
+      statusText = t.translateAttendanceStatus("PRESENT");
       finalPay = dailyRate + advanceNum + otWageNum;
     } else if (modalStatus === "A") {
-      statusText = "Absent";
+      statusText = t.translateAttendanceStatus("ABSENT");
       finalPay = 0;
     } else if (modalStatus === "H") {
-      statusText = "Half Day";
+      statusText = t.translateAttendanceStatus("HALF_DAY");
       finalPay = (dailyRate / 2) + advanceNum + otWageNum;
     } else if (modalStatus === "OT") {
-      statusText = "Overtime";
+      statusText = t.translateAttendanceStatus("OVERTIME");
       finalPay = dailyRate + advanceNum + otWageNum;
     }
 
@@ -341,7 +341,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
   const borderCol = colors.border;
   const bgInput = isDark ? "#0F172A" : "#F8FAFC";
 
-  const formattedDate = date.toLocaleDateString("en-US", {
+  const formattedDate = date.toLocaleDateString("en-IN", {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -370,13 +370,13 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
           <View style={[styles.detailsModalHeader, { borderBottomColor: borderCol }]}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.tapCellLabel, { color: colors.textSecondary }]}>
-                Tap cell to mark attendance
+                {t("attendance.tapCellDesc", "Tap cell to mark attendance")}
               </Text>
               <ThemedText style={styles.detailsModalTitle} numberOfLines={1}>
                 {worker?.name}
               </ThemedText>
               <Text style={[styles.detailsModalSub, { color: colors.textSecondary }]}>
-                Daily Rate: ₹{worker?.dailyRate ?? 0}  •  {formattedDate}
+                {t("workers.dailyWage", "Daily Rate")}: ₹{worker?.dailyRate ?? 0}  •  {formattedDate}
               </Text>
             </View>
             <Pressable onPress={handleDismiss} style={[styles.detailsCloseBtn, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
@@ -392,7 +392,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
           >
             {/* Attendance Status Section */}
             <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
-              ATTENDANCE STATUS
+              {(t.attendance?.status || "ATTENDANCE STATUS").toUpperCase()}
             </Text>
             <View style={styles.statusGrid}>
               {/* Present (P) */}
@@ -427,7 +427,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                   P
                 </Text>
                 <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>
-                  Present
+                  {t.translateAttendanceStatus("PRESENT")}
                 </Text>
               </Pressable>
 
@@ -463,7 +463,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                   A
                 </Text>
                 <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>
-                  Absent
+                  {t.translateAttendanceStatus("ABSENT")}
                 </Text>
               </Pressable>
 
@@ -499,7 +499,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                   1/2
                 </Text>
                 <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>
-                  Half Day
+                  {t.translateAttendanceStatus("HALF_DAY")}
                 </Text>
               </Pressable>
 
@@ -535,21 +535,21 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                   OT
                 </Text>
                 <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>
-                  Overtime
+                  {t.translateAttendanceStatus("OVERTIME")}
                 </Text>
               </Pressable>
             </View>
 
             {/* Advance Payment Section */}
             <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
-              ADVANCE PAYMENT
+              {(t.payment?.advance || "ADVANCE PAYMENT").toUpperCase()}
             </Text>
             <View style={styles.inputWrapper}>
               <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: bgInput }]}>
                 <Text style={[styles.currencyPrefix, { color: colors.textSecondary }]}>₹</Text>
                 <TextInput
                   keyboardType="numeric"
-                  placeholder="Advance amount (e.g. 500)"
+                  placeholder={t("payment.advancePlaceholder", "Advance amount (e.g. 500)")}
                   placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
                   style={[styles.modalInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
                   value={modalAdvance}
@@ -562,12 +562,12 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
             {modalStatus === "OT" && (
               <View style={styles.overtimeSection}>
                 <Text style={[styles.fieldLabel, { color: colors.overtimePurple }]}>
-                  OVERTIME CONFIGURATION
+                  {(t.attendance?.overtime || "OVERTIME CONFIGURATION").toUpperCase()}
                 </Text>
                 <View style={styles.wagesRow}>
                   {/* OT Hours */}
                   <View style={styles.inputWrapper}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>OT Hours</Text>
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t("attendance.otHours", "OT Hours")}</Text>
                     <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: bgInput }]}>
                       <TextInput
                         keyboardType="numeric"
@@ -582,7 +582,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
 
                   {/* OT Wage */}
                   <View style={styles.inputWrapper}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>OT Wage / Rate</Text>
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t("attendance.otWage", "OT Wage / Rate")}</Text>
                     <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: bgInput }]}>
                       <Text style={[styles.currencyPrefix, { color: colors.textSecondary }]}>₹</Text>
                       <TextInput
@@ -599,7 +599,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
 
                 {/* Multiplier configuration */}
                 <View style={{ marginTop: 12 }}>
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>OT Multiplier</Text>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t("attendance.otMultiplier", "OT Multiplier")}</Text>
                   <View style={styles.multiplierRow}>
                     <View style={[styles.multiplierBtn, styles.disabledBtn, { borderColor: borderCol }]}>
                       <Text style={[styles.multiplierText, { color: colors.textSecondary }]}>1X</Text>
@@ -608,7 +608,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                       <Text style={[styles.multiplierText, { color: colors.textSecondary }]}>2X</Text>
                     </View>
                     <Text style={styles.multiplierNotice}>
-                      Backend support is required for this field.
+                      {t("attendance.multiplierNotice", "Standard rate multiplier")}
                     </Text>
                   </View>
                 </View>
@@ -617,34 +617,34 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
 
             {/* Today's Summary Section */}
             <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
-              TODAY'S SUMMARY
+              {(t.summary?.title || "TODAY'S SUMMARY").toUpperCase()}
             </Text>
             <View style={[styles.summaryCard, { borderColor: borderCol, backgroundColor: isDark ? "#1E293B" : "#F8FAFC" }]}>
               <View style={styles.summaryItemRow}>
-                <Text style={[styles.summaryItemKey, { color: colors.textSecondary }]}>Status:</Text>
+                <Text style={[styles.summaryItemKey, { color: colors.textSecondary }]}>{t.attendance?.status || "Status"}:</Text>
                 <Text style={[styles.summaryItemVal, { color: isDark ? "#FFFFFF" : "#1E293B", fontWeight: "700" }]}>
                   {summary.status}
                 </Text>
               </View>
 
               <View style={styles.summaryItemRow}>
-                <Text style={[styles.summaryItemKey, { color: colors.textSecondary }]}>Daily Rate:</Text>
+                <Text style={[styles.summaryItemKey, { color: colors.textSecondary }]}>{t.workers?.dailyWage || "Daily Rate"}:</Text>
                 <Text style={[styles.summaryItemVal, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>
                   ₹{summary.dailyRate}
                 </Text>
               </View>
 
               <View style={styles.summaryItemRow}>
-                <Text style={[styles.summaryItemKey, { color: colors.textSecondary }]}>Advance:</Text>
+                <Text style={[styles.summaryItemKey, { color: colors.textSecondary }]}>{t.payment?.advance || "Advance"}:</Text>
                 <Text style={[styles.summaryItemVal, { color: summary.advance > 0 ? colors.amountBlue : colors.textSecondary }]}>
-                  {summary.advance > 0 ? `₹${summary.advance}` : "Not Applied"}
+                  {summary.advance > 0 ? `₹${summary.advance}` : t("common.notApplied", "Not Applied")}
                 </Text>
               </View>
 
               <View style={[styles.summaryDivider, { backgroundColor: borderCol }]} />
 
               <View style={styles.summaryItemRow}>
-                <Text style={[styles.finalPayKey, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>Final Today's Pay:</Text>
+                <Text style={[styles.finalPayKey, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>{t("attendance.finalPay", "Final Today's Pay")}:</Text>
                 <Text style={[styles.finalPayVal, { color: colors.presentGreen }]}>
                   ₹{summary.finalPay}
                 </Text>
@@ -653,13 +653,13 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
 
             {/* GPS / Location Section */}
             <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
-              GPS LOCATION
+              {(t.sites?.captureLocation || "GPS LOCATION").toUpperCase()}
             </Text>
             <View style={[styles.locationCard, { borderColor: borderCol, backgroundColor: isDark ? "#1E293B" : "#F8FAFC" }]}>
               <View style={styles.locationHeaderRow}>
                 <Ionicons name="location" size={18} color="#F97316" />
                 <Text style={[styles.locationTitle, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>
-                  📍 Capture Location
+                  📍 {t("sites.captureLocation", "Capture Location")}
                 </Text>
               </View>
 
@@ -667,7 +667,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                 <View style={styles.loadingWrapper}>
                   <ActivityIndicator size="small" color="#F97316" />
                   <Text style={[styles.locationDesc, { marginLeft: 8, color: colors.textSecondary }]}>
-                    Getting location coordinate...
+                    {t("sites.gettingLocation", "Getting location coordinates...")}
                   </Text>
                 </View>
               ) : (
@@ -683,7 +683,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                     </View>
                   ) : (
                     <Text style={[styles.locationDesc, { color: colors.textSecondary }]}>
-                      No location data captured yet.
+                      {t("sites.noLocationData", "No location data captured yet.")}
                     </Text>
                   )}
                 </View>
@@ -702,7 +702,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                 ]}
               >
                 <Text style={styles.captureBtnText}>
-                  {location ? "Refresh Location" : "Capture Location"}
+                  {location ? t("sites.refreshLocation", "Refresh Location") : t("sites.captureLocation", "Capture Location")}
                 </Text>
               </Pressable>
             </View>
@@ -718,7 +718,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                   { opacity: pressed ? 0.8 : 1 },
                 ]}
               >
-                <Text style={styles.clearBtnText}>Clear Attendance</Text>
+                <Text style={styles.clearBtnText}>{t("attendance.clearAttendance", "Clear Attendance")}</Text>
               </Pressable>
             )}
 
@@ -735,7 +735,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={styles.saveBtnText}>✓ Confirm / Save Attendance</Text>
+                <Text style={styles.saveBtnText}>✓ {t("attendance.confirmSave", "Confirm / Save Attendance")}</Text>
               </LinearGradient>
             </Pressable>
           </View>

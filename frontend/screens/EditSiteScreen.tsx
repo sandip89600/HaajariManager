@@ -19,6 +19,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
+import { useLanguage } from "@/hooks/useLanguage";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { storage, API_URL, authenticatedFetch, Site } from "@/utils/storage";
 
@@ -33,6 +34,7 @@ const STATUS_VALUES = ["Active", "Completed", "On Hold", "Delayed"];
 
 export default function EditSiteScreen() {
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { siteId } = route.params;
@@ -121,19 +123,19 @@ export default function EditSiteScreen() {
 
     // Validation
     if (!name.trim()) {
-      Alert.alert("Validation Error", "Site Name is required");
+      Alert.alert(t("common.error", "Validation Error"), t("sites.nameRequired", "Site Name is required"));
       return;
     }
     if (!projectType.trim()) {
-      Alert.alert("Validation Error", "Project Type is required");
+      Alert.alert(t("common.error", "Validation Error"), t("sites.projectTypeRequired", "Project Type is required"));
       return;
     }
     if (!address.trim()) {
-      Alert.alert("Validation Error", "Site Address is required");
+      Alert.alert(t("common.error", "Validation Error"), t("sites.addressRequired", "Site Address is required"));
       return;
     }
     if (!startDate.trim() || isNaN(Date.parse(startDate))) {
-      Alert.alert("Validation Error", "A valid Start Date is required (YYYY-MM-DD)");
+      Alert.alert(t("common.error", "Validation Error"), t("sites.startDateRequired", "A valid Start Date is required (YYYY-MM-DD)"));
       return;
     }
 
@@ -153,14 +155,14 @@ export default function EditSiteScreen() {
 
       const result = await storage.updateSite(siteId, payload);
       if (result) {
-        Alert.alert("Success", "Site details updated successfully", [
-          { text: "OK", onPress: () => navigation.goBack() }
+        Alert.alert(t("common.success", "Success"), t("sites.updateSuccess", "Site details updated successfully"), [
+          { text: t("common.ok", "OK"), onPress: () => navigation.goBack() }
         ]);
       } else {
-        Alert.alert("Error", "Failed to update site");
+        Alert.alert(t("common.error", "Error"), t("sites.updateError", "Failed to update site"));
       }
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to update site. Duplicate name could be the reason.");
+      Alert.alert(t("common.error", "Error"), t.translateError(e.message) || t("sites.updateError", "Failed to update site."));
     } finally {
       setIsSubmitting(false);
     }
@@ -182,13 +184,13 @@ export default function EditSiteScreen() {
           <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Feather name="arrow-left" size={24} color={theme.text} />
           </Pressable>
-          <ThemedText style={styles.headerTitle}>Edit Site</ThemedText>
+          <ThemedText style={styles.headerTitle}>{t("sites.editSite", "Edit Site")}</ThemedText>
         </View>
 
         <ScrollView contentContainerStyle={styles.formScroll}>
           {/* Site Name Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Site Name *</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.siteName", "Site Name")} *</ThemedText>
             <TextInput
               placeholder="e.g. Metro Heights Phase II"
               placeholderTextColor={theme.textSecondary}
@@ -200,7 +202,7 @@ export default function EditSiteScreen() {
 
           {/* Project Type Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Project Type *</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.projectType", "Project Type")} *</ThemedText>
             <TextInput
               placeholder="e.g. Residential, Infrastructure, Commercial"
               placeholderTextColor={theme.textSecondary}
@@ -212,9 +214,9 @@ export default function EditSiteScreen() {
 
           {/* Client Name Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Client Name</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.clientName", "Client Name")}</ThemedText>
             <TextInput
-              placeholder="e.g. DLF Builders Pvt. Ltd. (optional)"
+              placeholder="e.g. DLF Builders Pvt. Ltd."
               placeholderTextColor={theme.textSecondary}
               value={clientName}
               onChangeText={setClientName}
@@ -224,7 +226,7 @@ export default function EditSiteScreen() {
 
           {/* Site Status Selection */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Site Status *</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.status", "Site Status")} *</ThemedText>
             <Pressable
               onPress={() => {
                 triggerHaptic();
@@ -232,14 +234,14 @@ export default function EditSiteScreen() {
               }}
               style={[styles.pickerBtn, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
             >
-              <ThemedText style={{ color: theme.text }}>{status}</ThemedText>
+              <ThemedText style={{ color: theme.text }}>{t.translateSiteStatus(status)}</ThemedText>
               <Feather name="chevron-down" size={18} color={theme.textSecondary} />
             </Pressable>
           </View>
 
           {/* Site Address Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Site Address *</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.address", "Site Address")} *</ThemedText>
             <TextInput
               placeholder="e.g. Sector 62, Gurgaon, Haryana"
               placeholderTextColor={theme.textSecondary}
@@ -253,7 +255,7 @@ export default function EditSiteScreen() {
 
           {/* Start Date Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Start Date * (YYYY-MM-DD)</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.startDate", "Start Date")} * (YYYY-MM-DD)</ThemedText>
             <TextInput
               placeholder="YYYY-MM-DD"
               placeholderTextColor={theme.textSecondary}
@@ -265,7 +267,7 @@ export default function EditSiteScreen() {
 
           {/* Supervisor Picker Selection */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Site Supervisor</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.supervisor", "Site Supervisor")}</ThemedText>
             <Pressable
               onPress={() => {
                 triggerHaptic();
@@ -274,7 +276,7 @@ export default function EditSiteScreen() {
               style={[styles.pickerBtn, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
             >
               <ThemedText style={{ color: selectedSupervisor ? theme.text : theme.textSecondary }}>
-                {selectedSupervisor ? selectedSupervisor.name : "Select Supervisor (optional)"}
+                {selectedSupervisor ? selectedSupervisor.name : t("sites.selectSupervisor", "Select Supervisor (optional)")}
               </ThemedText>
               <Feather name="chevron-down" size={18} color={theme.textSecondary} />
             </Pressable>
@@ -282,7 +284,7 @@ export default function EditSiteScreen() {
 
           {/* Description Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Description</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.description", "Description")}</ThemedText>
             <TextInput
               placeholder="Additional site notes or scope description..."
               placeholderTextColor={theme.textSecondary}
@@ -305,7 +307,7 @@ export default function EditSiteScreen() {
             <View style={[styles.checkbox, { borderColor: theme.border, backgroundColor: isArchived ? theme.primary : "transparent" }]}>
               {isArchived && <Feather name="check" size={12} color="#FFFFFF" />}
             </View>
-            <ThemedText style={{ fontSize: 14 }}>Archive this site (hides from active lists)</ThemedText>
+            <ThemedText style={{ fontSize: 14 }}>{t("sites.archiveSiteDesc", "Archive this site (hides from active lists)")}</ThemedText>
           </Pressable>
 
           {/* Update Button */}
@@ -317,7 +319,7 @@ export default function EditSiteScreen() {
             {isSubmitting ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <ThemedText style={styles.saveBtnText}>Update Site Configuration</ThemedText>
+              <ThemedText style={styles.saveBtnText}>{t("sites.updateSite", "Update Site Configuration")}</ThemedText>
             )}
           </Pressable>
         </ScrollView>
@@ -327,7 +329,7 @@ export default function EditSiteScreen() {
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}>
               <View style={styles.modalHeader}>
-                <ThemedText style={styles.modalTitle}>Choose Supervisor</ThemedText>
+                <ThemedText style={styles.modalTitle}>{t("sites.chooseSupervisor", "Choose Supervisor")}</ThemedText>
                 <Pressable onPress={() => setShowSupervisorModal(false)}>
                   <Feather name="x" size={20} color={theme.text} />
                 </Pressable>
@@ -358,7 +360,7 @@ export default function EditSiteScreen() {
                   )}
                   ListEmptyComponent={() => (
                     <View style={{ paddingVertical: 40, alignItems: "center" }}>
-                      <ThemedText style={{ opacity: 0.6 }}>No Supervisors Registered</ThemedText>
+                      <ThemedText style={{ opacity: 0.6 }}>{t("supervisors.noSupervisors", "No supervisors found.")}</ThemedText>
                     </View>
                   )}
                 />
@@ -371,7 +373,7 @@ export default function EditSiteScreen() {
         <Modal visible={showStatusModal} transparent animationType="slide" onRequestClose={() => setShowStatusModal(false)}>
           <Pressable style={styles.modalOverlay} onPress={() => setShowStatusModal(false)}>
             <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 }]}>
-              <ThemedText style={[styles.modalTitle, { marginBottom: 12 }]}>Change Status</ThemedText>
+              <ThemedText style={[styles.modalTitle, { marginBottom: 12 }]}>{t("sites.changeStatus", "Change Status")}</ThemedText>
               {STATUS_VALUES.map((val) => (
                 <Pressable
                   key={val}
@@ -383,7 +385,7 @@ export default function EditSiteScreen() {
                   style={styles.modalOpt}
                 >
                   <ThemedText style={{ fontWeight: status === val ? "700" : "400", color: status === val ? theme.primary : theme.text }}>
-                    {val}
+                    {t.translateSiteStatus(val)}
                   </ThemedText>
                   {status === val && <Feather name="check" size={16} color={theme.primary} />}
                 </Pressable>

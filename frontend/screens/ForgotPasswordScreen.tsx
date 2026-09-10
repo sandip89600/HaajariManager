@@ -23,6 +23,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
+import { useLanguage } from "@/hooks/useLanguage";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootNavigatorParamList } from "@/navigation/RootNavigator";
 import { API_URL } from "@/utils/storage";
@@ -38,6 +39,7 @@ type RecoveryStep = "PHONE_INPUT" | "OTP_INPUT" | "NEW_PASSWORD";
 
 export default function ForgotPasswordScreen() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<ForgotPasswordNavigationProp>();
   const insets = useSafeAreaInsets();
 
@@ -364,18 +366,18 @@ export default function ForgotPasswordScreen() {
 
           <ThemedText style={styles.title}>
             {step === "PHONE_INPUT"
-              ? "Find Your Account"
+              ? t("auth.forgotPassword", "Find Your Account")
               : step === "OTP_INPUT"
-              ? "Enter 6-Digit Code"
-              : "Choose a New Password"}
+              ? t("auth.enterOtp", "Enter 6-Digit Code")
+              : t("auth.newPassword", "Choose a New Password")}
           </ThemedText>
 
           <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
             {step === "PHONE_INPUT"
-              ? "Enter your mobile number linked to your Haajari account to receive a 6-digit recovery code."
+              ? t("auth.forgotPasswordDesc", "Enter your mobile number linked to your Haajari account to receive a 6-digit recovery code.")
               : step === "OTP_INPUT"
-              ? `We sent a 6-digit verification code to +91 ${phone}.`
-              : "Create a new password that is at least 8 characters long with numbers and special symbols."}
+              ? `${t("auth.otpSentTo", "We sent a 6-digit verification code to")} +91 ${phone}.`
+              : t("auth.passwordRequirementsDesc", "Create a new password that is at least 8 characters long with numbers and special symbols.")}
           </ThemedText>
         </View>
 
@@ -391,7 +393,7 @@ export default function ForgotPasswordScreen() {
         {step === "PHONE_INPUT" && (
           <View style={styles.formContainer}>
             <View style={styles.inputContainer}>
-              <ThemedText style={styles.inputLabel}>Registered Mobile Number</ThemedText>
+              <ThemedText style={styles.inputLabel}>{t("auth.registeredPhone", "Registered Mobile Number")}</ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -406,11 +408,11 @@ export default function ForgotPasswordScreen() {
                 </View>
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Enter 10-digit mobile number"
+                  placeholder={t("auth.phonePlaceholder", "Enter 10-digit mobile number")}
                   placeholderTextColor={theme.textSecondary}
                   value={phone}
-                  onChangeText={(t) => {
-                    setPhone(t.replace(/[^0-9]/g, ""));
+                  onChangeText={(tVal) => {
+                    setPhone(tVal.replace(/[^0-9]/g, ""));
                     setError(null);
                   }}
                   keyboardType="phone-pad"
@@ -434,11 +436,11 @@ export default function ForgotPasswordScreen() {
               {isLoading ? (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <ActivityIndicator size="small" color="#FFFFFF" />
-                  <ThemedText style={styles.submitButtonText}>Searching Account...</ThemedText>
+                  <ThemedText style={styles.submitButtonText}>{t("auth.searchingAccount", "Searching Account...")}</ThemedText>
                 </View>
               ) : (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <ThemedText style={styles.submitButtonText}>Send Recovery Code</ThemedText>
+                  <ThemedText style={styles.submitButtonText}>{t("auth.sendRecoveryCode", "Send Recovery Code")}</ThemedText>
                   <Feather name="arrow-right" size={18} color="#FFFFFF" />
                 </View>
               )}
@@ -479,12 +481,12 @@ export default function ForgotPasswordScreen() {
             <View style={styles.resendRow}>
               {cooldown > 0 ? (
                 <ThemedText style={[styles.cooldownText, { color: theme.textSecondary }]}>
-                  Resend code in <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>{cooldown}s</ThemedText>
+                  {t("auth.resendOtpIn", "Resend code in")} <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>{cooldown}s</ThemedText>
                 </ThemedText>
               ) : (
                 <Pressable onPress={handleResendCode} disabled={isLoading}>
                   <ThemedText style={[styles.resendLink, { color: theme.primary }]}>
-                    Resend Code
+                    {t("auth.resendOtp", "Resend Code")}
                   </ThemedText>
                 </Pressable>
               )}
@@ -504,11 +506,11 @@ export default function ForgotPasswordScreen() {
               {isLoading ? (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <ActivityIndicator size="small" color="#FFFFFF" />
-                  <ThemedText style={styles.submitButtonText}>Verifying Code...</ThemedText>
+                  <ThemedText style={styles.submitButtonText}>{t("auth.verifyingOtp", "Verifying Code...")}</ThemedText>
                 </View>
               ) : (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <ThemedText style={styles.submitButtonText}>Continue</ThemedText>
+                  <ThemedText style={styles.submitButtonText}>{t("common.continue", "Continue")}</ThemedText>
                   <Feather name="check" size={18} color="#FFFFFF" />
                 </View>
               )}
@@ -530,7 +532,7 @@ export default function ForgotPasswordScreen() {
 
             {/* New Password */}
             <View style={styles.inputContainer}>
-              <ThemedText style={styles.inputLabel}>New Password</ThemedText>
+              <ThemedText style={styles.inputLabel}>{t("auth.newPassword", "New Password")}</ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -543,11 +545,11 @@ export default function ForgotPasswordScreen() {
                 <Feather name="lock" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Enter new password"
+                  placeholder={t("auth.newPasswordPlaceholder", "Enter new password")}
                   placeholderTextColor={theme.textSecondary}
                   value={newPassword}
-                  onChangeText={(t) => {
-                    setNewPassword(t);
+                  onChangeText={(tVal) => {
+                    setNewPassword(tVal);
                     setError(null);
                   }}
                   secureTextEntry={!showPassword}
@@ -562,7 +564,7 @@ export default function ForgotPasswordScreen() {
 
             {/* Confirm Password */}
             <View style={styles.inputContainer}>
-              <ThemedText style={styles.inputLabel}>Confirm New Password</ThemedText>
+              <ThemedText style={styles.inputLabel}>{t("auth.confirmPassword", "Confirm New Password")}</ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -575,11 +577,11 @@ export default function ForgotPasswordScreen() {
                 <Feather name="check-circle" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Re-enter new password"
+                  placeholder={t("auth.confirmPasswordPlaceholder", "Re-enter new password")}
                   placeholderTextColor={theme.textSecondary}
                   value={confirmPassword}
-                  onChangeText={(t) => {
-                    setConfirmPassword(t);
+                  onChangeText={(tVal) => {
+                    setConfirmPassword(tVal);
                     setError(null);
                   }}
                   secureTextEntry={!showConfirmPassword}
@@ -597,37 +599,37 @@ export default function ForgotPasswordScreen() {
               <View style={styles.reqItem}>
                 <Feather name={isMinLength ? "check-circle" : "circle"} size={14} color={isMinLength ? "#22C55E" : theme.textSecondary} />
                 <ThemedText style={[styles.reqText, { color: isMinLength ? "#22C55E" : theme.textSecondary }]}>
-                  Minimum 8 characters
+                  {t("auth.min8Chars", "Minimum 8 characters")}
                 </ThemedText>
               </View>
               <View style={styles.reqItem}>
                 <Feather name={hasUppercase ? "check-circle" : "circle"} size={14} color={hasUppercase ? "#22C55E" : theme.textSecondary} />
                 <ThemedText style={[styles.reqText, { color: hasUppercase ? "#22C55E" : theme.textSecondary }]}>
-                  At least one uppercase letter (A-Z)
+                  {t("auth.uppercaseReq", "At least one uppercase letter (A-Z)")}
                 </ThemedText>
               </View>
               <View style={styles.reqItem}>
                 <Feather name={hasLowercase ? "check-circle" : "circle"} size={14} color={hasLowercase ? "#22C55E" : theme.textSecondary} />
                 <ThemedText style={[styles.reqText, { color: hasLowercase ? "#22C55E" : theme.textSecondary }]}>
-                  At least one lowercase letter (a-z)
+                  {t("auth.lowercaseReq", "At least one lowercase letter (a-z)")}
                 </ThemedText>
               </View>
               <View style={styles.reqItem}>
                 <Feather name={hasNumber ? "check-circle" : "circle"} size={14} color={hasNumber ? "#22C55E" : theme.textSecondary} />
                 <ThemedText style={[styles.reqText, { color: hasNumber ? "#22C55E" : theme.textSecondary }]}>
-                  At least one number (0-9)
+                  {t("auth.numberReq", "At least one number (0-9)")}
                 </ThemedText>
               </View>
               <View style={styles.reqItem}>
                 <Feather name={hasSpecial ? "check-circle" : "circle"} size={14} color={hasSpecial ? "#22C55E" : theme.textSecondary} />
                 <ThemedText style={[styles.reqText, { color: hasSpecial ? "#22C55E" : theme.textSecondary }]}>
-                  At least one special character (!@#$%)
+                  {t("auth.specialCharReq", "At least one special character (!@#$%)")}
                 </ThemedText>
               </View>
               <View style={styles.reqItem}>
                 <Feather name={isMatching ? "check-circle" : "circle"} size={14} color={isMatching ? "#22C55E" : theme.textSecondary} />
                 <ThemedText style={[styles.reqText, { color: isMatching ? "#22C55E" : theme.textSecondary }]}>
-                  Passwords match
+                  {t("auth.passwordsMatch", "Passwords match")}
                 </ThemedText>
               </View>
             </View>
@@ -646,10 +648,13 @@ export default function ForgotPasswordScreen() {
               {isLoading ? (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <ActivityIndicator size="small" color="#FFFFFF" />
-                  <ThemedText style={styles.submitButtonText}>Saving Password...</ThemedText>
+                  <ThemedText style={styles.submitButtonText}>{t("auth.resettingPassword", "Resetting Password...")}</ThemedText>
                 </View>
               ) : (
-                <ThemedText style={styles.submitButtonText}>Save New Password</ThemedText>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <ThemedText style={styles.submitButtonText}>{t("auth.resetPassword", "Reset Password")}</ThemedText>
+                  <Feather name="check" size={18} color="#FFFFFF" />
+                </View>
               )}
             </AnimatedPressable>
           </View>

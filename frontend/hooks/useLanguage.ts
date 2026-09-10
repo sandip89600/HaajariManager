@@ -5,12 +5,12 @@ import {
   createContext,
   useContext,
 } from "react";
-import { Language, getTranslation, TranslationKeys } from "@/constants/i18n";
+import { Language, getTranslation, TranslationApi } from "@/constants/i18n";
 import { storage } from "@/utils/storage";
 
 interface LanguageContextType {
   language: Language;
-  t: TranslationKeys;
+  t: TranslationApi;
   setLanguage: (lang: Language) => Promise<void>;
   isLoading: boolean;
 }
@@ -18,7 +18,7 @@ interface LanguageContextType {
 export const LanguageContext = createContext<LanguageContextType | null>(null);
 
 export function useLanguageProvider() {
-  const [language, setLanguageState] = useState<Language>("en");
+  const [language, setLanguageState] = useState<Language>("hi");
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {

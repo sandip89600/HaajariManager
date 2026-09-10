@@ -19,6 +19,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
+import { useLanguage } from "@/hooks/useLanguage";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { storage, API_URL, authenticatedFetch } from "@/utils/storage";
 import LimitReachedModal from "@/components/ui/LimitReachedModal";
@@ -33,6 +34,7 @@ interface Supervisor {
 
 export default function CreateSiteScreen() {
   const { theme, isDark } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
 
   // Form States
@@ -80,19 +82,19 @@ export default function CreateSiteScreen() {
 
     // Validation
     if (!name.trim()) {
-      Alert.alert("Validation Error", "Site Name is required");
+      Alert.alert(t("common.error", "Validation Error"), t("sites.nameRequired", "Site Name is required"));
       return;
     }
     if (!projectType.trim()) {
-      Alert.alert("Validation Error", "Project Type is required");
+      Alert.alert(t("common.error", "Validation Error"), t("sites.projectTypeRequired", "Project Type is required"));
       return;
     }
     if (!address.trim()) {
-      Alert.alert("Validation Error", "Site Address is required");
+      Alert.alert(t("common.error", "Validation Error"), t("sites.addressRequired", "Site Address is required"));
       return;
     }
     if (!startDate.trim() || isNaN(Date.parse(startDate))) {
-      Alert.alert("Validation Error", "A valid Start Date is required (YYYY-MM-DD)");
+      Alert.alert(t("common.error", "Validation Error"), t("sites.startDateRequired", "A valid Start Date is required (YYYY-MM-DD)"));
       return;
     }
 
@@ -111,17 +113,17 @@ export default function CreateSiteScreen() {
 
       const result = await storage.createSite(payload);
       if (result) {
-        Alert.alert("Success", "Site created successfully", [
-          { text: "OK", onPress: () => navigation.goBack() }
+        Alert.alert(t("common.success", "Success"), t("sites.createSuccess", "Site created successfully"), [
+          { text: t("common.ok", "OK"), onPress: () => navigation.goBack() }
         ]);
       } else {
-        Alert.alert("Error", "Failed to create site");
+        Alert.alert(t("common.error", "Error"), t("sites.createError", "Failed to create site"));
       }
     } catch (e: any) {
       if (e.message?.includes("LIMIT_EXCEEDED_PROJECTS") || e.message?.toLowerCase().includes("limit reached")) {
         setLimitModalVisible(true);
       } else {
-        Alert.alert("Error", e.message || "Failed to create site due to duplicate name or database issue.");
+        Alert.alert(t("common.error", "Error"), t.translateError(e.message) || t("sites.createError", "Failed to create site"));
       }
     } finally {
       setIsSubmitting(false);
@@ -139,18 +141,18 @@ export default function CreateSiteScreen() {
           <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Feather name="arrow-left" size={24} color={theme.text} />
           </Pressable>
-          <ThemedText style={styles.headerTitle}>Create Site</ThemedText>
+          <ThemedText style={styles.headerTitle}>{t("sites.addSite", "Create Site")}</ThemedText>
         </View>
 
         <ScrollView contentContainerStyle={styles.formScroll}>
           <ContextualTooltip
             tooltipKey="create_site"
-            title="Create Site"
+            title={t("sites.addSite", "Create Site")}
             description="Setup supervisor assignment, address data, and name details. This registers the site on the system."
           />
           {/* Site Name Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Site Name *</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.siteName", "Site Name")} *</ThemedText>
             <TextInput
               placeholder="e.g. Metro Heights Phase II"
               placeholderTextColor={theme.textSecondary}
@@ -162,7 +164,7 @@ export default function CreateSiteScreen() {
 
           {/* Project Type Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Project Type *</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.projectType", "Project Type")} *</ThemedText>
             <TextInput
               placeholder="e.g. Residential, Infrastructure, Commercial"
               placeholderTextColor={theme.textSecondary}
@@ -174,9 +176,9 @@ export default function CreateSiteScreen() {
 
           {/* Client Name Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Client Name</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.clientName", "Client Name")}</ThemedText>
             <TextInput
-              placeholder="e.g. DLF Builders Pvt. Ltd. (optional)"
+              placeholder="e.g. DLF Builders Pvt. Ltd."
               placeholderTextColor={theme.textSecondary}
               value={clientName}
               onChangeText={setClientName}
@@ -186,7 +188,7 @@ export default function CreateSiteScreen() {
 
           {/* Site Address Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Site Address *</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.address", "Site Address")} *</ThemedText>
             <TextInput
               placeholder="e.g. Sector 62, Gurgaon, Haryana"
               placeholderTextColor={theme.textSecondary}
@@ -200,7 +202,7 @@ export default function CreateSiteScreen() {
 
           {/* Start Date Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Start Date * (YYYY-MM-DD)</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.startDate", "Start Date")} * (YYYY-MM-DD)</ThemedText>
             <TextInput
               placeholder="YYYY-MM-DD"
               placeholderTextColor={theme.textSecondary}
@@ -212,7 +214,7 @@ export default function CreateSiteScreen() {
 
           {/* Supervisor Picker Selection */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Site Supervisor</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.supervisor", "Site Supervisor")}</ThemedText>
             <Pressable
               onPress={() => {
                 triggerHaptic();
@@ -221,7 +223,7 @@ export default function CreateSiteScreen() {
               style={[styles.pickerBtn, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
             >
               <ThemedText style={{ color: selectedSupervisor ? theme.text : theme.textSecondary }}>
-                {selectedSupervisor ? selectedSupervisor.name : "Select Supervisor (optional)"}
+                {selectedSupervisor ? selectedSupervisor.name : t("sites.selectSupervisor", "Select Supervisor (optional)")}
               </ThemedText>
               <Feather name="chevron-down" size={18} color={theme.textSecondary} />
             </Pressable>
@@ -229,7 +231,7 @@ export default function CreateSiteScreen() {
 
           {/* Description Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Description</ThemedText>
+            <ThemedText style={styles.label}>{t("sites.description", "Description")}</ThemedText>
             <TextInput
               placeholder="Additional site notes or scope description..."
               placeholderTextColor={theme.textSecondary}
@@ -250,7 +252,7 @@ export default function CreateSiteScreen() {
             {isSubmitting ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <ThemedText style={styles.saveBtnText}>Create Site</ThemedText>
+              <ThemedText style={styles.saveBtnText}>{t("sites.addSite", "Create Site")}</ThemedText>
             )}
           </Pressable>
         </ScrollView>

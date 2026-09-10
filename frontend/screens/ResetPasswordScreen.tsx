@@ -23,6 +23,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
+import { useLanguage } from "@/hooks/useLanguage";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootNavigatorParamList } from "@/navigation/RootNavigator";
 import { API_URL } from "@/utils/storage";
@@ -41,6 +42,7 @@ type ResetPasswordRouteProp = RouteProp<
 
 export default function ResetPasswordScreen() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<ResetPasswordNavigationProp>();
   const route = useRoute<ResetPasswordRouteProp>();
   const insets = useSafeAreaInsets();
@@ -154,9 +156,9 @@ export default function ResetPasswordScreen() {
           >
             <Feather name="arrow-left" size={22} color={theme.text} />
           </Pressable>
-          <ThemedText style={styles.title}>Reset Password</ThemedText>
+          <ThemedText style={styles.title}>{t("auth.resetPassword", "Reset Password")}</ThemedText>
           <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-            Enter your new secure password below to regain account access
+            {t("auth.resetPasswordDesc", "Enter your new secure password below to regain account access")}
           </ThemedText>
         </View>
 
@@ -169,7 +171,7 @@ export default function ResetPasswordScreen() {
 
         {/* New Password */}
         <View style={styles.inputContainer}>
-          <ThemedText style={styles.inputLabel}>New Password</ThemedText>
+          <ThemedText style={styles.inputLabel}>{t("auth.newPassword", "New Password")}</ThemedText>
           <View
             style={[
               styles.inputWrapper,
@@ -187,11 +189,11 @@ export default function ResetPasswordScreen() {
             />
             <TextInput
               style={[styles.input, { color: theme.text }]}
-              placeholder="At least 8 characters"
+              placeholder={t("auth.min8Chars", "At least 8 characters")}
               placeholderTextColor={theme.textSecondary}
               value={password}
-              onChangeText={(t) => {
-                setPassword(t);
+              onChangeText={(tVal) => {
+                setPassword(tVal);
                 setError(null);
               }}
               secureTextEntry={!showPassword}
@@ -224,7 +226,7 @@ export default function ResetPasswordScreen() {
                     { color: isMinLength ? "#22C55E" : theme.textSecondary },
                   ]}
                 >
-                  Minimum 8 characters
+                  {t("auth.min8Chars", "Minimum 8 characters")}
                 </ThemedText>
               </View>
 
@@ -240,7 +242,7 @@ export default function ResetPasswordScreen() {
                     { color: hasUppercase ? "#22C55E" : theme.textSecondary },
                   ]}
                 >
-                  One uppercase letter
+                  {t("auth.uppercaseReq", "One uppercase letter")}
                 </ThemedText>
               </View>
 
@@ -256,7 +258,7 @@ export default function ResetPasswordScreen() {
                     { color: hasLowercase ? "#22C55E" : theme.textSecondary },
                   ]}
                 >
-                  One lowercase letter
+                  {t("auth.lowercaseReq", "One lowercase letter")}
                 </ThemedText>
               </View>
 
@@ -272,7 +274,7 @@ export default function ResetPasswordScreen() {
                     { color: hasNumber ? "#22C55E" : theme.textSecondary },
                   ]}
                 >
-                  One number
+                  {t("auth.numberReq", "One number")}
                 </ThemedText>
               </View>
 
@@ -288,7 +290,7 @@ export default function ResetPasswordScreen() {
                     { color: hasSpecial ? "#22C55E" : theme.textSecondary },
                   ]}
                 >
-                  One special character
+                  {t("auth.specialCharReq", "One special character")}
                 </ThemedText>
               </View>
             </View>
@@ -297,7 +299,7 @@ export default function ResetPasswordScreen() {
 
         {/* Confirm Password */}
         <View style={styles.inputContainer}>
-          <ThemedText style={styles.inputLabel}>Confirm New Password</ThemedText>
+          <ThemedText style={styles.inputLabel}>{t("auth.confirmPassword", "Confirm New Password")}</ThemedText>
           <View
             style={[
               styles.inputWrapper,
@@ -316,11 +318,11 @@ export default function ResetPasswordScreen() {
             />
             <TextInput
               style={[styles.input, { color: theme.text }]}
-              placeholder="Confirm your password"
+              placeholder={t("auth.confirmPasswordPlaceholder", "Confirm your password")}
               placeholderTextColor={theme.textSecondary}
               value={confirmPassword}
-              onChangeText={(t) => {
-                setConfirmPassword(t);
+              onChangeText={(tVal) => {
+                setConfirmPassword(tVal);
                 setError(null);
               }}
               secureTextEntry={!showConfirmPassword}
@@ -339,7 +341,7 @@ export default function ResetPasswordScreen() {
           </View>
           {confirmPassword.length > 0 && !isMatching && (
             <ThemedText style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>
-              Passwords do not match
+              {t("auth.passwordsDoNotMatch", "Passwords do not match")}
             </ThemedText>
           )}
         </View>
@@ -361,7 +363,7 @@ export default function ResetPasswordScreen() {
           {isLoading ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <ThemedText style={styles.submitButtonText}>Set New Password</ThemedText>
+            <ThemedText style={styles.submitButtonText}>{t("auth.resetPassword", "Set New Password")}</ThemedText>
           )}
         </AnimatedPressable>
       </ScrollContainer>

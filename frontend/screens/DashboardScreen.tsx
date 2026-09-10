@@ -564,11 +564,11 @@ export default function DashboardScreen() {
                 style={styles.nudgeBadge}
               >
                 <ThemedText style={styles.nudgeBadgeText}>
-                  {currentPlan === "free" || currentPlan === "basic" ? "Basic Plan" : currentPlan === "professional" || currentPlan === "super" ? "Super Plan" : "Premium Plan"}
+                  {currentPlan === "free" || currentPlan === "basic" ? t("settings.basicPlan", "Basic Plan") : currentPlan === "professional" || currentPlan === "super" ? t("settings.superPlan", "Super Plan") : t("settings.premiumPlan", "Premium Plan")}
                 </ThemedText>
                 <View style={styles.nudgeDivider} />
                 <ThemedText style={styles.nudgeBadgeText}>
-                  {workersList.length} / {currentPlan === "free" || currentPlan === "basic" ? 20 : currentPlan === "professional" || currentPlan === "super" ? 100 : "Unlimited"} Used
+                  {workersList.length} / {currentPlan === "free" || currentPlan === "basic" ? 20 : currentPlan === "professional" || currentPlan === "super" ? 100 : t("common.unlimited", "Unlimited")} {t("dashboard.used", "Used")}
                 </ThemedText>
                 <Feather name="arrow-right" size={10} color="#FFFFFF" style={{ marginLeft: 4 }} />
               </Pressable>
@@ -586,7 +586,7 @@ export default function DashboardScreen() {
                 style={styles.premiumBadgeBtn}
               >
                 <Ionicons name="sparkles" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
-                <ThemedText style={styles.premiumBadgeBtnText}>Upgrade</ThemedText>
+                <ThemedText style={styles.premiumBadgeBtnText}>{t.settings?.upgradePlan || "Upgrade"}</ThemedText>
               </Pressable>
             </View>
           )}
@@ -596,7 +596,7 @@ export default function DashboardScreen() {
         <View style={[styles.streakBadge, { backgroundColor: isDark ? "#334155" : "rgba(255,255,255,0.2)" }]}>
           <Feather name="zap" size={14} color="#F97316" />
           <ThemedText style={[styles.streakText, { color: "#FFFFFF" }]}>
-            {streakCount} day streak
+            {streakCount} {t("dashboard.dayStreak", "day streak")}
           </ThemedText>
         </View>
       </LinearGradient>
@@ -628,20 +628,20 @@ export default function DashboardScreen() {
             </View>
             <View style={styles.topSiteStatusBadge}>
               <View style={styles.activeDot} />
-              <Text style={styles.activeStatusText}>{activeSite ? "Active" : "Live"}</Text>
+              <Text style={styles.activeStatusText}>{activeSite ? t.translateSiteStatus("ACTIVE") : t.translateSiteStatus("ACTIVE")}</Text>
             </View>
           </View>
           <View style={[styles.supervisorRow, { borderTopColor: borderColor }]}>
             <Feather name="user-check" size={14} color="#F97316" style={{ marginRight: 6 }} />
             <Text style={[styles.supervisorLabel, { color: isDark ? "#CBD5E1" : theme.textSecondary }]}>
-              Supervisor: <Text style={{ fontWeight: "700", color: isDark ? "#FFFFFF" : "#0F172A" }}>{
+              {t.sites?.supervisor || "Supervisor"}: <Text style={{ fontWeight: "700", color: isDark ? "#FFFFFF" : "#0F172A" }}>{
                 typeof (activeSite as any)?.supervisor === "object" && (activeSite as any)?.supervisor?.name
                   ? (activeSite as any).supervisor.name
                   : typeof (activeSite as any)?.supervisor === "string" && (activeSite as any).supervisor.trim().length > 0
                   ? (activeSite as any).supervisor
                   : (activeSite as any)?.supervisorName
                   ? (activeSite as any).supervisorName
-                  : "Not Assigned"
+                  : t("supervisor.notAssigned", "Not Assigned")
               }</Text>
             </Text>
           </View>
@@ -685,10 +685,10 @@ export default function DashboardScreen() {
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <ThemedText style={[styles.launcherTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
-                  📅 Attendance Grid
+                  📅 {t.dashboard?.attendanceGrid || "Attendance Grid"}
                 </ThemedText>
                 <ThemedText style={[styles.launcherSubtitle, { color: isDark ? "#94A3B8" : "#92400E" }]}>
-                  View worker attendance by date
+                  {t("dashboard.viewAttendanceByDate", "View worker attendance by date")}
                 </ThemedText>
               </View>
               <Feather name="chevron-right" size={20} color="#F97316" />
@@ -750,22 +750,22 @@ export default function DashboardScreen() {
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <ThemedText style={[styles.siteCardTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]} numberOfLines={1}>{activeSite.name}</ThemedText>
                 <ThemedText style={[styles.siteCardLocation, { color: isDark ? "#94A3B8" : theme.textSecondary }]} numberOfLines={1}>
-                  {activeSite.location || "Default Location"}
+                  {activeSite.location || t("sites.defaultLocation", "Default Location")}
                 </ThemedText>
               </View>
-              <Badge label="Active" variant="success" />
+              <Badge label={t.translateSiteStatus("ACTIVE")} variant="success" />
             </View>
 
             <View style={styles.siteCardStats}>
               <Feather name="users" size={14} color={isDark ? "#94A3B8" : theme.textSecondary} style={{ marginRight: 6 }} />
               <ThemedText style={{ color: isDark ? "#CBD5E1" : theme.textSecondary, fontSize: 13 }}>
-                {siteStats.workersPresent}/{siteStats.totalWorkers} workers on site
+                {siteStats.workersPresent}/{siteStats.totalWorkers} {t("dashboard.workersOnSite", "workers on site")}
               </ThemedText>
             </View>
 
             <View style={styles.siteCardActions}>
               <PrimaryButton
-                label="Mark Attendance"
+                label={t.dashboard?.markAttendance || "Mark Attendance"}
                 onPress={() => { triggerHaptic(); navigation.navigate("AttendanceDetail"); }}
                 size="sm"
                 style={{ flex: 1 }}
@@ -775,7 +775,7 @@ export default function DashboardScreen() {
                 style={[styles.siteActionOutlineBtn, { borderColor }]}
               >
                 <Feather name="external-link" size={14} color={isDark ? "#FFFFFF" : theme.text} style={{ marginRight: 6 }} />
-                <ThemedText style={{ color: isDark ? "#FFFFFF" : theme.text, fontSize: 13, fontWeight: "600" }}>Manage</ThemedText>
+                <ThemedText style={{ color: isDark ? "#FFFFFF" : theme.text, fontSize: 13, fontWeight: "600" }}>{t("common.manage", "Manage")}</ThemedText>
               </Pressable>
             </View>
           </Animated.View>
@@ -790,9 +790,9 @@ export default function DashboardScreen() {
         >
           <View style={styles.sectionCardHeader}>
             <View style={{ flex: 1 }}>
-              <ThemedText style={[styles.sectionTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>Today's Attendance Log</ThemedText>
+              <ThemedText style={[styles.sectionTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>{t.dashboard?.attendanceLog || "Today's Attendance Log"}</ThemedText>
               <ThemedText style={[styles.sectionSubtitle, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>
-                Tap row to mark, hold for options.
+                {t("dashboard.tapToMarkHoldForOptions", "Tap row to mark, hold for options.")}
               </ThemedText>
             </View>
             <Pressable
@@ -800,7 +800,7 @@ export default function DashboardScreen() {
               style={[styles.viewAllBtn, { backgroundColor: theme.primary + "15" }]}
             >
               <Feather name="check" size={14} color={theme.primary} />
-              <ThemedText style={[styles.viewAllText, { color: theme.primary, marginLeft: 4 }]}>All Present</ThemedText>
+              <ThemedText style={[styles.viewAllText, { color: theme.primary, marginLeft: 4 }]}>{t("dashboard.allPresent", "All Present")}</ThemedText>
             </Pressable>
           </View>
 
@@ -808,7 +808,7 @@ export default function DashboardScreen() {
             <View style={styles.emptyWorkersLog}>
               <Feather name="users" size={24} color={isDark ? "#94A3B8" : theme.textSecondary} style={{ marginBottom: 8 }} />
               <ThemedText style={{ color: isDark ? "#94A3B8" : theme.textSecondary, fontSize: 13 }}>
-                No workers registered for this site.
+                {t.attendance?.noWorkers || "No workers registered for this site."}
               </ThemedText>
             </View>
           ) : (
@@ -857,15 +857,15 @@ export default function DashboardScreen() {
                     <View style={styles.workerLogInfo}>
                       <ThemedText style={[styles.workerLogName, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>{worker.name}</ThemedText>
                       <ThemedText style={[styles.workerLogCategory, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>
-                        {worker.category ? worker.category.toUpperCase() : "GENERAL WORKER"}
+                        {worker.category ? (t.translateCategory(worker.category) || worker.category).toUpperCase() : t("workers.generalWorker", "GENERAL WORKER")}
                       </ThemedText>
                     </View>
                     <View style={styles.workerLogStatus}>
-                      {val === "P" && <Badge label="P" variant="success" />}
-                      {val === "H" && <Badge label="1/2" variant="warning" />}
-                      {val === "OT" && <Badge label="OT" variant="info" />}
-                      {val === "A" && <Badge label="A" variant="error" />}
-                      {!val && <Badge label="Unmarked" variant="neutral" />}
+                      {val === "P" && <Badge label={t.translateAttendanceStatus("P")} variant="success" />}
+                      {val === "H" && <Badge label={t.translateAttendanceStatus("H")} variant="warning" />}
+                      {val === "OT" && <Badge label={t.translateAttendanceStatus("OT")} variant="info" />}
+                      {val === "A" && <Badge label={t.translateAttendanceStatus("A")} variant="error" />}
+                      {!val && <Badge label={t("attendance.unmarked", "Unmarked")} variant="neutral" />}
                     </View>
                   </Pressable>
                 );
@@ -878,8 +878,8 @@ export default function DashboardScreen() {
         {recentWorkers.length > 0 && (
           <Animated.View entering={FadeInDown.delay(360).springify()} style={styles.section}>
             <SectionHeader
-              title="Recent Workers"
-              actionLabel="View All"
+              title={t.dashboard?.activeWorkers || "Recent Workers"}
+              actionLabel={t.dashboard?.viewAll || "View All"}
               onAction={() => navigation.navigate("Workers")}
             />
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
@@ -893,12 +893,12 @@ export default function DashboardScreen() {
                 );
                 const status = todayRec?.value;
                 let badgeVariant: "success" | "warning" | "error" | "info" | "neutral" = "neutral";
-                let label = "Unmarked";
+                let label = t("attendance.unmarked", "Unmarked");
                 
-                if (status === "P") { badgeVariant = "success"; label = "P"; }
-                else if (status === "A") { badgeVariant = "error"; label = "A"; }
-                else if (status === "H") { badgeVariant = "warning"; label = "1/2"; }
-                else if (status === "OT") { badgeVariant = "info"; label = "OT"; }
+                if (status === "P") { badgeVariant = "success"; label = t.translateAttendanceStatus("P"); }
+                else if (status === "A") { badgeVariant = "error"; label = t.translateAttendanceStatus("A"); }
+                else if (status === "H") { badgeVariant = "warning"; label = t.translateAttendanceStatus("H"); }
+                else if (status === "OT") { badgeVariant = "info"; label = t.translateAttendanceStatus("OT"); }
 
                 return (
                   <Animated.View
@@ -922,9 +922,9 @@ export default function DashboardScreen() {
           <Animated.View entering={FadeInDown.delay(400).springify()}>
             <EmptyState
               icon="users"
-              title="Start Managing Workforce"
-              subtitle="Add your first site and workers to begin tracking attendance."
-              actionLabel="Add First Worker"
+              title={t("dashboard.startManaging", "Start Managing Workforce")}
+              subtitle={t.attendance?.addWorkerFirst || "Add your first site and workers to begin tracking attendance."}
+              actionLabel={t.workers?.addWorker || "Add First Worker"}
               onAction={() => navigation.navigate("AddWorker")}
             />
           </Animated.View>

@@ -522,9 +522,9 @@ export const storage = {
   async getLanguage(): Promise<Language> {
     try {
       const lang = await AsyncStorage.getItem(STORAGE_KEYS.LANGUAGE);
-      return (lang as Language) || "en";
+      return (lang as Language) || "hi";
     } catch {
-      return "en";
+      return "hi";
     }
   },
 

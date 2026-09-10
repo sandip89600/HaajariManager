@@ -79,8 +79,18 @@ export default function AttendanceScreen() {
   const month = selectedDate.getMonth(); // 0-indexed
 
   const MONTHS = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
+    t.months?.january || "January",
+    t.months?.february || "February",
+    t.months?.march || "March",
+    t.months?.april || "April",
+    t.months?.may || "May",
+    t.months?.june || "June",
+    t.months?.july || "July",
+    t.months?.august || "August",
+    t.months?.september || "September",
+    t.months?.october || "October",
+    t.months?.november || "November",
+    t.months?.december || "December"
   ];
 
   const daysInMonth = useMemo(() => {
@@ -305,7 +315,7 @@ export default function AttendanceScreen() {
         <Pressable onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
           <Feather name="arrow-left" size={22} color="#FFFFFF" />
         </Pressable>
-        <ThemedText style={styles.headerTitle}>Attendance</ThemedText>
+        <ThemedText style={styles.headerTitle}>{t.attendance.title}</ThemedText>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Pressable onPress={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(''); }} style={styles.headerAddBtn}>
             <Feather name={showSearch ? "x" : "search"} size={20} color="#FFFFFF" />
@@ -339,7 +349,7 @@ export default function AttendanceScreen() {
           <View style={[styles.searchBarWrap, { backgroundColor: bgCard, borderColor: borderCol }]}>
             <Feather name="search" size={15} color={isDark ? "#94A3B8" : "#64748B"} style={{ marginRight: 8 }} />
             <TextInput
-              placeholder="Search worker by name..."
+              placeholder={t.workers.searchPlaceholder}
               placeholderTextColor={isDark ? "#64748B" : "#94A3B8"}
               style={[styles.searchInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
               value={searchQuery}
@@ -366,7 +376,7 @@ export default function AttendanceScreen() {
           <View style={[styles.frozenColumn, { borderRightColor: isDark ? "rgba(255,255,255,0.08)" : borderCol }]}>
             {/* Frozen Orange Column Header */}
             <View style={[styles.columnHeader, { backgroundColor: "#EA580C", borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.15)" }]}>
-              <Text style={styles.columnHeaderText}>WORKERS</Text>
+              <Text style={styles.columnHeaderText}>{(t.workers.title || "WORKERS").toUpperCase()}</Text>
             </View>
 
             <ScrollView

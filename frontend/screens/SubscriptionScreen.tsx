@@ -21,6 +21,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/hooks/useLanguage";
 import {
   SubscriptionApi,
   SubscriptionPlan,
@@ -34,6 +35,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function SubscriptionScreen() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();

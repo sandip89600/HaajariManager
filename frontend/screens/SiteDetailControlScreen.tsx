@@ -25,6 +25,7 @@ type ActiveTab = "overview" | "workers" | "materials" | "expenses" | "reports" |
 
 export default function SiteDetailControlScreen() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const route = useRoute<any>();
   const navigation = useNavigation();
   const { siteId } = route.params || {};
@@ -400,12 +401,12 @@ export default function SiteDetailControlScreen() {
       <View style={[styles.tabsScrollContainer, { borderBottomColor: theme.border }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
           {([
-            { id: "overview", label: "Timeline & Stages" },
-            { id: "workers", label: "Workers & Wages" },
-            { id: "materials", label: "Materials" },
-            { id: "reports", label: "Reports & Docs" },
-            { id: "analytics", label: "Analytics" },
-            { id: "photos", label: "Photos" },
+            { id: "overview", label: t("sites.timelineStages", "Timeline & Stages") },
+            { id: "workers", label: t("sites.workersWages", "Workers & Wages") },
+            { id: "materials", label: t("sites.materials", "Materials") },
+            { id: "reports", label: t("sites.reportsDocs", "Reports & Docs") },
+            { id: "analytics", label: t("sites.analytics", "Analytics") },
+            { id: "photos", label: t("sites.photos", "Photos") },
           ] as const).map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -435,17 +436,17 @@ export default function SiteDetailControlScreen() {
           <View>
             {/* Site Card Header Info */}
             <View style={[styles.infoCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-              <ThemedText style={styles.infoTitle}>Site & Client Details</ThemedText>
+              <ThemedText style={styles.infoTitle}>{t("sites.siteClientDetails", "Site & Client Details")}</ThemedText>
               <View style={styles.infoRow}>
-                <ThemedText style={styles.infoLabel}>Client Name</ThemedText>
+                <ThemedText style={styles.infoLabel}>{t("sites.clientName", "Client Name")}</ThemedText>
                 <ThemedText style={styles.infoValue}>{site.clientName || "N/A"}</ThemedText>
               </View>
               <View style={styles.infoRow}>
-                <ThemedText style={styles.infoLabel}>Budget</ThemedText>
+                <ThemedText style={styles.infoLabel}>{t("sites.budget", "Budget")}</ThemedText>
                 <ThemedText style={styles.infoValue}>₹{site.budget?.toLocaleString("en-IN") || "N/A"}</ThemedText>
               </View>
               <View style={styles.infoRow}>
-                <ThemedText style={styles.infoLabel}>Timeline</ThemedText>
+                <ThemedText style={styles.infoLabel}>{t("sites.timeline", "Timeline")}</ThemedText>
                 <ThemedText style={styles.infoValue}>
                   {site.startDate || "N/A"} to {site.endDate || "N/A"}
                 </ThemedText>
@@ -453,17 +454,17 @@ export default function SiteDetailControlScreen() {
             </View>
 
             {/* Stages & Phases Controls */}
-            <ThemedText style={styles.sectionHeaderTitle}>Construction Stages Completion</ThemedText>
+            <ThemedText style={styles.sectionHeaderTitle}>{t("sites.constructionStagesCompletion", "Construction Stages Completion")}</ThemedText>
             {(!site.phases || site.phases.length === 0) ? (
-              <ThemedText style={styles.emptyText}>No stages registered for this project.</ThemedText>
+              <ThemedText style={styles.emptyText}>{t("sites.noStagesRegistered", "No stages registered for this project.")}</ThemedText>
             ) : (
               site.phases.map((phase) => {
                 const colorBadge =
                   phase.percentDone >= 100
-                    ? { bg: "#D1FAE5", text: "#16A34A", label: "Completed" }
+                    ? { bg: "#D1FAE5", text: "#16A34A", label: t.translateSiteStatus("COMPLETED") }
                     : phase.percentDone > 0
-                    ? { bg: "#E0F2FE", text: "#0284C7", label: "In Progress" }
-                    : { bg: "#F3F4F6", text: "#4B5563", label: "Pending" };
+                    ? { bg: "#E0F2FE", text: "#0284C7", label: t.translateSiteStatus("IN_PROGRESS") }
+                    : { bg: "#F3F4F6", text: "#4B5563", label: t.translateSiteStatus("NOT_STARTED") };
 
                 return (
                   <View
@@ -488,7 +489,7 @@ export default function SiteDetailControlScreen() {
                       >
                         <Feather name="minus" size={16} color={theme.text} />
                       </Pressable>
-                      <ThemedText style={styles.stageControllerPercent}>{phase.percentDone}% done</ThemedText>
+                      <ThemedText style={styles.stageControllerPercent}>{phase.percentDone}% {t("sites.done", "done")}</ThemedText>
                       <Pressable
                         onPress={() => handleUpdatePhaseProgress(phase.name, phase.percentDone + 10)}
                         style={styles.stageButton}
@@ -509,13 +510,13 @@ export default function SiteDetailControlScreen() {
             <View style={styles.headcountRow}>
               <View style={[styles.headcountStat, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
                 <ThemedText style={styles.headcountVal}>{siteWorkers.length}</ThemedText>
-                <ThemedText style={styles.headcountLabel}>Workers Assigned</ThemedText>
+                <ThemedText style={styles.headcountLabel}>{t("sites.workersAssigned", "Workers Assigned")}</ThemedText>
               </View>
               <View style={[styles.headcountStat, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
                 <ThemedText style={styles.headcountVal}>
                   ₹{(siteWorkers.reduce((sum: number, w: Worker) => sum + (w.dailyRate || 0), 0)).toLocaleString("en-IN")}
                 </ThemedText>
-                <ThemedText style={styles.headcountLabel}>Daily Wage Budget</ThemedText>
+                <ThemedText style={styles.headcountLabel}>{t("sites.dailyWageBudget", "Daily Wage Budget")}</ThemedText>
               </View>
             </View>
 
@@ -531,21 +532,21 @@ export default function SiteDetailControlScreen() {
                   ]}
                 >
                   <ThemedText style={{ color: skillFilter === cat ? "#FFFFFF" : theme.text, fontSize: 11, fontWeight: "700" }}>
-                    {cat.toUpperCase()}
+                    {cat === "all" ? (t.common?.all || "ALL").toUpperCase() : t.translateCategory(cat).toUpperCase()}
                   </ThemedText>
                 </Pressable>
               ))}
             </ScrollView>
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 12 }}>
-              <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 0, marginBottom: 0 }]}>Assigned Roster List</ThemedText>
+              <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 0, marginBottom: 0 }]}>{t("sites.assignedRosterList", "Assigned Roster List")}</ThemedText>
               <Pressable onPress={() => setShowAssignWorkerModal(true)} style={[styles.transferButton, { backgroundColor: theme.primary }]}>
                 <Feather name="plus" size={14} color="#FFF" />
-                <ThemedText style={[styles.transferText, { color: "#FFF" }]}>Assign</ThemedText>
+                <ThemedText style={[styles.transferText, { color: "#FFF" }]}>{t("common.assign", "Assign")}</ThemedText>
               </Pressable>
             </View>
             {filteredWorkers.length === 0 ? (
-              <ThemedText style={styles.emptyText}>No workers match the selected category.</ThemedText>
+              <ThemedText style={styles.emptyText}>{t("sites.noWorkersMatch", "No workers match the selected category.")}</ThemedText>
             ) : (
               filteredWorkers.map((worker: Worker) => (
                 <View
