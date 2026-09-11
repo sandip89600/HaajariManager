@@ -107,7 +107,7 @@ export default function ExpensesPage() {
             <option>Materials</option>
             <option>Machinery Lease</option>
             <option>Rent</option>
-            <option>Labor</option>
+            <option>Labour</option>
             <option>Other</option>
           </select>
         </div>

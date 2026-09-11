@@ -315,6 +315,11 @@ export default function ForgotPasswordScreen() {
           },
         ]
       );
+      if (Platform.OS === "web") {
+        setTimeout(() => {
+          try { navigation.navigate("Login"); } catch (e) {}
+        }, 500);
+      }
     } catch (err: any) {
       if (err.name === "AbortError") {
         setError("Server took too long to respond. Please check your connection and try again.");
@@ -347,9 +352,14 @@ export default function ForgotPasswordScreen() {
         <View style={styles.header}>
           <Pressable
             onPress={() => {
-              if (step === "NEW_PASSWORD") setStep("OTP_INPUT");
-              else if (step === "OTP_INPUT") setStep("PHONE_INPUT");
-              else navigation.goBack();
+              if (step === "NEW_PASSWORD") {
+                setRecoverySessionToken(null);
+                setStep("PHONE_INPUT");
+              } else if (step === "OTP_INPUT") {
+                setStep("PHONE_INPUT");
+              } else {
+                navigation.goBack();
+              }
             }}
             style={[styles.backButton, { backgroundColor: theme.backgroundSecondary }]}
           >

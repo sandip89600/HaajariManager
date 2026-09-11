@@ -125,6 +125,11 @@ export default function ResetPasswordScreen() {
           },
         ]
       );
+      if (Platform.OS === "web") {
+        setTimeout(() => {
+          try { navigation.navigate("Login"); } catch (e) {}
+        }, 500);
+      }
     } catch (err: any) {
       setError(err.message || "Unable to reset password right now. Please try again.");
     } finally {

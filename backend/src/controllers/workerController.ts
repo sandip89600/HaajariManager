@@ -47,9 +47,11 @@ export const addWorker = async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user?.id;
     const { name, category, dailyRate, phone, address, notes, photoUri, projectId } = req.body;
 
-    if (!name || !category || dailyRate === undefined) {
+    if (!name || !category) {
       return res.status(400).json({ error: "Missing required fields" });
     }
+
+    const finalDailyRate = dailyRate !== undefined && dailyRate !== null ? Number(dailyRate) : 0;
 
     const tAuth = Date.now() - startTime;
 
@@ -58,7 +60,7 @@ export const addWorker = async (req: AuthenticatedRequest, res: Response) => {
       projectId,
       name,
       category,
-      dailyRate,
+      dailyRate: finalDailyRate,
       phone,
       address,
       notes,
@@ -70,7 +72,7 @@ export const addWorker = async (req: AuthenticatedRequest, res: Response) => {
     const wageHistory = new WageHistory({
       tenantId,
       workerId: worker._id,
-      dailyRate,
+      dailyRate: finalDailyRate,
       startDate: new Date(),
       updatedBy: userId,
     });

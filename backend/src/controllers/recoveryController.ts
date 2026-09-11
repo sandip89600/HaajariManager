@@ -415,11 +415,12 @@ export const confirmRecoveryEmail = async (req: Request, res: Response) => {
  */
 export const resetPasswordWithRecoverySession = async (req: Request, res: Response) => {
   try {
-    const { recoverySessionToken, newPassword, confirmPassword } = req.body;
+    const { recoverySessionToken, resetToken, newPassword, confirmPassword } = req.body;
+    const token = (resetToken || recoverySessionToken || "").toString().trim();
     const ipAddress = getClientIp(req);
     const userAgent = req.headers["user-agent"] || "";
 
-    if (!recoverySessionToken) {
+    if (!token) {
       return res.status(400).json({
         success: false,
         message: "Your recovery session has expired. Please start again."
@@ -460,7 +461,7 @@ export const resetPasswordWithRecoverySession = async (req: Request, res: Respon
     }
 
     // Lookup Scoped Recovery Session
-    const tokenHash = crypto.createHash("sha256").update(recoverySessionToken.trim()).digest("hex");
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
     const session = await RecoverySession.findOne({
       sessionTokenHash: tokenHash,
       used: false,

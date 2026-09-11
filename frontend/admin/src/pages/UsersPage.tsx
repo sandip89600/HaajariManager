@@ -113,7 +113,7 @@ export default function UsersPage() {
         <div>
           <h1 className="text-3xl font-extrabold text-white">System Users</h1>
           <p className="text-slate-400 text-sm mt-1">
-            Role-based user management across Contractors, Supervisors, and Labor
+            Role-based user management across Contractors, Supervisors, and Labour
           </p>
         </div>
         <button
@@ -152,10 +152,10 @@ export default function UsersPage() {
               onChange={(e) => setRoleFilter(e.target.value)}
               className="w-full sm:w-44 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/50 appearance-none"
             >
-              <option>All</option>
-              <option>Contractor</option>
-              <option>Supervisor</option>
-              <option>Labor</option>
+              <option value="All">All</option>
+              <option value="contractor">Contractor</option>
+              <option value="supervisor">Supervisor</option>
+              <option value="labor">Labour</option>
             </select>
             <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
           </div>

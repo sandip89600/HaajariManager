@@ -640,7 +640,7 @@ ${JSON.stringify(workerDetails)}
           }
 
           const formData = new FormData();
-          const audioBlob = new Blob([audioBuffer], { type: mimeType || "audio/wav" });
+          const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: mimeType || "audio/wav" });
           formData.append("file", audioBlob, "audio.wav");
           formData.append("model", "saaras:v3");
           formData.append("mode", "transcribe");

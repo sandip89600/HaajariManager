@@ -20,6 +20,7 @@ import sat from "./sat.json";
 import ks from "./ks.json";
 import sd from "./sd.json";
 import mni from "./mni.json";
+import bho from "./bho.json";
 
 export type Language =
   | "en"
@@ -39,6 +40,7 @@ export type Language =
   | "ne"
   | "kok"
   | "mai"
+  | "bho"
   | "doi"
   | "sat"
   | "ks"
@@ -63,6 +65,7 @@ export const translations: Record<Language, any> = {
   ne,
   kok,
   mai,
+  bho,
   doi,
   sat,
   ks,
@@ -223,7 +226,7 @@ export function getTranslation(language: Language): TranslationApi {
       return merged.enums?.roles?.SUPERVISOR || merged.profile?.supervisor || "Supervisor";
     }
     if (r === "LABOR" || r === "LABOUR" || r === "मजदूर" || r === "मजूर" || r === "મજૂર" || r === "தொழிலாளி" || r === "కూలీ") {
-      return merged.enums?.roles?.LABOR || merged.categories?.labour || "Labor";
+      return merged.enums?.roles?.LABOUR || merged.enums?.roles?.LABOR || merged.categories?.labour || "Labour";
     }
     if (r === "WORKER" || r === "कामगार" || r === "कर्मचारी" || r === "ਕਾਰੀਗਰ" || r === "பணியாளர்" || r === "కార్మికుడు") {
       return merged.enums?.roles?.WORKER || "Worker";
@@ -442,6 +445,7 @@ export const languageNames: Record<Language, string> = {
   ne: "नेपाली (Nepali)",
   kok: "कोंकणी (Konkani)",
   mai: "मैथिली (Maithili)",
+  bho: "भोजपुरी (Bhojpuri)",
   doi: "डोगरी (Dogri)",
   sat: "संथाली (Santali)",
   ks: "कश्मीरी (Kashmiri)",
@@ -467,9 +471,10 @@ export const LOCALE_CONFIGS: Record<Language, LocaleConfig> = {
   ne: { code: "ne", nativeName: "नेपाली", englishName: "Nepali", script: "devanagari", isRTL: false, numberLocale: "ne-IN", dateLocale: "ne-IN", isComplete: true },
   kok: { code: "kok", nativeName: "कोंकणी", englishName: "Konkani", script: "devanagari", isRTL: false, numberLocale: "kok-IN", dateLocale: "kok-IN", isComplete: true },
   mai: { code: "mai", nativeName: "मैथिली", englishName: "Maithili", script: "devanagari", isRTL: false, numberLocale: "mai-IN", dateLocale: "mai-IN", isComplete: true },
+  bho: { code: "bho", nativeName: "भोजपुरी", englishName: "Bhojpuri", script: "devanagari", isRTL: false, numberLocale: "hi-IN", dateLocale: "hi-IN", isComplete: true },
   doi: { code: "doi", nativeName: "डोगरी", englishName: "Dogri", script: "devanagari", isRTL: false, numberLocale: "doi-IN", dateLocale: "doi-IN", isComplete: true },
   sat: { code: "sat", nativeName: "संथाली", englishName: "Santali", script: "devanagari", isRTL: false, numberLocale: "sat-IN", dateLocale: "sat-IN", isComplete: true },
-  ks: { code: "ks", nativeName: "कश्मीरी", englishName: "Kashmiri", script: "arabic", isRTL: true, numberLocale: "ks-IN", dateLocale: "ks-IN", isComplete: true },
+  ks: { code: "ks", nativeName: "کٲشُر / कश्मीरी", englishName: "Kashmiri", script: "arabic", isRTL: true, numberLocale: "ks-IN", dateLocale: "ks-IN", isComplete: true },
   sd: { code: "sd", nativeName: "सिंधी", englishName: "Sindhi", script: "arabic", isRTL: true, numberLocale: "sd-IN", dateLocale: "sd-IN", isComplete: true },
-  mni: { code: "mni", nativeName: "मणिपुरी", englishName: "Manipuri", script: "bengali", isRTL: false, numberLocale: "mni-IN", dateLocale: "mni-IN", isComplete: true },
+  mni: { code: "mni", nativeName: "মৈতৈলোন্ / মণিপুরি", englishName: "Manipuri", script: "bengali", isRTL: false, numberLocale: "mni-IN", dateLocale: "mni-IN", isComplete: true },
 };

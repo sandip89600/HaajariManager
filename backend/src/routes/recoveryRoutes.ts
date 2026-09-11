@@ -10,6 +10,7 @@ const router = Router();
 
 // Account Recovery Endpoints (Phone + Scoped Session)
 router.post("/check-phone", requestRecoveryOtp as any);
+router.post("/send-otp", requestRecoveryOtp as any);
 router.post("/request-otp", requestRecoveryOtp as any);
 router.post("/resend-otp", requestRecoveryOtp as any);
 router.post("/verify-otp", verifyRecoveryOtp as any);

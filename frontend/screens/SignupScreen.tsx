@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   Text,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -42,6 +43,26 @@ type SignupScreenNavigationProp = NativeStackNavigationProp<
 type Step = 1 | 2;
 type UserRole = "contractor" | "labor" | "supervisor";
 
+const WORKER_CATEGORIES = [
+  { id: "Plaster Mistri", label: "Plaster Mistri", hiLabel: "प्लास्टर मिस्त्री", icon: "🪜" },
+  { id: "Bandhkam Mistri", label: "Bandhkam Mistri", hiLabel: "बांधकाम मिस्त्री (Brick & Block Masonry)", icon: "🧱" },
+  { id: "Rajmistri", label: "Rajmistri / Mason", hiLabel: "राजमिस्त्री (General Mason)", icon: "🏗️" },
+  { id: "Tile & Marble Mistri", label: "Tile & Marble Mistri", hiLabel: "टाइल / मार्बल मिस्त्री", icon: "🔲" },
+  { id: "Centering / Shuttering", label: "Centering / Shuttering", hiLabel: "सेंटरिंग / शटरिंग मिस्त्री", icon: "🪵" },
+  { id: "Bar Bender", label: "Bar Bender / Steel Fitter", hiLabel: "सरिया कारीगर / लोहार", icon: "🔩" },
+  { id: "Electrician", label: "Electrician", hiLabel: "इलेक्ट्रीशियन", icon: "⚡" },
+  { id: "Plumber", label: "Plumber", hiLabel: "प्लम्बर", icon: "🔧" },
+  { id: "Painter", label: "Painter / Polisher", hiLabel: "पेंटर / रंगाई कारीगर", icon: "🎨" },
+  { id: "Carpenter", label: "Carpenter / Woodwork", hiLabel: "बढ़ई / कारपेंटर", icon: "🪚" },
+  { id: "Welder", label: "Welder / Fabricator", hiLabel: "वेल्डर / फैब्रिकेटर", icon: "🔥" },
+  { id: "POP / False Ceiling", label: "POP / False Ceiling", hiLabel: "पीओपी / फॉल्स सीलिंग", icon: "🏛️" },
+  { id: "Flooring / Granite", label: "Flooring & Granite", hiLabel: "फ्लोरिंग / ग्रेनाइट कारीगर", icon: "📐" },
+  { id: "Helper", label: "Helper / Beldar", hiLabel: "हेल्पर / बेलदार", icon: "👷" },
+  { id: "Labour", label: "General Labour", hiLabel: "साधारण मजदूर", icon: "⛏️" },
+  { id: "Driver / Operator", label: "JCB / Crane / Driver", hiLabel: "ड्राइवर / ऑपरेटर", icon: "🚜" },
+  { id: "Other", label: "Other Trade", hiLabel: "अन्य कार्य (Custom Trade)", icon: "✨" },
+];
+
 export default function SignupScreen() {
   const { theme, isDark } = useTheme();
   const { signup, loginWithGoogle } = useAuth();
@@ -60,8 +81,10 @@ export default function SignupScreen() {
   const [companyName, setCompanyName] = useState("");
   const [contractorName, setContractorName] = useState("");
   const [contractorCompany, setContractorCompany] = useState("");
-  const [workerCategory, setWorkerCategory] = useState("Labour");
-  const [dailyWage, setDailyWage] = useState("");
+  const [workerCategory, setWorkerCategory] = useState("Plaster Mistri");
+  const [customWorkerCategory, setCustomWorkerCategory] = useState("");
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [categorySearch, setCategorySearch] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -76,6 +99,25 @@ export default function SignupScreen() {
   // Password validation criteria
   const isMinLength = password.length >= 6;
   const isPasswordMatching = password.length > 0 && password === confirmPassword;
+
+  // Worker category selection helpers
+  const selectedCategoryObj =
+    WORKER_CATEGORIES.find((c) => c.id === workerCategory) || {
+      id: workerCategory,
+      label: workerCategory,
+      hiLabel: workerCategory,
+      icon: "👷",
+    };
+
+  const filteredCategories = WORKER_CATEGORIES.filter((cat) => {
+    if (!categorySearch.trim()) return true;
+    const q = categorySearch.toLowerCase().trim();
+    return (
+      cat.label.toLowerCase().includes(q) ||
+      cat.hiLabel.toLowerCase().includes(q) ||
+      cat.id.toLowerCase().includes(q)
+    );
+  });
 
   // Validation States
   const [usernameState, setUsernameState] = useState<"idle" | "checking" | "available" | "error">("idle");
@@ -221,7 +263,7 @@ export default function SignupScreen() {
   };
 
   const handleSendOTP = () => {
-    if (phoneState !== "available" && phone.trim().length !== 10) {
+    if (phoneState !== "available" || phone.trim().length !== 10) {
       Alert.alert("Error", phoneMsg || "Please enter a valid, unregistered 10-digit mobile number");
       return;
     }
@@ -300,6 +342,11 @@ export default function SignupScreen() {
 
     setIsLoading(true);
     try {
+      const finalWorkerCategory =
+        workerCategory === "Other" && customWorkerCategory.trim()
+          ? customWorkerCategory.trim()
+          : workerCategory;
+
       const result = await signup(
         name.trim(),
         phone.trim(),
@@ -310,8 +357,8 @@ export default function SignupScreen() {
         username.trim(),
         contractorName.trim(),
         contractorCompany.trim(),
-        selectedRole === "labor" ? workerCategory : undefined,
-        selectedRole === "labor" && dailyWage ? parseFloat(dailyWage) : undefined
+        selectedRole === "labor" ? finalWorkerCategory : undefined,
+        undefined
       );
 
       if (result.success) {
@@ -321,24 +368,27 @@ export default function SignupScreen() {
             ? "Contractor"
             : selectedRole === "supervisor"
             ? "Supervisor"
-            : "Labor";
+            : "Labour";
 
         Alert.alert(
           "Success",
-          `${roleLabel} account created successfully!`,
+          `${roleLabel} account created successfully! Welcome to Haajari Manager.`,
           [
             {
-              text: "Continue to Login",
+              text: "Get Started",
               onPress: () => {
                 try {
-                  navigation.replace("Login");
-                } catch (e) {
                   navigation.navigate("Main");
-                }
+                } catch (e) {}
               },
             },
           ]
         );
+        if (Platform.OS === "web") {
+          setTimeout(() => {
+            try { navigation.navigate("Main"); } catch (e) {}
+          }, 500);
+        }
       } else {
         if (result.field === "email") {
           setEmailState("error");
@@ -417,18 +467,18 @@ export default function SignupScreen() {
 
           <ThemedText style={styles.title}>
             {step === 1
-              ? "Create Your Account"
+              ? t("auth.createAccount", "Create Your Account")
               : selectedRole === "contractor"
-              ? "Create Contractor Account"
+              ? t("auth.createContractorAccount", "Create Contractor Account")
               : selectedRole === "supervisor"
-              ? "Create Supervisor Account"
-              : "Create Labor Account"}
+              ? t("auth.createSupervisorAccount", "Create Supervisor Account")
+              : t("auth.createLabourAccount", "Create Labour Account")}
           </ThemedText>
 
           <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
             {step === 1
-              ? "Choose your account type:"
-              : "Fill in your details below to set up your profile"}
+              ? t("auth.selectRoleSubtitle", "Choose your account type:")
+              : t("auth.fillDetailsSubtitle", "Fill in your details below to set up your profile")}
           </ThemedText>
         </View>
 
@@ -452,16 +502,16 @@ export default function SignupScreen() {
                   <ThemedText style={styles.roleEmoji}>👷</ThemedText>
                 </View>
                 <View style={styles.roleCardInfo}>
-                  <ThemedText style={styles.roleTitle}>Contractor</ThemedText>
+                  <ThemedText style={styles.roleTitle}>{t("auth.contractorRole", "Contractor")}</ThemedText>
                   <ThemedText style={[styles.roleSubtitle, { color: theme.textSecondary }]}>
-                    Manage workers, sites and supervisors
+                    {t("auth.contractorDesc", "Manage workers, sites and supervisors")}
                   </ThemedText>
                 </View>
                 <Feather name="chevron-right" size={22} color="#F97316" />
               </View>
             </Pressable>
 
-            {/* 2. LABOR CARD */}
+            {/* 2. LABOUR CARD */}
             <Pressable
               onPress={() => selectRoleAndNext("labor")}
               style={({ pressed }) => [
@@ -478,9 +528,9 @@ export default function SignupScreen() {
                   <ThemedText style={styles.roleEmoji}>🧑‍🔧</ThemedText>
                 </View>
                 <View style={styles.roleCardInfo}>
-                  <ThemedText style={styles.roleTitle}>Labor</ThemedText>
+                  <ThemedText style={styles.roleTitle}>{t("auth.workerRole", "Labour / Worker")}</ThemedText>
                   <ThemedText style={[styles.roleSubtitle, { color: theme.textSecondary }]}>
-                    Manage your work account
+                    {t("auth.workerDesc", "Track attendance, wages & daily work")}
                   </ThemedText>
                 </View>
                 <Feather name="chevron-right" size={22} color="#10B981" />
@@ -504,9 +554,9 @@ export default function SignupScreen() {
                   <ThemedText style={styles.roleEmoji}>👨‍💼</ThemedText>
                 </View>
                 <View style={styles.roleCardInfo}>
-                  <ThemedText style={styles.roleTitle}>Supervisor</ThemedText>
+                  <ThemedText style={styles.roleTitle}>{t("auth.supervisorRole", "Supervisor")}</ThemedText>
                   <ThemedText style={[styles.roleSubtitle, { color: theme.textSecondary }]}>
-                    Manage assigned site work
+                    {t("auth.supervisorDesc", "Manage assigned site work")}
                   </ThemedText>
                 </View>
                 <Feather name="chevron-right" size={22} color="#3B82F6" />
@@ -516,11 +566,11 @@ export default function SignupScreen() {
             {/* Existing User Login Prompt */}
             <View style={styles.loginPromptContainer}>
               <ThemedText style={{ color: theme.textSecondary, fontSize: 14 }}>
-                Already have an account?{" "}
+                {t("auth.alreadyHaveAccount", "Already have an account?")}{" "}
               </ThemedText>
               <Pressable onPress={() => navigation.navigate("Login")}>
                 <ThemedText style={{ color: "#F97316", fontWeight: "700", fontSize: 14 }}>
-                  Log In
+                  {t("auth.login", "Log In")}
                 </ThemedText>
               </Pressable>
             </View>
@@ -529,12 +579,12 @@ export default function SignupScreen() {
           /* ── STEP 2: ROLE-SPECIFIC REGISTRATION FORM ── */
           <View style={styles.stepContent}>
             {/* Section Header: PERSONAL INFORMATION */}
-            <ThemedText style={styles.sectionHeaderTitle}>PERSONAL INFORMATION</ThemedText>
+            <ThemedText style={styles.sectionHeaderTitle}>{t("auth.personalInfo", "PERSONAL INFORMATION")}</ThemedText>
 
             {/* Full Name */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                Full Name <Text style={{ color: "red" }}>*</Text>
+                {t("auth.fullName", "Full Name")} <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View
                 style={[
@@ -548,7 +598,7 @@ export default function SignupScreen() {
                 <Feather name="user" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Enter full name"
+                  placeholder={t("auth.enterFullName", "Enter full name")}
                   placeholderTextColor={theme.textSecondary}
                   value={name}
                   onChangeText={setName}
@@ -560,7 +610,7 @@ export default function SignupScreen() {
             {/* Username */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                Username <Text style={{ color: "red" }}>*</Text>
+                {t("auth.username", "Username")} <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View
                 style={[
@@ -574,7 +624,7 @@ export default function SignupScreen() {
                 <Feather name="at-sign" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Choose username"
+                  placeholder={t("auth.chooseUsername", "Choose username")}
                   placeholderTextColor={theme.textSecondary}
                   value={username}
                   onChangeText={handleUsernameChange}
@@ -592,7 +642,7 @@ export default function SignupScreen() {
 
             {/* Email */}
             <View style={styles.inputContainer}>
-              <ThemedText style={styles.inputLabel}>Email</ThemedText>
+              <ThemedText style={styles.inputLabel}>{t("auth.email", "Email")}</ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -605,7 +655,7 @@ export default function SignupScreen() {
                 <Feather name="mail" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Enter email"
+                  placeholder={t("auth.enterEmail", "Enter email")}
                   placeholderTextColor={theme.textSecondary}
                   value={email}
                   onChangeText={handleEmailChange}
@@ -625,7 +675,7 @@ export default function SignupScreen() {
             {/* Mobile Number & Optional OTP Verification */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                Mobile Number <Text style={{ color: "red" }}>*</Text>
+                {t("auth.mobileNumber", "Mobile Number")} <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View style={styles.phoneInputRow}>
                 <View
@@ -641,7 +691,7 @@ export default function SignupScreen() {
                   <Feather name="phone" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                   <TextInput
                     style={[styles.input, { color: theme.text }]}
-                    placeholder="Enter mobile number"
+                    placeholder={t("auth.enterMobileNumber", "Enter mobile number")}
                     placeholderTextColor={theme.textSecondary}
                     value={phone}
                     onChangeText={handlePhoneChange}
@@ -665,7 +715,7 @@ export default function SignupScreen() {
                   disabled={phone.trim().length !== 10 || otpVerified}
                 >
                   <ThemedText style={styles.otpButtonText}>
-                    {otpSent ? "Resend" : "Send OTP"}
+                    {otpSent ? t("auth.resendOtp", "Resend") : t("auth.sendOtp", "Send OTP")}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -679,7 +729,7 @@ export default function SignupScreen() {
             {/* OTP Code Box */}
             {otpSent && !otpVerified && (
               <View style={styles.inputContainer}>
-                <ThemedText style={styles.inputLabel}>OTP Code</ThemedText>
+                <ThemedText style={styles.inputLabel}>{t("auth.enterOtp", "OTP Code")}</ThemedText>
                 <View style={styles.phoneInputRow}>
                   <View
                     style={[
@@ -694,7 +744,7 @@ export default function SignupScreen() {
                     <Feather name="shield" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: theme.text }]}
-                      placeholder="Enter OTP"
+                      placeholder={t("auth.enterOtpPlaceholder", "Enter OTP")}
                       placeholderTextColor={theme.textSecondary}
                       value={otpCode}
                       onChangeText={setOtpCode}
@@ -706,7 +756,7 @@ export default function SignupScreen() {
                     onPress={handleVerifyOTP}
                     style={[styles.otpButton, { backgroundColor: "#10B981" }]}
                   >
-                    <ThemedText style={styles.otpButtonText}>Verify</ThemedText>
+                    <ThemedText style={styles.otpButtonText}>{t("auth.verifyOtp", "Verify")}</ThemedText>
                   </Pressable>
                 </View>
               </View>
@@ -717,7 +767,7 @@ export default function SignupScreen() {
               <View style={styles.verifiedContainer}>
                 <Feather name="check-circle" size={16} color="#10B981" />
                 <ThemedText style={[styles.verifiedText, { color: "#10B981" }]}>
-                  Mobile number verified
+                  {t("auth.mobileVerified", "Mobile number verified")}
                 </ThemedText>
               </View>
             )}
@@ -728,11 +778,11 @@ export default function SignupScreen() {
             {selectedRole === "contractor" && (
               <>
                 <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>
-                  COMPANY INFORMATION
+                  {t("auth.companyDetails", "COMPANY INFORMATION")}
                 </ThemedText>
                 <View style={styles.inputContainer}>
                   <ThemedText style={styles.inputLabel}>
-                    Company Name <Text style={{ color: "red" }}>*</Text>
+                    {t("auth.companyName", "Company Name")} <Text style={{ color: "red" }}>*</Text>
                   </ThemedText>
                   <View
                     style={[
@@ -746,7 +796,7 @@ export default function SignupScreen() {
                     <Feather name="briefcase" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: theme.text }]}
-                      placeholder="Enter company name"
+                      placeholder={t("auth.enterCompanyName", "Enter company name")}
                       placeholderTextColor={theme.textSecondary}
                       value={companyName}
                       onChangeText={setCompanyName}
@@ -761,11 +811,11 @@ export default function SignupScreen() {
             {selectedRole === "supervisor" && (
               <>
                 <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>
-                  CONTRACTOR INFORMATION
+                  {t("auth.contractorDetails", "CONTRACTOR INFORMATION")}
                 </ThemedText>
 
                 <View style={styles.inputContainer}>
-                  <ThemedText style={styles.inputLabel}>Contractor Name</ThemedText>
+                  <ThemedText style={styles.inputLabel}>{t("auth.contractorName", "Contractor Name")}</ThemedText>
                   <View
                     style={[
                       styles.inputWrapper,
@@ -778,7 +828,7 @@ export default function SignupScreen() {
                     <Feather name="user-check" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: theme.text }]}
-                      placeholder="Enter contractor name (optional)"
+                      placeholder={t("auth.enterContractorName", "Enter contractor name (optional)")}
                       placeholderTextColor={theme.textSecondary}
                       value={contractorName}
                       onChangeText={setContractorName}
@@ -788,7 +838,7 @@ export default function SignupScreen() {
                 </View>
 
                 <View style={styles.inputContainer}>
-                  <ThemedText style={styles.inputLabel}>Contractor Company</ThemedText>
+                  <ThemedText style={styles.inputLabel}>{t("auth.contractorCompany", "Contractor Company")}</ThemedText>
                   <View
                     style={[
                       styles.inputWrapper,
@@ -801,7 +851,7 @@ export default function SignupScreen() {
                     <Feather name="briefcase" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: theme.text }]}
-                      placeholder="Enter contractor company (optional)"
+                      placeholder={t("auth.enterContractorCompany", "Enter contractor company (optional)")}
                       placeholderTextColor={theme.textSecondary}
                       value={contractorCompany}
                       onChangeText={setContractorCompany}
@@ -812,104 +862,256 @@ export default function SignupScreen() {
               </>
             )}
 
-            {/* WORKER / LABOR SPECIFIC FIELDS */}
+            {/* WORKER / LABOUR SPECIFIC FIELDS */}
             {selectedRole === "labor" && (
               <>
                 <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>
-                  WORKER DETAILS & TRADE
+                  {t("auth.workerTradeDetails", "WORKER DETAILS & TRADE (काम का प्रकार)")}
                 </ThemedText>
 
-                {/* Worker Category / Trade Selection */}
+                {/* Worker Category / Trade Dropdown Trigger */}
                 <View style={styles.inputContainer}>
                   <ThemedText style={styles.inputLabel}>
-                    Trade / Skill <Text style={{ color: "red" }}>*</Text>
+                    {t("auth.selectTrade", "Select Trade / Category (कारीगरी / काम का प्रकार)")} <Text style={{ color: "red" }}>*</Text>
                   </ThemedText>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: "row", marginVertical: 4 }}>
-                    {[
-                      "Labour",
-                      "Mistri",
-                      "Electrician",
-                      "Plumber",
-                      "Painter",
-                      "Carpenter",
-                      "Tile Mason",
-                      "Helper",
-                      "Welder",
-                      "Bar Bender",
-                    ].map((cat) => (
-                      <Pressable
-                        key={cat}
-                        onPress={() => {
-                          setWorkerCategory(cat);
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        }}
-                        style={[
-                          {
-                            paddingHorizontal: 12,
-                            paddingVertical: 8,
-                            borderRadius: BorderRadius.md,
-                            marginRight: 8,
-                            borderWidth: 1.5,
-                            backgroundColor:
-                              workerCategory === cat ? (isDark ? "#064E3B" : "#ECFDF5") : theme.backgroundDefault,
-                            borderColor: workerCategory === cat ? "#10B981" : theme.border,
-                          },
-                        ]}
-                      >
-                        <ThemedText
-                          style={{
-                            fontSize: 13,
-                            fontWeight: workerCategory === cat ? "700" : "500",
-                            color: workerCategory === cat ? "#059669" : theme.text,
-                          }}
-                        >
-                          {cat}
-                        </ThemedText>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
 
-                {/* Daily Wage Rate (Optional) */}
-                <View style={styles.inputContainer}>
-                  <ThemedText style={styles.inputLabel}>Daily Wage Rate (₹ / Day - Optional)</ThemedText>
-                  <View
+                  <Pressable
+                    onPress={() => {
+                      setShowCategoryModal(true);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
                     style={[
-                      styles.inputWrapper,
+                      styles.categoryDropdownTrigger,
                       {
                         backgroundColor: theme.backgroundDefault,
-                        borderColor: theme.border,
+                        borderColor: showCategoryModal ? "#10B981" : theme.border,
                       },
                     ]}
                   >
-                    <Feather name="dollar-sign" size={18} color={theme.textSecondary} style={styles.inputIcon} />
-                    <TextInput
-                      style={[styles.input, { color: theme.text }]}
-                      placeholder="e.g. 500"
-                      placeholderTextColor={theme.textSecondary}
-                      value={dailyWage}
-                      onChangeText={setDailyWage}
-                      keyboardType="numeric"
-                    />
-                  </View>
+                    <View style={styles.categoryDropdownLeft}>
+                      <View
+                        style={[
+                          styles.categoryIconCircle,
+                          { backgroundColor: isDark ? "#064E3B" : "#ECFDF5" },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 20 }}>{selectedCategoryObj.icon}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={styles.categoryDropdownTitle}>
+                          {selectedCategoryObj.label}
+                        </ThemedText>
+                        <ThemedText
+                          style={[
+                            styles.categoryDropdownSubtitle,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          {selectedCategoryObj.hiLabel}
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <Feather name="chevron-down" size={20} color={theme.textSecondary} />
+                  </Pressable>
                 </View>
+
+                {/* Trade / Category Dropdown Picker Modal */}
+                <Modal
+                  visible={showCategoryModal}
+                  animationType="slide"
+                  transparent={true}
+                  onRequestClose={() => {
+                    setShowCategoryModal(false);
+                    setCategorySearch("");
+                  }}
+                >
+                  <View style={styles.categoryModalOverlay}>
+                    <Pressable
+                      style={StyleSheet.absoluteFill}
+                      onPress={() => {
+                        setShowCategoryModal(false);
+                        setCategorySearch("");
+                      }}
+                    />
+                    <View
+                      style={[
+                        styles.categoryModalContainer,
+                        {
+                          backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                          borderColor: theme.border,
+                        },
+                      ]}
+                    >
+                      {/* Modal Header */}
+                      <View style={styles.categoryModalHeader}>
+                        <View style={{ flex: 1 }}>
+                          <ThemedText style={styles.categoryModalTitle}>
+                            {t("auth.selectTrade", "Select Category / Trade")}
+                          </ThemedText>
+                          <ThemedText
+                            style={[
+                              styles.categoryModalSubtitle,
+                              { color: theme.textSecondary },
+                            ]}
+                          >
+                            कारीगरी / काम का प्रकार चुनें
+                          </ThemedText>
+                        </View>
+                        <Pressable
+                          onPress={() => {
+                            setShowCategoryModal(false);
+                            setCategorySearch("");
+                          }}
+                          style={styles.categoryModalCloseBtn}
+                        >
+                          <Feather name="x" size={22} color={theme.text} />
+                        </Pressable>
+                      </View>
+
+                      {/* Search Bar */}
+                      <View
+                        style={[
+                          styles.categorySearchWrapper,
+                          {
+                            backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
+                            borderColor: theme.border,
+                          },
+                        ]}
+                      >
+                        <Feather
+                          name="search"
+                          size={18}
+                          color={theme.textSecondary}
+                          style={{ marginRight: 8 }}
+                        />
+                        <TextInput
+                          style={[styles.categorySearchInput, { color: theme.text }]}
+                          placeholder={t("auth.searchTradePlaceholder", "Search trade / कारीगरी खोजें...")}
+                          placeholderTextColor={theme.textSecondary}
+                          value={categorySearch}
+                          onChangeText={setCategorySearch}
+                          autoCorrect={false}
+                          autoCapitalize="none"
+                        />
+                        {categorySearch.length > 0 && (
+                          <Pressable onPress={() => setCategorySearch("")}>
+                            <Feather name="x-circle" size={18} color={theme.textSecondary} />
+                          </Pressable>
+                        )}
+                      </View>
+
+                      {/* Trade Options Scrollable List */}
+                      <ScrollView
+                        style={{ maxHeight: 380 }}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                      >
+                        {filteredCategories.map((cat) => {
+                          const isSelected = workerCategory === cat.id;
+                          return (
+                            <Pressable
+                              key={cat.id}
+                              onPress={() => {
+                                setWorkerCategory(cat.id);
+                                setShowCategoryModal(false);
+                                setCategorySearch("");
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              }}
+                              style={[
+                                styles.categoryOptionItem,
+                                {
+                                  backgroundColor: isSelected
+                                    ? isDark
+                                      ? "#064E3B"
+                                      : "#ECFDF5"
+                                    : "transparent",
+                                  borderColor: isSelected ? "#10B981" : "transparent",
+                                },
+                              ]}
+                            >
+                              <Text style={{ fontSize: 24, marginRight: 12 }}>{cat.icon}</Text>
+                              <View style={{ flex: 1 }}>
+                                <ThemedText
+                                  style={{
+                                    fontSize: 15,
+                                    fontWeight: isSelected ? "700" : "600",
+                                    color: isSelected ? "#059669" : theme.text,
+                                  }}
+                                >
+                                  {cat.label}
+                                </ThemedText>
+                                <ThemedText
+                                  style={{
+                                    fontSize: 12.5,
+                                    color: isSelected ? "#10B981" : theme.textSecondary,
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  {cat.hiLabel}
+                                </ThemedText>
+                              </View>
+                              {isSelected && (
+                                <Ionicons name="checkmark-circle" size={22} color="#10B981" />
+                              )}
+                            </Pressable>
+                          );
+                        })}
+                        {filteredCategories.length === 0 && (
+                          <View style={{ paddingVertical: 24, alignItems: "center" }}>
+                            <ThemedText style={{ color: theme.textSecondary, fontSize: 14 }}>
+                              No category matching "{categorySearch}" found.
+                            </ThemedText>
+                          </View>
+                        )}
+                      </ScrollView>
+                    </View>
+                  </View>
+                </Modal>
+
+                {/* Custom Category Input if "Other" selected */}
+                {workerCategory === "Other" && (
+                  <View style={styles.inputContainer}>
+                    <ThemedText style={styles.inputLabel}>
+                      {t("auth.customTradePrompt", "Specify Custom Trade / Skill (काम का नाम लिखें)")} <Text style={{ color: "red" }}>*</Text>
+                    </ThemedText>
+                    <View
+                      style={[
+                        styles.inputWrapper,
+                        {
+                          backgroundColor: theme.backgroundDefault,
+                          borderColor: theme.border,
+                        },
+                      ]}
+                    >
+                      <Feather name="edit-3" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, { color: theme.text }]}
+                        placeholder="उदा. बोरवेल ऑपरेटर, ग्लास फिटर, आदि"
+                        placeholderTextColor={theme.textSecondary}
+                        value={customWorkerCategory}
+                        onChangeText={setCustomWorkerCategory}
+                        autoCorrect={false}
+                      />
+                    </View>
+                  </View>
+                )}
 
                 <View style={styles.laborInfoCard}>
                   <Feather name="info" size={16} color="#10B981" />
                   <ThemedText style={{ color: theme.textSecondary, fontSize: 12.5, flex: 1, marginLeft: 8 }}>
-                    A permanent Unique ID (HM-W-XXXXXX) will be generated for your worker account.
+                    {t("auth.uniqueIdInfo", "A permanent Unique ID (HM-W-XXXXXX) will be generated for your worker account.")}
                   </ThemedText>
                 </View>
               </>
             )}
 
             {/* ── PASSWORD SECTION ── */}
-            <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>PASSWORD</ThemedText>
+            <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>{t("auth.password", "PASSWORD")}</ThemedText>
 
             {/* Password */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                Password <Text style={{ color: "red" }}>*</Text>
+                {t("auth.password", "Password")} <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View
                 style={[
@@ -923,7 +1125,7 @@ export default function SignupScreen() {
                 <Feather name="lock" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Create password"
+                  placeholder={t("auth.newPasswordPlaceholder", "Create password")}
                   placeholderTextColor={theme.textSecondary}
                   value={password}
                   onChangeText={setPassword}
@@ -944,7 +1146,7 @@ export default function SignupScreen() {
             {/* Confirm Password */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                Confirm Password <Text style={{ color: "red" }}>*</Text>
+                {t("auth.confirmPassword", "Confirm Password")} <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View
                 style={[
@@ -963,7 +1165,7 @@ export default function SignupScreen() {
                 <Feather name="lock" size={18} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder="Confirm password"
+                  placeholder={t("auth.confirmPasswordPlaceholder", "Confirm password")}
                   placeholderTextColor={theme.textSecondary}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
@@ -981,7 +1183,7 @@ export default function SignupScreen() {
               </View>
               {confirmPassword.length > 0 && !isPasswordMatching && (
                 <Text style={[styles.validationMsg, { color: "#EF4444" }]}>
-                  Passwords do not match
+                  {t("auth.passwordsDoNotMatch", "Passwords do not match")}
                 </Text>
               )}
             </View>
@@ -1000,12 +1202,12 @@ export default function SignupScreen() {
             >
               <ThemedText style={styles.signupButtonText}>
                 {isLoading
-                  ? "Creating Account..."
+                  ? t("auth.creatingAccount", "Creating Account...")
                   : selectedRole === "contractor"
-                  ? "Create Contractor Account"
+                  ? t("auth.createContractorAccount", "Create Contractor Account")
                   : selectedRole === "supervisor"
-                  ? "Create Supervisor Account"
-                  : "Create Labor Account"}
+                  ? t("auth.createSupervisorAccount", "Create Supervisor Account")
+                  : t("auth.createLabourAccount", "Create Labour Account")}
               </ThemedText>
             </AnimatedPressable>
           </View>
@@ -1177,5 +1379,103 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 4,
     marginLeft: 4,
+  },
+  categoryDropdownTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    minHeight: 56,
+  },
+  categoryDropdownLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 10,
+  },
+  categoryIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  categoryDropdownTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  categoryDropdownSubtitle: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  categoryModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "flex-end",
+  },
+  categoryModalContainer: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    maxHeight: "80%",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  categoryModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  categoryModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  categoryModalSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  categoryModalCloseBtn: {
+    padding: 6,
+    borderRadius: 20,
+  },
+  categorySearchWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  categorySearchInput: {
+    flex: 1,
+    fontSize: 14,
+    height: "100%",
+  },
+  categoryOptionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 6,
   },
 });

@@ -72,7 +72,7 @@ export default function AttendancePage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-extrabold text-white">Labor Attendance logs</h1>
+          <h1 className="text-3xl font-extrabold text-white">Labour Attendance logs</h1>
           <p className="text-slate-400 text-sm mt-1">Monitor real-time biometric and manual clock-in logs uploaded from supervisor applications</p>
         </div>
         <button
@@ -104,7 +104,7 @@ export default function AttendancePage() {
         </div>
 
         <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block ml-1">Search Labor</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block ml-1">Search Labour</label>
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input
@@ -138,7 +138,7 @@ export default function AttendancePage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-900/30 border-b border-slate-850/60 text-slate-400 text-xs font-bold uppercase tracking-wider">
-                <th className="px-6 py-4.5">Labor Worker</th>
+                <th className="px-6 py-4.5">Labour Worker</th>
                 <th className="px-6 py-4.5">Organization</th>
                 <th className="px-6 py-4.5">Date Filter</th>
                 <th className="px-6 py-4.5">GPS Verification</th>

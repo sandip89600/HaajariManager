@@ -9,13 +9,14 @@ import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
 import TermsAndConditionsScreen from "@/screens/TermsAndConditionsScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
+import LanguageSelectionScreen from "@/screens/LanguageSelectionScreen";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
-import FirstTimeSetupScreen from "@/screens/FirstTimeSetupScreen";
+import { storage } from "@/utils/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 
 export type RootNavigatorParamList = {
-  FirstTimeSetup: undefined;
+  LanguageSelection: undefined;
   Login: undefined;
   Signup: undefined;
   ForgotPassword: undefined;
@@ -33,9 +34,13 @@ export default function RootNavigator() {
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem("@haajari/isFirstLaunchCompleted")
-      .then((val) => {
-        setIsFirstLaunch(val !== "true");
+    Promise.all([
+      storage.isLanguageOnboardingCompleted(),
+      AsyncStorage.getItem("@haajari/isFirstLaunchCompleted"),
+    ])
+      .then(([langCompleted, firstLaunchCompleted]) => {
+        const completed = langCompleted || firstLaunchCompleted === "true";
+        setIsFirstLaunch(!completed);
       })
       .catch(() => {
         setIsFirstLaunch(false);
@@ -52,6 +57,16 @@ export default function RootNavigator() {
 
   const hasAccess = isLoggedIn || isGuest;
 
+  const handleLanguageComplete = async () => {
+    try {
+      await storage.setLanguageOnboardingCompleted(true);
+      await AsyncStorage.setItem("@haajari/isFirstLaunchCompleted", "true");
+    } catch (e) {
+      console.warn("Error marking first launch complete:", e);
+    }
+    setIsFirstLaunch(false);
+  };
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -60,11 +75,11 @@ export default function RootNavigator() {
       }}
     >
       {isFirstLaunch ? (
-        <Stack.Screen name="FirstTimeSetup">
+        <Stack.Screen name="LanguageSelection">
           {(props) => (
-            <FirstTimeSetupScreen
+            <LanguageSelectionScreen
               {...props}
-              onComplete={() => setIsFirstLaunch(false)}
+              onComplete={handleLanguageComplete}
             />
           )}
         </Stack.Screen>

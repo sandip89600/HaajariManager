@@ -30,11 +30,13 @@ class ConsoleOtpChannel implements OTPChannel {
   name = "ConsoleSimulated";
 
   async send(phone: string, otp: string): Promise<boolean> {
-    console.log("\n============================================================");
-    console.log(`📱 [SMS/OTP DISPATCH] Recipient: ${phone}`);
-    console.log(`🔐 [ACCOUNT RECOVERY OTP] 6-Digit Code: ${otp}`);
-    console.log(`⏱️  Validity: 5 Minutes (Max 5 attempts)`);
-    console.log("============================================================\n");
+    const isDev = process.env.NODE_ENV !== "production";
+    const maskedPhone = phone.length > 4 ? `${phone.substring(0, 2)}******${phone.substring(phone.length - 2)}` : "******";
+    if (isDev) {
+      console.log(`📱 [SMS/OTP DISPATCH DEV] Recipient: ${phone} | Code: ${otp}`);
+    } else {
+      console.log(`📱 [SMS/OTP DISPATCH] Dispatched to: ${maskedPhone}`);
+    }
     return true;
   }
 }

@@ -94,10 +94,12 @@ export async function requestNotificationPermission(): Promise<boolean> {
   if (!Notifs) return false;
 
   try {
-    const { status: existing } = await Notifs.getPermissionsAsync();
+    const permResult: any = await Notifs.getPermissionsAsync();
+    const existing = permResult?.status;
     if (existing === "granted") return true;
 
-    const { status } = await Notifs.requestPermissionsAsync();
+    const reqResult: any = await Notifs.requestPermissionsAsync();
+    const status = reqResult?.status;
     return status === "granted";
   } catch (err) {
     console.warn("[Notifications] Permission request error:", err);

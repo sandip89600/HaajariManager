@@ -388,8 +388,15 @@ export default function LoginScreen() {
     setIsLoading(true);
     setError(null);
     try {
-      const success = await login(phone, password);
-      if (success) {
+      const result = await login(phone, password, undefined, rememberMe);
+      if (result && typeof result === "object" && result.requiresOtp) {
+        setShowOtpVerification(true);
+        setOtpCountdown(60);
+        setError(null);
+        Alert.alert("2FA Verification", "A 6-digit verification code has been sent to your registered number.");
+        return;
+      }
+      if (result === true) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
         if (rememberMe) {
@@ -437,21 +444,22 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Top Hero Logo */}
+        {/* Top Hero Logo */}
         <Animated.View entering={FadeInUp.duration(600).springify()} style={styles.heroSection}>
           <LinearGradient colors={["#F97316", "#EA580C"]} style={styles.logoBadge}>
             <Feather name="shield" size={32} color="#FFFFFF" />
           </LinearGradient>
-          <ThemedText style={[styles.appName, { color: theme.text }]}>Haajari Manager</ThemedText>
-          <ThemedText style={[styles.tagline, { color: theme.textSecondary }]}>Advance Haajari Mangament</ThemedText>
+          <ThemedText style={[styles.appName, { color: theme.text }]}>{t("app.name", "Haajari Manager")}</ThemedText>
+          <ThemedText style={[styles.tagline, { color: theme.textSecondary }]}>{t("app.tagline", "Advance Attendance & Site Management")}</ThemedText>
         </Animated.View>
 
         {/* glassmorphism Card container */}
         <Animated.View entering={FadeInDown.duration(800).springify()} style={[styles.formCard, { backgroundColor: isDark ? "rgba(30, 41, 59, 0.7)" : "#FFFFFF", borderColor: theme.border }]}>
           <ThemedText style={[styles.cardTitle, { color: theme.text }]}>
-            {showOtpVerification ? "Verify Code" : "Sign In"}
+            {showOtpVerification ? t("auth.verifyCode", "Verify Code") : t("auth.login", "Sign In")}
           </ThemedText>
           <ThemedText style={[styles.cardSubtitle, { color: theme.textSecondary }]}>
-            {showOtpVerification ? `Verification code sent to ${phone}` : "Enter credentials below to enter portal"}
+            {showOtpVerification ? `${t("auth.otpSentTo", "We sent a 6-digit verification code to")} ${phone}` : t("auth.enterCredentials", "Enter credentials below to enter portal")}
           </ThemedText>
 
           {error && (
@@ -466,9 +474,9 @@ export default function LoginScreen() {
               {/* Fields inputs */}
               <AnimatedInput
                 icon="phone"
-                placeholder="Mobile number or username"
+                placeholder={t("auth.mobileOrUsername", "Mobile number or username")}
                 value={phone}
-                onChangeText={(t: string) => { setPhone(t); setError(null); }}
+                onChangeText={(tVal: string) => { setPhone(tVal); setError(null); }}
                 keyboardType="default"
                 autoCapitalize="none"
                 theme={theme}
@@ -480,9 +488,9 @@ export default function LoginScreen() {
                 <View style={{ marginTop: 12 }}>
                   <AnimatedInput
                     icon="lock"
-                    placeholder="Enter password"
+                    placeholder={t("auth.enterPassword", "Enter password")}
                     value={password}
-                    onChangeText={(t: string) => { setPassword(t); setError(null); }}
+                    onChangeText={(tVal: string) => { setPassword(tVal); setError(null); }}
                     secureTextEntry={!showPassword}
                     rightIcon={showPassword ? "eye-off" : "eye"}
                     onRightIconPress={() => setShowPassword(!showPassword)}
@@ -503,7 +511,7 @@ export default function LoginScreen() {
                         color={rememberMe ? theme.primary : theme.textSecondary}
                       />
                       <ThemedText style={[styles.optionsLabel, { color: theme.textSecondary, marginLeft: 8 }]}>
-                        Remember me
+                        {t("auth.rememberMe", "Remember me")}
                       </ThemedText>
                     </Pressable>
 
@@ -515,7 +523,7 @@ export default function LoginScreen() {
                       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
                       <ThemedText style={{ color: theme.primary, fontSize: 13, fontWeight: "600" }}>
-                        Forgot Password?
+                        {t("auth.forgotPassword", "Forgot Password?")}
                       </ThemedText>
                     </Pressable>
                   </View>
@@ -538,7 +546,7 @@ export default function LoginScreen() {
                   ) : (
                     <>
                       <ThemedText style={styles.btnLabel}>
-                        {loginMode === "password" ? "Secure Login" : "Send OTP code"}
+                        {loginMode === "password" ? t("auth.secureLogin", "Secure Login") : t("auth.sendOtp", "Send OTP code")}
                       </ThemedText>
                       <Feather name="arrow-right" size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
                     </>
@@ -558,7 +566,7 @@ export default function LoginScreen() {
                     keyboardType="number-pad"
                     maxLength={1}
                     value={digit}
-                    onChangeText={(t) => handleOtpBoxChange(t, idx)}
+                    onChangeText={(tVal) => handleOtpBoxChange(tVal, idx)}
                     onKeyPress={(e) => handleOtpKeyPress(e, idx)}
                   />
                 ))}
@@ -570,7 +578,20 @@ export default function LoginScreen() {
                   onPress={handleSendOtp}
                 >
                   <ThemedText style={{ color: otpCountdown > 0 ? theme.textSecondary : theme.primary, fontSize: 13, fontWeight: "600" }}>
-                    {otpCountdown > 0 ? `Resend in ${otpCountdown}s` : "Resend code"}
+                    {otpCountdown > 0 ? `${t("auth.resendOtpIn", "Resend in")} ${otpCountdown}s` : t("auth.resendOtp", "Resend code")}
+                  </ThemedText>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    setShowOtpVerification(false);
+                    setOtpArray(["", "", "", "", "", ""]);
+                    setError(null);
+                  }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <ThemedText style={{ color: theme.textSecondary, fontSize: 13, fontWeight: "500" }}>
+                    {t("common.cancel", "Change Number / Cancel")}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -584,7 +605,7 @@ export default function LoginScreen() {
                   {isLoading ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <ThemedText style={styles.btnLabel}>Verify & Continue</ThemedText>
+                    <ThemedText style={styles.btnLabel}>{t("auth.verifyOtp", "Verify & Continue")}</ThemedText>
                   )}
                 </LinearGradient>
               </AnimatedPressable>
@@ -596,7 +617,7 @@ export default function LoginScreen() {
             <>
               <View style={styles.dividerRow}>
                 <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-                <ThemedText style={[styles.dividerLabel, { color: theme.textSecondary }]}>or continue with</ThemedText>
+                <ThemedText style={[styles.dividerLabel, { color: theme.textSecondary }]}>{t("auth.orContinueWith", "or continue with")}</ThemedText>
                 <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
               </View>
 
@@ -622,7 +643,7 @@ export default function LoginScreen() {
                   <>
                     <Ionicons name="logo-google" size={18} color="#4285F4" style={{ marginRight: 10 }} />
                     <ThemedText style={[styles.googleBtnLabel, { color: theme.text }]}>
-                      Continue with Google
+                      {t("auth.continueWithGoogle", "Continue with Google")}
                     </ThemedText>
                   </>
                 )}
@@ -635,7 +656,7 @@ export default function LoginScreen() {
                 >
                   <Feather name={loginMode === "password" ? "mail" : "lock"} size={16} color={theme.text} />
                   <ThemedText style={[styles.altBtnLabel, { color: theme.text, marginLeft: 8 }]}>
-                    {loginMode === "password" ? "Use OTP Login" : "Use Password"}
+                    {loginMode === "password" ? t("auth.useOtpLogin", "Use OTP Login") : t("auth.usePassword", "Use Password")}
                   </ThemedText>
                 </Pressable>
 
@@ -659,7 +680,8 @@ export default function LoginScreen() {
         <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.bottomNavRow}>
           <Pressable onPress={() => navigationProp.push("Signup" as any)} style={{ paddingVertical: 4 }}>
             <ThemedText style={{ color: theme.textSecondary, fontSize: 14 }}>
-              Don't have an account? <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>Register Here</ThemedText>
+              {t("auth.dontHaveAccount", "Don't have an account?")}{" "}
+              <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>{t("auth.signUp", "Register Here")}</ThemedText>
             </ThemedText>
           </Pressable>
         </Animated.View>

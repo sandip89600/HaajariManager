@@ -93,7 +93,7 @@ export default function AddWorkerScreen() {
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<WorkerCategory>("labour");
-  const [dailyRate, setDailyRate] = useState("");
+  const [existingDailyRate, setExistingDailyRate] = useState<number>(0);
   const [skillCategory, setSkillCategory] = useState<"skilled" | "semi_skilled" | "unskilled">("unskilled");
   const [paymentType, setPaymentType] = useState<"daily" | "piece_rate" | "contract">("daily");
   const [pieceRateAmount, setPieceRateAmount] = useState("");
@@ -141,7 +141,7 @@ export default function AddWorkerScreen() {
     if (worker) {
       setName(worker.name);
       setCategory(worker.category);
-      setDailyRate(worker.dailyRate.toString());
+      setExistingDailyRate(worker.dailyRate || 0);
       setSkillCategory(worker.skillCategory || "unskilled");
       setPaymentType(worker.paymentType || "daily");
       setPieceRateAmount((worker.pieceRateAmount || 0).toString());
@@ -210,12 +210,6 @@ export default function AddWorkerScreen() {
       return;
     }
 
-    const rate = parseFloat(dailyRate);
-    if (isNaN(rate) || rate <= 0) {
-      Alert.alert(t.common.error, t.workers.enterRate);
-      return;
-    }
-
     setIsLoading(true);
 
     try {
@@ -243,7 +237,7 @@ export default function AddWorkerScreen() {
             ...existingWorker,
             name: name.trim(),
             category,
-            dailyRate: rate,
+            dailyRate: existingWorker.dailyRate ?? existingDailyRate ?? 0,
             skillCategory,
             paymentType,
             pieceRateAmount: parseFloat(pieceRateAmount) || 0,
@@ -261,7 +255,7 @@ export default function AddWorkerScreen() {
           id: generateId(),
           name: name.trim(),
           category,
-          dailyRate: rate,
+          dailyRate: existingDailyRate || 0,
           skillCategory,
           paymentType,
           pieceRateAmount: parseFloat(pieceRateAmount) || 0,
@@ -451,28 +445,6 @@ export default function AddWorkerScreen() {
             </View>
             <Feather name="chevron-down" size={20} color={theme.textSecondary} />
           </Pressable>
-        </View>
-
-        {/* Daily Rate */}
-        <View style={styles.formGroup}>
-          <ThemedText type="h4" style={styles.label}>
-            {t.workers.dailyRate} ({t.common.currency})
-          </ThemedText>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                color: theme.text,
-                backgroundColor: theme.backgroundDefault,
-                borderColor: theme.border,
-              },
-            ]}
-            value={dailyRate}
-            onChangeText={setDailyRate}
-            placeholder="500"
-            placeholderTextColor={theme.textSecondary}
-            keyboardType="numeric"
-          />
         </View>
 
         {/* Skill Category */}

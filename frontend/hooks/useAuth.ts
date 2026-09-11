@@ -583,13 +583,21 @@ export function useAuthProvider() {
 
           const userData: User = {
             id: data.user.id,
+            uniqueId: data.user.uniqueId || "",
             name: data.user.name,
             phone: data.user.phone || "",
             email: data.user.email || "",
+            username: data.user.username || "",
+            isPhoneVerified: !!data.user.isPhoneVerified,
             avatarColor: data.user.avatarColor || "#4ECDC4",
             profileImage: data.user.profileImage || undefined,
             address: data.user.address || "",
             role: role,
+            workerCategory: data.user.workerCategory,
+            dailyWage: data.user.dailyWage,
+            contractorName: data.user.contractorName,
+            contractorCompany: data.user.contractorCompany,
+            connectionStatus: data.user.connectionStatus || "not_connected",
             isActive: true,
             createdAt: data.user.createdAt
               ? new Date(data.user.createdAt).getTime()
@@ -686,6 +694,7 @@ export function useAuthProvider() {
 
         const userData: User = {
           id: data.user.id,
+          uniqueId: data.user.uniqueId || "",
           name: data.user.name,
           phone: data.user.phone || "",
           email: data.user.email || "",
@@ -695,6 +704,11 @@ export function useAuthProvider() {
           profileImage: data.user.profileImage || undefined,
           address: data.user.address || "",
           role: uRole,
+          workerCategory: data.user.workerCategory,
+          dailyWage: data.user.dailyWage,
+          contractorName: data.user.contractorName,
+          contractorCompany: data.user.contractorCompany,
+          connectionStatus: data.user.connectionStatus || "not_connected",
           isActive: true,
           createdAt: data.user.createdAt
             ? new Date(data.user.createdAt).getTime()
@@ -725,7 +739,8 @@ export function useAuthProvider() {
   }, []);
 
   const logout = useCallback(async () => {
-    await storage.clearAll();
+    await storage.clearAuth();
+    await storage.clearBiometricCredentials();
     await AsyncStorage.removeItem("@haajari/admin_session");
     setIsLoggedIn(false);
     setIsGuest(false);

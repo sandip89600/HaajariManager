@@ -711,7 +711,7 @@ export default function SiteDetailControlScreen() {
               </View>
               <View style={[styles.ledgerItem, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
                 <ThemedText style={styles.ledgerVal}>₹{expenseBreakdown.labour?.toLocaleString("en-IN") || 0}</ThemedText>
-                <ThemedText style={styles.ledgerLabel}>Labor wages</ThemedText>
+                <ThemedText style={styles.ledgerLabel}>Labour wages</ThemedText>
               </View>
               <View style={[styles.ledgerItem, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
                 <ThemedText style={styles.ledgerVal}>₹{expenseBreakdown.machinery?.toLocaleString("en-IN") || 0}</ThemedText>
@@ -750,7 +750,7 @@ export default function SiteDetailControlScreen() {
                 <ThemedText style={styles.reportValue}>{progressPercent}% stages completed</ThemedText>
               </View>
               <View style={styles.reportRow}>
-                <ThemedText style={styles.reportLabel}>Labor Present</ThemedText>
+                <ThemedText style={styles.reportLabel}>Labour Present</ThemedText>
                 <ThemedText style={styles.reportValue}>{siteWorkers.length} active heads today</ThemedText>
               </View>
               <View style={styles.reportRow}>
@@ -793,7 +793,7 @@ export default function SiteDetailControlScreen() {
             </View>
 
             <View style={[styles.analyticsCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-              <ThemedText style={styles.analyticsTitle}>Labor Roll Attendance %</ThemedText>
+              <ThemedText style={styles.analyticsTitle}>Labour Roll Attendance %</ThemedText>
               <ThemedText style={styles.analyticsStat}>88%</ThemedText>
               <ThemedText style={styles.analyticsLabel}>Average active ratio for assigned roster over past 30 days.</ThemedText>
             </View>
@@ -1008,7 +1008,7 @@ export default function SiteDetailControlScreen() {
               <View style={styles.filterGroup}>
                 {([
                   { id: "material", label: "Material" },
-                  { id: "labour", label: "Labor Wages" },
+                  { id: "labour", label: "Labour Wages" },
                   { id: "machinery", label: "Machinery" },
                   { id: "vendor", label: "Vendor" },
                   { id: "other", label: "Other" },

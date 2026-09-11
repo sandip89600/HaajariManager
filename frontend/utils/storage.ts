@@ -5,8 +5,10 @@ import Constants from "expo-constants";
 import { Language } from "@/constants/i18n";
 import { getDeviceHeaders } from "./device";
 
+declare const process: any;
+
 const getApiUrl = () => {
-  if (process.env.EXPO_PUBLIC_API_URL) {
+  if (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "");
   }
 
@@ -213,6 +215,7 @@ export const STORAGE_KEYS = {
   ATTENDANCE: "@haajari/attendance",
   SETTINGS: "@haajari/settings",
   LANGUAGE: "@haajari/language",
+  LANGUAGE_ONBOARDING_COMPLETED: "@haajari/language_onboarding_completed",
   PROFILE: "@haajari/profile",
   THEME: "@haajari/theme",
   PROJECTS: "@haajari/projects",
@@ -539,6 +542,26 @@ export const storage = {
       await AsyncStorage.setItem(STORAGE_KEYS.LANGUAGE, language);
     } catch (error) {
       console.error("Error saving language:", error);
+    }
+  },
+
+  async isLanguageOnboardingCompleted(): Promise<boolean> {
+    try {
+      const val = await AsyncStorage.getItem(STORAGE_KEYS.LANGUAGE_ONBOARDING_COMPLETED);
+      return val === "true";
+    } catch {
+      return false;
+    }
+  },
+
+  async setLanguageOnboardingCompleted(completed = true): Promise<void> {
+    try {
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.LANGUAGE_ONBOARDING_COMPLETED,
+        completed ? "true" : "false"
+      );
+    } catch (error) {
+      console.error("Error saving language onboarding status:", error);
     }
   },
 
@@ -1725,7 +1748,8 @@ export async function authenticatedFetch(
         } else if (refreshRes.status === 401 || refreshRes.status === 403 || refreshRes.status === 400) {
           console.warn("Refresh token rejected by server: status", refreshRes.status);
           isRefreshing = false;
-          refreshSubscribers = [];
+          // Notify queued subscribers with empty string so they don't hang indefinitely
+          onRefreshed("");
           await storage.clearAuth();
           DeviceEventEmitter.emit("unauthorized");
         } else {

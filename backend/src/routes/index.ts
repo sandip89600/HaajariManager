@@ -28,9 +28,9 @@ const router = Router();
 
 router.use("/auth", authRoutes);
 router.use("/v2/auth", authRoutes);
-router.use("/", connectionRoutes);
-router.use("/v2", connectionRoutes);
 router.use("/recovery", recoveryRoutes);
+router.use("/connections", connectionRoutes);
+router.use("/v2/connections", connectionRoutes);
 
 router.use("/workers", workerRoutes);
 router.use("/attendance", attendanceRoutes);

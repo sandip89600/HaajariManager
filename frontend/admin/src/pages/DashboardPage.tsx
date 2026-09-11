@@ -81,7 +81,7 @@ export default function DashboardPage() {
   const kpis = [
     { name: 'Total Orgs', val: totalOrgs, sub: 'Client Tenants', icon: Building, color: 'text-orange-500 bg-orange-500/10 border-orange-500/20' },
     { name: 'Total Users', val: totalUsers, sub: 'Supervisor Accounts', icon: Users, color: 'text-blue-500 bg-blue-500/10 border-blue-500/20' },
-    { name: 'Total Workers', val: totalWorkers, sub: 'Registered Labor', icon: HardHat, color: 'text-purple-500 bg-purple-500/10 border-purple-500/20' },
+    { name: 'Total Workers', val: totalWorkers, sub: 'Registered Labour', icon: HardHat, color: 'text-purple-500 bg-purple-500/10 border-purple-500/20' },
     { name: 'Present Today', val: presentToday, sub: 'Marked Present', icon: UserCheck, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
     { name: 'Absent Today', val: absentToday, sub: 'Marked Absent', icon: UserX, color: 'text-rose-500 bg-rose-500/10 border-rose-500/20' },
     { name: 'Half Day Today', val: halfDayToday, sub: 'Short Shifts', icon: Clock, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20' },
