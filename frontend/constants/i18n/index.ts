@@ -144,7 +144,7 @@ function resolvePath(obj: any, path: string): string | undefined {
 }
 
 export function getTranslation(language: Language): TranslationApi {
-  const selected = translations[language] || translations.hi || translations.en;
+  const selected = translations[language] || translations.en;
   const merged = language === "en" ? translations.en : deepMergeFallback(translations.en, selected);
 
   const tFunc = function (keyPath: string, fallback?: string): string {
@@ -153,8 +153,8 @@ export function getTranslation(language: Language): TranslationApi {
     }
     const val =
       resolvePath(merged, keyPath) ||
-      resolvePath(translations.hi, keyPath) ||
-      resolvePath(translations.en, keyPath);
+      resolvePath(translations.en, keyPath) ||
+      resolvePath(translations.hi, keyPath);
     if (val !== undefined && val !== null) return String(val);
 
     if (fallback !== undefined) return fallback;

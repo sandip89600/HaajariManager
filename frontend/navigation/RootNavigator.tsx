@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
@@ -9,14 +9,10 @@ import ForgotPasswordScreen from "@/screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
 import TermsAndConditionsScreen from "@/screens/TermsAndConditionsScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
-import LanguageSelectionScreen from "@/screens/LanguageSelectionScreen";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
-import { storage } from "@/utils/storage";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 
 export type RootNavigatorParamList = {
-  LanguageSelection: undefined;
   Login: undefined;
   Signup: undefined;
   ForgotPassword: undefined;
@@ -31,23 +27,8 @@ const Stack = createNativeStackNavigator<RootNavigatorParamList>();
 export default function RootNavigator() {
   const { isLoggedIn, isGuest, isLoading } = useAuth();
   const { theme, isDark } = useTheme();
-  const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    Promise.all([
-      storage.isLanguageOnboardingCompleted(),
-      AsyncStorage.getItem("@haajari/isFirstLaunchCompleted"),
-    ])
-      .then(([langCompleted, firstLaunchCompleted]) => {
-        const completed = langCompleted || firstLaunchCompleted === "true";
-        setIsFirstLaunch(!completed);
-      })
-      .catch(() => {
-        setIsFirstLaunch(false);
-      });
-  }, []);
-
-  if (isLoading || isFirstLaunch === null) {
+  if (isLoading) {
     return (
       <View style={[styles.loading, { backgroundColor: theme.backgroundRoot }]}>
         <ActivityIndicator size="large" color={theme.primary} />
@@ -57,16 +38,6 @@ export default function RootNavigator() {
 
   const hasAccess = isLoggedIn || isGuest;
 
-  const handleLanguageComplete = async () => {
-    try {
-      await storage.setLanguageOnboardingCompleted(true);
-      await AsyncStorage.setItem("@haajari/isFirstLaunchCompleted", "true");
-    } catch (e) {
-      console.warn("Error marking first launch complete:", e);
-    }
-    setIsFirstLaunch(false);
-  };
-
   return (
     <Stack.Navigator
       screenOptions={{
@@ -74,16 +45,7 @@ export default function RootNavigator() {
         headerShown: false,
       }}
     >
-      {isFirstLaunch ? (
-        <Stack.Screen name="LanguageSelection">
-          {(props) => (
-            <LanguageSelectionScreen
-              {...props}
-              onComplete={handleLanguageComplete}
-            />
-          )}
-        </Stack.Screen>
-      ) : hasAccess ? (
+      {hasAccess ? (
         <Stack.Screen name="Main" component={MainTabNavigator} />
       ) : (
         <>

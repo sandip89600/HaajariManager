@@ -18,7 +18,7 @@ interface LanguageContextType {
 export const LanguageContext = createContext<LanguageContextType | null>(null);
 
 export function useLanguageProvider() {
-  const [language, setLanguageState] = useState<Language>("hi");
+  const [language, setLanguageState] = useState<Language>("en");
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
