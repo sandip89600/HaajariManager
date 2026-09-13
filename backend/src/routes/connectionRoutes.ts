@@ -3,6 +3,8 @@ import { authenticateJWT } from "../middleware/auth";
 import {
   lookupByUniqueId,
   createConnectionRequest,
+  acceptConnectionRequest,
+  rejectConnectionRequest,
   verifyConnectionCode,
   disconnectConnection,
   getContractorConnections,
@@ -24,9 +26,11 @@ const router = Router();
 // Connection routes require authenticated JWT user
 router.use(authenticateJWT as any);
 
-// Unified Unique ID & Connection Code Endpoints
+// Unified Unique ID & Connection Endpoints
 router.get("/lookup", lookupByUniqueId as any);
 router.post("/request", createConnectionRequest as any);
+router.post("/accept", acceptConnectionRequest as any);
+router.post("/reject", rejectConnectionRequest as any);
 router.post("/verify", verifyConnectionCode as any);
 router.post("/disconnect", disconnectConnection as any);
 router.get("/contractor/connections", getContractorConnections as any);

@@ -90,7 +90,7 @@ const UserSchema = new Schema<IUser>({
   email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
   passwordHash: { type: String, required: true },
   phone: { type: String, required: true, unique: true, trim: true },
-  uniqueId: { type: String, unique: true, uppercase: true, trim: true },
+  uniqueId: { type: String, uppercase: true, trim: true },
   role: { type: String, enum: ["contractor", "builder", "supervisor", "labor", "admin"], default: "contractor" },
   workerCategory: { type: String, trim: true },
   dailyWage: { type: Number, min: 0 },

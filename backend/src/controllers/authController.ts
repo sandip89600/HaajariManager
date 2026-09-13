@@ -1872,19 +1872,30 @@ export const sendOtp = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const phoneTrimmed = phone.trim();
-    const user = await User.findOne({
+    const phoneDigits = phoneTrimmed.replace(/\D/g, "");
+    const clean10 = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneTrimmed;
+
+    let user = await User.findOne({
       $or: [
         { phone: phoneTrimmed },
+        { phone: new RegExp(clean10 + "$") },
         { username: phoneTrimmed.toLowerCase() },
         { email: phoneTrimmed.toLowerCase() }
       ]
     });
 
+    let worker = null;
     if (!user) {
-      return res.status(404).json({ error: "This mobile number is not registered." });
+      worker = await Worker.findOne({
+        phone: new RegExp(clean10 + "$"),
+      });
+      if (!worker) {
+        return res.status(404).json({ error: "This mobile number is not registered." });
+      }
     }
 
-    const targetPhone = user.phone;
+    const targetPhone = user?.phone || clean10;
+    const recipientName = user?.name || worker?.name || "Worker";
 
     // Check resend limit: Wait at least 60s
     const lastOtp = await OtpCode.findOne({ phone: targetPhone }).sort({ createdAt: -1 });
@@ -1908,7 +1919,7 @@ export const sendOtp = async (req: AuthenticatedRequest, res: Response) => {
     await newOtp.save();
 
     console.log(`\n==============================================`);
-    console.log(`[SIMULATED SMS OTP] Code for ${user.name} (${phoneTrimmed}) is: ${code}`);
+    console.log(`[SIMULATED SMS OTP] Code for ${recipientName} (${targetPhone}) is: ${code}`);
     console.log(`==============================================\n`);
 
     res.json({ success: true, message: "OTP sent successfully." });
@@ -1926,18 +1937,21 @@ export const verifyOtpLogin = async (req: AuthenticatedRequest, res: Response) =
     }
 
     const phoneTrimmed = phone.trim();
-    const user = await User.findOne({
+    const phoneDigits = phoneTrimmed.replace(/\D/g, "");
+    const clean10 = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneTrimmed;
+
+    let user = await User.findOne({
       $or: [
         { phone: phoneTrimmed },
+        { phone: new RegExp(clean10 + "$") },
         { username: phoneTrimmed.toLowerCase() },
         { email: phoneTrimmed.toLowerCase() }
       ]
     });
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
 
-    const activeOtp = await OtpCode.findOne({ phone: user.phone, verified: false });
+    const targetPhone = user ? user.phone : clean10;
+
+    const activeOtp = await OtpCode.findOne({ phone: targetPhone, verified: false });
     if (!activeOtp) {
       return res.status(400).json({ error: "Invalid or expired OTP code" });
     }
@@ -1957,8 +1971,7 @@ export const verifyOtpLogin = async (req: AuthenticatedRequest, res: Response) =
       activeOtp.attemptsCount += 1;
       await activeOtp.save();
 
-      // Log security event
-      if (user.securityLogs) {
+      if (user && user.securityLogs) {
         user.securityLogs.push({
           timestamp: new Date(),
           eventType: "FAILED_OTP_ATTEMPT",
@@ -1971,8 +1984,74 @@ export const verifyOtpLogin = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ error: "Invalid OTP code" });
     }
 
-    // Invalidate OTP immediately by deleting all OTP entries for this user
-    await OtpCode.deleteMany({ phone: user.phone });
+    // Invalidate OTP immediately by deleting all OTP entries for this phone
+    await OtpCode.deleteMany({ phone: targetPhone });
+
+    // If user does not exist yet, check if matching contractor-created worker exists and auto-claim
+    let claimedWorker = false;
+    if (!user) {
+      const matchingWorkers = await Worker.find({
+        phone: new RegExp(clean10 + "$"),
+      });
+
+      if (matchingWorkers.length > 0) {
+        const primaryWorker = matchingWorkers[0];
+        const contractorUser = await User.findOne({
+          tenantId: primaryWorker.tenantId,
+          role: "contractor",
+        });
+        const contractorTenant = await Tenant.findById(primaryWorker.tenantId);
+
+        const defaultPasswordHash = await bcrypt.hash(crypto.randomBytes(16).toString("hex"), 12);
+
+        user = new User({
+          tenantId: primaryWorker.tenantId,
+          name: primaryWorker.name || "Worker",
+          phone: clean10,
+          passwordHash: defaultPasswordHash,
+          role: "labor",
+          workerCategory: primaryWorker.category || "Labour",
+          dailyWage: primaryWorker.dailyRate || 500,
+          connectionStatus: contractorUser ? "connected" : "not_connected",
+          contractorId: contractorUser?._id,
+          contractorName: contractorUser?.name,
+          contractorCompany: contractorTenant?.name || contractorUser?.name,
+          isActive: true,
+          isVerified: true,
+          isPhoneVerified: true,
+          status: "active",
+          refreshTokens: [],
+        });
+
+        await user.save();
+
+        for (const w of matchingWorkers) {
+          w.userId = user._id as any;
+          w.isClaimed = true;
+          w.claimedAt = new Date();
+          await w.save();
+        }
+
+        if (contractorUser) {
+          const connReq = new (await import("../models")).ConnectionRequest({
+            senderId: contractorUser._id,
+            receiverId: user._id,
+            tenantId: primaryWorker.tenantId,
+            workerId: primaryWorker._id,
+            targetRole: "labor",
+            method: "mobile",
+            status: "accepted",
+            connectedAt: new Date(),
+            acceptedAt: new Date(),
+          });
+          await connReq.save();
+        }
+
+        claimedWorker = true;
+      } else {
+        return res.status(404).json({ error: "User not found" });
+      }
+    }
 
     user.lastLogin = new Date();
 
@@ -3160,17 +3239,54 @@ export const registerLabor = async (req: AuthenticatedRequest, res: Response) =>
 
     const passwordHash = await bcrypt.hash(password, 12);
 
+    // Check if contractor-created worker profiles exist for this phone
+    const phoneDigits = phoneClean.replace(/\D/g, "");
+    const matchingWorkers = await Worker.find({
+      phone: new RegExp(phoneDigits.slice(-10) + "$"),
+    });
+
+    let assignedTenantId = standaloneTenant._id;
+    let contractorId: any = undefined;
+    let contractorName: string | undefined = undefined;
+    let contractorCompany: string | undefined = undefined;
+    let connectionStatus: "connected" | "not_connected" = "not_connected";
+    let finalCategory = workerCategory ? workerCategory.trim() : "Labour";
+    let finalWage = dailyWage ? Number(dailyWage) : 500;
+
+    if (matchingWorkers.length > 0) {
+      const primaryWorker = matchingWorkers[0];
+      assignedTenantId = primaryWorker.tenantId;
+      finalCategory = primaryWorker.category || finalCategory;
+      finalWage = primaryWorker.dailyRate || finalWage;
+
+      const contractorUser = await User.findOne({
+        tenantId: primaryWorker.tenantId,
+        role: "contractor",
+      });
+
+      if (contractorUser) {
+        contractorId = contractorUser._id;
+        contractorName = contractorUser.name;
+        const contractorTenant = await Tenant.findById(primaryWorker.tenantId);
+        contractorCompany = contractorTenant?.name || contractorUser.name;
+        connectionStatus = "connected";
+      }
+    }
+
     const laborUser = new User({
-      tenantId: standaloneTenant._id,
+      tenantId: assignedTenantId,
       name: name.trim(),
       phone: phoneClean,
       email: emailClean,
       username: usernameClean,
       passwordHash,
       role: "labor",
-      workerCategory: workerCategory ? workerCategory.trim() : "Labour",
-      dailyWage: dailyWage ? Number(dailyWage) : 500,
-      connectionStatus: "not_connected",
+      workerCategory: finalCategory,
+      dailyWage: finalWage,
+      connectionStatus,
+      contractorId,
+      contractorName,
+      contractorCompany,
       isActive: true,
       isVerified: true,
       isPhoneVerified: true,
@@ -3179,6 +3295,32 @@ export const registerLabor = async (req: AuthenticatedRequest, res: Response) =>
     });
 
     await laborUser.save();
+
+    // Link all matching contractor-created worker profiles to this user
+    if (matchingWorkers.length > 0) {
+      for (const w of matchingWorkers) {
+        w.userId = laborUser._id as any;
+        w.isClaimed = true;
+        w.claimedAt = new Date();
+        await w.save();
+      }
+
+      if (contractorId) {
+        // Create connection record
+        const connReq = new (await import("../models")).ConnectionRequest({
+          senderId: contractorId,
+          receiverId: laborUser._id,
+          tenantId: assignedTenantId,
+          workerId: matchingWorkers[0]._id,
+          targetRole: "labor",
+          method: "mobile",
+          status: "accepted",
+          connectedAt: new Date(),
+          acceptedAt: new Date(),
+        });
+        await connReq.save();
+      }
+    }
 
     const token = generateAccessToken(laborUser);
     const refreshToken = generateRefreshToken(laborUser);
@@ -3191,16 +3333,19 @@ export const registerLabor = async (req: AuthenticatedRequest, res: Response) =>
       targetType: "User",
       targetId: laborUser._id.toString(),
       userId: laborUser._id.toString(),
-      tenantId: standaloneTenant._id.toString(),
+      tenantId: assignedTenantId.toString(),
       userName: laborUser.name,
       role: "labor",
     });
 
     return res.status(201).json({
       success: true,
-      message: "Labor account created successfully.",
+      message: matchingWorkers.length > 0 
+        ? "Labor account created and linked to your contractor's existing profile!" 
+        : "Labor account created successfully.",
       token,
       refreshToken,
+      claimedWorker: matchingWorkers.length > 0,
       user: {
         id: laborUser._id,
         uniqueId: laborUser.uniqueId,
@@ -3212,6 +3357,8 @@ export const registerLabor = async (req: AuthenticatedRequest, res: Response) =>
         workerCategory: laborUser.workerCategory,
         dailyWage: laborUser.dailyWage,
         connectionStatus: laborUser.connectionStatus,
+        contractorName: laborUser.contractorName,
+        contractorCompany: laborUser.contractorCompany,
         createdAt: laborUser.createdAt,
       },
     });

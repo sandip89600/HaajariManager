@@ -21,6 +21,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
 import { authenticatedFetch, API_URL } from "@/utils/storage";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import TeamConnectionWidget from "@/components/TeamConnectionWidget";
 
 export default function SupervisorDashboardScreen() {
   const { theme, isDark } = useTheme();
@@ -184,48 +185,8 @@ export default function SupervisorDashboardScreen() {
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Contractor Connection Info Card */}
-        <View style={[styles.card, { backgroundColor: cardBg, borderColor: borderCol }]}>
-          <View style={styles.cardHeaderRow}>
-            <View style={styles.contractorIconBox}>
-              <MaterialCommunityIcons name="office-building" size={22} color="#4F46E5" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>
-                {t("supervisor.assignedContractor", "संबंधित ठेकेदार / कंपनी")}
-              </Text>
-              <Text style={[styles.cardTitle, { color: theme.text }]}>
-                {user?.contractorName || t("supervisor.noContractorAssigned", "Not Connected")}
-              </Text>
-              {!!user?.contractorCompany && (
-                <Text style={[styles.cardSubText, { color: theme.textSecondary }]}>
-                  {user.contractorCompany}
-                </Text>
-              )}
-            </View>
-            <View
-              style={[
-                styles.statusBadge,
-                {
-                  backgroundColor: user?.connectionStatus === "connected" ? "#DCFCE7" : "#FEF3C7",
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.statusBadgeText,
-                  {
-                    color: user?.connectionStatus === "connected" ? "#166534" : "#92400E",
-                  },
-                ]}
-              >
-                {user?.connectionStatus === "connected"
-                  ? t("common.connected", "Connected")
-                  : t("common.pending", "Pending")}
-              </Text>
-            </View>
-          </View>
-        </View>
+        {/* Team Connection Widget */}
+        <TeamConnectionWidget onRefreshParent={loadSupervisorData} />
 
         {/* Operational Stats Grid */}
         <Text style={[styles.sectionTitle, { color: theme.text }]}>

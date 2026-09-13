@@ -20,6 +20,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
 import { authenticatedFetch, API_URL } from "@/utils/storage";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import TeamConnectionWidget from "@/components/TeamConnectionWidget";
 
 export default function WorkerDashboardScreen() {
   const { theme, isDark } = useTheme();
@@ -235,69 +236,8 @@ export default function WorkerDashboardScreen() {
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Pending Connection Code Alert (if Contractor sent request) */}
-        {pendingRequests.length > 0 && (
-          <View style={[styles.pendingCard, { backgroundColor: isDark ? "#1E1B4B" : "#EEF2FF", borderColor: "#6366F1" }]}>
-            <View style={styles.pendingHeaderRow}>
-              <MaterialCommunityIcons name="link-variant-plus" size={24} color="#6366F1" />
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={styles.pendingTitle}>
-                  {t("worker.pendingConnectionTitle", "ठेकेदार कनेक्शन अनुरोध (Connection Request)")}
-                </Text>
-                <Text style={[styles.pendingSubtitle, { color: theme.textSecondary }]}>
-                  {pendingRequests[0].contractorName} ({pendingRequests[0].companyName})
-                </Text>
-              </View>
-            </View>
-            <Text style={[styles.pendingDesc, { color: theme.textSecondary }]}>
-              {t("worker.pendingConnectionHelp", "ठेकेदार को यह 6-अंकों का कोड बताएं:")}
-            </Text>
-            <View style={styles.codeBox}>
-              <Text style={styles.codeText}>{pendingRequests[0].code}</Text>
-              <Pressable onPress={() => copyCode(pendingRequests[0].code)} style={styles.copyCodeBtn}>
-                <Feather name="copy" size={16} color="#4F46E5" />
-                <Text style={styles.copyCodeBtnText}>{t("common.copy", "Copy")}</Text>
-              </Pressable>
-            </View>
-            <Text style={styles.expiryNote}>
-              {t("worker.codeValidTenMin", "यह कोड 10 मिनट के लिए मान्य है")}
-            </Text>
-          </View>
-        )}
-
-        {/* Connected Contractor Info */}
-        <View style={[styles.card, { backgroundColor: cardBg, borderColor: borderCol }]}>
-          <View style={styles.cardHeaderRow}>
-            <View style={[styles.contractorIconBox, { backgroundColor: isDark ? "#1E293B" : "#F0FDF4" }]}>
-              <MaterialCommunityIcons name="shield-check" size={22} color="#10B981" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>
-                {t("worker.contractorDetails", "संबंधित ठेकेदार / कंपनी")}
-              </Text>
-              <Text style={[styles.cardTitle, { color: theme.text }]}>
-                {user?.contractorName || workerInfo?.contractorName || t("worker.notConnected", "ठेकेदार से लिंक नहीं")}
-              </Text>
-              {(user?.contractorCompany || workerInfo?.contractorCompany) && (
-                <Text style={[styles.cardSubtitle, { color: theme.textSecondary }]}>
-                  {user?.contractorCompany || workerInfo?.contractorCompany}
-                </Text>
-              )}
-            </View>
-            <View style={[styles.statusTag, { backgroundColor: (user?.connectionStatus === "connected" || user?.contractorName) ? "#DCFCE7" : "#F1F5F9" }]}>
-              <Text style={[styles.statusTagText, { color: (user?.connectionStatus === "connected" || user?.contractorName) ? "#059669" : "#64748B" }]}>
-                {(user?.connectionStatus === "connected" || user?.contractorName)
-                  ? t("worker.statusConnected", "जुड़े हुए (Connected)")
-                  : t("worker.statusSolo", "अलग (Independent)")}
-              </Text>
-            </View>
-          </View>
-          {!user?.contractorName && !workerInfo?.contractorName && (
-            <Text style={[styles.helperNote, { color: theme.textSecondary }]}>
-              {t("worker.howToConnectTip", "💡 ठेकेदार से जुड़ने के लिए अपनी वर्कर आईडी (Unique ID) ठेकेदार को दें।")}
-            </Text>
-          )}
-        </View>
+        {/* Team Connection Widget */}
+        <TeamConnectionWidget onRefreshParent={loadWorkerData} />
 
         {/* Today's Attendance Highlight Card */}
         <View style={[styles.card, { backgroundColor: cardBg, borderColor: borderCol }]}>

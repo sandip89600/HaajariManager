@@ -102,6 +102,7 @@ export default function AddWorkerScreen() {
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
+  const [workerUniqueId, setWorkerUniqueId] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [limitModalVisible, setLimitModalVisible] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -150,6 +151,7 @@ export default function AddWorkerScreen() {
       setAddress(worker.address || "");
       setNotes(worker.notes || "");
       setPhotoUri(worker.photoUri);
+      setWorkerUniqueId((worker as any).uniqueId);
       setSelectedProjectId(worker.projectId);
     }
   };
@@ -652,6 +654,36 @@ export default function AddWorkerScreen() {
 
         {/* Contact Info */}
         <SectionHeader title={t.workers.contactInfo} />
+        {workerUniqueId && (
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: "#10B981",
+                padding: 12,
+                marginBottom: Spacing.sm,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              },
+            ]}
+          >
+            <View>
+              <ThemedText style={{ fontSize: 11, fontWeight: "700", color: "#059669", textTransform: "uppercase" }}>
+                Worker Unique ID
+              </ThemedText>
+              <ThemedText style={{ fontSize: 16, fontWeight: "800", color: theme.text, marginTop: 2 }}>
+                {workerUniqueId}
+              </ThemedText>
+            </View>
+            <View style={{ backgroundColor: "#DCFCE7", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+              <ThemedText style={{ fontSize: 11, fontWeight: "700", color: "#059669" }}>
+                Active
+              </ThemedText>
+            </View>
+          </View>
+        )}
         <View
           style={[
             styles.card,
@@ -672,9 +704,10 @@ export default function AddWorkerScreen() {
               style={[styles.cardInput, { color: theme.text }]}
               value={phone}
               onChangeText={setPhone}
-              placeholder={`${t.workers.phone} (${t.workers.optional})`}
+              placeholder={`${t.workers.phone} (10-digit mobile number)`}
               placeholderTextColor={theme.textSecondary}
               keyboardType="phone-pad"
+              maxLength={10}
             />
           </View>
           <View
@@ -696,6 +729,18 @@ export default function AddWorkerScreen() {
             />
           </View>
         </View>
+        <ThemedText
+          type="small"
+          style={{
+            color: theme.textSecondary,
+            fontSize: 11,
+            lineHeight: 16,
+            marginTop: 6,
+            paddingHorizontal: 4,
+          }}
+        >
+          💡 Entering worker&apos;s mobile number allows them to log in with OTP and view their attendance &amp; earnings automatically.
+        </ThemedText>
 
         {/* Notes */}
         <SectionHeader title={t.workers.additionalInfo} />

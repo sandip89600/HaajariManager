@@ -32,33 +32,63 @@ export const lookupByUniqueId = async (req: AuthenticatedRequest, res: Response)
     const targetUser = await User.findOne({
       $or: searchConditions,
       isActive: true,
-    }).select("name uniqueId role workerCategory dailyWage connectionStatus avatarColor profileImage contractorName contractorCompany");
+    }).select("name uniqueId role workerCategory dailyWage connectionStatus avatarColor profileImage contractorName contractorCompany phone");
 
-    if (!targetUser) {
-      return res.status(404).json({ success: false, message: "User not found with this Unique ID or phone." });
+    if (targetUser) {
+      // Do not allow self-connection
+      if (targetUser._id.toString() === req.user?.id) {
+        return res.status(400).json({ success: false, message: "You cannot connect to your own account." });
+      }
+
+      return res.json({
+        success: true,
+        user: {
+          id: targetUser._id,
+          name: targetUser.name,
+          uniqueId: targetUser.uniqueId,
+          role: targetUser.role === "labor" ? "worker" : targetUser.role,
+          workerCategory: targetUser.workerCategory || (targetUser.role === "labor" ? "Labour / Worker" : targetUser.role),
+          dailyWage: targetUser.dailyWage || 0,
+          connectionStatus: targetUser.connectionStatus,
+          avatarColor: targetUser.avatarColor,
+          profileImage: targetUser.profileImage,
+          contractorName: targetUser.contractorName,
+          contractorCompany: targetUser.contractorCompany,
+          phoneMasked: targetUser.phone ? targetUser.phone.replace(/(\d{2})\d{6}(\d{2})/, "$1******$2") : undefined,
+        },
+      });
     }
 
-    // Do not allow self-connection
-    if (targetUser._id.toString() === req.user?.id) {
-      return res.status(400).json({ success: false, message: "You cannot connect to your own account." });
+    // Also search in Worker records
+    const workerConditions: any[] = [
+      { uniqueId: cleanUpper },
+    ];
+    if (phoneOnlyDigits.length >= 8) {
+      workerConditions.push({ phone: new RegExp(phoneOnlyDigits.slice(-10) + "$") });
     }
 
-    return res.json({
-      success: true,
-      user: {
-        id: targetUser._id,
-        name: targetUser.name,
-        uniqueId: targetUser.uniqueId,
-        role: targetUser.role === "labor" ? "worker" : targetUser.role,
-        workerCategory: targetUser.workerCategory || (targetUser.role === "labor" ? "Labour / Worker" : targetUser.role),
-        dailyWage: targetUser.dailyWage || 0,
-        connectionStatus: targetUser.connectionStatus,
-        avatarColor: targetUser.avatarColor,
-        profileImage: targetUser.profileImage,
-        contractorName: targetUser.contractorName,
-        contractorCompany: targetUser.contractorCompany,
-      },
+    const targetWorker = await Worker.findOne({
+      $or: workerConditions,
+      isArchived: false,
     });
+
+    if (targetWorker) {
+      return res.json({
+        success: true,
+        worker: {
+          id: targetWorker._id,
+          name: targetWorker.name,
+          uniqueId: targetWorker.uniqueId,
+          role: "worker",
+          category: targetWorker.category,
+          dailyRate: targetWorker.dailyRate,
+          isClaimed: targetWorker.isClaimed,
+          phoneMasked: targetWorker.phone ? targetWorker.phone.replace(/(\d{2})\d{6}(\d{2})/, "$1******$2") : undefined,
+        },
+      });
+    }
+
+    return res.status(404).json({ success: false, message: "Account not found with this ID or phone." });
   } catch (error: any) {
     console.error("lookupByUniqueId error:", error);
     return res.status(500).json({ success: false, message: error.message });
@@ -137,61 +167,113 @@ export const searchLabor = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-// 4. Create Connection Request with 6-Digit Temporary Code (10-minute TTL)
+// 4. Create Connection Request with 6-Digit Temporary Code
 export const createConnectionRequest = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const contractorId = req.user?.id;
-    const tenantId = req.user?.tenantId;
-    const { targetUniqueId, targetUserId } = req.body;
+    const currentUserId = req.user?.id;
+    const currentUserRole = req.user?.role;
+    const currentTenantId = req.user?.tenantId;
+    const { targetUniqueId, targetUserId, targetPhone, method = "id" } = req.body;
 
-    if (!targetUniqueId && !targetUserId) {
-      return res.status(400).json({ success: false, message: "Target Unique ID or User ID is required." });
+    if (!targetUniqueId && !targetUserId && !targetPhone) {
+      return res.status(400).json({ success: false, message: "Target ID, User ID, or Mobile number is required." });
     }
 
     let targetUser = null;
+    let targetWorker = null;
+
     if (targetUniqueId) {
-      targetUser = await User.findOne({ uniqueId: String(targetUniqueId).trim().toUpperCase() });
+      const upper = String(targetUniqueId).trim().toUpperCase();
+      targetUser = await User.findOne({ uniqueId: upper });
+      if (!targetUser) {
+        targetWorker = await Worker.findOne({ uniqueId: upper, isArchived: false });
+      }
     } else if (targetUserId) {
       targetUser = await User.findById(targetUserId);
+    } else if (targetPhone) {
+      const phoneDigits = String(targetPhone).replace(/\D/g, "");
+      const clean10 = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : targetPhone.trim();
+      targetUser = await User.findOne({ phone: new RegExp(clean10 + "$") });
+      if (!targetUser) {
+        targetWorker = await Worker.findOne({ phone: new RegExp(clean10 + "$"), isArchived: false });
+      }
     }
 
-    if (!targetUser) {
-      return res.status(404).json({ success: false, message: "Target account not found." });
+    if (!targetUser && !targetWorker) {
+      return res.status(404).json({ success: false, message: "Target user or worker profile not found." });
     }
 
-    if (targetUser._id.toString() === contractorId) {
+    // If target is worker without User account
+    if (!targetUser && targetWorker) {
+      if (targetWorker.userId) {
+        targetUser = await User.findById(targetWorker.userId);
+      }
+    }
+
+    if (targetUser && targetUser._id.toString() === currentUserId) {
       return res.status(400).json({ success: false, message: "Cannot send connection request to yourself." });
     }
 
-    const contractor = await User.findById(contractorId);
-    const tenant = await Tenant.findById(tenantId);
-    const companyName = tenant?.name || contractor?.name || "Contractor Company";
+    // Check if already connected
+    if (targetUser && targetUser.contractorId && targetUser.contractorId.toString() === currentUserId) {
+      return res.status(400).json({ success: false, message: "This user is already connected to your account." });
+    }
 
-    // Generate 6-digit random connection code (cryptographically uniform)
+    const sender = await User.findById(currentUserId);
+    const tenant = await Tenant.findById(currentTenantId);
+    const companyName = tenant?.name || sender?.name || "Company";
+
+    // If targetUser doesn't exist yet (worker is unclaimed), create or update worker under contractor's tenant directly
+    if (!targetUser && targetWorker) {
+      targetWorker.tenantId = currentTenantId as any;
+      await targetWorker.save();
+      return res.json({
+        success: true,
+        message: `Worker profile ${targetWorker.name} is now connected. When they sign up with mobile, they will claim this account.`,
+        worker: targetWorker,
+      });
+    }
+
+    // Check existing active connection
+    const existingActive = await ConnectionRequest.findOne({
+      $or: [
+        { senderId: currentUserId, receiverId: targetUser!._id, status: { $in: ["active", "accepted"] } },
+        { senderId: targetUser!._id, receiverId: currentUserId, status: { $in: ["active", "accepted"] } },
+      ],
+    });
+    if (existingActive) {
+      return res.status(400).json({ success: false, message: "You are already connected with this user." });
+    }
+
+    // Check existing pending request
+    const existingPending = await ConnectionRequest.findOne({
+      $or: [
+        { senderId: currentUserId, receiverId: targetUser!._id, status: "pending", codeExpiresAt: { $gt: new Date() } },
+        { senderId: targetUser!._id, receiverId: currentUserId, status: "pending", codeExpiresAt: { $gt: new Date() } },
+      ],
+    });
+
+    // Generate 6-digit random connection code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const codeHash = await bcrypt.hash(code, 8);
     const codeExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    // Check existing request
-    let connectionReq = await ConnectionRequest.findOne({
-      senderId: contractorId,
-      receiverId: targetUser._id,
-      status: "pending",
-    });
-
+    let connectionReq = existingPending;
     if (connectionReq) {
-      // Refresh code and expiration
       connectionReq.code = code;
       connectionReq.codeHash = codeHash;
       connectionReq.codeExpiresAt = codeExpiresAt;
       connectionReq.codeAttempts = 0;
+      connectionReq.method = method === "mobile" ? "mobile" : "id";
       await connectionReq.save();
     } else {
       connectionReq = new ConnectionRequest({
-        senderId: contractorId,
-        receiverId: targetUser._id,
-        tenantId,
-        targetRole: targetUser.role === "supervisor" ? "supervisor" : "labor",
+        senderId: currentUserId,
+        receiverId: targetUser!._id,
+        tenantId: currentTenantId,
+        workerId: targetWorker?._id,
+        targetRole: targetUser!.role === "supervisor" ? "supervisor" : (targetUser!.role === "contractor" ? "contractor" : "labor"),
+        method: method === "mobile" ? "mobile" : "id",
         status: "pending",
         code,
         codeHash,
@@ -201,15 +283,15 @@ export const createConnectionRequest = async (req: AuthenticatedRequest, res: Re
       await connectionReq.save();
     }
 
-    targetUser.connectionStatus = "pending";
-    await targetUser.save();
+    targetUser!.connectionStatus = "pending";
+    await targetUser!.save();
 
     // Broadcast Real-Time socket notification
     try {
       const io = getIO();
-      io.to(`user_${targetUser._id}`).emit("connection:newRequest", {
+      io.to(`user_${targetUser!._id}`).emit("connection:newRequest", {
         requestId: connectionReq._id,
-        contractorName: contractor?.name,
+        senderName: sender?.name,
         companyName,
         code,
         expiresAt: codeExpiresAt,
@@ -222,15 +304,16 @@ export const createConnectionRequest = async (req: AuthenticatedRequest, res: Re
 
     return res.status(201).json({
       success: true,
-      message: "Connection request sent. The target user has received the 6-digit connection code.",
+      message: "Connection request sent successfully.",
       connectionRequest: {
         id: connectionReq._id,
         targetUser: {
-          id: targetUser._id,
-          name: targetUser.name,
-          uniqueId: targetUser.uniqueId,
-          role: targetUser.role,
+          id: targetUser!._id,
+          name: targetUser!.name,
+          uniqueId: targetUser!.uniqueId,
+          role: targetUser!.role,
         },
+        code,
         expiresAt: codeExpiresAt,
       },
     });
@@ -376,26 +459,295 @@ export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Respo
   }
 };
 
-// 6. Get Pending Connection Requests for Logged-In User (Supervisor or Worker)
+// 6. Accept Connection Request (Direct Accept without Code)
+export const acceptConnectionRequest = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const currentUserId = req.user?.id;
+    const { requestId, senderId } = req.body;
+
+    let connectionReq = null;
+    if (requestId) {
+      connectionReq = await ConnectionRequest.findById(requestId);
+    } else if (senderId) {
+      connectionReq = await ConnectionRequest.findOne({
+        senderId,
+        receiverId: currentUserId,
+        status: "pending",
+      });
+    }
+
+    if (!connectionReq) {
+      return res.status(404).json({ success: false, message: "Connection request not found." });
+    }
+
+    if (connectionReq.status === "accepted" || connectionReq.status === "active") {
+      return res.status(400).json({ success: false, message: "Connection request has already been accepted." });
+    }
+
+    if (connectionReq.status === "rejected" || connectionReq.status === "cancelled" || connectionReq.status === "disconnected") {
+      return res.status(400).json({ success: false, message: "Connection request is no longer pending." });
+    }
+
+    if (currentUserId && connectionReq.receiverId.toString() !== currentUserId && connectionReq.senderId.toString() !== currentUserId) {
+      return res.status(403).json({ success: false, message: "You are not authorized to accept this connection request." });
+    }
+
+    const sender = await User.findById(connectionReq.senderId);
+    const receiver = await User.findById(connectionReq.receiverId);
+
+    if (!sender || !receiver) {
+      return res.status(404).json({ success: false, message: "User accounts not found." });
+    }
+
+    connectionReq.status = "accepted";
+    connectionReq.acceptedAt = new Date();
+    connectionReq.connectedAt = new Date();
+    await connectionReq.save();
+
+    // Determine who is contractor and who is member (worker/supervisor)
+    let contractor = sender.role === "contractor" ? sender : (receiver.role === "contractor" ? receiver : sender);
+    let member = sender.role === "contractor" ? receiver : (receiver.role === "contractor" ? sender : (sender.role === "labor" ? sender : receiver));
+
+    // Ensure contractor has a valid tenantId
+    let contractorTenantId = contractor.tenantId;
+    if (!contractorTenantId) {
+      let tenant = await Tenant.findOne({ ownerId: contractor._id });
+      if (!tenant) {
+        tenant = new Tenant({
+          name: `${contractor.name || "Contractor"}'s Company`,
+          ownerId: contractor._id,
+        });
+        await tenant.save();
+      }
+      contractorTenantId = tenant._id as any;
+      contractor.tenantId = contractorTenantId;
+      await contractor.save();
+    }
+
+    const tenant = await Tenant.findById(contractorTenantId);
+
+    member.tenantId = contractorTenantId;
+    member.contractorId = contractor._id as any;
+    member.contractorName = contractor.name;
+    member.contractorCompany = tenant?.name || contractor.name;
+    member.connectionStatus = "connected";
+    await member.save();
+
+    if (contractor._id.toString() !== member._id.toString()) {
+      contractor.connectionStatus = "connected";
+      await contractor.save();
+    }
+
+    // If member is worker/labor, link or create Worker profile in contractor's tenant
+    if (member.role === "labor" || (member.role as string) === "worker") {
+      try {
+        const phoneDigits = member.phone ? member.phone.replace(/\D/g, "") : "";
+        let existingWorker = null;
+        if (phoneDigits.length >= 10) {
+          existingWorker = await Worker.findOne({
+            tenantId: contractorTenantId,
+            $or: [
+              { userId: member._id },
+              { phone: new RegExp(phoneDigits.slice(-10) + "$") },
+            ],
+          });
+        } else {
+          existingWorker = await Worker.findOne({
+            tenantId: contractorTenantId,
+            userId: member._id,
+          });
+        }
+
+        if (existingWorker) {
+          existingWorker.userId = member._id as any;
+          existingWorker.isClaimed = true;
+          existingWorker.claimedAt = new Date();
+          if (member.name) existingWorker.name = member.name;
+          await existingWorker.save();
+        } else {
+          existingWorker = new Worker({
+            tenantId: contractorTenantId,
+            userId: member._id,
+            name: member.name || "Worker",
+            phone: member.phone || "",
+            category: member.workerCategory || "Labour",
+            dailyRate: member.dailyWage || 500,
+            skillCategory: "skilled",
+            paymentType: "daily",
+            isArchived: false,
+            isClaimed: true,
+            claimedAt: new Date(),
+          });
+          await existingWorker.save();
+        }
+      } catch (workerErr) {
+        console.warn("Worker profile creation/sync non-fatal error:", workerErr);
+      }
+    }
+
+    // Broadcast socket
+    try {
+      const io = getIO();
+      io.to(`user_${sender._id}`).emit("connection:accepted", {
+        member: { id: member._id, name: member.name, uniqueId: member.uniqueId },
+        contractor: { id: contractor._id, name: contractor.name },
+      });
+      io.to(`user_${receiver._id}`).emit("connection:accepted", {
+        member: { id: member._id, name: member.name, uniqueId: member.uniqueId },
+        contractor: { id: contractor._id, name: contractor.name },
+      });
+      io.emit("admin_dashboard_update");
+    } catch (socketErr) {
+      console.warn("Socket broadcast failed:", socketErr);
+    }
+
+    return res.json({
+      success: true,
+      message: "Connection request accepted successfully.",
+      connection: connectionReq,
+    });
+  } catch (error: any) {
+    console.error("acceptConnectionRequest error:", error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to accept connection request." });
+  }
+};
+
+// 7. Reject Connection Request
+export const rejectConnectionRequest = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const currentUserId = req.user?.id;
+    const { requestId, senderId } = req.body;
+
+    let connectionReq = null;
+    if (requestId) {
+      connectionReq = await ConnectionRequest.findById(requestId);
+    } else if (senderId) {
+      connectionReq = await ConnectionRequest.findOne({
+        senderId,
+        receiverId: currentUserId,
+        status: "pending",
+      });
+    }
+
+    if (!connectionReq) {
+      return res.status(404).json({ success: false, message: "Connection request not found." });
+    }
+
+    if (currentUserId && connectionReq.receiverId.toString() !== currentUserId && connectionReq.senderId.toString() !== currentUserId) {
+      return res.status(403).json({ success: false, message: "You are not authorized to reject this connection request." });
+    }
+
+    connectionReq.status = "rejected";
+    connectionReq.rejectedAt = new Date();
+    await connectionReq.save();
+
+    const receiver = await User.findById(connectionReq.receiverId);
+    if (receiver && receiver.connectionStatus === "pending") {
+      receiver.connectionStatus = "not_connected";
+      await receiver.save();
+    }
+
+    const sender = await User.findById(connectionReq.senderId);
+    if (sender && sender.connectionStatus === "pending") {
+      sender.connectionStatus = "not_connected";
+      await sender.save();
+    }
+
+    // Broadcast socket
+    try {
+      const io = getIO();
+      io.to(`user_${connectionReq.senderId}`).emit("connection:rejected", {
+        requestId: connectionReq._id,
+      });
+      io.to(`user_${connectionReq.receiverId}`).emit("connection:rejected", {
+        requestId: connectionReq._id,
+      });
+    } catch (socketErr) {
+      console.warn("Socket broadcast failed:", socketErr);
+    }
+
+    return res.json({
+      success: true,
+      message: "Connection request rejected.",
+    });
+  } catch (error: any) {
+    console.error("rejectConnectionRequest error:", error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to reject connection request." });
+  }
+};
+
+// 8. Get Pending Connection Requests for Logged-In User
 export const getPendingUserConnectionRequests = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
 
-    const pendingRequests = await ConnectionRequest.find({
+    const incomingRequests = await ConnectionRequest.find({
       receiverId: userId,
       status: "pending",
-      codeExpiresAt: { $gt: new Date() },
+      $or: [
+        { codeExpiresAt: { $exists: false } },
+        { codeExpiresAt: null },
+        { codeExpiresAt: { $gt: new Date() } },
+      ],
     })
-      .populate("senderId", "name phone email uniqueId")
-      .populate("tenantId", "name");
+      .populate("senderId", "name phone email uniqueId role workerCategory dailyWage")
+      .populate("tenantId", "name")
+      .sort({ createdAt: -1 });
+
+    const outgoingRequests = await ConnectionRequest.find({
+      senderId: userId,
+      status: "pending",
+      $or: [
+        { codeExpiresAt: { $exists: false } },
+        { codeExpiresAt: null },
+        { codeExpiresAt: { $gt: new Date() } },
+      ],
+    })
+      .populate("receiverId", "name phone email uniqueId role workerCategory dailyWage")
+      .populate("tenantId", "name")
+      .sort({ createdAt: -1 });
 
     return res.json({
       success: true,
-      requests: pendingRequests.map((r) => ({
+      incoming: incomingRequests.map((r) => ({
         requestId: r._id,
+        senderId: (r.senderId as any)?._id,
+        senderName: (r.senderId as any)?.name || "User",
+        senderRole: (r.senderId as any)?.role || r.targetRole || "User",
+        senderUniqueId: (r.senderId as any)?.uniqueId || "",
+        senderCategory: (r.senderId as any)?.workerCategory || "",
+        senderPhone: (r.senderId as any)?.phone || "",
+        companyName: (r.tenantId as any)?.name || "",
+        targetRole: r.targetRole,
+        code: r.code,
+        method: r.method,
+        expiresAt: r.codeExpiresAt,
+        createdAt: r.createdAt,
+      })),
+      outgoing: outgoingRequests.map((r) => ({
+        requestId: r._id,
+        receiverId: (r.receiverId as any)?._id,
+        receiverName: (r.receiverId as any)?.name || "User",
+        receiverRole: (r.receiverId as any)?.role || r.targetRole || "User",
+        receiverUniqueId: (r.receiverId as any)?.uniqueId || "",
+        receiverCategory: (r.receiverId as any)?.workerCategory || "",
+        receiverPhone: (r.receiverId as any)?.phone || "",
+        companyName: (r.tenantId as any)?.name || "",
+        targetRole: r.targetRole,
+        code: r.code,
+        method: r.method,
+        expiresAt: r.codeExpiresAt,
+        createdAt: r.createdAt,
+      })),
+      requests: incomingRequests.map((r) => ({
+        requestId: r._id,
+        senderName: (r.senderId as any)?.name || "User",
+        senderUniqueId: (r.senderId as any)?.uniqueId || "",
+        senderRole: (r.senderId as any)?.role || r.targetRole || "User",
+        senderCategory: (r.senderId as any)?.workerCategory || "",
         contractorName: (r.senderId as any)?.name || "Contractor",
         contractorUniqueId: (r.senderId as any)?.uniqueId || "",
-        companyName: (r.tenantId as any)?.name || "Company",
+        companyName: (r.tenantId as any)?.name || "",
         targetRole: r.targetRole,
         code: r.code,
         expiresAt: r.codeExpiresAt,
@@ -471,16 +823,19 @@ export const getContractorConnections = async (req: AuthenticatedRequest, res: R
       connectionStatus: "connected",
     }).select("name uniqueId email phone avatarColor profileImage createdAt assignedProjects");
 
-    const connectedWorkers = await User.find({
+    const connectedWorkers = await Worker.find({
       tenantId,
-      role: { $in: ["labor", "worker"] },
-      connectionStatus: "connected",
-    }).select("name uniqueId email phone workerCategory dailyWage avatarColor profileImage createdAt");
+      isArchived: false,
+    }).select("name uniqueId phone category dailyRate isClaimed userId createdAt");
 
     const pendingRequests = await ConnectionRequest.find({
       senderId: contractorId,
       status: "pending",
-      codeExpiresAt: { $gt: new Date() },
+      $or: [
+        { codeExpiresAt: { $exists: false } },
+        { codeExpiresAt: null },
+        { codeExpiresAt: { $gt: new Date() } },
+      ],
     }).populate("receiverId", "name uniqueId phone email role workerCategory connectionStatus");
 
     return res.json({

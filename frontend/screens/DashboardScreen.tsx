@@ -33,6 +33,7 @@ import { useNotifications, registerForPushNotificationsAsync } from "@/hooks/use
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { AttendanceEditorModal } from "@/components/AttendanceEditorModal";
+import TeamConnectionWidget from "@/components/TeamConnectionWidget";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
@@ -780,6 +781,11 @@ export default function DashboardScreen() {
             </View>
           </Animated.View>
         ) : null}
+
+        {/* ── Team & Connections Section ─────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(300).springify()} style={{ paddingHorizontal: 16, marginTop: 12 }}>
+          <TeamConnectionWidget onRefreshParent={loadDashboardData} />
+        </Animated.View>
 
         {/* ── Today's Attendance Log ────────────────────────────────── */}
         <Animated.View

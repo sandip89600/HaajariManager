@@ -37,6 +37,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { ProfileHeaderCard } from "@/components/ProfileHeaderCard";
+import TeamConnectionWidget from "@/components/TeamConnectionWidget";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { translateWorkerName } from "@/utils/transliteration";
@@ -1099,6 +1100,13 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
             />
           );
         })()}
+
+        {/* ─── TEAM & CONNECTIONS WIDGET ─── */}
+        {!isGuest && (currentUser || authUser) && (
+          <View style={{ marginTop: Spacing.md, marginBottom: Spacing.xs }}>
+            <TeamConnectionWidget />
+          </View>
+        )}
 
         {/* ─── GUEST BANNER ─── */}
         {isGuest && (

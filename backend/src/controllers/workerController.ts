@@ -52,19 +52,47 @@ export const addWorker = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const finalDailyRate = dailyRate !== undefined && dailyRate !== null ? Number(dailyRate) : 0;
-
     const tAuth = Date.now() - startTime;
+
+    const phoneDigits = phone ? String(phone).replace(/\D/g, "") : "";
+    const cleanPhone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : (phone ? String(phone).trim() : undefined);
+
+    let linkedUserId = undefined;
+    let isClaimed = false;
+    let claimedAt = undefined;
+
+    if (cleanPhone && cleanPhone.length >= 10) {
+      const existingUser = await User.findOne({
+        phone: new RegExp(cleanPhone + "$"),
+        role: { $in: ["labor", "worker"] },
+      });
+      if (existingUser) {
+        linkedUserId = existingUser._id;
+        isClaimed = true;
+        claimedAt = new Date();
+
+        if (existingUser.connectionStatus !== "connected") {
+          existingUser.contractorId = userId as any;
+          existingUser.tenantId = tenantId as any;
+          existingUser.connectionStatus = "connected";
+          await existingUser.save();
+        }
+      }
+    }
 
     const worker = new Worker({
       tenantId,
       projectId,
-      name,
-      category,
+      userId: linkedUserId,
+      name: name.trim(),
+      category: category.trim(),
       dailyRate: finalDailyRate,
-      phone,
-      address,
-      notes,
+      phone: cleanPhone,
+      address: address ? String(address).trim() : undefined,
+      notes: notes ? String(notes).trim() : undefined,
       photoUri,
+      isClaimed,
+      claimedAt,
     });
     await worker.save();
     const tWorker = Date.now() - startTime;

@@ -111,6 +111,14 @@ app.get(["/health", "/api/health"], (req, res) => {
 // Register API routes
 app.use("/api", apiRoutes);
 
+// Catch-all 404 JSON response for any unmatched API endpoints
+app.all("/api/*", (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `API endpoint not found: ${req.method} ${req.originalUrl}`,
+  });
+});
+
 // Sentry error handler (must be placed before custom error handlers)
 if (process.env.SENTRY_DSN) {
   Sentry.setupExpressErrorHandler(app);
@@ -119,7 +127,7 @@ if (process.env.SENTRY_DSN) {
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error("Unhandled Error:", err);
-  res.status(500).json({ error: "An internal server error occurred" });
+  res.status(500).json({ success: false, message: "An internal server error occurred", error: err?.message });
 });
 
 import { ensureSinglePermanentAdmin } from "./controllers/authController";
