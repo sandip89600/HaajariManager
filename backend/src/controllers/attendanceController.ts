@@ -1,7 +1,7 @@
 import { Response } from "express";
 import { Attendance, AuditLog, User, Worker, Tenant, AppConfig } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
-import { broadcastAdminActivity } from "../utils/socket";
+import { broadcastAdminActivity, getIO } from "../utils/socket";
 import { logActivity } from "../services/activityLogger";
 import { getPlanRank } from "../middleware/subscription";
 
@@ -14,18 +14,47 @@ export const getAttendanceForMonth = async (req: AuthenticatedRequest, res: Resp
       return res.status(400).json({ error: "Missing year or month parameters" });
     }
 
+    const y = parseInt(year as string);
+    const m = parseInt(month as string);
+
+    // Support flexible month matching (both 0-indexed and 1-indexed)
+    let monthFilter: any = m;
+    if (m >= 1 && m <= 12) {
+      monthFilter = { $in: [m, m - 1] };
+    } else if (m === 0) {
+      monthFilter = { $in: [0, 1] };
+    }
+
     let query: any = {
       tenantId,
-      year: parseInt(year as string),
-      month: parseInt(month as string),
+      year: y,
+      month: monthFilter,
     };
 
     if (req.user?.role === "labor" || req.user?.role === "worker") {
       const user = await User.findById(req.user.id);
-      const worker = await Worker.findOne({
-        tenantId,
-        $or: [{ phone: user?.phone }, { name: user?.name }],
-      });
+      let worker = null;
+      if (tenantId) {
+        worker = await Worker.findOne({
+          tenantId,
+          $or: [
+            { userId: user?._id },
+            ...(user?.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
+            ...(user?.phone ? [{ phone: user.phone }] : []),
+            ...(user?.name ? [{ name: user.name }] : []),
+          ],
+        });
+      }
+      if (!worker) {
+        worker = await Worker.findOne({
+          $or: [
+            { userId: user?._id },
+            ...(user?.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
+            ...(user?.phone ? [{ phone: user.phone }] : []),
+            ...(user?.name ? [{ name: user.name }] : []),
+          ],
+        });
+      }
       if (!worker) {
         return res.json([]);
       }
@@ -125,6 +154,35 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
       update,
       { new: true, upsert: true }
     );
+
+    // ── Real-time Socket Broadcast to Worker & Tenant ──
+    try {
+      const io = getIO();
+      const workerDoc = await Worker.findById(workerId).select("userId uniqueId tenantId");
+      const payload = {
+        attendanceId: record._id,
+        workerId: record.workerId,
+        uniqueId: workerDoc?.uniqueId,
+        year: record.year,
+        month: record.month,
+        day: record.day,
+        value: record.value,
+        finalPay: record.finalPay,
+        dailyRate: record.dailyRate,
+        timestamp: record.timestamp,
+      };
+      if (workerDoc?.userId) {
+        io.to(`user_${workerDoc.userId}`).emit("attendance:recorded", payload);
+        io.to(`user_${workerDoc.userId}`).emit("attendance:updated", payload);
+      }
+      if (tenantId) {
+        io.to(`tenant_${tenantId}`).emit("attendance:recorded", payload);
+        io.to(`tenant_${tenantId}`).emit("attendance:updated", payload);
+      }
+      io.emit("admin_dashboard_update");
+    } catch (socketErr) {
+      console.warn("[Attendance Controller] Socket emit non-fatal error:", socketErr);
+    }
 
     res.json(record);
 
@@ -303,11 +361,7 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
         ],
       });
     }
-
-    let query: any = { tenantId: worker?.tenantId || user.tenantId };
-    if (worker) {
-      query.workerId = worker._id;
-    } else {
+    if (!worker) {
       return res.json({
         worker: null,
         records: [],
@@ -323,8 +377,19 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
       });
     }
 
+    let query: any = { workerId: worker._id };
+
     if (year) query.year = parseInt(year as string);
-    if (month) query.month = parseInt(month as string);
+    if (month !== undefined && month !== null && month !== "") {
+      const m = parseInt(month as string);
+      if (m >= 1 && m <= 12) {
+        query.month = { $in: [m, m - 1] };
+      } else if (m === 0) {
+        query.month = { $in: [0, 1] };
+      } else {
+        query.month = m;
+      }
+    }
 
     const records = await Attendance.find(query).sort({ year: -1, month: -1, day: -1 }).lean();
 

@@ -108,10 +108,16 @@ export default function WorkerDashboardScreen() {
   );
 
   useEffect(() => {
-    const sub = DeviceEventEmitter.addListener("refreshData", () => {
+    const sub1 = DeviceEventEmitter.addListener("refreshData", () => {
       loadWorkerData();
     });
-    return () => sub.remove();
+    const sub2 = DeviceEventEmitter.addListener("attendanceUpdated", () => {
+      loadWorkerData();
+    });
+    return () => {
+      sub1.remove();
+      sub2.remove();
+    };
   }, [loadWorkerData]);
 
   const onRefresh = useCallback(() => {

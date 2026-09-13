@@ -1166,6 +1166,10 @@ export const storage = {
         );
       }
     }
+
+    invalidateMemoryCache();
+    DeviceEventEmitter.emit("refreshData");
+    DeviceEventEmitter.emit("attendanceUpdated");
   },
 
   async getAttendanceForMonth(
