@@ -10,7 +10,7 @@ import {
   Modal,
   ScrollView,
   Platform,
-  RefreshControl
+  RefreshControl,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -23,7 +23,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { storage, Site } from "@/utils/storage";
 
-const STATUS_OPTIONS = ["All", "Planning", "Started", "In Progress", "On Hold", "Delayed", "Completed", "Archived"];
+const STATUS_OPTIONS = [
+  "All",
+  "Planning",
+  "Started",
+  "In Progress",
+  "On Hold",
+  "Delayed",
+  "Completed",
+  "Archived",
+];
 const SORT_OPTIONS = ["Recently Updated", "Alphabetical", "Newest", "Oldest"];
 
 export default function SiteListScreen() {
@@ -39,7 +48,7 @@ export default function SiteListScreen() {
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("All");
   const [selectedSort, setSelectedSort] = useState("Recently Updated");
-  
+
   // Modals / Confirmation State
   const [showSortModal, setShowSortModal] = useState(false);
   const [deleteTargetSite, setDeleteTargetSite] = useState<Site | null>(null);
@@ -55,7 +64,7 @@ export default function SiteListScreen() {
       const res = await storage.getSites({
         search,
         status: queryStatus,
-        sortBy: selectedSort
+        sortBy: selectedSort,
       });
       setSites(res.sites || []);
     } catch (e: any) {
@@ -70,7 +79,7 @@ export default function SiteListScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchSites(true);
-    }, [search, selectedStatus, selectedSort])
+    }, [search, selectedStatus, selectedSort]),
   );
 
   const handleRefresh = () => {
@@ -95,9 +104,9 @@ export default function SiteListScreen() {
             } else {
               Alert.alert("Error", "Failed to archive site");
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     );
   };
 
@@ -111,7 +120,7 @@ export default function SiteListScreen() {
     try {
       const success = await storage.deleteSite(deleteTargetSite.id);
       if (success) {
-        setSites(prev => prev.filter(s => s.id !== deleteTargetSite.id));
+        setSites((prev) => prev.filter((s) => s.id !== deleteTargetSite.id));
         setDeleteTargetSite(null);
       } else {
         Alert.alert("Error", "Failed to delete site");
@@ -123,53 +132,105 @@ export default function SiteListScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Planning": return { text: isDark ? "#E2E8F0" : "#475569", bg: isDark ? "#334155" : "#E2E8F0" };
-      case "Started": return { text: "#10B981", bg: "#10B98115" };
-      case "In Progress": return { text: "#3B82F6", bg: "#3B82F615" };
-      case "On Hold": return { text: "#F59E0B", bg: "#F59E0B15" };
-      case "Delayed": return { text: "#EF4444", bg: "#EF444415" };
-      case "Completed": return { text: "#10B981", bg: "#10B98125" };
-      default: return { text: "#64748B", bg: "#64748B15" };
+      case "Planning":
+        return {
+          text: isDark ? "#E2E8F0" : "#475569",
+          bg: isDark ? "#334155" : "#E2E8F0",
+        };
+      case "Started":
+        return { text: "#10B981", bg: "#10B98115" };
+      case "In Progress":
+        return { text: "#3B82F6", bg: "#3B82F615" };
+      case "On Hold":
+        return { text: "#F59E0B", bg: "#F59E0B15" };
+      case "Delayed":
+        return { text: "#EF4444", bg: "#EF444415" };
+      case "Completed":
+        return { text: "#10B981", bg: "#10B98125" };
+      default:
+        return { text: "#64748B", bg: "#64748B15" };
     }
   };
 
   const renderSiteCard = ({ item }: { item: Site }) => {
     const statusColors = getStatusColor(item.status);
-    const dateStr = item.startDate ? new Date(item.startDate).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric"
-    }) : "N/A";
+    const dateStr = item.startDate
+      ? new Date(item.startDate).toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      : "N/A";
 
-    const supervisorName = typeof item.supervisor === "object" && item.supervisor 
-      ? item.supervisor.name 
-      : "No Supervisor Assigned";
+    const supervisorName =
+      typeof item.supervisor === "object" && item.supervisor
+        ? item.supervisor.name
+        : "No Supervisor Assigned";
 
     return (
-      <View style={[styles.card, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.backgroundDefault,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <View style={styles.cardHeader}>
           <View style={{ flex: 1 }}>
             <ThemedText style={styles.cardTitle}>{item.name}</ThemedText>
-            <ThemedText style={styles.cardSubtitle}>{item.projectType}</ThemedText>
+            <ThemedText style={styles.cardSubtitle}>
+              {item.projectType}
+            </ThemedText>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}>
-            <View style={[styles.statusDot, { backgroundColor: statusColors.text }]} />
-            <ThemedText style={[styles.statusText, { color: statusColors.text }]}>{item.status}</ThemedText>
+          <View
+            style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}
+          >
+            <View
+              style={[styles.statusDot, { backgroundColor: statusColors.text }]}
+            />
+            <ThemedText
+              style={[styles.statusText, { color: statusColors.text }]}
+            >
+              {item.status}
+            </ThemedText>
           </View>
         </View>
 
         <View style={styles.cardDetails}>
           <View style={styles.detailRow}>
-            <Feather name="map-pin" size={14} color={theme.textSecondary} style={styles.detailIcon} />
-            <ThemedText style={styles.detailText} numberOfLines={1}>{item.address}</ThemedText>
+            <Feather
+              name="map-pin"
+              size={14}
+              color={theme.textSecondary}
+              style={styles.detailIcon}
+            />
+            <ThemedText style={styles.detailText} numberOfLines={1}>
+              {item.address}
+            </ThemedText>
           </View>
           <View style={styles.detailRow}>
-            <Feather name="user" size={14} color={theme.textSecondary} style={styles.detailIcon} />
-            <ThemedText style={styles.detailText} numberOfLines={1}>Supervisor: {supervisorName}</ThemedText>
+            <Feather
+              name="user"
+              size={14}
+              color={theme.textSecondary}
+              style={styles.detailIcon}
+            />
+            <ThemedText style={styles.detailText} numberOfLines={1}>
+              Supervisor: {supervisorName}
+            </ThemedText>
           </View>
           <View style={styles.detailRow}>
-            <Feather name="calendar" size={14} color={theme.textSecondary} style={styles.detailIcon} />
-            <ThemedText style={styles.detailText}>Start Date: {dateStr}</ThemedText>
+            <Feather
+              name="calendar"
+              size={14}
+              color={theme.textSecondary}
+              style={styles.detailIcon}
+            />
+            <ThemedText style={styles.detailText}>
+              Start Date: {dateStr}
+            </ThemedText>
           </View>
         </View>
 
@@ -179,7 +240,10 @@ export default function SiteListScreen() {
               triggerHaptic();
               navigation.navigate("SiteDetails", { siteId: item.id });
             }}
-            style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary }]}
+            style={[
+              styles.actionBtn,
+              { backgroundColor: theme.backgroundSecondary },
+            ]}
           >
             <Feather name="eye" size={14} color={theme.text} />
             <ThemedText style={styles.actionBtnText}>Open</ThemedText>
@@ -190,7 +254,10 @@ export default function SiteListScreen() {
               triggerHaptic();
               navigation.navigate("EditSite", { siteId: item.id });
             }}
-            style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary }]}
+            style={[
+              styles.actionBtn,
+              { backgroundColor: theme.backgroundSecondary },
+            ]}
           >
             <Feather name="edit-2" size={14} color={theme.text} />
             <ThemedText style={styles.actionBtnText}>Edit</ThemedText>
@@ -199,7 +266,10 @@ export default function SiteListScreen() {
           {!item.isArchived && item.status !== "Completed" && (
             <Pressable
               onPress={() => handleArchiveSite(item)}
-              style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary }]}
+              style={[
+                styles.actionBtn,
+                { backgroundColor: theme.backgroundSecondary },
+              ]}
             >
               <Feather name="archive" size={14} color={theme.text} />
               <ThemedText style={styles.actionBtnText}>Archive</ThemedText>
@@ -208,10 +278,15 @@ export default function SiteListScreen() {
 
           <Pressable
             onPress={() => handleDeleteSite(item)}
-            style={[styles.actionBtn, { backgroundColor: isDark ? "#451A20" : "#FEE2E2" }]}
+            style={[
+              styles.actionBtn,
+              { backgroundColor: isDark ? "#451A20" : "#FEE2E2" },
+            ]}
           >
             <Feather name="trash-2" size={14} color="#EF4444" />
-            <ThemedText style={[styles.actionBtnText, { color: "#EF4444" }]}>Delete</ThemedText>
+            <ThemedText style={[styles.actionBtnText, { color: "#EF4444" }]}>
+              Delete
+            </ThemedText>
           </Pressable>
         </View>
       </View>
@@ -220,19 +295,24 @@ export default function SiteListScreen() {
 
   const renderEmptyState = () => {
     if (isLoading) return null;
-    
+
     const isFiltered = search || selectedStatus !== "All";
 
     return (
       <View style={styles.emptyContainer}>
-        <View style={[styles.emptyIconCircle, { backgroundColor: theme.backgroundSecondary }]}>
+        <View
+          style={[
+            styles.emptyIconCircle,
+            { backgroundColor: theme.backgroundSecondary },
+          ]}
+        >
           <Feather name="layers" size={36} color={theme.primary} />
         </View>
         <ThemedText style={styles.emptyTitle}>
           {isFiltered ? "No Search Results" : "No Construction Sites Yet"}
         </ThemedText>
         <ThemedText style={styles.emptyDesc}>
-          {isFiltered 
+          {isFiltered
             ? "Try adjustments to filter criteria or search keyword."
             : "Create your first site to start managing attendance, workers, progress and reports."}
         </ThemedText>
@@ -245,7 +325,9 @@ export default function SiteListScreen() {
             }}
             style={[styles.resetBtn, { backgroundColor: theme.primary }]}
           >
-            <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Reset Filters</ThemedText>
+            <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>
+              Reset Filters
+            </ThemedText>
           </Pressable>
         ) : (
           <Pressable
@@ -255,7 +337,9 @@ export default function SiteListScreen() {
             }}
             style={[styles.resetBtn, { backgroundColor: theme.primary }]}
           >
-            <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Create Site</ThemedText>
+            <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>
+              Create Site
+            </ThemedText>
           </Pressable>
         )}
       </View>
@@ -263,7 +347,9 @@ export default function SiteListScreen() {
   };
 
   return (
-    <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+    <ThemedView
+      style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
+    >
       {/* Header bar */}
       <View style={styles.header}>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -285,8 +371,21 @@ export default function SiteListScreen() {
 
       {/* Search and Sorting controls */}
       <View style={styles.searchControls}>
-        <View style={[styles.searchBar, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-          <Feather name="search" size={18} color={theme.textSecondary} style={{ marginRight: 8 }} />
+        <View
+          style={[
+            styles.searchBar,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <Feather
+            name="search"
+            size={18}
+            color={theme.textSecondary}
+            style={{ marginRight: 8 }}
+          />
           <TextInput
             placeholder="Search by site, client, location..."
             placeholderTextColor={theme.textSecondary}
@@ -300,13 +399,19 @@ export default function SiteListScreen() {
             </Pressable>
           ) : null}
         </View>
-        
+
         <Pressable
           onPress={() => {
             triggerHaptic();
             setShowSortModal(true);
           }}
-          style={[styles.sortBtn, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+          style={[
+            styles.sortBtn,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
         >
           <Feather name="sliders" size={16} color={theme.text} />
         </Pressable>
@@ -314,7 +419,11 @@ export default function SiteListScreen() {
 
       {/* Filter Status Chips */}
       <View style={styles.filterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+        >
           {STATUS_OPTIONS.map((status) => {
             const isActive = selectedStatus === status;
             return (
@@ -327,12 +436,19 @@ export default function SiteListScreen() {
                 style={[
                   styles.filterChip,
                   {
-                    backgroundColor: isActive ? theme.primary : theme.backgroundDefault,
-                    borderColor: isActive ? theme.primary : theme.border
-                  }
+                    backgroundColor: isActive
+                      ? theme.primary
+                      : theme.backgroundDefault,
+                    borderColor: isActive ? theme.primary : theme.border,
+                  },
                 ]}
               >
-                <ThemedText style={[styles.filterChipText, { color: isActive ? "#FFFFFF" : theme.text }]}>
+                <ThemedText
+                  style={[
+                    styles.filterChipText,
+                    { color: isActive ? "#FFFFFF" : theme.text },
+                  ]}
+                >
                   {status}
                 </ThemedText>
               </Pressable>
@@ -354,7 +470,11 @@ export default function SiteListScreen() {
           contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
           ListEmptyComponent={renderEmptyState}
           refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={[theme.primary]} />
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              colors={[theme.primary]}
+            />
           }
           initialNumToRender={8}
           maxToRenderPerBatch={8}
@@ -364,9 +484,22 @@ export default function SiteListScreen() {
       )}
 
       {/* Sorting Sheet Modal */}
-      <Modal visible={showSortModal} transparent animationType="fade" onRequestClose={() => setShowSortModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowSortModal(false)}>
-          <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}>
+      <Modal
+        visible={showSortModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSortModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowSortModal(false)}
+        >
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
             <ThemedText style={styles.modalTitle}>Sort Sites</ThemedText>
             {SORT_OPTIONS.map((opt) => (
               <Pressable
@@ -378,10 +511,17 @@ export default function SiteListScreen() {
                 }}
                 style={styles.modalOpt}
               >
-                <ThemedText style={{ fontWeight: selectedSort === opt ? "700" : "400", color: selectedSort === opt ? theme.primary : theme.text }}>
+                <ThemedText
+                  style={{
+                    fontWeight: selectedSort === opt ? "700" : "400",
+                    color: selectedSort === opt ? theme.primary : theme.text,
+                  }}
+                >
                   {opt}
                 </ThemedText>
-                {selectedSort === opt && <Feather name="check" size={16} color={theme.primary} />}
+                {selectedSort === opt && (
+                  <Feather name="check" size={16} color={theme.primary} />
+                )}
               </Pressable>
             ))}
           </View>
@@ -389,26 +529,49 @@ export default function SiteListScreen() {
       </Modal>
 
       {/* Confirmation Dialog Modal */}
-      <Modal visible={deleteTargetSite !== null} transparent animationType="fade" onRequestClose={() => setDeleteTargetSite(null)}>
+      <Modal
+        visible={deleteTargetSite !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteTargetSite(null)}
+      >
         <View style={styles.modalOverlay}>
-          <View style={[styles.dialogContent, { backgroundColor: theme.backgroundDefault }]}>
-            <Feather name="alert-triangle" size={40} color="#EF4444" style={{ marginBottom: 12 }} />
+          <View
+            style={[
+              styles.dialogContent,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
+            <Feather
+              name="alert-triangle"
+              size={40}
+              color="#EF4444"
+              style={{ marginBottom: 12 }}
+            />
             <ThemedText style={styles.dialogTitle}>Delete Site</ThemedText>
             <ThemedText style={styles.dialogDesc}>
-              Are you sure you want to delete "{deleteTargetSite?.name}"? All associated progress tracking records will be removed.
+              Are you sure you want to delete "{deleteTargetSite?.name}"? All
+              associated progress tracking records will be removed.
             </ThemedText>
             <View style={styles.dialogActions}>
               <Pressable
                 onPress={() => setDeleteTargetSite(null)}
-                style={[styles.dialogBtn, { backgroundColor: theme.backgroundSecondary }]}
+                style={[
+                  styles.dialogBtn,
+                  { backgroundColor: theme.backgroundSecondary },
+                ]}
               >
-                <ThemedText style={{ fontWeight: "700", color: theme.text }}>Cancel</ThemedText>
+                <ThemedText style={{ fontWeight: "700", color: theme.text }}>
+                  Cancel
+                </ThemedText>
               </Pressable>
               <Pressable
                 onPress={confirmDeleteSite}
                 style={[styles.dialogBtn, { backgroundColor: "#EF4444" }]}
               >
-                <ThemedText style={{ fontWeight: "700", color: "#FFFFFF" }}>Delete</ThemedText>
+                <ThemedText style={{ fontWeight: "700", color: "#FFFFFF" }}>
+                  Delete
+                </ThemedText>
               </Pressable>
             </View>
           </View>
@@ -420,7 +583,7 @@ export default function SiteListScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1
+    flex: 1,
   },
   header: {
     flexDirection: "row",
@@ -428,27 +591,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingTop: Platform.OS === "ios" ? 54 : 16,
-    paddingBottom: 12
+    paddingBottom: 12,
   },
   backBtn: {
     padding: 6,
-    marginRight: 8
+    marginRight: 8,
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: "800"
+    fontWeight: "800",
   },
   createBtn: {
     padding: 10,
     borderRadius: BorderRadius.xs,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
   },
   searchControls: {
     flexDirection: "row",
     paddingHorizontal: 16,
     gap: 8,
-    marginBottom: 12
+    marginBottom: 12,
   },
   searchBar: {
     flex: 1,
@@ -457,12 +620,12 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: BorderRadius.xs,
     borderWidth: 1,
-    paddingHorizontal: 12
+    paddingHorizontal: 12,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
-    padding: 0
+    padding: 0,
   },
   sortBtn: {
     width: 44,
@@ -470,85 +633,85 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xs,
     borderWidth: 1,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
   },
   filterContainer: {
-    marginBottom: 12
+    marginBottom: 12,
   },
   filterChip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: 1
+    borderWidth: 1,
   },
   filterChipText: {
     fontSize: 12,
-    fontWeight: "700"
+    fontWeight: "700",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
   },
   card: {
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
     padding: 16,
-    marginBottom: 14
+    marginBottom: 14,
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12
+    marginBottom: 12,
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: "800"
+    fontWeight: "800",
   },
   cardSubtitle: {
     fontSize: 12,
     opacity: 0.7,
-    marginTop: 2
+    marginTop: 2,
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12
+    borderRadius: 12,
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginRight: 6
+    marginRight: 6,
   },
   statusText: {
     fontSize: 11,
-    fontWeight: "800"
+    fontWeight: "800",
   },
   cardDetails: {
     gap: 6,
-    marginBottom: 16
+    marginBottom: 16,
   },
   detailRow: {
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
   },
   detailIcon: {
     marginRight: 8,
-    opacity: 0.7
+    opacity: 0.7,
   },
   detailText: {
     fontSize: 13,
-    opacity: 0.8
+    opacity: 0.8,
   },
   cardActions: {
     flexDirection: "row",
     gap: 8,
     borderTopWidth: 1,
-    paddingTop: 12
+    paddingTop: 12,
   },
   actionBtn: {
     flex: 1,
@@ -557,17 +720,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 4,
     paddingVertical: 8,
-    borderRadius: 6
+    borderRadius: 6,
   },
   actionBtnText: {
     fontSize: 11,
-    fontWeight: "700"
+    fontWeight: "700",
   },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 60,
-    paddingHorizontal: 24
+    paddingHorizontal: 24,
   },
   emptyIconCircle: {
     width: 64,
@@ -575,77 +738,77 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16
+    marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: "800",
-    marginBottom: 6
+    marginBottom: 6,
   },
   emptyDesc: {
     fontSize: 14,
     textAlign: "center",
     opacity: 0.7,
-    marginBottom: 20
+    marginBottom: 20,
   },
   resetBtn: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: BorderRadius.xs
+    borderRadius: BorderRadius.xs,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 24
+    padding: 24,
   },
   modalContent: {
     width: "100%",
     maxWidth: 320,
     borderRadius: BorderRadius.sm,
     padding: 20,
-    gap: 4
+    gap: 4,
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: "800",
-    marginBottom: 12
+    marginBottom: 12,
   },
   modalOpt: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12
+    paddingVertical: 12,
   },
   dialogContent: {
     width: "100%",
     maxWidth: 340,
     borderRadius: BorderRadius.sm,
     padding: 24,
-    alignItems: "center"
+    alignItems: "center",
   },
   dialogTitle: {
     fontSize: 18,
     fontWeight: "800",
-    marginBottom: 8
+    marginBottom: 8,
   },
   dialogDesc: {
     fontSize: 14,
     textAlign: "center",
     opacity: 0.8,
     marginBottom: 20,
-    lineHeight: 20
+    lineHeight: 20,
   },
   dialogActions: {
     flexDirection: "row",
-    gap: 12
+    gap: 12,
   },
   dialogBtn: {
     flex: 1,
     height: 44,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: BorderRadius.xs
-  }
+    borderRadius: BorderRadius.xs,
+  },
 });

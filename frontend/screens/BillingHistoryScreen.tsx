@@ -57,7 +57,7 @@ export default function BillingHistoryScreen() {
     Alert.alert(
       "Download Invoice",
       `Invoice ${txn.invoiceNumber} downloaded successfully as PDF!`,
-      [{ text: "OK" }]
+      [{ text: "OK" }],
     );
   };
 
@@ -75,18 +75,37 @@ export default function BillingHistoryScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.center, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC" }]}>
+      <View
+        style={[
+          styles.center,
+          { backgroundColor: isDark ? "#0F172A" : "#F8FAFC" },
+        ]}
+      >
         <ActivityIndicator size="large" color="#EA580C" />
       </View>
     );
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC" }]}>
+    <View
+      style={[styles.root, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC" }]}
+    >
       {/* Header Bar */}
-      <View style={[styles.header, { paddingTop: insets.top + 10, borderBottomColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: insets.top + 10,
+            borderBottomColor: isDark ? "#1E293B" : "#E2E8F0",
+          },
+        ]}
+      >
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={isDark ? "#FFFFFF" : "#1E293B"} />
+          <Feather
+            name="arrow-left"
+            size={22}
+            color={isDark ? "#FFFFFF" : "#1E293B"}
+          />
         </Pressable>
         <ThemedText style={styles.headerTitle}>Billing History</ThemedText>
         <View style={{ width: 36 }} />
@@ -95,22 +114,47 @@ export default function BillingHistoryScreen() {
       <FlatList
         data={history}
         keyExtractor={(item) => item._id}
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 20 }}
+        contentContainerStyle={{
+          padding: 16,
+          paddingBottom: insets.bottom + 20,
+        }}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
             <Feather name="file-text" size={48} color="#64748B" />
-            <ThemedText style={styles.emptyText}>No invoices generated yet.</ThemedText>
+            <ThemedText style={styles.emptyText}>
+              No invoices generated yet.
+            </ThemedText>
           </View>
         }
         renderItem={({ item }) => (
-          <View style={[styles.txnCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]}>
+          <View
+            style={[
+              styles.txnCard,
+              { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" },
+            ]}
+          >
             <View style={styles.txnHeader}>
               <View>
-                <ThemedText style={styles.planName}>{item.planName.toUpperCase()} Plan</ThemedText>
-                <ThemedText style={styles.cycleText}>{item.billingCycle.toUpperCase()}</ThemedText>
+                <ThemedText style={styles.planName}>
+                  {item.planName.toUpperCase()} Plan
+                </ThemedText>
+                <ThemedText style={styles.cycleText}>
+                  {item.billingCycle.toUpperCase()}
+                </ThemedText>
               </View>
-              <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(item.status)}20` }]}>
-                <ThemedText style={{ color: getStatusColor(item.status), fontSize: 10, fontWeight: "700" }}>
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: `${getStatusColor(item.status)}20` },
+                ]}
+              >
+                <ThemedText
+                  style={{
+                    color: getStatusColor(item.status),
+                    fontSize: 10,
+                    fontWeight: "700",
+                  }}
+                >
                   {item.status.toUpperCase()}
                 </ThemedText>
               </View>
@@ -120,19 +164,40 @@ export default function BillingHistoryScreen() {
 
             <View style={styles.detailsGrid}>
               <DetailRow label="Invoice" val={item.invoiceNumber} />
-              <DetailRow label="Date" val={new Date(item.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} />
+              <DetailRow
+                label="Date"
+                val={new Date(item.date).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              />
               <DetailRow label="Method" val={item.paymentMethod} />
               <DetailRow label="GST (18%)" val={`₹${item.gst}`} />
-              <DetailRow label="Total Paid" val={`₹${item.amount}`} valStyle={{ fontWeight: "800", color: "#EA580C" }} />
+              <DetailRow
+                label="Total Paid"
+                val={`₹${item.amount}`}
+                valStyle={{ fontWeight: "800", color: "#EA580C" }}
+              />
             </View>
 
             {item.status.toLowerCase() === "completed" && (
               <Pressable
                 onPress={() => handleDownloadInvoice(item)}
-                style={[styles.downloadBtn, { borderColor: isDark ? "#334155" : "#E2E8F0" }]}
+                style={[
+                  styles.downloadBtn,
+                  { borderColor: isDark ? "#334155" : "#E2E8F0" },
+                ]}
               >
-                <Feather name="download" size={14} color="#EA580C" style={{ marginRight: 6 }} />
-                <ThemedText style={styles.downloadBtnText}>Download Invoice</ThemedText>
+                <Feather
+                  name="download"
+                  size={14}
+                  color="#EA580C"
+                  style={{ marginRight: 6 }}
+                />
+                <ThemedText style={styles.downloadBtnText}>
+                  Download Invoice
+                </ThemedText>
               </Pressable>
             )}
           </View>
@@ -142,7 +207,15 @@ export default function BillingHistoryScreen() {
   );
 }
 
-function DetailRow({ label, val, valStyle }: { label: string; val: string; valStyle?: any }) {
+function DetailRow({
+  label,
+  val,
+  valStyle,
+}: {
+  label: string;
+  val: string;
+  valStyle?: any;
+}) {
   return (
     <View style={styles.detailRow}>
       <ThemedText style={styles.detailLabel}>{label}</ThemedText>
@@ -162,20 +235,55 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
-  backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerTitle: { fontSize: 18, fontWeight: "800" },
-  emptyWrap: { alignItems: "center", justifyContent: "center", paddingVertical: 100, gap: 10 },
+  emptyWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 100,
+    gap: 10,
+  },
   emptyText: { color: "#64748B", fontSize: 14 },
-  txnCard: { borderRadius: 16, padding: 16, marginBottom: 16, elevation: 1, shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 10 },
-  txnHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  txnCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+  },
+  txnHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   planName: { fontSize: 15, fontWeight: "900" },
   cycleText: { fontSize: 11, color: "#64748B", marginTop: 2 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  divider: { height: 1, backgroundColor: "rgba(100,116,139,0.06)", marginVertical: 12 },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(100,116,139,0.06)",
+    marginVertical: 12,
+  },
   detailsGrid: { gap: 8 },
   detailRow: { flexDirection: "row", justifyContent: "space-between" },
   detailLabel: { fontSize: 12, color: "#64748B" },
   detailVal: { fontSize: 12, fontWeight: "600" },
-  downloadBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 10, borderRadius: 10, borderWidth: 1, marginTop: 14 },
+  downloadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 14,
+  },
   downloadBtnText: { fontSize: 12, fontWeight: "700", color: "#EA580C" },
 });

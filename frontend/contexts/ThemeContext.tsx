@@ -44,8 +44,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const effectiveScheme: "light" | "dark" =
     themeMode === "system"
-      ? (systemColorScheme === "dark" ? "dark" : "light")
-      : (themeMode === "dark" ? "dark" : "light");
+      ? systemColorScheme === "dark"
+        ? "dark"
+        : "light"
+      : themeMode === "dark"
+        ? "dark"
+        : "light";
   const isDark = effectiveScheme === "dark";
   const theme = Colors[effectiveScheme];
 

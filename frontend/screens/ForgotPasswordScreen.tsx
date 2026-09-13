@@ -53,8 +53,11 @@ export default function ForgotPasswordScreen() {
   const [cooldown, setCooldown] = useState(0);
 
   // Scoped Recovery Session
-  const [recoverySessionToken, setRecoverySessionToken] = useState<string | null>(null);
-  const [requiresEmailConfirmation, setRequiresEmailConfirmation] = useState(false);
+  const [recoverySessionToken, setRecoverySessionToken] = useState<
+    string | null
+  >(null);
+  const [requiresEmailConfirmation, setRequiresEmailConfirmation] =
+    useState(false);
 
   // New Password state
   const [newPassword, setNewPassword] = useState("");
@@ -91,9 +94,13 @@ export default function ForgotPasswordScreen() {
   const hasSpecial = /[^A-Za-z0-9]/.test(newPassword);
   const isPasswordStrong =
     isMinLength && hasUppercase && hasLowercase && hasNumber && hasSpecial;
-  const isMatching = newPassword === confirmPassword && confirmPassword.length > 0;
+  const isMatching =
+    newPassword === confirmPassword && confirmPassword.length > 0;
 
-  const triggerHaptic = (type: Haptics.NotificationFeedbackType = Haptics.NotificationFeedbackType.Success) => {
+  const triggerHaptic = (
+    type: Haptics.NotificationFeedbackType = Haptics.NotificationFeedbackType
+      .Success,
+  ) => {
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(type);
     }
@@ -134,11 +141,20 @@ export default function ForgotPasswordScreen() {
 
       if (!res.ok || (data && data.success === false)) {
         if (res.status === 429) {
-          throw new Error("Please wait 60 seconds before requesting another code.");
+          throw new Error(
+            "Please wait 60 seconds before requesting another code.",
+          );
         } else if (res.status === 403) {
-          throw new Error(data?.message || "Please contact your organization administrator or support to recover this account.");
+          throw new Error(
+            data?.message ||
+              "Please contact your organization administrator or support to recover this account.",
+          );
         }
-        throw new Error(data?.message || data?.error || "Unable to send recovery code. Please try again.");
+        throw new Error(
+          data?.message ||
+            data?.error ||
+            "Unable to send recovery code. Please try again.",
+        );
       }
 
       triggerHaptic();
@@ -146,9 +162,13 @@ export default function ForgotPasswordScreen() {
       setStep("OTP_INPUT");
     } catch (err: any) {
       if (err.name === "AbortError") {
-        setError("Server took too long to respond. Please check your connection and try again.");
+        setError(
+          "Server took too long to respond. Please check your connection and try again.",
+        );
       } else {
-        setError(err.message || "Failed to send verification code. Please try again.");
+        setError(
+          err.message || "Failed to send verification code. Please try again.",
+        );
       }
     } finally {
       clearTimeout(timeoutId);
@@ -179,7 +199,11 @@ export default function ForgotPasswordScreen() {
   };
 
   const handleOtpKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === "Backspace" && otpArray[index] === "" && index > 0) {
+    if (
+      e.nativeEvent.key === "Backspace" &&
+      otpArray[index] === "" &&
+      index > 0
+    ) {
       otpRefs.current[index - 1]?.focus();
     }
   };
@@ -221,12 +245,16 @@ export default function ForgotPasswordScreen() {
       }
 
       if (!res.ok || (data && data.success === false)) {
-        throw new Error(data?.message || data?.error || "Invalid verification code.");
+        throw new Error(
+          data?.message || data?.error || "Invalid verification code.",
+        );
       }
 
       const token = data?.recoverySessionToken;
       if (!token) {
-        throw new Error("Unable to establish recovery session. Please try again.");
+        throw new Error(
+          "Unable to establish recovery session. Please try again.",
+        );
       }
 
       setRecoverySessionToken(token);
@@ -236,14 +264,16 @@ export default function ForgotPasswordScreen() {
       if (data?.requiresEmailConfirmation) {
         Alert.alert(
           "Secondary Confirmation Required 🛡️",
-          "A security confirmation link has been sent to your registered email. Please click the link to confirm before saving your new password."
+          "A security confirmation link has been sent to your registered email. Please click the link to confirm before saving your new password.",
         );
       }
 
       setStep("NEW_PASSWORD");
     } catch (err: any) {
       if (err.name === "AbortError") {
-        setError("Server took too long to respond. Please check your connection and try again.");
+        setError(
+          "Server took too long to respond. Please check your connection and try again.",
+        );
       } else {
         setError(err.message || "Invalid verification code.");
       }
@@ -301,7 +331,9 @@ export default function ForgotPasswordScreen() {
       }
 
       if (!res.ok || (data && data.success === false)) {
-        throw new Error(data?.message || data?.error || "Failed to update password.");
+        throw new Error(
+          data?.message || data?.error || "Failed to update password.",
+        );
       }
 
       triggerHaptic();
@@ -313,16 +345,20 @@ export default function ForgotPasswordScreen() {
             text: "Go to Login",
             onPress: () => navigation.navigate("Login"),
           },
-        ]
+        ],
       );
       if (Platform.OS === "web") {
         setTimeout(() => {
-          try { navigation.navigate("Login"); } catch (e) {}
+          try {
+            navigation.navigate("Login");
+          } catch (e) {}
         }, 500);
       }
     } catch (err: any) {
       if (err.name === "AbortError") {
-        setError("Server took too long to respond. Please check your connection and try again.");
+        setError(
+          "Server took too long to respond. Please check your connection and try again.",
+        );
       } else {
         setError(err.message || "Failed to reset password.");
       }
@@ -332,7 +368,8 @@ export default function ForgotPasswordScreen() {
     }
   };
 
-  const ScrollContainer = Platform.OS === "web" ? ScrollView : KeyboardAwareScrollView;
+  const ScrollContainer =
+    Platform.OS === "web" ? ScrollView : KeyboardAwareScrollView;
 
   return (
     <ThemedView style={styles.container}>
@@ -361,14 +398,23 @@ export default function ForgotPasswordScreen() {
                 navigation.goBack();
               }
             }}
-            style={[styles.backButton, { backgroundColor: theme.backgroundSecondary }]}
+            style={[
+              styles.backButton,
+              { backgroundColor: theme.backgroundSecondary },
+            ]}
           >
             <Feather name="arrow-left" size={22} color={theme.text} />
           </Pressable>
 
           <View style={styles.iconCircle}>
             <Feather
-              name={step === "NEW_PASSWORD" ? "lock" : step === "OTP_INPUT" ? "shield" : "smartphone"}
+              name={
+                step === "NEW_PASSWORD"
+                  ? "lock"
+                  : step === "OTP_INPUT"
+                    ? "shield"
+                    : "smartphone"
+              }
               size={28}
               color={theme.primary}
             />
@@ -378,16 +424,22 @@ export default function ForgotPasswordScreen() {
             {step === "PHONE_INPUT"
               ? t("auth.forgotPassword", "Find Your Account")
               : step === "OTP_INPUT"
-              ? t("auth.enterOtp", "Enter 6-Digit Code")
-              : t("auth.newPassword", "Choose a New Password")}
+                ? t("auth.enterOtp", "Enter 6-Digit Code")
+                : t("auth.newPassword", "Choose a New Password")}
           </ThemedText>
 
           <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
             {step === "PHONE_INPUT"
-              ? t("auth.forgotPasswordDesc", "Enter your mobile number linked to your Haajari account to receive a 6-digit recovery code.")
+              ? t(
+                  "auth.forgotPasswordDesc",
+                  "Enter your mobile number linked to your Haajari account to receive a 6-digit recovery code.",
+                )
               : step === "OTP_INPUT"
-              ? `${t("auth.otpSentTo", "We sent a 6-digit verification code to")} +91 ${phone}.`
-              : t("auth.passwordRequirementsDesc", "Create a new password that is at least 8 characters long with numbers and special symbols.")}
+                ? `${t("auth.otpSentTo", "We sent a 6-digit verification code to")} +91 ${phone}.`
+                : t(
+                    "auth.passwordRequirementsDesc",
+                    "Create a new password that is at least 8 characters long with numbers and special symbols.",
+                  )}
           </ThemedText>
         </View>
 
@@ -403,7 +455,9 @@ export default function ForgotPasswordScreen() {
         {step === "PHONE_INPUT" && (
           <View style={styles.formContainer}>
             <View style={styles.inputContainer}>
-              <ThemedText style={styles.inputLabel}>{t("auth.registeredPhone", "Registered Mobile Number")}</ThemedText>
+              <ThemedText style={styles.inputLabel}>
+                {t("auth.registeredPhone", "Registered Mobile Number")}
+              </ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -414,11 +468,18 @@ export default function ForgotPasswordScreen() {
                 ]}
               >
                 <View style={styles.countryCodeBadge}>
-                  <ThemedText style={[styles.countryCodeText, { color: theme.text }]}>+91</ThemedText>
+                  <ThemedText
+                    style={[styles.countryCodeText, { color: theme.text }]}
+                  >
+                    +91
+                  </ThemedText>
                 </View>
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder={t("auth.phonePlaceholder", "Enter 10-digit mobile number")}
+                  placeholder={t(
+                    "auth.phonePlaceholder",
+                    "Enter 10-digit mobile number",
+                  )}
                   placeholderTextColor={theme.textSecondary}
                   value={phone}
                   onChangeText={(tVal) => {
@@ -439,18 +500,29 @@ export default function ForgotPasswordScreen() {
               disabled={isLoading || phone.trim().length < 10}
               style={[
                 styles.submitButton,
-                { backgroundColor: phone.trim().length >= 10 ? theme.primary : theme.border },
+                {
+                  backgroundColor:
+                    phone.trim().length >= 10 ? theme.primary : theme.border,
+                },
                 animatedButtonStyle,
               ]}
             >
               {isLoading ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
                   <ActivityIndicator size="small" color="#FFFFFF" />
-                  <ThemedText style={styles.submitButtonText}>{t("auth.searchingAccount", "Searching Account...")}</ThemedText>
+                  <ThemedText style={styles.submitButtonText}>
+                    {t("auth.searchingAccount", "Searching Account...")}
+                  </ThemedText>
                 </View>
               ) : (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <ThemedText style={styles.submitButtonText}>{t("auth.sendRecoveryCode", "Send Recovery Code")}</ThemedText>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  <ThemedText style={styles.submitButtonText}>
+                    {t("auth.sendRecoveryCode", "Send Recovery Code")}
+                  </ThemedText>
                   <Feather name="arrow-right" size={18} color="#FFFFFF" />
                 </View>
               )}
@@ -490,12 +562,21 @@ export default function ForgotPasswordScreen() {
             {/* Resend Cooldown Timer */}
             <View style={styles.resendRow}>
               {cooldown > 0 ? (
-                <ThemedText style={[styles.cooldownText, { color: theme.textSecondary }]}>
-                  {t("auth.resendOtpIn", "Resend code in")} <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>{cooldown}s</ThemedText>
+                <ThemedText
+                  style={[styles.cooldownText, { color: theme.textSecondary }]}
+                >
+                  {t("auth.resendOtpIn", "Resend code in")}{" "}
+                  <ThemedText
+                    style={{ color: theme.primary, fontWeight: "700" }}
+                  >
+                    {cooldown}s
+                  </ThemedText>
                 </ThemedText>
               ) : (
                 <Pressable onPress={handleResendCode} disabled={isLoading}>
-                  <ThemedText style={[styles.resendLink, { color: theme.primary }]}>
+                  <ThemedText
+                    style={[styles.resendLink, { color: theme.primary }]}
+                  >
                     {t("auth.resendOtp", "Resend Code")}
                   </ThemedText>
                 </Pressable>
@@ -509,18 +590,31 @@ export default function ForgotPasswordScreen() {
               disabled={isLoading || otpArray.join("").length < 6}
               style={[
                 styles.submitButton,
-                { backgroundColor: otpArray.join("").length === 6 ? theme.primary : theme.border },
+                {
+                  backgroundColor:
+                    otpArray.join("").length === 6
+                      ? theme.primary
+                      : theme.border,
+                },
                 animatedButtonStyle,
               ]}
             >
               {isLoading ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
                   <ActivityIndicator size="small" color="#FFFFFF" />
-                  <ThemedText style={styles.submitButtonText}>{t("auth.verifyingOtp", "Verifying Code...")}</ThemedText>
+                  <ThemedText style={styles.submitButtonText}>
+                    {t("auth.verifyingOtp", "Verifying Code...")}
+                  </ThemedText>
                 </View>
               ) : (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <ThemedText style={styles.submitButtonText}>{t("common.continue", "Continue")}</ThemedText>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  <ThemedText style={styles.submitButtonText}>
+                    {t("common.continue", "Continue")}
+                  </ThemedText>
                   <Feather name="check" size={18} color="#FFFFFF" />
                 </View>
               )}
@@ -535,14 +629,17 @@ export default function ForgotPasswordScreen() {
               <View style={styles.infoBadge}>
                 <Feather name="mail" size={16} color="#3B82F6" />
                 <ThemedText style={styles.infoBadgeText}>
-                  Secondary email confirmation link sent. Please confirm before submitting.
+                  Secondary email confirmation link sent. Please confirm before
+                  submitting.
                 </ThemedText>
               </View>
             )}
 
             {/* New Password */}
             <View style={styles.inputContainer}>
-              <ThemedText style={styles.inputLabel}>{t("auth.newPassword", "New Password")}</ThemedText>
+              <ThemedText style={styles.inputLabel}>
+                {t("auth.newPassword", "New Password")}
+              </ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -552,10 +649,18 @@ export default function ForgotPasswordScreen() {
                   },
                 ]}
               >
-                <Feather name="lock" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                <Feather
+                  name="lock"
+                  size={18}
+                  color={theme.textSecondary}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder={t("auth.newPasswordPlaceholder", "Enter new password")}
+                  placeholder={t(
+                    "auth.newPasswordPlaceholder",
+                    "Enter new password",
+                  )}
                   placeholderTextColor={theme.textSecondary}
                   value={newPassword}
                   onChangeText={(tVal) => {
@@ -566,15 +671,24 @@ export default function ForgotPasswordScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                  <Feather name={showPassword ? "eye" : "eye-off"} size={18} color={theme.textSecondary} />
+                <Pressable
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeIcon}
+                >
+                  <Feather
+                    name={showPassword ? "eye" : "eye-off"}
+                    size={18}
+                    color={theme.textSecondary}
+                  />
                 </Pressable>
               </View>
             </View>
 
             {/* Confirm Password */}
             <View style={styles.inputContainer}>
-              <ThemedText style={styles.inputLabel}>{t("auth.confirmPassword", "Confirm New Password")}</ThemedText>
+              <ThemedText style={styles.inputLabel}>
+                {t("auth.confirmPassword", "Confirm New Password")}
+              </ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -584,10 +698,18 @@ export default function ForgotPasswordScreen() {
                   },
                 ]}
               >
-                <Feather name="check-circle" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                <Feather
+                  name="check-circle"
+                  size={18}
+                  color={theme.textSecondary}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder={t("auth.confirmPasswordPlaceholder", "Re-enter new password")}
+                  placeholder={t(
+                    "auth.confirmPasswordPlaceholder",
+                    "Re-enter new password",
+                  )}
                   placeholderTextColor={theme.textSecondary}
                   value={confirmPassword}
                   onChangeText={(tVal) => {
@@ -598,47 +720,125 @@ export default function ForgotPasswordScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeIcon}>
-                  <Feather name={showConfirmPassword ? "eye" : "eye-off"} size={18} color={theme.textSecondary} />
+                <Pressable
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={styles.eyeIcon}
+                >
+                  <Feather
+                    name={showConfirmPassword ? "eye" : "eye-off"}
+                    size={18}
+                    color={theme.textSecondary}
+                  />
                 </Pressable>
               </View>
             </View>
 
             {/* Password Strength Checklist */}
-            <View style={[styles.reqCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+            <View
+              style={[
+                styles.reqCard,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
               <View style={styles.reqItem}>
-                <Feather name={isMinLength ? "check-circle" : "circle"} size={14} color={isMinLength ? "#22C55E" : theme.textSecondary} />
-                <ThemedText style={[styles.reqText, { color: isMinLength ? "#22C55E" : theme.textSecondary }]}>
+                <Feather
+                  name={isMinLength ? "check-circle" : "circle"}
+                  size={14}
+                  color={isMinLength ? "#22C55E" : theme.textSecondary}
+                />
+                <ThemedText
+                  style={[
+                    styles.reqText,
+                    { color: isMinLength ? "#22C55E" : theme.textSecondary },
+                  ]}
+                >
                   {t("auth.min8Chars", "Minimum 8 characters")}
                 </ThemedText>
               </View>
               <View style={styles.reqItem}>
-                <Feather name={hasUppercase ? "check-circle" : "circle"} size={14} color={hasUppercase ? "#22C55E" : theme.textSecondary} />
-                <ThemedText style={[styles.reqText, { color: hasUppercase ? "#22C55E" : theme.textSecondary }]}>
-                  {t("auth.uppercaseReq", "At least one uppercase letter (A-Z)")}
+                <Feather
+                  name={hasUppercase ? "check-circle" : "circle"}
+                  size={14}
+                  color={hasUppercase ? "#22C55E" : theme.textSecondary}
+                />
+                <ThemedText
+                  style={[
+                    styles.reqText,
+                    { color: hasUppercase ? "#22C55E" : theme.textSecondary },
+                  ]}
+                >
+                  {t(
+                    "auth.uppercaseReq",
+                    "At least one uppercase letter (A-Z)",
+                  )}
                 </ThemedText>
               </View>
               <View style={styles.reqItem}>
-                <Feather name={hasLowercase ? "check-circle" : "circle"} size={14} color={hasLowercase ? "#22C55E" : theme.textSecondary} />
-                <ThemedText style={[styles.reqText, { color: hasLowercase ? "#22C55E" : theme.textSecondary }]}>
-                  {t("auth.lowercaseReq", "At least one lowercase letter (a-z)")}
+                <Feather
+                  name={hasLowercase ? "check-circle" : "circle"}
+                  size={14}
+                  color={hasLowercase ? "#22C55E" : theme.textSecondary}
+                />
+                <ThemedText
+                  style={[
+                    styles.reqText,
+                    { color: hasLowercase ? "#22C55E" : theme.textSecondary },
+                  ]}
+                >
+                  {t(
+                    "auth.lowercaseReq",
+                    "At least one lowercase letter (a-z)",
+                  )}
                 </ThemedText>
               </View>
               <View style={styles.reqItem}>
-                <Feather name={hasNumber ? "check-circle" : "circle"} size={14} color={hasNumber ? "#22C55E" : theme.textSecondary} />
-                <ThemedText style={[styles.reqText, { color: hasNumber ? "#22C55E" : theme.textSecondary }]}>
+                <Feather
+                  name={hasNumber ? "check-circle" : "circle"}
+                  size={14}
+                  color={hasNumber ? "#22C55E" : theme.textSecondary}
+                />
+                <ThemedText
+                  style={[
+                    styles.reqText,
+                    { color: hasNumber ? "#22C55E" : theme.textSecondary },
+                  ]}
+                >
                   {t("auth.numberReq", "At least one number (0-9)")}
                 </ThemedText>
               </View>
               <View style={styles.reqItem}>
-                <Feather name={hasSpecial ? "check-circle" : "circle"} size={14} color={hasSpecial ? "#22C55E" : theme.textSecondary} />
-                <ThemedText style={[styles.reqText, { color: hasSpecial ? "#22C55E" : theme.textSecondary }]}>
-                  {t("auth.specialCharReq", "At least one special character (!@#$%)")}
+                <Feather
+                  name={hasSpecial ? "check-circle" : "circle"}
+                  size={14}
+                  color={hasSpecial ? "#22C55E" : theme.textSecondary}
+                />
+                <ThemedText
+                  style={[
+                    styles.reqText,
+                    { color: hasSpecial ? "#22C55E" : theme.textSecondary },
+                  ]}
+                >
+                  {t(
+                    "auth.specialCharReq",
+                    "At least one special character (!@#$%)",
+                  )}
                 </ThemedText>
               </View>
               <View style={styles.reqItem}>
-                <Feather name={isMatching ? "check-circle" : "circle"} size={14} color={isMatching ? "#22C55E" : theme.textSecondary} />
-                <ThemedText style={[styles.reqText, { color: isMatching ? "#22C55E" : theme.textSecondary }]}>
+                <Feather
+                  name={isMatching ? "check-circle" : "circle"}
+                  size={14}
+                  color={isMatching ? "#22C55E" : theme.textSecondary}
+                />
+                <ThemedText
+                  style={[
+                    styles.reqText,
+                    { color: isMatching ? "#22C55E" : theme.textSecondary },
+                  ]}
+                >
                   {t("auth.passwordsMatch", "Passwords match")}
                 </ThemedText>
               </View>
@@ -651,18 +851,31 @@ export default function ForgotPasswordScreen() {
               disabled={isLoading || !isPasswordStrong || !isMatching}
               style={[
                 styles.submitButton,
-                { backgroundColor: isPasswordStrong && isMatching ? theme.primary : theme.border },
+                {
+                  backgroundColor:
+                    isPasswordStrong && isMatching
+                      ? theme.primary
+                      : theme.border,
+                },
                 animatedButtonStyle,
               ]}
             >
               {isLoading ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
                   <ActivityIndicator size="small" color="#FFFFFF" />
-                  <ThemedText style={styles.submitButtonText}>{t("auth.resettingPassword", "Resetting Password...")}</ThemedText>
+                  <ThemedText style={styles.submitButtonText}>
+                    {t("auth.resettingPassword", "Resetting Password...")}
+                  </ThemedText>
                 </View>
               ) : (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <ThemedText style={styles.submitButtonText}>{t("auth.resetPassword", "Reset Password")}</ThemedText>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  <ThemedText style={styles.submitButtonText}>
+                    {t("auth.resetPassword", "Reset Password")}
+                  </ThemedText>
                   <Feather name="check" size={18} color="#FFFFFF" />
                 </View>
               )}
@@ -675,9 +888,13 @@ export default function ForgotPasswordScreen() {
           onPress={() => navigation.navigate("Login")}
           style={styles.backToLoginBtn}
         >
-          <ThemedText style={[styles.backToLoginText, { color: theme.textSecondary }]}>
+          <ThemedText
+            style={[styles.backToLoginText, { color: theme.textSecondary }]}
+          >
             Remembered your password?{" "}
-            <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>Log In</ThemedText>
+            <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>
+              Log In
+            </ThemedText>
           </ThemedText>
         </Pressable>
       </ScrollContainer>

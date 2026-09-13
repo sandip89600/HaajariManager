@@ -28,28 +28,125 @@ export interface LanguageItem {
 }
 
 export const SUPPORTED_22_LANGUAGES: LanguageItem[] = [
-  { code: "hi", nativeName: "हिंदी", englishName: "Hindi", script: "devanagari" },
-  { code: "en", nativeName: "English", englishName: "English", script: "latin" },
-  { code: "mr", nativeName: "मराठी", englishName: "Marathi", script: "devanagari" },
-  { code: "gu", nativeName: "ગુજરાતી", englishName: "Gujarati", script: "gujarati" },
-  { code: "bn", nativeName: "বাংলা", englishName: "Bengali", script: "bengali" },
+  {
+    code: "hi",
+    nativeName: "हिंदी",
+    englishName: "Hindi",
+    script: "devanagari",
+  },
+  {
+    code: "en",
+    nativeName: "English",
+    englishName: "English",
+    script: "latin",
+  },
+  {
+    code: "mr",
+    nativeName: "मराठी",
+    englishName: "Marathi",
+    script: "devanagari",
+  },
+  {
+    code: "gu",
+    nativeName: "ગુજરાતી",
+    englishName: "Gujarati",
+    script: "gujarati",
+  },
+  {
+    code: "bn",
+    nativeName: "বাংলা",
+    englishName: "Bengali",
+    script: "bengali",
+  },
   { code: "ta", nativeName: "தமிழ்", englishName: "Tamil", script: "tamil" },
   { code: "te", nativeName: "తెలుగు", englishName: "Telugu", script: "telugu" },
-  { code: "kn", nativeName: "ಕನ್ನಡ", englishName: "Kannada", script: "kannada" },
-  { code: "ml", nativeName: "മലയാളം", englishName: "Malayalam", script: "malayalam" },
-  { code: "pa", nativeName: "ਪੰਜਾਬੀ", englishName: "Punjabi", script: "gurmukhi" },
+  {
+    code: "kn",
+    nativeName: "ಕನ್ನಡ",
+    englishName: "Kannada",
+    script: "kannada",
+  },
+  {
+    code: "ml",
+    nativeName: "മലയാളം",
+    englishName: "Malayalam",
+    script: "malayalam",
+  },
+  {
+    code: "pa",
+    nativeName: "ਪੰਜਾਬੀ",
+    englishName: "Punjabi",
+    script: "gurmukhi",
+  },
   { code: "or", nativeName: "ଓଡ଼ିଆ", englishName: "Odia", script: "odia" },
-  { code: "as", nativeName: "অসমীয়া", englishName: "Assamese", script: "bengali" },
-  { code: "ur", nativeName: "اردو", englishName: "Urdu", script: "arabic", isRTL: true },
-  { code: "sa", nativeName: "संस्कृतम्", englishName: "Sanskrit", script: "devanagari" },
-  { code: "ne", nativeName: "नेपाली", englishName: "Nepali", script: "devanagari" },
-  { code: "kok", nativeName: "कोंकणी", englishName: "Konkani", script: "devanagari" },
-  { code: "mai", nativeName: "मैथिली", englishName: "Maithili", script: "devanagari" },
-  { code: "bho", nativeName: "भोजपुरी", englishName: "Bhojpuri", script: "devanagari" },
-  { code: "doi", nativeName: "डोगरी", englishName: "Dogri", script: "devanagari" },
-  { code: "ks", nativeName: "کٲشُر / कश्मीरी", englishName: "Kashmiri", script: "arabic", isRTL: true },
-  { code: "mni", nativeName: "মৈতৈলোন্ / মণিপুরি", englishName: "Manipuri", script: "bengali" },
-  { code: "sat", nativeName: "ᱥᱟᱱᱛᱟᱲᱤ / संथाली", englishName: "Santali", script: "devanagari" },
+  {
+    code: "as",
+    nativeName: "অসমীয়া",
+    englishName: "Assamese",
+    script: "bengali",
+  },
+  {
+    code: "ur",
+    nativeName: "اردو",
+    englishName: "Urdu",
+    script: "arabic",
+    isRTL: true,
+  },
+  {
+    code: "sa",
+    nativeName: "संस्कृतम्",
+    englishName: "Sanskrit",
+    script: "devanagari",
+  },
+  {
+    code: "ne",
+    nativeName: "नेपाली",
+    englishName: "Nepali",
+    script: "devanagari",
+  },
+  {
+    code: "kok",
+    nativeName: "कोंकणी",
+    englishName: "Konkani",
+    script: "devanagari",
+  },
+  {
+    code: "mai",
+    nativeName: "मैथिली",
+    englishName: "Maithili",
+    script: "devanagari",
+  },
+  {
+    code: "bho",
+    nativeName: "भोजपुरी",
+    englishName: "Bhojpuri",
+    script: "devanagari",
+  },
+  {
+    code: "doi",
+    nativeName: "डोगरी",
+    englishName: "Dogri",
+    script: "devanagari",
+  },
+  {
+    code: "ks",
+    nativeName: "کٲشُر / कश्मीरी",
+    englishName: "Kashmiri",
+    script: "arabic",
+    isRTL: true,
+  },
+  {
+    code: "mni",
+    nativeName: "মৈতৈলোন্ / মণিপুরি",
+    englishName: "Manipuri",
+    script: "bengali",
+  },
+  {
+    code: "sat",
+    nativeName: "ᱥᱟᱱᱛᱟᱲᱤ / संथाली",
+    englishName: "Santali",
+    script: "devanagari",
+  },
 ];
 
 interface LanguageSelectionScreenProps {
@@ -125,7 +222,9 @@ export default function LanguageSelectionScreen({
             <ThemedText style={[styles.brandTitle, { color: theme.primary }]}>
               HAAJARI MANAGER
             </ThemedText>
-            <ThemedText style={[styles.brandSubtitle, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.brandSubtitle, { color: theme.textSecondary }]}
+            >
               हाजिरी • साइट • हिसाब
             </ThemedText>
           </View>
@@ -169,13 +268,13 @@ export default function LanguageSelectionScreen({
                         ? "#431407"
                         : "#FFF7ED"
                       : isDark
-                      ? "#1E293B"
-                      : "#FFFFFF",
+                        ? "#1E293B"
+                        : "#FFFFFF",
                     borderColor: isSelected
                       ? theme.primary
                       : isDark
-                      ? "#334155"
-                      : "#E2E8F0",
+                        ? "#334155"
+                        : "#E2E8F0",
                     transform: [{ scale: pressed ? 0.98 : 1 }],
                   },
                 ]}
@@ -216,8 +315,8 @@ export default function LanguageSelectionScreen({
                       borderColor: isSelected
                         ? theme.primary
                         : isDark
-                        ? "#64748B"
-                        : "#CBD5E1",
+                          ? "#64748B"
+                          : "#CBD5E1",
                       backgroundColor: isSelected
                         ? theme.primary
                         : "transparent",

@@ -54,14 +54,8 @@ export default function RootNavigator() {
           <Stack.Screen name="Main" component={MainTabNavigator} />
         </>
       )}
-      <Stack.Screen
-        name="ForgotPassword"
-        component={ForgotPasswordScreen}
-      />
-      <Stack.Screen
-        name="ResetPassword"
-        component={ResetPasswordScreen}
-      />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Stack.Screen
         name="TermsAndConditions"
         component={TermsAndConditionsScreen}

@@ -1,8 +1,18 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Calendar, Search, MapPin, Check, X, ShieldAlert, Award, RefreshCw, Trash2 } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { api } from '../utils/api';
+import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Calendar,
+  Search,
+  MapPin,
+  Check,
+  X,
+  ShieldAlert,
+  Award,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import { api } from "../utils/api";
 
 interface AttendanceRecord {
   _id: string;
@@ -30,17 +40,19 @@ interface AttendanceRecord {
 
 export default function AttendancePage() {
   const queryClient = useQueryClient();
-  const [dateFilter, setDateFilter] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [dateFilter, setDateFilter] = useState<string>(
+    new Date().toISOString().split("T")[0],
+  );
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
 
   // Fetch attendance records
   const { data: records = [], isLoading } = useQuery<AttendanceRecord[]>({
-    queryKey: ['attendance', dateFilter],
+    queryKey: ["attendance", dateFilter],
     queryFn: async () => {
       const res = await api.get(`/admin/attendance?date=${dateFilter}`);
       return res.data;
-    }
+    },
   });
 
   // Delete attendance mutation
@@ -49,22 +61,31 @@ export default function AttendancePage() {
       return api.delete(`/admin/attendance/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['attendance'] });
-      toast.success('Attendance record deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      toast.success("Attendance record deleted successfully");
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to delete attendance record');
-    }
+      toast.error(
+        err.response?.data?.error || "Failed to delete attendance record",
+      );
+    },
   });
 
   const filteredRecords = records.filter((r) => {
-    const wName = r.workerName || r.workerId?.name || 'Worker';
-    const compName = r.company || r.tenantId?.name || 'Company';
-    const statusValue = r.value === 'P' || r.value === 'OT' ? 'Present' : r.value === 'H' ? 'Half Day' : 'Absent';
-    
-    const matchesSearch = wName.toLowerCase().includes(search.toLowerCase()) || 
-                          compName.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'All' || statusValue === statusFilter;
+    const wName = r.workerName || r.workerId?.name || "Worker";
+    const compName = r.company || r.tenantId?.name || "Company";
+    const statusValue =
+      r.value === "P" || r.value === "OT"
+        ? "Present"
+        : r.value === "H"
+          ? "Half Day"
+          : "Absent";
+
+    const matchesSearch =
+      wName.toLowerCase().includes(search.toLowerCase()) ||
+      compName.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus =
+      statusFilter === "All" || statusValue === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -72,18 +93,25 @@ export default function AttendancePage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-extrabold text-white">Labour Attendance logs</h1>
-          <p className="text-slate-400 text-sm mt-1">Monitor real-time biometric and manual clock-in logs uploaded from supervisor applications</p>
+          <h1 className="text-3xl font-extrabold text-white">
+            Labour Attendance logs
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Monitor real-time biometric and manual clock-in logs uploaded from
+            supervisor applications
+          </p>
         </div>
         <button
           onClick={() => {
-            queryClient.invalidateQueries({ queryKey: ['attendance'] });
-            toast.success('Attendance logs refreshed');
+            queryClient.invalidateQueries({ queryKey: ["attendance"] });
+            toast.success("Attendance logs refreshed");
           }}
           disabled={isLoading}
           className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-850 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
         >
-          <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? "animate-spin" : ""}`}
+          />
           <span>Refresh</span>
         </button>
       </div>
@@ -91,7 +119,9 @@ export default function AttendancePage() {
       {/* Filters */}
       <div className="glass-card p-5 rounded-2xl border border-slate-850 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block ml-1">Filter Date</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block ml-1">
+            Filter Date
+          </label>
           <div className="relative">
             <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input
@@ -104,7 +134,9 @@ export default function AttendancePage() {
         </div>
 
         <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block ml-1">Search Labour</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block ml-1">
+            Search Labour
+          </label>
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input
@@ -118,7 +150,9 @@ export default function AttendancePage() {
         </div>
 
         <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block ml-1">Status Class</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block ml-1">
+            Status Class
+          </label>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -149,46 +183,72 @@ export default function AttendancePage() {
             <tbody className="divide-y divide-slate-850/30 text-sm text-slate-300">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-slate-500 font-semibold text-xs animate-pulse">
+                  <td
+                    colSpan={6}
+                    className="text-center py-8 text-slate-500 font-semibold text-xs animate-pulse"
+                  >
                     Syncing live records...
                   </td>
                 </tr>
               ) : filteredRecords.length > 0 ? (
                 filteredRecords.map((r) => {
-                  const wName = r.workerName || r.workerId?.name || 'Worker';
-                  const compName = r.company || r.tenantId?.name || 'Company';
-                  const statusValue = r.value === 'P' || r.value === 'OT' ? 'Present' : r.value === 'H' ? 'Half Day' : 'Absent';
-                  
+                  const wName = r.workerName || r.workerId?.name || "Worker";
+                  const compName = r.company || r.tenantId?.name || "Company";
+                  const statusValue =
+                    r.value === "P" || r.value === "OT"
+                      ? "Present"
+                      : r.value === "H"
+                        ? "Half Day"
+                        : "Absent";
+
                   return (
-                    <tr key={r._id} className="hover:bg-slate-900/20 transition-colors">
+                    <tr
+                      key={r._id}
+                      className="hover:bg-slate-900/20 transition-colors"
+                    >
                       <td className="px-6 py-4">
                         <div>
-                          <span className="font-bold text-white block">{wName}</span>
-                          <span className="block text-[10px] text-slate-500">{r.phone || r.workerId?.phone || 'N/A'}</span>
+                          <span className="font-bold text-white block">
+                            {wName}
+                          </span>
+                          <span className="block text-[10px] text-slate-500">
+                            {r.phone || r.workerId?.phone || "N/A"}
+                          </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 font-semibold text-slate-400">{compName}</td>
+                      <td className="px-6 py-4 font-semibold text-slate-400">
+                        {compName}
+                      </td>
                       <td className="px-6 py-4 font-medium text-slate-500">
-                        {r.year ? `${r.day}/${r.month + 1}/${r.year}` : new Date(r.timestamp).toLocaleDateString()}
+                        {r.year
+                          ? `${r.day}/${r.month + 1}/${r.year}`
+                          : new Date(r.timestamp).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4">
                         {r.location?.latitude ? (
                           <div className="flex items-center gap-1.5 text-xs text-orange-500 font-bold">
                             <MapPin className="w-4.5 h-4.5 text-orange-500" />
-                            <span>GPS Verified ({r.location.latitude.toFixed(4)}, {r.location.longitude.toFixed(4)})</span>
+                            <span>
+                              GPS Verified ({r.location.latitude.toFixed(4)},{" "}
+                              {r.location.longitude.toFixed(4)})
+                            </span>
                           </div>
                         ) : (
-                          <span className="text-slate-600 text-xs font-semibold">Manual Over-ride</span>
+                          <span className="text-slate-600 text-xs font-semibold">
+                            Manual Over-ride
+                          </span>
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        {statusValue === 'Present' ? (
+                        {statusValue === "Present" ? (
                           <span className="inline-flex items-center gap-1 text-xs text-emerald-450 font-bold uppercase tracking-wider">
-                            <Check className="w-4 h-4 text-emerald-450" /> Present
+                            <Check className="w-4 h-4 text-emerald-450" />{" "}
+                            Present
                           </span>
-                        ) : statusValue === 'Half Day' ? (
+                        ) : statusValue === "Half Day" ? (
                           <span className="inline-flex items-center gap-1 text-xs text-amber-500 font-bold uppercase tracking-wider">
-                            <Award className="w-4 h-4 text-amber-500" /> Half Day
+                            <Award className="w-4 h-4 text-amber-500" /> Half
+                            Day
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-xs text-rose-450 font-bold uppercase tracking-wider">
@@ -199,7 +259,11 @@ export default function AttendancePage() {
                       <td className="px-6 py-4 text-right">
                         <button
                           onClick={() => {
-                            if (window.confirm(`Are you sure you want to delete this attendance record for "${wName}"?`)) {
+                            if (
+                              window.confirm(
+                                `Are you sure you want to delete this attendance record for "${wName}"?`,
+                              )
+                            ) {
                               deleteAttendanceMutation.mutate(r._id);
                             }
                           }}
@@ -216,7 +280,10 @@ export default function AttendancePage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="text-center py-10 text-slate-500 font-medium">
+                  <td
+                    colSpan={6}
+                    className="text-center py-10 text-slate-500 font-medium"
+                  >
                     No attendance records found for this date.
                   </td>
                 </tr>

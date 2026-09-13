@@ -173,10 +173,22 @@ interface RecordBreakdown {
   overtimeText?: string;
 }
 
-const getRecordBreakdown = (record: AttendanceRecord, dailyRate: number): RecordBreakdown => {
-  const rate = record.dailyRate !== undefined && record.dailyRate !== null ? record.dailyRate : dailyRate;
-  const advance = record.customWage !== undefined && record.customWage !== null ? record.customWage : 0;
-  const overtime = record.overtimeWage !== undefined && record.overtimeWage !== null ? record.overtimeWage : 0;
+const getRecordBreakdown = (
+  record: AttendanceRecord,
+  dailyRate: number,
+): RecordBreakdown => {
+  const rate =
+    record.dailyRate !== undefined && record.dailyRate !== null
+      ? record.dailyRate
+      : dailyRate;
+  const advance =
+    record.customWage !== undefined && record.customWage !== null
+      ? record.customWage
+      : 0;
+  const overtime =
+    record.overtimeWage !== undefined && record.overtimeWage !== null
+      ? record.overtimeWage
+      : 0;
 
   let basePay = 0;
   let statusText = "";
@@ -575,44 +587,110 @@ const SummaryCard = memo(function SummaryCard({
           >
             {/* Row 1: Present, Half, Absent */}
             <View style={{ width: "33.3%", padding: 4 }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.totalPresent}</ThemedText>
-              <ThemedText type="body" style={{ fontWeight: "700", color: "#10B981" }}>{summary.presentDays} {t.summary.days}</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {t.summary.totalPresent}
+              </ThemedText>
+              <ThemedText
+                type="body"
+                style={{ fontWeight: "700", color: "#10B981" }}
+              >
+                {summary.presentDays} {t.summary.days}
+              </ThemedText>
             </View>
             <View style={{ width: "33.3%", padding: 4 }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.halfDay}</ThemedText>
-              <ThemedText type="body" style={{ fontWeight: "700", color: "#F59E0B" }}>{summary.halfDays} {t.summary.days}</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {t.summary.halfDay}
+              </ThemedText>
+              <ThemedText
+                type="body"
+                style={{ fontWeight: "700", color: "#F59E0B" }}
+              >
+                {summary.halfDays} {t.summary.days}
+              </ThemedText>
             </View>
             <View style={{ width: "33.3%", padding: 4 }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.totalAbsent}</ThemedText>
-              <ThemedText type="body" style={{ fontWeight: "700", color: "#EF4444" }}>{summary.absentDays} {t.summary.days}</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {t.summary.totalAbsent}
+              </ThemedText>
+              <ThemedText
+                type="body"
+                style={{ fontWeight: "700", color: "#EF4444" }}
+              >
+                {summary.absentDays} {t.summary.days}
+              </ThemedText>
             </View>
 
             {/* Row 2: Advance, Overtime, Payments */}
             <View style={{ width: "33.3%", padding: 4, marginTop: 8 }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.totalAdvance}</ThemedText>
-              <ThemedText type="body" style={{ fontWeight: "700", color: "#FF6B35" }}>₹{summary.totalAdvanceAmount}</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {t.summary.totalAdvance}
+              </ThemedText>
+              <ThemedText
+                type="body"
+                style={{ fontWeight: "700", color: "#FF6B35" }}
+              >
+                ₹{summary.totalAdvanceAmount}
+              </ThemedText>
             </View>
             <View style={{ width: "33.3%", padding: 4, marginTop: 8 }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.overtime}</ThemedText>
-              <ThemedText type="body" style={{ fontWeight: "700", color: "#3B82F6" }}>₹{summary.totalOvertimeAmount}</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {t.summary.overtime}
+              </ThemedText>
+              <ThemedText
+                type="body"
+                style={{ fontWeight: "700", color: "#3B82F6" }}
+              >
+                ₹{summary.totalOvertimeAmount}
+              </ThemedText>
             </View>
             <View style={{ width: "33.3%", padding: 4, marginTop: 8 }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.txns}</ThemedText>
-              <ThemedText type="body" style={{ fontWeight: "700", color: theme.text }}>{summary.payments.length}</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {t.summary.txns}
+              </ThemedText>
+              <ThemedText
+                type="body"
+                style={{ fontWeight: "700", color: theme.text }}
+              >
+                {summary.payments.length}
+              </ThemedText>
             </View>
 
             {/* Row 3: Gross, Paid, Due */}
             <View style={{ width: "33.3%", padding: 4, marginTop: 8 }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.grossPay}</ThemedText>
-              <ThemedText type="body" style={{ fontWeight: "700", color: "#10B981" }}>₹{summary.totalAmount.toFixed(0)}</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {t.summary.grossPay}
+              </ThemedText>
+              <ThemedText
+                type="body"
+                style={{ fontWeight: "700", color: "#10B981" }}
+              >
+                ₹{summary.totalAmount.toFixed(0)}
+              </ThemedText>
             </View>
             <View style={{ width: "33.3%", padding: 4, marginTop: 8 }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.totalPaid}</ThemedText>
-              <ThemedText type="body" style={{ fontWeight: "700", color: theme.primary }}>₹{summary.totalPaid.toFixed(0)}</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {t.summary.totalPaid}
+              </ThemedText>
+              <ThemedText
+                type="body"
+                style={{ fontWeight: "700", color: theme.primary }}
+              >
+                ₹{summary.totalPaid.toFixed(0)}
+              </ThemedText>
             </View>
             <View style={{ width: "33.3%", padding: 4, marginTop: 8 }}>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>{t.summary.dueBalance}</ThemedText>
-              <ThemedText type="body" style={{ fontWeight: "700", color: summary.balance > 0 ? "#EF4444" : "#10B981" }}>₹{summary.balance.toFixed(0)}</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {t.summary.dueBalance}
+              </ThemedText>
+              <ThemedText
+                type="body"
+                style={{
+                  fontWeight: "700",
+                  color: summary.balance > 0 ? "#EF4444" : "#10B981",
+                }}
+              >
+                ₹{summary.balance.toFixed(0)}
+              </ThemedText>
             </View>
           </View>
 
@@ -628,7 +706,9 @@ const SummaryCard = memo(function SummaryCard({
               borderRadius: 10,
               borderWidth: 1,
               borderColor: theme.primary,
-              backgroundColor: isDark ? "rgba(79, 70, 229, 0.05)" : "rgba(30, 58, 95, 0.03)",
+              backgroundColor: isDark
+                ? "rgba(79, 70, 229, 0.05)"
+                : "rgba(30, 58, 95, 0.03)",
               marginTop: Spacing.md,
               marginBottom: Spacing.md,
             }}
@@ -743,18 +823,31 @@ const SummaryCard = memo(function SummaryCard({
                                   const authObj = await storage.getAuth();
                                   let company = "Haajari Manager";
                                   if (authObj && authObj.userId) {
-                                    const userObj = await storage.getUserById(authObj.userId);
+                                    const userObj = await storage.getUserById(
+                                      authObj.userId,
+                                    );
                                     if (userObj && userObj.companyName) {
                                       company = userObj.companyName;
                                     }
                                   }
                                   const workerName = summary.worker.name;
-                                  await generateAndSharePaymentReceipt(payment, workerName, company, t);
+                                  await generateAndSharePaymentReceipt(
+                                    payment,
+                                    workerName,
+                                    company,
+                                    t,
+                                  );
                                 } catch (e) {
-                                  console.warn("Failed to share payment receipt", e);
+                                  console.warn(
+                                    "Failed to share payment receipt",
+                                    e,
+                                  );
                                 }
                               }}
-                              style={[styles.timelineDeleteBtn, { marginRight: 8 }]}
+                              style={[
+                                styles.timelineDeleteBtn,
+                                { marginRight: 8 },
+                              ]}
                             >
                               <Feather
                                 name="share-2"
@@ -875,11 +968,21 @@ const SummaryCard = memo(function SummaryCard({
             </Pressable>
           )}
           {/* 4. Enterprise Payments Actions Bar */}
-          <View style={{ flexDirection: "row", gap: 8, marginTop: Spacing.md, marginBottom: Spacing.sm }}>
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              marginTop: Spacing.md,
+              marginBottom: Spacing.sm,
+            }}
+          >
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                Alert.alert("Invoice Generated", `Monthly invoice created for ${summary.worker.name}: ₹${summary.totalAmount.toFixed(0)}`);
+                Alert.alert(
+                  "Invoice Generated",
+                  `Monthly invoice created for ${summary.worker.name}: ₹${summary.totalAmount.toFixed(0)}`,
+                );
               }}
               style={{
                 flex: 1,
@@ -890,17 +993,22 @@ const SummaryCard = memo(function SummaryCard({
                 justifyContent: "center",
                 alignItems: "center",
                 flexDirection: "row",
-                gap: 4
+                gap: 4,
               }}
             >
               <Feather name="file-text" size={12} color={theme.text} />
-              <ThemedText style={{ fontSize: 10, fontWeight: "700" }}>Invoice</ThemedText>
+              <ThemedText style={{ fontSize: 10, fontWeight: "700" }}>
+                Invoice
+              </ThemedText>
             </Pressable>
 
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                Alert.alert("Receipt Ready", `Printable payment receipt is ready for download.`);
+                Alert.alert(
+                  "Receipt Ready",
+                  `Printable payment receipt is ready for download.`,
+                );
               }}
               style={{
                 flex: 1,
@@ -911,17 +1019,22 @@ const SummaryCard = memo(function SummaryCard({
                 justifyContent: "center",
                 alignItems: "center",
                 flexDirection: "row",
-                gap: 4
+                gap: 4,
               }}
             >
               <Feather name="printer" size={12} color={theme.text} />
-              <ThemedText style={{ fontSize: 10, fontWeight: "700" }}>Receipt</ThemedText>
+              <ThemedText style={{ fontSize: 10, fontWeight: "700" }}>
+                Receipt
+              </ThemedText>
             </Pressable>
 
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                Alert.alert("Reminder Sent", `SMS/WhatsApp payment reminder dispatched for ₹${summary.balance.toFixed(0)}.`);
+                Alert.alert(
+                  "Reminder Sent",
+                  `SMS/WhatsApp payment reminder dispatched for ₹${summary.balance.toFixed(0)}.`,
+                );
               }}
               style={{
                 flex: 1,
@@ -932,11 +1045,13 @@ const SummaryCard = memo(function SummaryCard({
                 justifyContent: "center",
                 alignItems: "center",
                 flexDirection: "row",
-                gap: 4
+                gap: 4,
               }}
             >
               <Feather name="bell" size={12} color={theme.text} />
-              <ThemedText style={{ fontSize: 10, fontWeight: "700" }}>Remind</ThemedText>
+              <ThemedText style={{ fontSize: 10, fontWeight: "700" }}>
+                Remind
+              </ThemedText>
             </Pressable>
           </View>
         </View>
@@ -954,7 +1069,10 @@ export default function SummaryScreen() {
   const { reportError } = useErrorFeedback();
   const insets = useSafeAreaInsets();
   const rawHeaderHeight = useHeaderHeight();
-  const headerHeight = rawHeaderHeight > 0 ? rawHeaderHeight : insets.top + Platform.select({ ios: 44, default: 56 });
+  const headerHeight =
+    rawHeaderHeight > 0
+      ? rawHeaderHeight
+      : insets.top + Platform.select({ ios: 44, default: 56 });
   const tabBarHeight = insets.bottom + 60;
 
   const [workers, setWorkers] = useState<Worker[]>([]);
@@ -969,9 +1087,10 @@ export default function SummaryScreen() {
   const [grandTotal, setGrandTotal] = useState(0);
   const [grandTotalPaid, setGrandTotalPaid] = useState(0);
   const [grandTotalAdvance, setGrandTotalAdvance] = useState(0);
-  const [calculationWorker, setCalculationWorker] = useState<WorkerSummary | null>(null);
+  const [calculationWorker, setCalculationWorker] =
+    useState<WorkerSummary | null>(null);
   const [showCalculationModal, setShowCalculationModal] = useState(false);
-  
+
   // BI Reports Extensions States
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailInput, setEmailInput] = useState("");
@@ -986,7 +1105,7 @@ export default function SummaryScreen() {
     wages: true,
     advances: true,
     overtime: true,
-    balance: true
+    balance: true,
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -1009,7 +1128,9 @@ export default function SummaryScreen() {
   const [paymentReferenceNumber, setPaymentReferenceNumber] = useState("");
   const [paymentPaidBy, setPaymentPaidBy] = useState("");
   const [paymentReceivedBy, setPaymentReceivedBy] = useState("");
-  const [paymentStatus, setPaymentStatus] = useState<"Pending" | "Completed" | "Failed">("Completed");
+  const [paymentStatus, setPaymentStatus] = useState<
+    "Pending" | "Completed" | "Failed"
+  >("Completed");
 
   const monthNames = [
     t.months.january,
@@ -1026,60 +1147,66 @@ export default function SummaryScreen() {
     t.months.december,
   ];
 
-  const loadSummaries = useCallback(async (silent = false) => {
-    if (!silent) setIsLoading(true);
-    try {
-      const [loadedWorkers, loadedAttendance, loadedPayments] = await Promise.all([
-        storage.getWorkers(),
-        storage.getAttendanceForMonth(selectedYear, selectedMonth),
-        storage.getPaymentsForMonth(selectedYear, selectedMonth),
-      ]);
+  const loadSummaries = useCallback(
+    async (silent = false) => {
+      if (!silent) setIsLoading(true);
+      try {
+        const [loadedWorkers, loadedAttendance, loadedPayments] =
+          await Promise.all([
+            storage.getWorkers(),
+            storage.getAttendanceForMonth(selectedYear, selectedMonth),
+            storage.getPaymentsForMonth(selectedYear, selectedMonth),
+          ]);
 
-      setWorkers(loadedWorkers);
-      setAttendance(loadedAttendance);
+        setWorkers(loadedWorkers);
+        setAttendance(loadedAttendance);
 
-      const workerSummaries: WorkerSummary[] = loadedWorkers.map((worker) => {
-        const summary = calculateWorkerSummary(
-          worker.id,
-          loadedAttendance,
-          worker.dailyRate,
-        );
-        const workerPayments = loadedPayments.filter(
-          (p) => p.workerId === worker.id,
-        );
-        const totalPaid = workerPayments.reduce((sum, p) => sum + p.amount, 0);
-        const workerRecords = loadedAttendance.filter(
-          (a) => a.workerId === worker.id,
-        );
-        return {
-          worker,
-          ...summary,
-          totalPaid,
-          balance: Math.max(
+        const workerSummaries: WorkerSummary[] = loadedWorkers.map((worker) => {
+          const summary = calculateWorkerSummary(
+            worker.id,
+            loadedAttendance,
+            worker.dailyRate,
+          );
+          const workerPayments = loadedPayments.filter(
+            (p) => p.workerId === worker.id,
+          );
+          const totalPaid = workerPayments.reduce(
+            (sum, p) => sum + p.amount,
             0,
-            summary.totalAmount - totalPaid,
-          ),
-          payments: workerPayments,
-          records: workerRecords,
-          totalAdvanceAmount: summary.totalAdvanceAmount || 0,
-          totalOvertimeAmount: summary.totalOvertimeAmount || 0,
-        };
-      });
+          );
+          const workerRecords = loadedAttendance.filter(
+            (a) => a.workerId === worker.id,
+          );
+          return {
+            worker,
+            ...summary,
+            totalPaid,
+            balance: Math.max(0, summary.totalAmount - totalPaid),
+            payments: workerPayments,
+            records: workerRecords,
+            totalAdvanceAmount: summary.totalAdvanceAmount || 0,
+            totalOvertimeAmount: summary.totalOvertimeAmount || 0,
+          };
+        });
 
-      setSummaries(workerSummaries);
-      setGrandTotal(workerSummaries.reduce((sum, s) => sum + s.totalAmount, 0));
-      setGrandTotalPaid(
-        workerSummaries.reduce((sum, s) => sum + s.totalPaid, 0),
-      );
-      setGrandTotalAdvance(
-        workerSummaries.reduce((sum, s) => sum + (s.customAmount || 0), 0),
-      );
-    } catch (error) {
-      console.error("Error loading summaries:", error);
-    } finally {
-      if (!silent) setIsLoading(false);
-    }
-  }, [selectedMonth, selectedYear]);
+        setSummaries(workerSummaries);
+        setGrandTotal(
+          workerSummaries.reduce((sum, s) => sum + s.totalAmount, 0),
+        );
+        setGrandTotalPaid(
+          workerSummaries.reduce((sum, s) => sum + s.totalPaid, 0),
+        );
+        setGrandTotalAdvance(
+          workerSummaries.reduce((sum, s) => sum + (s.customAmount || 0), 0),
+        );
+      } catch (error) {
+        console.error("Error loading summaries:", error);
+      } finally {
+        if (!silent) setIsLoading(false);
+      }
+    },
+    [selectedMonth, selectedYear],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -1091,7 +1218,6 @@ export default function SummaryScreen() {
       });
     }, [loadSummaries, selectedMonth, selectedYear]),
   );
-
 
   const handleMarkPaid = (summary: WorkerSummary) => {
     setPaymentWorker(summary);
@@ -1212,7 +1338,6 @@ export default function SummaryScreen() {
       sub.remove();
     };
   }, [handleExportPDF, loadSummaries]);
-
 
   const handleExportCSV = async () => {
     if (workers.length === 0) {
@@ -1408,14 +1533,39 @@ export default function SummaryScreen() {
     }
     return (
       <View style={styles.emptyContainer}>
-        <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: theme.backgroundSecondary, justifyContent: "center", alignItems: "center", marginBottom: 16 }}>
+        <View
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 32,
+            backgroundColor: theme.backgroundSecondary,
+            justifyContent: "center",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
           <Feather name="bar-chart-2" size={32} color={theme.primary} />
         </View>
-        <ThemedText style={{ fontSize: 18, fontWeight: "800", marginBottom: 8, color: theme.text }}>
+        <ThemedText
+          style={{
+            fontSize: 18,
+            fontWeight: "800",
+            marginBottom: 8,
+            color: theme.text,
+          }}
+        >
           {t.summary.noData}
         </ThemedText>
-        <ThemedText style={{ fontSize: 14, textAlign: "center", color: theme.textSecondary, paddingHorizontal: 24 }}>
-          No attendance records or payroll transactions found for the selected month. Mark attendance to populate reports.
+        <ThemedText
+          style={{
+            fontSize: 14,
+            textAlign: "center",
+            color: theme.textSecondary,
+            paddingHorizontal: 24,
+          }}
+        >
+          No attendance records or payroll transactions found for the selected
+          month. Mark attendance to populate reports.
         </ThemedText>
       </View>
     );
@@ -1427,57 +1577,126 @@ export default function SummaryScreen() {
     const totalPayroll = grandTotal;
     const totalPaid = grandTotalPaid;
     const totalAdvances = grandTotalAdvance;
-    const totalOvertime = summaries.reduce((sum, s) => sum + (s.totalOvertimeAmount || 0), 0);
-    
+    const totalOvertime = summaries.reduce(
+      (sum, s) => sum + (s.totalOvertimeAmount || 0),
+      0,
+    );
+
     const presentCount = summaries.reduce((sum, s) => sum + s.presentDays, 0);
     const absentCount = summaries.reduce((sum, s) => sum + s.absentDays, 0);
     const halfDayCount = summaries.reduce((sum, s) => sum + s.halfDays, 0);
     const totalAttendanceDays = presentCount + halfDayCount + absentCount;
-    
-    const attendancePercentage = totalAttendanceDays > 0 
-      ? Math.round(((presentCount + halfDayCount * 0.5) / totalAttendanceDays) * 100) 
-      : 0;
+
+    const attendancePercentage =
+      totalAttendanceDays > 0
+        ? Math.round(
+            ((presentCount + halfDayCount * 0.5) / totalAttendanceDays) * 100,
+          )
+        : 0;
 
     // Category breakdown
-    const categoryCounts = summaries.reduce((acc, s) => {
-      const cat = s.worker.category || "labour";
-      acc[cat] = (acc[cat] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const categoryCounts = summaries.reduce(
+      (acc, s) => {
+        const cat = s.worker.category || "labour";
+        acc[cat] = (acc[cat] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     return (
       <View style={styles.analyticsContainer}>
         {/* KPI Grid */}
-        <ThemedText style={styles.biSectionTitle}>Monthly KPI Overview</ThemedText>
+        <ThemedText style={styles.biSectionTitle}>
+          Monthly KPI Overview
+        </ThemedText>
         <View style={styles.kpiGrid}>
-          <View style={[styles.kpiCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+          <View
+            style={[
+              styles.kpiCard,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             <Feather name="users" size={16} color={theme.primary} />
             <ThemedText style={styles.kpiVal}>{totalWorkers}</ThemedText>
             <ThemedText style={styles.kpiLabel}>Total Workers</ThemedText>
           </View>
-          <View style={[styles.kpiCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+          <View
+            style={[
+              styles.kpiCard,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             <Feather name="percent" size={16} color="#10B981" />
-            <ThemedText style={styles.kpiVal}>{attendancePercentage}%</ThemedText>
+            <ThemedText style={styles.kpiVal}>
+              {attendancePercentage}%
+            </ThemedText>
             <ThemedText style={styles.kpiLabel}>Attendance Rate</ThemedText>
           </View>
-          <View style={[styles.kpiCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+          <View
+            style={[
+              styles.kpiCard,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             <Feather name="dollar-sign" size={16} color="#3B82F6" />
-            <ThemedText style={styles.kpiVal}>₹{totalPayroll.toLocaleString("en-IN")}</ThemedText>
+            <ThemedText style={styles.kpiVal}>
+              ₹{totalPayroll.toLocaleString("en-IN")}
+            </ThemedText>
             <ThemedText style={styles.kpiLabel}>Monthly Payroll</ThemedText>
           </View>
-          <View style={[styles.kpiCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+          <View
+            style={[
+              styles.kpiCard,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             <Feather name="arrow-up-right" size={16} color="#F59E0B" />
-            <ThemedText style={styles.kpiVal}>₹{totalAdvances.toLocaleString("en-IN")}</ThemedText>
+            <ThemedText style={styles.kpiVal}>
+              ₹{totalAdvances.toLocaleString("en-IN")}
+            </ThemedText>
             <ThemedText style={styles.kpiLabel}>Advances Paid</ThemedText>
           </View>
-          <View style={[styles.kpiCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+          <View
+            style={[
+              styles.kpiCard,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             <Feather name="clock" size={16} color="#EC4899" />
-            <ThemedText style={styles.kpiVal}>₹{totalOvertime.toLocaleString("en-IN")}</ThemedText>
+            <ThemedText style={styles.kpiVal}>
+              ₹{totalOvertime.toLocaleString("en-IN")}
+            </ThemedText>
             <ThemedText style={styles.kpiLabel}>Total Overtime</ThemedText>
           </View>
-          <View style={[styles.kpiCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+          <View
+            style={[
+              styles.kpiCard,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             <Feather name="check-circle" size={16} color="#10B981" />
-            <ThemedText style={styles.kpiVal}>₹{totalPaid.toLocaleString("en-IN")}</ThemedText>
+            <ThemedText style={styles.kpiVal}>
+              ₹{totalPaid.toLocaleString("en-IN")}
+            </ThemedText>
             <ThemedText style={styles.kpiLabel}>Paid Amount</ThemedText>
           </View>
         </View>
@@ -1485,69 +1704,189 @@ export default function SummaryScreen() {
         {/* BI Alerts Banners */}
         <ThemedText style={styles.biSectionTitle}>System BI Alerts</ThemedText>
         {attendancePercentage < 80 && attendancePercentage > 0 && (
-          <View style={[styles.alertBanner, { backgroundColor: "#FEF2F2", borderColor: "#FEE2E2" }]}>
-            <Feather name="alert-triangle" size={16} color="#EF4444" style={{ marginRight: 8 }} />
-            <ThemedText style={{ color: "#991B1B", fontSize: 12, fontWeight: "600", flex: 1 }}>
-              Low Attendance Alert: Roster active presence is below 80% this month.
+          <View
+            style={[
+              styles.alertBanner,
+              { backgroundColor: "#FEF2F2", borderColor: "#FEE2E2" },
+            ]}
+          >
+            <Feather
+              name="alert-triangle"
+              size={16}
+              color="#EF4444"
+              style={{ marginRight: 8 }}
+            />
+            <ThemedText
+              style={{
+                color: "#991B1B",
+                fontSize: 12,
+                fontWeight: "600",
+                flex: 1,
+              }}
+            >
+              Low Attendance Alert: Roster active presence is below 80% this
+              month.
             </ThemedText>
           </View>
         )}
         {totalAdvances > totalPayroll * 0.25 && (
-          <View style={[styles.alertBanner, { backgroundColor: "#FFFBEB", borderColor: "#FEF3C7" }]}>
-            <Feather name="info" size={16} color="#D97706" style={{ marginRight: 8 }} />
-            <ThemedText style={{ color: "#92400E", fontSize: 12, fontWeight: "600", flex: 1 }}>
-              High Advance Alert: Advance payouts constitute more than 25% of total ledger payroll.
+          <View
+            style={[
+              styles.alertBanner,
+              { backgroundColor: "#FFFBEB", borderColor: "#FEF3C7" },
+            ]}
+          >
+            <Feather
+              name="info"
+              size={16}
+              color="#D97706"
+              style={{ marginRight: 8 }}
+            />
+            <ThemedText
+              style={{
+                color: "#92400E",
+                fontSize: 12,
+                fontWeight: "600",
+                flex: 1,
+              }}
+            >
+              High Advance Alert: Advance payouts constitute more than 25% of
+              total ledger payroll.
             </ThemedText>
           </View>
         )}
         {attendancePercentage >= 80 && totalAdvances <= totalPayroll * 0.25 && (
-          <View style={[styles.alertBanner, { backgroundColor: "#F0FDF4", borderColor: "#DCFCE7" }]}>
-            <Feather name="check" size={16} color="#15803D" style={{ marginRight: 8 }} />
-            <ThemedText style={{ color: "#166534", fontSize: 12, fontWeight: "600", flex: 1 }}>
-              All Operations Stable: Attendance rate and payroll ratios are within standard limits.
+          <View
+            style={[
+              styles.alertBanner,
+              { backgroundColor: "#F0FDF4", borderColor: "#DCFCE7" },
+            ]}
+          >
+            <Feather
+              name="check"
+              size={16}
+              color="#15803D"
+              style={{ marginRight: 8 }}
+            />
+            <ThemedText
+              style={{
+                color: "#166534",
+                fontSize: 12,
+                fontWeight: "600",
+                flex: 1,
+              }}
+            >
+              All Operations Stable: Attendance rate and payroll ratios are
+              within standard limits.
             </ThemedText>
           </View>
         )}
 
         {/* BI Insights Card */}
-        <ThemedText style={styles.biSectionTitle}>AI Summary Insights</ThemedText>
-        <View style={[styles.insightsCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+        <ThemedText style={styles.biSectionTitle}>
+          AI Summary Insights
+        </ThemedText>
+        <View
+          style={[
+            styles.insightsCard,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
           <View style={styles.insightItem}>
             <View style={styles.insightDot} />
             <ThemedText style={styles.insightText}>
-              Total estimated payroll of <ThemedText style={{ fontWeight: "700" }}>₹{totalPayroll.toLocaleString("en-IN")}</ThemedText> generated across {totalWorkers} workers.
+              Total estimated payroll of{" "}
+              <ThemedText style={{ fontWeight: "700" }}>
+                ₹{totalPayroll.toLocaleString("en-IN")}
+              </ThemedText>{" "}
+              generated across {totalWorkers} workers.
             </ThemedText>
           </View>
           <View style={styles.insightItem}>
             <View style={styles.insightDot} />
             <ThemedText style={styles.insightText}>
-              Workforce distribution comprises mostly <ThemedText style={{ fontWeight: "700" }}>{categoryCounts.labour || 0} Labourers</ThemedText>, <ThemedText style={{ fontWeight: "700" }}>{categoryCounts.mistri || 0} Mistris</ThemedText>, and <ThemedText style={{ fontWeight: "700" }}>{categoryCounts.bai || 0} Bais</ThemedText>.
+              Workforce distribution comprises mostly{" "}
+              <ThemedText style={{ fontWeight: "700" }}>
+                {categoryCounts.labour || 0} Labourers
+              </ThemedText>
+              ,{" "}
+              <ThemedText style={{ fontWeight: "700" }}>
+                {categoryCounts.mistri || 0} Mistris
+              </ThemedText>
+              , and{" "}
+              <ThemedText style={{ fontWeight: "700" }}>
+                {categoryCounts.bai || 0} Bais
+              </ThemedText>
+              .
             </ThemedText>
           </View>
           <View style={styles.insightItem}>
             <View style={styles.insightDot} />
             <ThemedText style={styles.insightText}>
-              Average attendance rate stands at <ThemedText style={{ fontWeight: "700", color: attendancePercentage < 80 ? "#EF4444" : "#10B981" }}>{attendancePercentage}%</ThemedText> for this billing period.
+              Average attendance rate stands at{" "}
+              <ThemedText
+                style={{
+                  fontWeight: "700",
+                  color: attendancePercentage < 80 ? "#EF4444" : "#10B981",
+                }}
+              >
+                {attendancePercentage}%
+              </ThemedText>{" "}
+              for this billing period.
             </ThemedText>
           </View>
         </View>
 
         {/* SVG Trend Graphs */}
-        <ThemedText style={styles.biSectionTitle}>Visual Analytics Trends</ThemedText>
-        <View style={[styles.chartCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-          <ThemedText style={styles.chartTitle}>Workforce Distribution Ratio</ThemedText>
+        <ThemedText style={styles.biSectionTitle}>
+          Visual Analytics Trends
+        </ThemedText>
+        <View
+          style={[
+            styles.chartCard,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <ThemedText style={styles.chartTitle}>
+            Workforce Distribution Ratio
+          </ThemedText>
           <View style={styles.chartRow}>
             {Object.keys(categoryCounts).length === 0 ? (
-              <ThemedText style={{ opacity: 0.6, fontSize: 12 }}>No classification data available.</ThemedText>
+              <ThemedText style={{ opacity: 0.6, fontSize: 12 }}>
+                No classification data available.
+              </ThemedText>
             ) : (
               Object.entries(categoryCounts).map(([cat, val]) => {
                 const pct = Math.round((val / totalWorkers) * 100);
                 return (
                   <View key={cat} style={styles.barItem}>
-                    <View style={{ height: 100, width: 24, backgroundColor: theme.backgroundSecondary, justifyContent: "flex-end", borderRadius: 4, overflow: "hidden" }}>
-                      <View style={{ height: `${pct}%`, backgroundColor: theme.primary, borderRadius: 4 }} />
+                    <View
+                      style={{
+                        height: 100,
+                        width: 24,
+                        backgroundColor: theme.backgroundSecondary,
+                        justifyContent: "flex-end",
+                        borderRadius: 4,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <View
+                        style={{
+                          height: `${pct}%`,
+                          backgroundColor: theme.primary,
+                          borderRadius: 4,
+                        }}
+                      />
                     </View>
-                    <ThemedText style={styles.barLabel}>{cat.toUpperCase()}</ThemedText>
+                    <ThemedText style={styles.barLabel}>
+                      {cat.toUpperCase()}
+                    </ThemedText>
                     <ThemedText style={styles.barVal}>{pct}%</ThemedText>
                   </View>
                 );
@@ -1556,24 +1895,61 @@ export default function SummaryScreen() {
           </View>
         </View>
 
-        <View style={[styles.chartCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-          <ThemedText style={styles.chartTitle}>Attendance Metrics Breakdown</ThemedText>
+        <View
+          style={[
+            styles.chartCard,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <ThemedText style={styles.chartTitle}>
+            Attendance Metrics Breakdown
+          </ThemedText>
           <View style={{ gap: 8, marginTop: 10 }}>
             {[
               { label: "Present Days", count: presentCount, color: "#10B981" },
               { label: "Half Days", count: halfDayCount, color: "#F59E0B" },
-              { label: "Absent Days", count: absentCount, color: "#EF4444" }
+              { label: "Absent Days", count: absentCount, color: "#EF4444" },
             ].map((bar, idx) => {
-              const max = Math.max(1, presentCount + halfDayCount + absentCount);
+              const max = Math.max(
+                1,
+                presentCount + halfDayCount + absentCount,
+              );
               const pct = Math.round((bar.count / max) * 100);
               return (
                 <View key={idx}>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 2 }}>
-                    <ThemedText style={{ fontSize: 11, fontWeight: "600" }}>{bar.label}</ThemedText>
-                    <ThemedText style={{ fontSize: 11, opacity: 0.8 }}>{bar.count} ({pct}%)</ThemedText>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      marginBottom: 2,
+                    }}
+                  >
+                    <ThemedText style={{ fontSize: 11, fontWeight: "600" }}>
+                      {bar.label}
+                    </ThemedText>
+                    <ThemedText style={{ fontSize: 11, opacity: 0.8 }}>
+                      {bar.count} ({pct}%)
+                    </ThemedText>
                   </View>
-                  <View style={{ height: 8, borderRadius: 4, backgroundColor: theme.backgroundSecondary, overflow: "hidden" }}>
-                    <View style={{ height: "100%", width: `${pct}%`, backgroundColor: bar.color, borderRadius: 4 }} />
+                  <View
+                    style={{
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: theme.backgroundSecondary,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <View
+                      style={{
+                        height: "100%",
+                        width: `${pct}%`,
+                        backgroundColor: bar.color,
+                        borderRadius: 4,
+                      }}
+                    />
                   </View>
                 </View>
               );
@@ -1582,17 +1958,37 @@ export default function SummaryScreen() {
         </View>
 
         {/* Attendance Heatmap Grid */}
-        <View style={[styles.chartCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-          <ThemedText style={styles.chartTitle}>Attendance Heatmap (Mon - Sat)</ThemedText>
+        <View
+          style={[
+            styles.chartCard,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <ThemedText style={styles.chartTitle}>
+            Attendance Heatmap (Mon - Sat)
+          </ThemedText>
           <View style={styles.heatmapGrid}>
             {[
               { day: "W1", status: [1, 1, 1, 1, 0, 1] },
               { day: "W2", status: [1, 1, 0, 1, 1, 1] },
               { day: "W3", status: [1, 1, 1, 1, 1, 1] },
-              { day: "W4", status: [1, 0, 1, 1, 0, 1] }
+              { day: "W4", status: [1, 0, 1, 1, 0, 1] },
             ].map((week, idx) => (
-              <View key={idx} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                <ThemedText style={{ fontSize: 10, width: 22, opacity: 0.6 }}>{week.day}</ThemedText>
+              <View
+                key={idx}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  marginBottom: 6,
+                }}
+              >
+                <ThemedText style={{ fontSize: 10, width: 22, opacity: 0.6 }}>
+                  {week.day}
+                </ThemedText>
                 {week.status.map((active, dayIdx) => (
                   <View
                     key={dayIdx}
@@ -1600,8 +1996,10 @@ export default function SummaryScreen() {
                       width: 24,
                       height: 24,
                       borderRadius: 4,
-                      backgroundColor: active ? "#10B981" : theme.backgroundSecondary,
-                      opacity: active ? 0.85 : 0.4
+                      backgroundColor: active
+                        ? "#10B981"
+                        : theme.backgroundSecondary,
+                      opacity: active ? 0.85 : 0.4,
                     }}
                   />
                 ))}
@@ -1611,48 +2009,123 @@ export default function SummaryScreen() {
         </View>
 
         {/* Productivity Trends */}
-        <View style={[styles.chartCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-          <ThemedText style={styles.chartTitle}>Productivity & Overtime Trends</ThemedText>
+        <View
+          style={[
+            styles.chartCard,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <ThemedText style={styles.chartTitle}>
+            Productivity & Overtime Trends
+          </ThemedText>
           <View style={styles.chartRow}>
             {[
               { month: "May", otVal: 30, prodVal: 80 },
               { month: "Jun", otVal: 45, prodVal: 85 },
-              { month: "Jul", otVal: 60, prodVal: 90 }
+              { month: "Jul", otVal: 60, prodVal: 90 },
             ].map((item, idx) => (
               <View key={idx} style={styles.barItem}>
-                <View style={{ flexDirection: "row", gap: 4, height: 100, alignItems: "flex-end" }}>
-                  <View style={{ width: 12, height: `${item.otVal}%`, backgroundColor: "#EC4899", borderRadius: 2 }} />
-                  <View style={{ width: 12, height: `${item.prodVal}%`, backgroundColor: "#3B82F6", borderRadius: 2 }} />
+                <View
+                  style={{
+                    flexDirection: "row",
+                    gap: 4,
+                    height: 100,
+                    alignItems: "flex-end",
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 12,
+                      height: `${item.otVal}%`,
+                      backgroundColor: "#EC4899",
+                      borderRadius: 2,
+                    }}
+                  />
+                  <View
+                    style={{
+                      width: 12,
+                      height: `${item.prodVal}%`,
+                      backgroundColor: "#3B82F6",
+                      borderRadius: 2,
+                    }}
+                  />
                 </View>
                 <ThemedText style={styles.barLabel}>{item.month}</ThemedText>
               </View>
             ))}
           </View>
-          <View style={{ flexDirection: "row", justifyContent: "center", gap: 16, marginTop: 8 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <View style={{ width: 8, height: 8, backgroundColor: "#EC4899", borderRadius: 2 }} />
-              <ThemedText style={{ fontSize: 10, opacity: 0.8 }}>Overtime (₹)</ThemedText>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "center",
+              gap: 16,
+              marginTop: 8,
+            }}
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+            >
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  backgroundColor: "#EC4899",
+                  borderRadius: 2,
+                }}
+              />
+              <ThemedText style={{ fontSize: 10, opacity: 0.8 }}>
+                Overtime (₹)
+              </ThemedText>
             </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <View style={{ width: 8, height: 8, backgroundColor: "#3B82F6", borderRadius: 2 }} />
-              <ThemedText style={{ fontSize: 10, opacity: 0.8 }}>Productivity %</ThemedText>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+            >
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  backgroundColor: "#3B82F6",
+                  borderRadius: 2,
+                }}
+              />
+              <ThemedText style={{ fontSize: 10, opacity: 0.8 }}>
+                Productivity %
+              </ThemedText>
             </View>
           </View>
         </View>
 
         {/* Report downloads */}
-        <ThemedText style={styles.biSectionTitle}>Dynamic Report Exports</ThemedText>
+        <ThemedText style={styles.biSectionTitle}>
+          Dynamic Report Exports
+        </ThemedText>
         <View style={{ gap: 10 }}>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setShowExportModal(true);
             }}
-            style={[styles.downloadBtn, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+            style={[
+              styles.downloadBtn,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
           >
             <Feather name="file-text" size={16} color={theme.primary} />
-            <ThemedText style={styles.downloadBtnText}>Export General Summary PDF / CSV</ThemedText>
-            <Feather name="chevron-right" size={16} color={theme.textSecondary} style={{ marginLeft: "auto" }} />
+            <ThemedText style={styles.downloadBtnText}>
+              Export General Summary PDF / CSV
+            </ThemedText>
+            <Feather
+              name="chevron-right"
+              size={16}
+              color={theme.textSecondary}
+              style={{ marginLeft: "auto" }}
+            />
           </Pressable>
 
           <Pressable
@@ -1660,11 +2133,24 @@ export default function SummaryScreen() {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setShowEmailModal(true);
             }}
-            style={[styles.downloadBtn, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+            style={[
+              styles.downloadBtn,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
           >
             <Feather name="mail" size={16} color={theme.primary} />
-            <ThemedText style={styles.downloadBtnText}>Email Report Sharing</ThemedText>
-            <Feather name="chevron-right" size={16} color={theme.textSecondary} style={{ marginLeft: "auto" }} />
+            <ThemedText style={styles.downloadBtnText}>
+              Email Report Sharing
+            </ThemedText>
+            <Feather
+              name="chevron-right"
+              size={16}
+              color={theme.textSecondary}
+              style={{ marginLeft: "auto" }}
+            />
           </Pressable>
 
           <Pressable
@@ -1672,11 +2158,24 @@ export default function SummaryScreen() {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setShowScheduleModal(true);
             }}
-            style={[styles.downloadBtn, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+            style={[
+              styles.downloadBtn,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
           >
             <Feather name="clock" size={16} color={theme.primary} />
-            <ThemedText style={styles.downloadBtnText}>Schedule Auto-Export (Daily/Weekly/Monthly)</ThemedText>
-            <Feather name="chevron-right" size={16} color={theme.textSecondary} style={{ marginLeft: "auto" }} />
+            <ThemedText style={styles.downloadBtnText}>
+              Schedule Auto-Export (Daily/Weekly/Monthly)
+            </ThemedText>
+            <Feather
+              name="chevron-right"
+              size={16}
+              color={theme.textSecondary}
+              style={{ marginLeft: "auto" }}
+            />
           </Pressable>
 
           <Pressable
@@ -1684,11 +2183,24 @@ export default function SummaryScreen() {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setShowCustomBuilderModal(true);
             }}
-            style={[styles.downloadBtn, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+            style={[
+              styles.downloadBtn,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
           >
             <Feather name="sliders" size={16} color={theme.primary} />
-            <ThemedText style={styles.downloadBtnText}>Custom Report Builder</ThemedText>
-            <Feather name="chevron-right" size={16} color={theme.textSecondary} style={{ marginLeft: "auto" }} />
+            <ThemedText style={styles.downloadBtnText}>
+              Custom Report Builder
+            </ThemedText>
+            <Feather
+              name="chevron-right"
+              size={16}
+              color={theme.textSecondary}
+              style={{ marginLeft: "auto" }}
+            />
           </Pressable>
         </View>
       </View>
@@ -1698,15 +2210,25 @@ export default function SummaryScreen() {
   return (
     <ThemedView style={styles.container}>
       {/* Tab Switcher below Navigation Header */}
-      <View style={[styles.tabSwitcherContainer, { paddingTop: headerHeight + 8 }]}>
+      <View
+        style={[styles.tabSwitcherContainer, { paddingTop: headerHeight + 8 }]}
+      >
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             setViewMode("payroll");
           }}
-          style={[styles.tabButton, viewMode === "payroll" && { backgroundColor: theme.primary }]}
+          style={[
+            styles.tabButton,
+            viewMode === "payroll" && { backgroundColor: theme.primary },
+          ]}
         >
-          <ThemedText style={[styles.tabButtonText, viewMode === "payroll" && { color: "#FFFFFF" }]}>
+          <ThemedText
+            style={[
+              styles.tabButtonText,
+              viewMode === "payroll" && { color: "#FFFFFF" },
+            ]}
+          >
             Payroll Summary
           </ThemedText>
         </Pressable>
@@ -1715,9 +2237,17 @@ export default function SummaryScreen() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             setViewMode("analytics");
           }}
-          style={[styles.tabButton, viewMode === "analytics" && { backgroundColor: theme.primary }]}
+          style={[
+            styles.tabButton,
+            viewMode === "analytics" && { backgroundColor: theme.primary },
+          ]}
         >
-          <ThemedText style={[styles.tabButtonText, viewMode === "analytics" && { color: "#FFFFFF" }]}>
+          <ThemedText
+            style={[
+              styles.tabButtonText,
+              viewMode === "analytics" && { color: "#FFFFFF" },
+            ]}
+          >
             BI Reports & Charts
           </ThemedText>
         </Pressable>
@@ -1760,9 +2290,12 @@ export default function SummaryScreen() {
           removeClippedSubviews={Platform.OS === "android"}
         />
       ) : (
-        <ScrollView 
-          style={{ flex: 1 }} 
-          contentContainerStyle={[styles.analyticsScroll, { paddingTop: 16, paddingBottom: tabBarHeight + Spacing.xl }]}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            styles.analyticsScroll,
+            { paddingTop: 16, paddingBottom: tabBarHeight + Spacing.xl },
+          ]}
           showsVerticalScrollIndicator={false}
         >
           {renderAnalyticsView()}
@@ -1833,17 +2366,42 @@ export default function SummaryScreen() {
       </GlassModal>
 
       {/* ── EMAIL SHARING MODAL ── */}
-      <Modal visible={showEmailModal} transparent animationType="fade" onRequestClose={() => setShowEmailModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowEmailModal(false)}>
-          <View style={[styles.modalSheet, { backgroundColor: theme.backgroundDefault, padding: 20 }]}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <ThemedText style={{ fontSize: 16, fontWeight: "800" }}>Email Report Sharing</ThemedText>
+      <Modal
+        visible={showEmailModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEmailModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowEmailModal(false)}
+        >
+          <View
+            style={[
+              styles.modalSheet,
+              { backgroundColor: theme.backgroundDefault, padding: 20 },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <ThemedText style={{ fontSize: 16, fontWeight: "800" }}>
+                Email Report Sharing
+              </ThemedText>
               <Pressable onPress={() => setShowEmailModal(false)}>
                 <Feather name="x" size={20} color={theme.text} />
               </Pressable>
             </View>
-            <ThemedText style={{ fontSize: 12, opacity: 0.8, marginBottom: 12 }}>
-              Send this month's PDF/CSV payroll compilation directly to recipient email:
+            <ThemedText
+              style={{ fontSize: 12, opacity: 0.8, marginBottom: 12 }}
+            >
+              Send this month's PDF/CSV payroll compilation directly to
+              recipient email:
             </ThemedText>
             <TextInput
               placeholder="e.g. manager@construction.com"
@@ -1852,64 +2410,154 @@ export default function SummaryScreen() {
               onChangeText={setEmailInput}
               keyboardType="email-address"
               autoCapitalize="none"
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundSecondary, marginBottom: 16 }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundSecondary,
+                  marginBottom: 16,
+                },
+              ]}
             />
             <Pressable
               onPress={() => {
                 if (!emailInput.includes("@")) {
-                  Alert.alert("Validation Error", "Please input a valid email address.");
+                  Alert.alert(
+                    "Validation Error",
+                    "Please input a valid email address.",
+                  );
                   return;
                 }
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                Alert.alert("Success", `PDF report compiled and sent to ${emailInput} successfully.`);
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success,
+                );
+                Alert.alert(
+                  "Success",
+                  `PDF report compiled and sent to ${emailInput} successfully.`,
+                );
                 setShowEmailModal(false);
               }}
-              style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}
+              style={[
+                styles.modalActionBtn,
+                { backgroundColor: theme.primary },
+              ]}
             >
-              <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Send Report</ThemedText>
+              <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                Send Report
+              </ThemedText>
             </Pressable>
           </View>
         </Pressable>
       </Modal>
 
       {/* ── SCHEDULE AUTO-EXPORT MODAL ── */}
-      <Modal visible={showScheduleModal} transparent animationType="fade" onRequestClose={() => setShowScheduleModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowScheduleModal(false)}>
-          <View style={[styles.modalSheet, { backgroundColor: theme.backgroundDefault, padding: 20 }]}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <ThemedText style={{ fontSize: 16, fontWeight: "800" }}>Schedule Auto-Export</ThemedText>
+      <Modal
+        visible={showScheduleModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowScheduleModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowScheduleModal(false)}
+        >
+          <View
+            style={[
+              styles.modalSheet,
+              { backgroundColor: theme.backgroundDefault, padding: 20 },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <ThemedText style={{ fontSize: 16, fontWeight: "800" }}>
+                Schedule Auto-Export
+              </ThemedText>
               <Pressable onPress={() => setShowScheduleModal(false)}>
                 <Feather name="x" size={20} color={theme.text} />
               </Pressable>
             </View>
 
-            <ThemedText style={{ fontSize: 11, opacity: 0.6, textTransform: "uppercase", marginBottom: 4 }}>Report Type</ThemedText>
+            <ThemedText
+              style={{
+                fontSize: 11,
+                opacity: 0.6,
+                textTransform: "uppercase",
+                marginBottom: 4,
+              }}
+            >
+              Report Type
+            </ThemedText>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
-              {["Attendance", "Payroll"].map(type => (
+              {["Attendance", "Payroll"].map((type) => (
                 <Pressable
                   key={type}
                   onPress={() => setScheduleType(type)}
-                  style={[styles.modalTabBtn, scheduleType === type && { backgroundColor: theme.primary }]}
+                  style={[
+                    styles.modalTabBtn,
+                    scheduleType === type && { backgroundColor: theme.primary },
+                  ]}
                 >
-                  <ThemedText style={[styles.modalTabBtnText, scheduleType === type && { color: "#FFFFFF" }]}>{type}</ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.modalTabBtnText,
+                      scheduleType === type && { color: "#FFFFFF" },
+                    ]}
+                  >
+                    {type}
+                  </ThemedText>
                 </Pressable>
               ))}
             </View>
 
-            <ThemedText style={{ fontSize: 11, opacity: 0.6, textTransform: "uppercase", marginBottom: 4 }}>Frequency</ThemedText>
+            <ThemedText
+              style={{
+                fontSize: 11,
+                opacity: 0.6,
+                textTransform: "uppercase",
+                marginBottom: 4,
+              }}
+            >
+              Frequency
+            </ThemedText>
             <View style={{ flexDirection: "row", gap: 6, marginBottom: 12 }}>
-              {["Daily", "Weekly", "Monthly"].map(freq => (
+              {["Daily", "Weekly", "Monthly"].map((freq) => (
                 <Pressable
                   key={freq}
                   onPress={() => setScheduleFreq(freq)}
-                  style={[styles.modalTabBtn, scheduleFreq === freq && { backgroundColor: theme.primary }]}
+                  style={[
+                    styles.modalTabBtn,
+                    scheduleFreq === freq && { backgroundColor: theme.primary },
+                  ]}
                 >
-                  <ThemedText style={[styles.modalTabBtnText, scheduleFreq === freq && { color: "#FFFFFF" }]}>{freq}</ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.modalTabBtnText,
+                      scheduleFreq === freq && { color: "#FFFFFF" },
+                    ]}
+                  >
+                    {freq}
+                  </ThemedText>
                 </Pressable>
               ))}
             </View>
 
-            <ThemedText style={{ fontSize: 11, opacity: 0.6, textTransform: "uppercase", marginBottom: 4 }}>Recipient Email</ThemedText>
+            <ThemedText
+              style={{
+                fontSize: 11,
+                opacity: 0.6,
+                textTransform: "uppercase",
+                marginBottom: 4,
+              }}
+            >
+              Recipient Email
+            </ThemedText>
             <TextInput
               placeholder="e.g. boss@enterprise.com"
               placeholderTextColor={theme.textSecondary}
@@ -1917,39 +2565,84 @@ export default function SummaryScreen() {
               onChangeText={setScheduleEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              style={[styles.modalInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundSecondary, marginBottom: 16 }]}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundSecondary,
+                  marginBottom: 16,
+                },
+              ]}
             />
 
             <Pressable
               onPress={() => {
                 if (!scheduleEmail.includes("@")) {
-                  Alert.alert("Validation Error", "Please input a valid email address.");
+                  Alert.alert(
+                    "Validation Error",
+                    "Please input a valid email address.",
+                  );
                   return;
                 }
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                Alert.alert("Success", `Scheduled auto-export configured. Next report will be emailed on standard cron frequency.`);
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success,
+                );
+                Alert.alert(
+                  "Success",
+                  `Scheduled auto-export configured. Next report will be emailed on standard cron frequency.`,
+                );
                 setShowScheduleModal(false);
               }}
-              style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}
+              style={[
+                styles.modalActionBtn,
+                { backgroundColor: theme.primary },
+              ]}
             >
-              <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Configure Schedule</ThemedText>
+              <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                Configure Schedule
+              </ThemedText>
             </Pressable>
           </View>
         </Pressable>
       </Modal>
 
       {/* ── CUSTOM REPORT BUILDER MODAL ── */}
-      <Modal visible={showCustomBuilderModal} transparent animationType="fade" onRequestClose={() => setShowCustomBuilderModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowCustomBuilderModal(false)}>
-          <View style={[styles.modalSheet, { backgroundColor: theme.backgroundDefault, padding: 20 }]}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <ThemedText style={{ fontSize: 16, fontWeight: "800" }}>Custom Report Builder</ThemedText>
+      <Modal
+        visible={showCustomBuilderModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCustomBuilderModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowCustomBuilderModal(false)}
+        >
+          <View
+            style={[
+              styles.modalSheet,
+              { backgroundColor: theme.backgroundDefault, padding: 20 },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <ThemedText style={{ fontSize: 16, fontWeight: "800" }}>
+                Custom Report Builder
+              </ThemedText>
               <Pressable onPress={() => setShowCustomBuilderModal(false)}>
                 <Feather name="x" size={20} color={theme.text} />
               </Pressable>
             </View>
 
-            <ThemedText style={{ fontSize: 12, opacity: 0.8, marginBottom: 12 }}>
+            <ThemedText
+              style={{ fontSize: 12, opacity: 0.8, marginBottom: 12 }}
+            >
               Choose compilation fields to output in custom PDF layout:
             </ThemedText>
 
@@ -1957,24 +2650,48 @@ export default function SummaryScreen() {
               {Object.entries(customFields).map(([field, enabled]) => (
                 <Pressable
                   key={field}
-                  onPress={() => setCustomFields(prev => ({ ...prev, [field]: !enabled }))}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+                  onPress={() =>
+                    setCustomFields((prev) => ({ ...prev, [field]: !enabled }))
+                  }
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
                 >
-                  <Feather name={enabled ? "check-square" : "square"} size={18} color={enabled ? theme.primary : theme.textSecondary} />
-                  <ThemedText style={{ fontSize: 13, textTransform: "capitalize" }}>{field} Column</ThemedText>
+                  <Feather
+                    name={enabled ? "check-square" : "square"}
+                    size={18}
+                    color={enabled ? theme.primary : theme.textSecondary}
+                  />
+                  <ThemedText
+                    style={{ fontSize: 13, textTransform: "capitalize" }}
+                  >
+                    {field} Column
+                  </ThemedText>
                 </Pressable>
               ))}
             </View>
 
             <Pressable
               onPress={() => {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                Alert.alert("Custom Build Complete", "Custom PDF generated successfully and stored in Device download directory.");
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success,
+                );
+                Alert.alert(
+                  "Custom Build Complete",
+                  "Custom PDF generated successfully and stored in Device download directory.",
+                );
                 setShowCustomBuilderModal(false);
               }}
-              style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}
+              style={[
+                styles.modalActionBtn,
+                { backgroundColor: theme.primary },
+              ]}
             >
-              <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Generate Custom PDF</ThemedText>
+              <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                Generate Custom PDF
+              </ThemedText>
             </Pressable>
           </View>
         </Pressable>
@@ -2061,51 +2778,76 @@ export default function SummaryScreen() {
         >
           {t("payment.paymentMethod", "Payment Method")}
         </ThemedText>
-        <View style={[styles.methodSelectorRow, { flexWrap: "wrap", gap: 6, marginBottom: 12 }]}>
-          {(["Cash", "UPI", "Bank Transfer", "Cheque", "Other"] as const).map((method) => {
-            const isSelected = paymentMethod === method;
-            return (
-              <Pressable
-                key={method}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setPaymentMethod(method);
-                }}
-                style={[
-                  styles.methodItemBtn,
-                  {
-                    backgroundColor: isSelected
-                      ? theme.primary
-                      : isDark
-                        ? "rgba(255,255,255,0.05)"
-                        : "rgba(0,0,0,0.03)",
-                    borderColor: isSelected ? theme.primary : theme.border,
-                    minWidth: 70,
-                  },
-                ]}
-              >
-                <ThemedText
-                  type="small"
-                  style={{
-                    color: isSelected ? "#FFFFFF" : theme.text,
-                    fontWeight: "700",
-                    fontSize: 11,
+        <View
+          style={[
+            styles.methodSelectorRow,
+            { flexWrap: "wrap", gap: 6, marginBottom: 12 },
+          ]}
+        >
+          {(["Cash", "UPI", "Bank Transfer", "Cheque", "Other"] as const).map(
+            (method) => {
+              const isSelected = paymentMethod === method;
+              return (
+                <Pressable
+                  key={method}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setPaymentMethod(method);
                   }}
+                  style={[
+                    styles.methodItemBtn,
+                    {
+                      backgroundColor: isSelected
+                        ? theme.primary
+                        : isDark
+                          ? "rgba(255,255,255,0.05)"
+                          : "rgba(0,0,0,0.03)",
+                      borderColor: isSelected ? theme.primary : theme.border,
+                      minWidth: 70,
+                    },
+                  ]}
                 >
-                  {t.translatePaymentMethod(method)}
-                </ThemedText>
-              </Pressable>
-            );
-          })}
+                  <ThemedText
+                    type="small"
+                    style={{
+                      color: isSelected ? "#FFFFFF" : theme.text,
+                      fontWeight: "700",
+                      fontSize: 11,
+                    }}
+                  >
+                    {t.translatePaymentMethod(method)}
+                  </ThemedText>
+                </Pressable>
+              );
+            },
+          )}
         </View>
 
         {/* Transaction ID & Ref Number */}
         <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
           <View style={{ flex: 1 }}>
-            <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", marginBottom: 6 }}>
+            <ThemedText
+              type="small"
+              style={{
+                color: theme.textSecondary,
+                fontWeight: "700",
+                marginBottom: 6,
+              }}
+            >
               Transaction ID
             </ThemedText>
-            <View style={[styles.noteInputWrapper, { borderColor: theme.border, backgroundColor: theme.backgroundSecondary, height: 42, paddingHorizontal: 10, justifyContent: "center" }]}>
+            <View
+              style={[
+                styles.noteInputWrapper,
+                {
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundSecondary,
+                  height: 42,
+                  paddingHorizontal: 10,
+                  justifyContent: "center",
+                },
+              ]}
+            >
               <TextInput
                 style={[styles.noteInput, { color: theme.text, height: 40 }]}
                 value={paymentTransactionId}
@@ -2116,10 +2858,28 @@ export default function SummaryScreen() {
             </View>
           </View>
           <View style={{ flex: 1 }}>
-            <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", marginBottom: 6 }}>
+            <ThemedText
+              type="small"
+              style={{
+                color: theme.textSecondary,
+                fontWeight: "700",
+                marginBottom: 6,
+              }}
+            >
               Ref Number
             </ThemedText>
-            <View style={[styles.noteInputWrapper, { borderColor: theme.border, backgroundColor: theme.backgroundSecondary, height: 42, paddingHorizontal: 10, justifyContent: "center" }]}>
+            <View
+              style={[
+                styles.noteInputWrapper,
+                {
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundSecondary,
+                  height: 42,
+                  paddingHorizontal: 10,
+                  justifyContent: "center",
+                },
+              ]}
+            >
               <TextInput
                 style={[styles.noteInput, { color: theme.text, height: 40 }]}
                 value={paymentReferenceNumber}
@@ -2134,10 +2894,28 @@ export default function SummaryScreen() {
         {/* Paid By & Received By */}
         <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
           <View style={{ flex: 1 }}>
-            <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", marginBottom: 6 }}>
+            <ThemedText
+              type="small"
+              style={{
+                color: theme.textSecondary,
+                fontWeight: "700",
+                marginBottom: 6,
+              }}
+            >
               Paid By
             </ThemedText>
-            <View style={[styles.noteInputWrapper, { borderColor: theme.border, backgroundColor: theme.backgroundSecondary, height: 42, paddingHorizontal: 10, justifyContent: "center" }]}>
+            <View
+              style={[
+                styles.noteInputWrapper,
+                {
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundSecondary,
+                  height: 42,
+                  paddingHorizontal: 10,
+                  justifyContent: "center",
+                },
+              ]}
+            >
               <TextInput
                 style={[styles.noteInput, { color: theme.text, height: 40 }]}
                 value={paymentPaidBy}
@@ -2148,10 +2926,28 @@ export default function SummaryScreen() {
             </View>
           </View>
           <View style={{ flex: 1 }}>
-            <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", marginBottom: 6 }}>
+            <ThemedText
+              type="small"
+              style={{
+                color: theme.textSecondary,
+                fontWeight: "700",
+                marginBottom: 6,
+              }}
+            >
               Received By
             </ThemedText>
-            <View style={[styles.noteInputWrapper, { borderColor: theme.border, backgroundColor: theme.backgroundSecondary, height: 42, paddingHorizontal: 10, justifyContent: "center" }]}>
+            <View
+              style={[
+                styles.noteInputWrapper,
+                {
+                  borderColor: theme.border,
+                  backgroundColor: theme.backgroundSecondary,
+                  height: 42,
+                  paddingHorizontal: 10,
+                  justifyContent: "center",
+                },
+              ]}
+            >
               <TextInput
                 style={[styles.noteInput, { color: theme.text, height: 40 }]}
                 value={paymentReceivedBy}
@@ -2164,7 +2960,14 @@ export default function SummaryScreen() {
         </View>
 
         {/* Status Selector */}
-        <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "700", marginBottom: 6 }}>
+        <ThemedText
+          type="small"
+          style={{
+            color: theme.textSecondary,
+            fontWeight: "700",
+            marginBottom: 6,
+          }}
+        >
           Status
         </ThemedText>
         <View style={[styles.methodSelectorRow, { gap: 6, marginBottom: 16 }]}>
@@ -2285,7 +3088,8 @@ export default function SummaryScreen() {
                 marginTop: -Spacing.xs,
               }}
             >
-              {calculationWorker.worker.name} • {monthNames[selectedMonth]} {selectedYear}
+              {calculationWorker.worker.name} • {monthNames[selectedMonth]}{" "}
+              {selectedYear}
             </ThemedText>
 
             <ScrollView
@@ -2293,7 +3097,9 @@ export default function SummaryScreen() {
               showsVerticalScrollIndicator={true}
             >
               {(() => {
-                const sortedRecords = [...calculationWorker.records].sort((a, b) => a.day - b.day);
+                const sortedRecords = [...calculationWorker.records].sort(
+                  (a, b) => a.day - b.day,
+                );
                 if (sortedRecords.length === 0) {
                   return (
                     <ThemedText
@@ -2311,7 +3117,10 @@ export default function SummaryScreen() {
                 }
 
                 return sortedRecords.map((record) => {
-                  const breakdown = getRecordBreakdown(record, calculationWorker.worker.dailyRate);
+                  const breakdown = getRecordBreakdown(
+                    record,
+                    calculationWorker.worker.dailyRate,
+                  );
                   return (
                     <View
                       key={record.day}
@@ -2335,7 +3144,8 @@ export default function SummaryScreen() {
                           type="body"
                           style={{
                             fontWeight: "800",
-                            color: record.value === "A" ? theme.error : "#10B981",
+                            color:
+                              record.value === "A" ? theme.error : "#10B981",
                           }}
                         >
                           ₹{breakdown.total}
@@ -2348,20 +3158,32 @@ export default function SummaryScreen() {
                           marginTop: 2,
                         }}
                       >
-                        <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                          {t.summary.status || "Status"}: {
-                            breakdown.statusText === "Present" ? t.summary.present :
-                            breakdown.statusText === "Present with Overtime" ? t.summary.presentWithOvertime :
-                            breakdown.statusText === "Half Day" ? t.summary.halfDay :
-                            breakdown.statusText === "Absent" ? t.summary.absent :
-                            breakdown.statusText === "Custom" ? t.summary.custom :
-                            t.summary.unknown
-                          }
+                        <ThemedText
+                          type="small"
+                          style={{ color: theme.textSecondary }}
+                        >
+                          {t.summary.status || "Status"}:{" "}
+                          {breakdown.statusText === "Present"
+                            ? t.summary.present
+                            : breakdown.statusText === "Present with Overtime"
+                              ? t.summary.presentWithOvertime
+                              : breakdown.statusText === "Half Day"
+                                ? t.summary.halfDay
+                                : breakdown.statusText === "Absent"
+                                  ? t.summary.absent
+                                  : breakdown.statusText === "Custom"
+                                    ? t.summary.custom
+                                    : t.summary.unknown}
                         </ThemedText>
-                        <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                        <ThemedText
+                          type="small"
+                          style={{ color: theme.textSecondary }}
+                        >
                           {t.summary.base || "Base"}: ₹{breakdown.basePay}
-                          {breakdown.advance > 0 && ` + ${t.summary.advance || "Adv"}: ₹${breakdown.advance}`}
-                          {breakdown.overtime > 0 && ` + ${t.summary.overtime || "OT"}: ₹${breakdown.overtime} (${breakdown.overtimeText})`}
+                          {breakdown.advance > 0 &&
+                            ` + ${t.summary.advance || "Adv"}: ₹${breakdown.advance}`}
+                          {breakdown.overtime > 0 &&
+                            ` + ${t.summary.overtime || "OT"}: ₹${breakdown.overtime} (${breakdown.overtimeText})`}
                         </ThemedText>
                       </View>
                     </View>
@@ -2385,7 +3207,10 @@ export default function SummaryScreen() {
               <ThemedText type="body" style={{ fontWeight: "800" }}>
                 Monthly Total Earnings
               </ThemedText>
-              <ThemedText type="h2" style={{ fontWeight: "900", color: "#10B981" }}>
+              <ThemedText
+                type="h2"
+                style={{ fontWeight: "900", color: "#10B981" }}
+              >
                 ₹{calculationWorker.totalAmount.toFixed(0)}
               </ThemedText>
             </View>
@@ -2396,10 +3221,22 @@ export default function SummaryScreen() {
           onPress={() => setShowCalculationModal(false)}
           style={[
             styles.paymentCancelBtn,
-            { width: "100%", marginTop: Spacing.xl, height: 44, justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.border },
+            {
+              width: "100%",
+              marginTop: Spacing.xl,
+              height: 44,
+              justifyContent: "center",
+              alignItems: "center",
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: theme.border,
+            },
           ]}
         >
-          <ThemedText type="body" style={{ color: theme.textSecondary, fontWeight: "700" }}>
+          <ThemedText
+            type="body"
+            style={{ color: theme.textSecondary, fontWeight: "700" }}
+          >
             Close
           </ThemedText>
         </Pressable>
@@ -2993,32 +3830,32 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)"
+    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   tabButton: {
     flex: 1,
     paddingVertical: 10,
     alignItems: "center",
     borderRadius: 8,
-    backgroundColor: "rgba(0,0,0,0.02)"
+    backgroundColor: "rgba(0,0,0,0.02)",
   },
   activeTabButton: {
-    backgroundColor: "#F57C00"
+    backgroundColor: "#F57C00",
   },
   tabButtonText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#6B7280"
+    color: "#6B7280",
   },
   activeTabButtonText: {
-    color: "#FFFFFF"
+    color: "#FFFFFF",
   },
   analyticsScroll: {
     paddingHorizontal: 16,
-    paddingBottom: 100
+    paddingBottom: 100,
   },
   analyticsContainer: {
-    paddingTop: 16
+    paddingTop: 16,
   },
   biSectionTitle: {
     fontSize: 14,
@@ -3027,28 +3864,28 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     opacity: 0.8,
     marginBottom: 10,
-    marginTop: 16
+    marginTop: 16,
   },
   kpiGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10
+    gap: 10,
   },
   kpiCard: {
     width: "48%",
     padding: 14,
     borderRadius: 8,
     borderWidth: 1,
-    gap: 4
+    gap: 4,
   },
   kpiVal: {
     fontSize: 18,
     fontWeight: "800",
-    marginTop: 6
+    marginTop: 6,
   },
   kpiLabel: {
     fontSize: 11,
-    opacity: 0.7
+    opacity: 0.7,
   },
   alertBanner: {
     flexDirection: "row",
@@ -3056,61 +3893,61 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    marginBottom: 10
+    marginBottom: 10,
   },
   insightsCard: {
     padding: 16,
     borderRadius: 8,
     borderWidth: 1,
-    gap: 12
+    gap: 12,
   },
   insightItem: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 8
+    gap: 8,
   },
   insightDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: "#F57C00",
-    marginTop: 6
+    marginTop: 6,
   },
   insightText: {
     fontSize: 13,
     lineHeight: 18,
-    flex: 1
+    flex: 1,
   },
   chartCard: {
     padding: 16,
     borderRadius: 8,
     borderWidth: 1,
-    marginBottom: 14
+    marginBottom: 14,
   },
   chartTitle: {
     fontSize: 13,
     fontWeight: "800",
-    marginBottom: 12
+    marginBottom: 12,
   },
   chartRow: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "flex-end",
     height: 140,
-    paddingTop: 10
+    paddingTop: 10,
   },
   barItem: {
     alignItems: "center",
-    gap: 6
+    gap: 6,
   },
   barLabel: {
     fontSize: 9,
     fontWeight: "700",
-    opacity: 0.6
+    opacity: 0.6,
   },
   barVal: {
     fontSize: 10,
-    fontWeight: "700"
+    fontWeight: "700",
   },
   downloadBtn: {
     flexDirection: "row",
@@ -3118,31 +3955,31 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 8,
     borderWidth: 1,
-    gap: 10
+    gap: 10,
   },
   downloadBtnText: {
     fontSize: 13,
-    fontWeight: "700"
+    fontWeight: "700",
   },
   modalSheet: {
     width: "90%",
     maxWidth: 340,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.05)"
+    borderColor: "rgba(0,0,0,0.05)",
   },
   modalInput: {
     height: 44,
     borderRadius: 8,
     borderWidth: 1,
     paddingHorizontal: 12,
-    fontSize: 13
+    fontSize: 13,
   },
   modalActionBtn: {
     height: 44,
     borderRadius: 8,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
   },
   modalTabBtn: {
     flex: 1,
@@ -3152,15 +3989,15 @@ const styles = StyleSheet.create({
     borderColor: "rgba(0,0,0,0.08)",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.02)"
+    backgroundColor: "rgba(0,0,0,0.02)",
   },
   modalTabBtnText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#6B7280"
+    color: "#6B7280",
   },
   heatmapGrid: {
     marginTop: 10,
-    paddingHorizontal: 8
-  }
+    paddingHorizontal: 8,
+  },
 });

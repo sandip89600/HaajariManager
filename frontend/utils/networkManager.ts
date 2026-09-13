@@ -1,4 +1,9 @@
-import { DeviceEventEmitter, Platform, AppState, AppStateStatus } from "react-native";
+import {
+  DeviceEventEmitter,
+  Platform,
+  AppState,
+  AppStateStatus,
+} from "react-native";
 import { API_URL } from "./storage";
 import { syncManager } from "./syncManager";
 
@@ -33,11 +38,20 @@ export const networkManager = {
         signal: controller.signal,
       }).catch(async () => {
         // Fallback to pinging root URL if /health is not defined
-        return fetch(`${API_URL}`, { method: "HEAD", signal: controller.signal });
+        return fetch(`${API_URL}`, {
+          method: "HEAD",
+          signal: controller.signal,
+        });
       });
       clearTimeout(timeoutId);
 
-      const ok = Boolean(res && (res.ok || res.status === 404 || res.status === 200 || res.status === 304));
+      const ok = Boolean(
+        res &&
+          (res.ok ||
+            res.status === 404 ||
+            res.status === 200 ||
+            res.status === 304),
+      );
       this.setOnline(ok);
       lastPingTime = Date.now();
       return ok;
@@ -61,11 +75,14 @@ export const networkManager = {
     }
 
     // 3. AppState change listener (e.g. app returns from background)
-    const appStateSub = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
-      if (nextAppState === "active") {
-        this.checkConnectivity();
-      }
-    });
+    const appStateSub = AppState.addEventListener(
+      "change",
+      (nextAppState: AppStateStatus) => {
+        if (nextAppState === "active") {
+          this.checkConnectivity();
+        }
+      },
+    );
 
     // 4. Background heartbeat
     if (heartbeatInterval) clearInterval(heartbeatInterval);

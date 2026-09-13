@@ -12,13 +12,16 @@ export function useNetworkStatus() {
 
   useEffect(() => {
     // Read initial pending count
-    syncManager.getPendingCount().then(setPendingCount).catch(() => {});
+    syncManager
+      .getPendingCount()
+      .then(setPendingCount)
+      .catch(() => {});
 
     const netSub = DeviceEventEmitter.addListener(
       "network:statusChanged",
       (event: { isOnline: boolean }) => {
         setIsOnline(event.isOnline);
-      }
+      },
     );
 
     const syncSub = DeviceEventEmitter.addListener(
@@ -38,7 +41,7 @@ export function useNetworkStatus() {
             setShowSyncedBanner(false);
           }, 3000);
         }
-      }
+      },
     );
 
     return () => {

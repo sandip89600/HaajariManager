@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { View, StyleSheet, Dimensions, Pressable, Platform } from "react-native";
+import {
+  View,
+  StyleSheet,
+  Dimensions,
+  Pressable,
+  Platform,
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
@@ -16,39 +22,48 @@ export interface TourStep {
 export const TOUR_STEPS: TourStep[] = [
   {
     title: "👋 Welcome",
-    description: "Haajari Manager mein aapka swagat hai.\nChaliye 2 minute mein app use karna seekhte hain.",
+    description:
+      "Haajari Manager mein aapka swagat hai.\nChaliye 2 minute mein app use karna seekhte hain.",
   },
   {
     title: "🏠 Dashboard",
-    description: "Yahan se aap poori company ki jankari dekh sakte hain.\nKitne worker aaye, kitni site chal rahi hai aur aaj ka kaam.",
+    description:
+      "Yahan se aap poori company ki jankari dekh sakte hain.\nKitne worker aaye, kitni site chal rahi hai aur aaj ka kaam.",
   },
   {
     title: "👷 Workers",
-    description: "Yahan apne mazdoor add karein.\nHar worker ki attendance aur payment yahin se manage hogi.",
+    description:
+      "Yahan apne mazdoor add karein.\nHar worker ki attendance aur payment yahin se manage hogi.",
   },
   {
     title: "📅 Attendance",
-    description: "Roz subah yahan attendance lagaiye.\nEk tap se Present, Absent ya Half Day mark karein.",
+    description:
+      "Roz subah yahan attendance lagaiye.\nEk tap se Present, Absent ya Half Day mark karein.",
   },
   {
     title: "🏗 Site",
-    description: "Yahan nayi site banaiye.\nHar site par workers, materials aur progress dekh sakte hain.",
+    description:
+      "Yahan nayi site banaiye.\nHar site par workers, materials aur progress dekh sakte hain.",
   },
   {
     title: "🧱 Materials",
-    description: "Site par kitna cement, steel aur doosra saman aaya aur kitna use hua.\nSab record yahin rakhiye.",
+    description:
+      "Site par kitna cement, steel aur doosra saman aaya aur kitna use hua.\nSab record yahin rakhiye.",
   },
   {
     title: "📷 Photos",
-    description: "Kaam shuru hone se pehle aur kaam khatam hone ke baad photo upload karein.\nIsse progress ka record hamesha safe rahega.",
+    description:
+      "Kaam shuru hone se pehle aur kaam khatam hone ke baad photo upload karein.\nIsse progress ka record hamesha safe rahega.",
   },
   {
     title: "💰 Payments",
-    description: "Worker ko kitna paisa diya aur kitna baaki hai.\nSab payment ka hisaab yahin milega.",
+    description:
+      "Worker ko kitna paisa diya aur kitna baaki hai.\nSab payment ka hisaab yahin milega.",
   },
   {
     title: "📊 Reports",
-    description: "Ek click mein PDF aur Excel report banaiye.\nClient ya office ke saath aasani se share karein.",
+    description:
+      "Ek click mein PDF aur Excel report banaiye.\nClient ya office ke saath aasani se share karein.",
   },
   {
     title: "🤖 Ask HAI",
@@ -56,7 +71,8 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     title: "🎉 You're Ready",
-    description: "Ab aap Haajari Manager use karne ke liye taiyar hain.\nChaliye pehli site banate hain.",
+    description:
+      "Ab aap Haajari Manager use karne ke liye taiyar hain.\nChaliye pehli site banate hain.",
   },
 ];
 
@@ -76,7 +92,9 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();
   const [isActive, setIsActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [targets, setTargets] = useState<{ [key: number]: { x: number; y: number; w: number; h: number } }>({});
+  const [targets, setTargets] = useState<{
+    [key: number]: { x: number; y: number; w: number; h: number };
+  }>({});
 
   useEffect(() => {
     // Check if first-time user
@@ -116,14 +134,16 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const registerTarget = (stepIndex: number, ref: React.RefObject<any>) => {
     if (!ref.current) return;
     setTimeout(() => {
-      ref.current?.measureInWindow((x: number, y: number, width: number, height: number) => {
-        if (width > 0 && height > 0) {
-          setTargets((prev) => ({
-            ...prev,
-            [stepIndex]: { x, y, w: width, h: height },
-          }));
-        }
-      });
+      ref.current?.measureInWindow(
+        (x: number, y: number, width: number, height: number) => {
+          if (width > 0 && height > 0) {
+            setTargets((prev) => ({
+              ...prev,
+              [stepIndex]: { x, y, w: width, h: height },
+            }));
+          }
+        },
+      );
     }, 400);
   };
 
@@ -193,7 +213,12 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
               <View
                 style={[
                   styles.maskDark,
-                  { top: 0, left: 0, width: SCREEN_WIDTH, height: activeTarget.y },
+                  {
+                    top: 0,
+                    left: 0,
+                    width: SCREEN_WIDTH,
+                    height: activeTarget.y,
+                  },
                 ]}
               />
               <View
@@ -241,7 +266,9 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
                 styles.arrow,
                 {
                   left: arrowX,
-                  top: isBelow ? activeTarget.y + activeTarget.h + 6 : activeTarget.y - 14,
+                  top: isBelow
+                    ? activeTarget.y + activeTarget.h + 6
+                    : activeTarget.y - 14,
                 },
               ]}
             >
@@ -265,10 +292,16 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
             ]}
           >
             <View style={styles.tooltipHeader}>
-              <ThemedText style={[styles.tooltipTitle, { color: theme.primary }]}>
+              <ThemedText
+                style={[styles.tooltipTitle, { color: theme.primary }]}
+              >
                 {stepInfo.title}
               </ThemedText>
-              <Pressable onPress={stopTour} hitSlop={15} style={styles.closeBtn}>
+              <Pressable
+                onPress={stopTour}
+                hitSlop={15}
+                style={styles.closeBtn}
+              >
                 <Feather name="x" size={20} color={theme.textSecondary} />
               </Pressable>
             </View>
@@ -279,15 +312,23 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
             <View style={styles.tooltipActions}>
               <Pressable onPress={stopTour} style={styles.skipBtn} hitSlop={15}>
-                <ThemedText style={[styles.skipText, { color: theme.textSecondary }]}>
+                <ThemedText
+                  style={[styles.skipText, { color: theme.textSecondary }]}
+                >
                   Skip Tour
                 </ThemedText>
               </Pressable>
 
               <View style={styles.navigationBtns}>
                 {currentStep > 0 && (
-                  <Pressable onPress={prevStep} style={styles.prevBtn} hitSlop={15}>
-                    <ThemedText style={[styles.prevText, { color: theme.textSecondary }]}>
+                  <Pressable
+                    onPress={prevStep}
+                    style={styles.prevBtn}
+                    hitSlop={15}
+                  >
+                    <ThemedText
+                      style={[styles.prevText, { color: theme.textSecondary }]}
+                    >
                       ← Peechhe
                     </ThemedText>
                   </Pressable>
@@ -299,7 +340,9 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
                   hitSlop={15}
                 >
                   <ThemedText style={styles.nextText}>
-                    {currentStep === TOUR_STEPS.length - 1 ? "Start Karein 🎉" : "Aage Badhein →"}
+                    {currentStep === TOUR_STEPS.length - 1
+                      ? "Start Karein 🎉"
+                      : "Aage Badhein →"}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -392,7 +435,6 @@ const styles = StyleSheet.create({
   },
   prevBtn: {
     paddingVertical: 8,
-  
   },
   prevText: {
     fontSize: 14,

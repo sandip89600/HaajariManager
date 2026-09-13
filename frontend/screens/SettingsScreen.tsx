@@ -174,7 +174,10 @@ interface SettingsScreenProps {
   onClose?: () => void;
 }
 
-export default function SettingsScreen({ isInDrawer = false, onClose }: SettingsScreenProps) {
+export default function SettingsScreen({
+  isInDrawer = false,
+  onClose,
+}: SettingsScreenProps) {
   const { theme, themeMode, setThemeMode, isDark } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const { user: authUser, logout, isGuest } = useAuth();
@@ -207,11 +210,14 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Voice Settings States
-  const [voiceSettings, setVoiceSettingsState] = useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS);
+  const [voiceSettings, setVoiceSettingsState] = useState<VoiceSettings>(
+    DEFAULT_VOICE_SETTINGS,
+  );
   const [showSpeedModal, setShowSpeedModal] = useState(false);
   const [showPitchModal, setShowPitchModal] = useState(false);
   const [liveModeEnabled, setLiveModeEnabled] = useState(true);
-  const [voiceConfirmationEnabled, setVoiceConfirmationEnabled] = useState(true);
+  const [voiceConfirmationEnabled, setVoiceConfirmationEnabled] =
+    useState(true);
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
   const [highSensitivityEnabled, setHighSensitivityEnabled] = useState(true);
 
@@ -293,7 +299,8 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                 isActive: true,
                 avatarColor: data.user.avatarColor || "#4ECDC4",
                 profileImage: data.user.profileImage || "",
-                companyName: data.user.tenantId?.name || data.user.companyName || "",
+                companyName:
+                  data.user.tenantId?.name || data.user.companyName || "",
                 plan: data.user.tenantId?.plan || auth.plan || "free",
                 createdAt: new Date(data.user.createdAt).getTime(),
                 loginHistory: [Date.now()],
@@ -441,15 +448,17 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
     try {
       const liveModeSaved = await AsyncStorage.getItem("voice_live_mode");
       if (liveModeSaved !== null) setLiveModeEnabled(JSON.parse(liveModeSaved));
-      
+
       const voiceConfSaved = await AsyncStorage.getItem("voice_confirmation");
-      if (voiceConfSaved !== null) setVoiceConfirmationEnabled(JSON.parse(voiceConfSaved));
-      
+      if (voiceConfSaved !== null)
+        setVoiceConfirmationEnabled(JSON.parse(voiceConfSaved));
+
       const wakeWordSaved = await AsyncStorage.getItem("voice_wake_word");
       if (wakeWordSaved !== null) setWakeWordEnabled(JSON.parse(wakeWordSaved));
-      
+
       const micSensSaved = await AsyncStorage.getItem("voice_mic_sensitivity");
-      if (micSensSaved !== null) setHighSensitivityEnabled(JSON.parse(micSensSaved));
+      if (micSensSaved !== null)
+        setHighSensitivityEnabled(JSON.parse(micSensSaved));
     } catch (err) {
       console.warn("Failed to load local voice toggles:", err);
     }
@@ -1052,54 +1061,71 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
   const initials = (currentUser?.name || "?").charAt(0).toUpperCase();
 
   return (
-    <ThemedView style={[styles.container, isInDrawer && { backgroundColor: theme.backgroundDefault }]}>
+    <ThemedView
+      style={[
+        styles.container,
+        isInDrawer && { backgroundColor: theme.backgroundDefault },
+      ]}
+    >
       <ScrollView
         contentContainerStyle={{
-          paddingTop: isInDrawer ? insets.top + Spacing.md : finalHeaderHeight + Spacing.lg,
+          paddingTop: isInDrawer
+            ? insets.top + Spacing.md
+            : finalHeaderHeight + Spacing.lg,
           paddingBottom: insets.bottom + Spacing["5xl"],
           paddingHorizontal: Spacing.lg,
         }}
         showsVerticalScrollIndicator={false}
       >
         {isInDrawer && (
-          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.lg, marginTop: Platform.OS === "ios" ? 10 : 0 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: Spacing.lg,
+              marginTop: Platform.OS === "ios" ? 10 : 0,
+            }}
+          >
             <Pressable onPress={onClose} style={{ paddingRight: 16 }}>
               <Feather name="x" size={24} color={theme.text} />
             </Pressable>
-            <ThemedText style={{ fontSize: 20, fontWeight: "900" }}>{t.settings.title}</ThemedText>
+            <ThemedText style={{ fontSize: 20, fontWeight: "900" }}>
+              {t.settings.title}
+            </ThemedText>
           </View>
         )}
 
-
         {/* ─── 1. USER PROFILE CARD (MODERN DESIGN) ─── */}
-        {!isGuest && (currentUser || authUser) && (() => {
-          const displayUser = currentUser || authUser;
-          if (!displayUser) return null;
+        {!isGuest &&
+          (currentUser || authUser) &&
+          (() => {
+            const displayUser = currentUser || authUser;
+            if (!displayUser) return null;
 
-          return (
-            <ProfileHeaderCard
-              name={displayUser.name || "Ganesh Pandit"}
-              phone={displayUser.phone || "8055813694"}
-              email={displayUser.email || "panditganesh8055@gmail.com"}
-              companyName={displayUser.companyName || "Ravi Construction"}
-              profileImage={displayUser.profileImage}
-              avatarColor={displayUser.avatarColor}
-              onEditPress={() => {
-                if (isInDrawer && onClose) {
-                  onClose();
-                }
-                navigation.navigate("UserProfile");
-              }}
-              onAvatarPress={() => {
-                if (isInDrawer && onClose) {
-                  onClose();
-                }
-                navigation.navigate("UserProfile");
-              }}
-              editLabel="Edit Profile >"
-            />
-          );
-        })()}
+            return (
+              <ProfileHeaderCard
+                name={displayUser.name || "Ganesh Pandit"}
+                phone={displayUser.phone || "8055813694"}
+                email={displayUser.email || "panditganesh8055@gmail.com"}
+                companyName={displayUser.companyName || "Ravi Construction"}
+                profileImage={displayUser.profileImage}
+                avatarColor={displayUser.avatarColor}
+                onEditPress={() => {
+                  if (isInDrawer && onClose) {
+                    onClose();
+                  }
+                  navigation.navigate("UserProfile");
+                }}
+                onAvatarPress={() => {
+                  if (isInDrawer && onClose) {
+                    onClose();
+                  }
+                  navigation.navigate("UserProfile");
+                }}
+                editLabel="Edit Profile >"
+              />
+            );
+          })()}
 
         {/* ─── TEAM & CONNECTIONS WIDGET ─── */}
         {!isGuest && (currentUser || authUser) && (
@@ -1153,7 +1179,11 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                     iconColor="#10B981"
                     label="Create Supervisor"
                     sublabel="Register a new supervisor account"
-                    onPress={() => navigation.navigate("SupervisorManagement", { action: "create" })}
+                    onPress={() =>
+                      navigation.navigate("SupervisorManagement", {
+                        action: "create",
+                      })
+                    }
                     theme={theme}
                   />
                   <SettingRow
@@ -1202,7 +1232,12 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
                     iconColor="#03A9F4"
                     label={t.settings.businessAnalytics}
                     sublabel={t.settings.businessAnalyticsDesc}
-                    onPress={() => navigation.navigate("MainTabs", { screen: "AttendanceTab", params: { screen: "Summary" } })}
+                    onPress={() =>
+                      navigation.navigate("MainTabs", {
+                        screen: "AttendanceTab",
+                        params: { screen: "Summary" },
+                      })
+                    }
                     theme={theme}
                   />
                   <SettingRow
@@ -1260,8 +1295,6 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
             </SettingCard>
           </>
         )}
-
-
 
         {/* ─── 5. NOTIFICATIONS SECTION ─── */}
         <ThemedText type="small" style={styles.sectionLabel}>
@@ -1345,8 +1378,6 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
             theme={theme}
           />
         </SettingCard>
-
-
 
         {/* ─── 7. LANGUAGE SECTION ─── */}
         <ThemedText type="small" style={styles.sectionLabel}>
@@ -1443,7 +1474,12 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
             onPress={handleEmailSupport}
             style={styles.supportContactRow}
           >
-            <Feather name="mail" size={14} color={theme.primary} style={{ marginRight: 6 }} />
+            <Feather
+              name="mail"
+              size={14}
+              color={theme.primary}
+              style={{ marginRight: 6 }}
+            />
             <ThemedText
               style={[styles.supportContactLink, { color: theme.primary }]}
             >
@@ -1454,7 +1490,12 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
             onPress={handleWhatsAppSupport}
             style={styles.supportContactRow}
           >
-            <Feather name="message-circle" size={14} color={theme.primary} style={{ marginRight: 6 }} />
+            <Feather
+              name="message-circle"
+              size={14}
+              color={theme.primary}
+              style={{ marginRight: 6 }}
+            />
             <ThemedText
               style={[styles.supportContactLink, { color: theme.primary }]}
             >
@@ -1562,7 +1603,9 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
           ]}
         >
           <Feather name="log-out" size={18} color="#EF4444" />
-          <ThemedText style={{ color: "#EF4444", fontWeight: "700", fontSize: 16 }}>
+          <ThemedText
+            style={{ color: "#EF4444", fontWeight: "700", fontSize: 16 }}
+          >
             {t.settings?.logout || "Log Out"}
           </ThemedText>
         </Pressable>
@@ -1755,9 +1798,13 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
               ]}
             >
               <Feather
-                name={voiceSettings.speed === 0.75 ? "check-circle" : "activity"}
+                name={
+                  voiceSettings.speed === 0.75 ? "check-circle" : "activity"
+                }
                 size={20}
-                color={voiceSettings.speed === 0.75 ? theme.primary : theme.text}
+                color={
+                  voiceSettings.speed === 0.75 ? theme.primary : theme.text
+                }
               />
               <ThemedText
                 style={[
@@ -1807,9 +1854,13 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
               ]}
             >
               <Feather
-                name={voiceSettings.speed === 1.25 ? "check-circle" : "activity"}
+                name={
+                  voiceSettings.speed === 1.25 ? "check-circle" : "activity"
+                }
                 size={20}
-                color={voiceSettings.speed === 1.25 ? theme.primary : theme.text}
+                color={
+                  voiceSettings.speed === 1.25 ? theme.primary : theme.text
+                }
               />
               <ThemedText
                 style={[
@@ -2176,7 +2227,9 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
             ]}
           >
             <View style={styles.formHeader}>
-              <ThemedText type="h2">{t.auth.companyName || "Company Name"}</ThemedText>
+              <ThemedText type="h2">
+                {t.auth.companyName || "Company Name"}
+              </ThemedText>
               <Pressable
                 onPress={() => setShowCompanyModal(false)}
                 style={styles.formCloseIcon}
@@ -2742,7 +2795,10 @@ export default function SettingsScreen({ isInDrawer = false, onClose }: Settings
         onClose={() => setShowHelpSheet(false)}
         onTourStart={() => {
           if (isInDrawer && onClose) onClose();
-          navigation.navigate("MainTabs", { screen: "AttendanceTab", params: { screen: "Dashboard" } });
+          navigation.navigate("MainTabs", {
+            screen: "AttendanceTab",
+            params: { screen: "Dashboard" },
+          });
         }}
       />
     </ThemedView>

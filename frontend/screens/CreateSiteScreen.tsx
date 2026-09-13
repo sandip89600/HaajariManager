@@ -10,7 +10,7 @@ import {
   Modal,
   FlatList,
   Platform,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -42,12 +42,15 @@ export default function CreateSiteScreen() {
   const [projectType, setProjectType] = useState("");
   const [clientName, setClientName] = useState("");
   const [address, setAddress] = useState("");
-  const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]); // YYYY-MM-DD format
+  const [startDate, setStartDate] = useState(
+    new Date().toISOString().split("T")[0],
+  ); // YYYY-MM-DD format
   const [description, setDescription] = useState("");
-  
+
   // Supervisor Selection
   const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
-  const [selectedSupervisor, setSelectedSupervisor] = useState<Supervisor | null>(null);
+  const [selectedSupervisor, setSelectedSupervisor] =
+    useState<Supervisor | null>(null);
   const [showSupervisorModal, setShowSupervisorModal] = useState(false);
   const [isLoadingSupervisors, setIsLoadingSupervisors] = useState(false);
 
@@ -82,19 +85,34 @@ export default function CreateSiteScreen() {
 
     // Validation
     if (!name.trim()) {
-      Alert.alert(t("common.error", "Validation Error"), t("sites.nameRequired", "Site Name is required"));
+      Alert.alert(
+        t("common.error", "Validation Error"),
+        t("sites.nameRequired", "Site Name is required"),
+      );
       return;
     }
     if (!projectType.trim()) {
-      Alert.alert(t("common.error", "Validation Error"), t("sites.projectTypeRequired", "Project Type is required"));
+      Alert.alert(
+        t("common.error", "Validation Error"),
+        t("sites.projectTypeRequired", "Project Type is required"),
+      );
       return;
     }
     if (!address.trim()) {
-      Alert.alert(t("common.error", "Validation Error"), t("sites.addressRequired", "Site Address is required"));
+      Alert.alert(
+        t("common.error", "Validation Error"),
+        t("sites.addressRequired", "Site Address is required"),
+      );
       return;
     }
     if (!startDate.trim() || isNaN(Date.parse(startDate))) {
-      Alert.alert(t("common.error", "Validation Error"), t("sites.startDateRequired", "A valid Start Date is required (YYYY-MM-DD)"));
+      Alert.alert(
+        t("common.error", "Validation Error"),
+        t(
+          "sites.startDateRequired",
+          "A valid Start Date is required (YYYY-MM-DD)",
+        ),
+      );
       return;
     }
 
@@ -108,22 +126,34 @@ export default function CreateSiteScreen() {
         startDate: new Date(startDate).toISOString(),
         description: description.trim() || undefined,
         supervisor: selectedSupervisor?._id || undefined,
-        status: "Active"
+        status: "Active",
       };
 
       const result = await storage.createSite(payload);
       if (result) {
-        Alert.alert(t("common.success", "Success"), t("sites.createSuccess", "Site created successfully"), [
-          { text: t("common.ok", "OK"), onPress: () => navigation.goBack() }
-        ]);
+        Alert.alert(
+          t("common.success", "Success"),
+          t("sites.createSuccess", "Site created successfully"),
+          [{ text: t("common.ok", "OK"), onPress: () => navigation.goBack() }],
+        );
       } else {
-        Alert.alert(t("common.error", "Error"), t("sites.createError", "Failed to create site"));
+        Alert.alert(
+          t("common.error", "Error"),
+          t("sites.createError", "Failed to create site"),
+        );
       }
     } catch (e: any) {
-      if (e.message?.includes("LIMIT_EXCEEDED_PROJECTS") || e.message?.toLowerCase().includes("limit reached")) {
+      if (
+        e.message?.includes("LIMIT_EXCEEDED_PROJECTS") ||
+        e.message?.toLowerCase().includes("limit reached")
+      ) {
         setLimitModalVisible(true);
       } else {
-        Alert.alert(t("common.error", "Error"), t.translateError(e.message) || t("sites.createError", "Failed to create site"));
+        Alert.alert(
+          t("common.error", "Error"),
+          t.translateError(e.message) ||
+            t("sites.createError", "Failed to create site"),
+        );
       }
     } finally {
       setIsSubmitting(false);
@@ -135,13 +165,17 @@ export default function CreateSiteScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={{ flex: 1 }}
     >
-      <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+      <ThemedView
+        style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
+      >
         {/* Header bar */}
         <View style={styles.header}>
           <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Feather name="arrow-left" size={24} color={theme.text} />
           </Pressable>
-          <ThemedText style={styles.headerTitle}>{t("sites.addSite", "Create Site")}</ThemedText>
+          <ThemedText style={styles.headerTitle}>
+            {t("sites.addSite", "Create Site")}
+          </ThemedText>
         </View>
 
         <ScrollView contentContainerStyle={styles.formScroll}>
@@ -152,43 +186,72 @@ export default function CreateSiteScreen() {
           />
           {/* Site Name Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>{t("sites.siteName", "Site Name")} *</ThemedText>
+            <ThemedText style={styles.label}>
+              {t("sites.siteName", "Site Name")} *
+            </ThemedText>
             <TextInput
               placeholder="e.g. Metro Heights Phase II"
               placeholderTextColor={theme.textSecondary}
               value={name}
               onChangeText={setName}
-              style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
             />
           </View>
 
           {/* Project Type Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>{t("sites.projectType", "Project Type")} *</ThemedText>
+            <ThemedText style={styles.label}>
+              {t("sites.projectType", "Project Type")} *
+            </ThemedText>
             <TextInput
               placeholder="e.g. Residential, Infrastructure, Commercial"
               placeholderTextColor={theme.textSecondary}
               value={projectType}
               onChangeText={setProjectType}
-              style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
             />
           </View>
 
           {/* Client Name Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>{t("sites.clientName", "Client Name")}</ThemedText>
+            <ThemedText style={styles.label}>
+              {t("sites.clientName", "Client Name")}
+            </ThemedText>
             <TextInput
               placeholder="e.g. DLF Builders Pvt. Ltd."
               placeholderTextColor={theme.textSecondary}
               value={clientName}
               onChangeText={setClientName}
-              style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
             />
           </View>
 
           {/* Site Address Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>{t("sites.address", "Site Address")} *</ThemedText>
+            <ThemedText style={styles.label}>
+              {t("sites.address", "Site Address")} *
+            </ThemedText>
             <TextInput
               placeholder="e.g. Sector 62, Gurgaon, Haryana"
               placeholderTextColor={theme.textSecondary}
@@ -196,42 +259,79 @@ export default function CreateSiteScreen() {
               onChangeText={setAddress}
               multiline
               numberOfLines={3}
-              style={[styles.input, styles.textArea, { color: theme.text, backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+              style={[
+                styles.input,
+                styles.textArea,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
             />
           </View>
 
           {/* Start Date Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>{t("sites.startDate", "Start Date")} * (YYYY-MM-DD)</ThemedText>
+            <ThemedText style={styles.label}>
+              {t("sites.startDate", "Start Date")} * (YYYY-MM-DD)
+            </ThemedText>
             <TextInput
               placeholder="YYYY-MM-DD"
               placeholderTextColor={theme.textSecondary}
               value={startDate}
               onChangeText={setStartDate}
-              style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
             />
           </View>
 
           {/* Supervisor Picker Selection */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>{t("sites.supervisor", "Site Supervisor")}</ThemedText>
+            <ThemedText style={styles.label}>
+              {t("sites.supervisor", "Site Supervisor")}
+            </ThemedText>
             <Pressable
               onPress={() => {
                 triggerHaptic();
                 setShowSupervisorModal(true);
               }}
-              style={[styles.pickerBtn, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+              style={[
+                styles.pickerBtn,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
             >
-              <ThemedText style={{ color: selectedSupervisor ? theme.text : theme.textSecondary }}>
-                {selectedSupervisor ? selectedSupervisor.name : t("sites.selectSupervisor", "Select Supervisor (optional)")}
+              <ThemedText
+                style={{
+                  color: selectedSupervisor ? theme.text : theme.textSecondary,
+                }}
+              >
+                {selectedSupervisor
+                  ? selectedSupervisor.name
+                  : t("sites.selectSupervisor", "Select Supervisor (optional)")}
               </ThemedText>
-              <Feather name="chevron-down" size={18} color={theme.textSecondary} />
+              <Feather
+                name="chevron-down"
+                size={18}
+                color={theme.textSecondary}
+              />
             </Pressable>
           </View>
 
           {/* Description Input */}
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>{t("sites.description", "Description")}</ThemedText>
+            <ThemedText style={styles.label}>
+              {t("sites.description", "Description")}
+            </ThemedText>
             <TextInput
               placeholder="Additional site notes or scope description..."
               placeholderTextColor={theme.textSecondary}
@@ -239,7 +339,15 @@ export default function CreateSiteScreen() {
               onChangeText={setDescription}
               multiline
               numberOfLines={4}
-              style={[styles.input, styles.textArea, { color: theme.text, backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+              style={[
+                styles.input,
+                styles.textArea,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
             />
           </View>
 
@@ -252,24 +360,42 @@ export default function CreateSiteScreen() {
             {isSubmitting ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <ThemedText style={styles.saveBtnText}>{t("sites.addSite", "Create Site")}</ThemedText>
+              <ThemedText style={styles.saveBtnText}>
+                {t("sites.addSite", "Create Site")}
+              </ThemedText>
             )}
           </Pressable>
         </ScrollView>
 
         {/* Supervisor Selection Modal */}
-        <Modal visible={showSupervisorModal} transparent animationType="slide" onRequestClose={() => setShowSupervisorModal(false)}>
+        <Modal
+          visible={showSupervisorModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowSupervisorModal(false)}
+        >
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}>
+            <View
+              style={[
+                styles.modalContent,
+                { backgroundColor: theme.backgroundDefault },
+              ]}
+            >
               <View style={styles.modalHeader}>
-                <ThemedText style={styles.modalTitle}>Choose Supervisor</ThemedText>
+                <ThemedText style={styles.modalTitle}>
+                  Choose Supervisor
+                </ThemedText>
                 <Pressable onPress={() => setShowSupervisorModal(false)}>
                   <Feather name="x" size={20} color={theme.text} />
                 </Pressable>
               </View>
-              
+
               {isLoadingSupervisors ? (
-                <ActivityIndicator size="large" color={theme.primary} style={{ marginVertical: 40 }} />
+                <ActivityIndicator
+                  size="large"
+                  color={theme.primary}
+                  style={{ marginVertical: 40 }}
+                />
               ) : (
                 <FlatList
                   data={supervisors}
@@ -284,16 +410,26 @@ export default function CreateSiteScreen() {
                       style={[
                         styles.supervisorItem,
                         { borderBottomColor: theme.border },
-                        selectedSupervisor?._id === item._id && { backgroundColor: theme.backgroundSecondary }
+                        selectedSupervisor?._id === item._id && {
+                          backgroundColor: theme.backgroundSecondary,
+                        },
                       ]}
                     >
-                      <ThemedText style={{ fontSize: 15, fontWeight: "700" }}>{item.name}</ThemedText>
-                      <ThemedText style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>Phone: {item.phone}</ThemedText>
+                      <ThemedText style={{ fontSize: 15, fontWeight: "700" }}>
+                        {item.name}
+                      </ThemedText>
+                      <ThemedText
+                        style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}
+                      >
+                        Phone: {item.phone}
+                      </ThemedText>
                     </Pressable>
                   )}
                   ListEmptyComponent={() => (
                     <View style={{ paddingVertical: 40, alignItems: "center" }}>
-                      <ThemedText style={{ opacity: 0.6 }}>No Supervisors Registered</ThemedText>
+                      <ThemedText style={{ opacity: 0.6 }}>
+                        No Supervisors Registered
+                      </ThemedText>
                     </View>
                   )}
                 />
@@ -313,47 +449,47 @@ export default function CreateSiteScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1
+    flex: 1,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingTop: Platform.OS === "ios" ? 54 : 16,
-    paddingBottom: 12
+    paddingBottom: 12,
   },
   backBtn: {
     padding: 6,
-    marginRight: 8
+    marginRight: 8,
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: "800"
+    fontWeight: "800",
   },
   formScroll: {
     padding: 16,
     gap: 16,
-    paddingBottom: 60
+    paddingBottom: 60,
   },
   inputGroup: {
-    gap: 6
+    gap: 6,
   },
   label: {
     fontSize: 13,
     fontWeight: "700",
-    opacity: 0.8
+    opacity: 0.8,
   },
   input: {
     height: 48,
     borderRadius: BorderRadius.xs,
     borderWidth: 1,
     paddingHorizontal: 14,
-    fontSize: 14
+    fontSize: 14,
   },
   textArea: {
     height: 80,
     textAlignVertical: "top",
-    paddingVertical: 12
+    paddingVertical: 12,
   },
   pickerBtn: {
     flexDirection: "row",
@@ -362,46 +498,46 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: BorderRadius.xs,
     borderWidth: 1,
-    paddingHorizontal: 14
+    paddingHorizontal: 14,
   },
   saveBtn: {
     height: 50,
     borderRadius: BorderRadius.xs,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 10
+    marginTop: 10,
   },
   saveBtnText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "800"
+    fontWeight: "800",
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end"
+    justifyContent: "flex-end",
   },
   modalContent: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: "80%",
     padding: 24,
-    paddingBottom: Platform.OS === "ios" ? 40 : 24
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16
+    marginBottom: 16,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: "800"
+    fontWeight: "800",
   },
   supervisorItem: {
     paddingVertical: 14,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderRadius: 8
-  }
+    borderRadius: 8,
+  },
 });

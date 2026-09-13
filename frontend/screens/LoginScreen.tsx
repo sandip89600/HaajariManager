@@ -68,10 +68,10 @@ const AnimatedInput = ({
     const borderColor = hasError
       ? theme.error
       : isFocused.value
-      ? theme.primary
-      : isDark
-      ? "rgba(255, 255, 255, 0.1)"
-      : "rgba(0, 0, 0, 0.1)";
+        ? theme.primary
+        : isDark
+          ? "rgba(255, 255, 255, 0.1)"
+          : "rgba(0, 0, 0, 0.1)";
 
     return {
       borderColor: withTiming(borderColor, { duration: 200 }),
@@ -84,11 +84,25 @@ const AnimatedInput = ({
   });
 
   return (
-    <Animated.View style={[styles.inputWrapper, { backgroundColor: isDark ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.7)" }, animatedStyle]}>
+    <Animated.View
+      style={[
+        styles.inputWrapper,
+        {
+          backgroundColor: isDark ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.7)",
+        },
+        animatedStyle,
+      ]}
+    >
       <Feather
         name={icon}
         size={20}
-        color={hasError ? theme.error : internalFocus ? theme.primary : theme.textSecondary}
+        color={
+          hasError
+            ? theme.error
+            : internalFocus
+              ? theme.primary
+              : theme.textSecondary
+        }
         style={styles.inputIcon}
       />
       <TextInput
@@ -112,7 +126,11 @@ const AnimatedInput = ({
         autoCorrect={false}
       />
       {rightIcon && (
-        <Pressable onPress={onRightIconPress} style={styles.eyeButton} hitSlop={10}>
+        <Pressable
+          onPress={onRightIconPress}
+          style={styles.eyeButton}
+          hitSlop={10}
+        >
           <Feather name={rightIcon} size={20} color={theme.textSecondary} />
         </Pressable>
       )}
@@ -125,8 +143,9 @@ export default function LoginScreen() {
   const themeContext = useTheme();
   const theme = themeContext.theme;
   const isDark = themeContext.isDark ?? false;
-  
-  const { login, loginAsGuest, loginWithBiometrics, loginWithGoogle } = useAuth();
+
+  const { login, loginAsGuest, loginWithBiometrics, loginWithGoogle } =
+    useAuth();
   const { t, language } = useLanguage();
   const insets = useSafeAreaInsets();
 
@@ -145,7 +164,8 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
 
   // Google completion modal state
-  const [showMobileCompletionModal, setShowMobileCompletionModal] = useState(false);
+  const [showMobileCompletionModal, setShowMobileCompletionModal] =
+    useState(false);
   const [pendingGoogleProfile, setPendingGoogleProfile] = useState<any>(null);
 
   // OTP Refs for 6 boxes
@@ -187,7 +207,10 @@ export default function LoginScreen() {
       }
 
       setGoogleLoadingText("Setting up your Haajari account...");
-      const res = await loginWithGoogle(googleRes.idToken, googleRes.accessToken);
+      const res = await loginWithGoogle(
+        googleRes.idToken,
+        googleRes.accessToken,
+      );
       setIsGoogleLoading(false);
       setGoogleLoadingText("");
 
@@ -219,7 +242,7 @@ export default function LoginScreen() {
       undefined,
       "contractor",
       pendingGoogleProfile.googleId,
-      pendingGoogleProfile.email
+      pendingGoogleProfile.email,
     );
     if (res.success) {
       setShowMobileCompletionModal(false);
@@ -248,10 +271,17 @@ export default function LoginScreen() {
           setPhone(savedCreds.email);
         }
 
-        const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
-        if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+        const types =
+          await LocalAuthentication.supportedAuthenticationTypesAsync();
+        if (
+          types.includes(
+            LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION,
+          )
+        ) {
           setBiometricLabel("Face ID");
-        } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+        } else if (
+          types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)
+        ) {
           setBiometricLabel("Fingerprint");
         }
       }
@@ -269,7 +299,7 @@ export default function LoginScreen() {
       if (!token && !savedCreds) {
         Alert.alert(
           t.common?.error || "Error",
-          "No saved biometric credentials. Please log in using your password first and enable Biometric Login in Settings."
+          "No saved biometric credentials. Please log in using your password first and enable Biometric Login in Settings.",
         );
         return;
       }
@@ -284,7 +314,7 @@ export default function LoginScreen() {
         setIsLoading(true);
         setError(null);
         let loginSuccess = false;
-        
+
         if (savedCreds) {
           loginSuccess = await login(savedCreds.email, savedCreds.password);
         } else if (token && savedPhone) {
@@ -293,7 +323,9 @@ export default function LoginScreen() {
 
         if (loginSuccess) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          try { navigationProp.replace("Main"); } catch (e) {}
+          try {
+            navigationProp.replace("Main");
+          } catch (e) {}
         } else {
           setError("Biometric login failed. Please enter password.");
         }
@@ -344,12 +376,17 @@ export default function LoginScreen() {
         if (response.status === 404) {
           throw new Error("This mobile number is not registered.");
         }
-        throw new Error(isJson && data?.error ? data.error : "Failed to send OTP");
+        throw new Error(
+          isJson && data?.error ? data.error : "Failed to send OTP",
+        );
       }
 
       setShowOtpVerification(true);
       setOtpCountdown(60);
-      Alert.alert("OTP Sent", "A verification code was sent to your registered mobile number");
+      Alert.alert(
+        "OTP Sent",
+        "A verification code was sent to your registered mobile number",
+      );
     } catch (err: any) {
       setError(err.message || "Something went wrong sending OTP");
     } finally {
@@ -369,7 +406,9 @@ export default function LoginScreen() {
       const success = await login(phone, "", fullOtp);
       if (success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        try { navigationProp.replace("Main"); } catch (e) {}
+        try {
+          navigationProp.replace("Main");
+        } catch (e) {}
       } else {
         setError("Invalid verification code.");
       }
@@ -393,17 +432,22 @@ export default function LoginScreen() {
         setShowOtpVerification(true);
         setOtpCountdown(60);
         setError(null);
-        Alert.alert("2FA Verification", "A 6-digit verification code has been sent to your registered number.");
+        Alert.alert(
+          "2FA Verification",
+          "A 6-digit verification code has been sent to your registered number.",
+        );
         return;
       }
       if (result === true) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
+
         if (rememberMe) {
           await SecureStore.setItemAsync("biometric_phone", phone);
         }
 
-        try { navigationProp.replace("Main"); } catch (e) {}
+        try {
+          navigationProp.replace("Main");
+        } catch (e) {}
       } else {
         setError("Invalid credentials.");
       }
@@ -426,7 +470,11 @@ export default function LoginScreen() {
   };
 
   const handleOtpKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === "Backspace" && otpArray[index] === "" && index > 0) {
+    if (
+      e.nativeEvent.key === "Backspace" &&
+      otpArray[index] === "" &&
+      index > 0
+    ) {
       otpRefs.current[index - 1]?.focus();
     }
   };
@@ -440,26 +488,57 @@ export default function LoginScreen() {
       />
 
       <KeyboardAwareScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 20 }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 20 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Top Hero Logo */}
         {/* Top Hero Logo */}
-        <Animated.View entering={FadeInUp.duration(600).springify()} style={styles.heroSection}>
-          <LinearGradient colors={["#F97316", "#EA580C"]} style={styles.logoBadge}>
+        <Animated.View
+          entering={FadeInUp.duration(600).springify()}
+          style={styles.heroSection}
+        >
+          <LinearGradient
+            colors={["#F97316", "#EA580C"]}
+            style={styles.logoBadge}
+          >
             <Feather name="shield" size={32} color="#FFFFFF" />
           </LinearGradient>
-          <ThemedText style={[styles.appName, { color: theme.text }]}>{t("app.name", "Haajari Manager")}</ThemedText>
-          <ThemedText style={[styles.tagline, { color: theme.textSecondary }]}>{t("app.tagline", "Advance Attendance & Site Management")}</ThemedText>
+          <ThemedText style={[styles.appName, { color: theme.text }]}>
+            {t("app.name", "Haajari Manager")}
+          </ThemedText>
+          <ThemedText style={[styles.tagline, { color: theme.textSecondary }]}>
+            {t("app.tagline", "Advance Attendance & Site Management")}
+          </ThemedText>
         </Animated.View>
 
         {/* glassmorphism Card container */}
-        <Animated.View entering={FadeInDown.duration(800).springify()} style={[styles.formCard, { backgroundColor: isDark ? "rgba(30, 41, 59, 0.7)" : "#FFFFFF", borderColor: theme.border }]}>
+        <Animated.View
+          entering={FadeInDown.duration(800).springify()}
+          style={[
+            styles.formCard,
+            {
+              backgroundColor: isDark ? "rgba(30, 41, 59, 0.7)" : "#FFFFFF",
+              borderColor: theme.border,
+            },
+          ]}
+        >
           <ThemedText style={[styles.cardTitle, { color: theme.text }]}>
-            {showOtpVerification ? t("auth.verifyCode", "Verify Code") : t("auth.login", "Sign In")}
+            {showOtpVerification
+              ? t("auth.verifyCode", "Verify Code")
+              : t("auth.login", "Sign In")}
           </ThemedText>
-          <ThemedText style={[styles.cardSubtitle, { color: theme.textSecondary }]}>
-            {showOtpVerification ? `${t("auth.otpSentTo", "We sent a 6-digit verification code to")} ${phone}` : t("auth.enterCredentials", "Enter credentials below to enter portal")}
+          <ThemedText
+            style={[styles.cardSubtitle, { color: theme.textSecondary }]}
+          >
+            {showOtpVerification
+              ? `${t("auth.otpSentTo", "We sent a 6-digit verification code to")} ${phone}`
+              : t(
+                  "auth.enterCredentials",
+                  "Enter credentials below to enter portal",
+                )}
           </ThemedText>
 
           {error && (
@@ -474,9 +553,15 @@ export default function LoginScreen() {
               {/* Fields inputs */}
               <AnimatedInput
                 icon="phone"
-                placeholder={t("auth.mobileOrUsername", "Mobile number or username")}
+                placeholder={t(
+                  "auth.mobileOrUsername",
+                  "Mobile number or username",
+                )}
                 value={phone}
-                onChangeText={(tVal: string) => { setPhone(tVal); setError(null); }}
+                onChangeText={(tVal: string) => {
+                  setPhone(tVal);
+                  setError(null);
+                }}
                 keyboardType="default"
                 autoCapitalize="none"
                 theme={theme}
@@ -490,7 +575,10 @@ export default function LoginScreen() {
                     icon="lock"
                     placeholder={t("auth.enterPassword", "Enter password")}
                     value={password}
-                    onChangeText={(tVal: string) => { setPassword(tVal); setError(null); }}
+                    onChangeText={(tVal: string) => {
+                      setPassword(tVal);
+                      setError(null);
+                    }}
                     secureTextEntry={!showPassword}
                     rightIcon={showPassword ? "eye-off" : "eye"}
                     onRightIconPress={() => setShowPassword(!showPassword)}
@@ -498,7 +586,7 @@ export default function LoginScreen() {
                     isDark={isDark}
                     hasError={!!error && !password}
                   />
-                  
+
                   {/* Remember me & Forgot Password row */}
                   <View style={styles.optionsRow}>
                     <Pressable
@@ -510,7 +598,12 @@ export default function LoginScreen() {
                         size={18}
                         color={rememberMe ? theme.primary : theme.textSecondary}
                       />
-                      <ThemedText style={[styles.optionsLabel, { color: theme.textSecondary, marginLeft: 8 }]}>
+                      <ThemedText
+                        style={[
+                          styles.optionsLabel,
+                          { color: theme.textSecondary, marginLeft: 8 },
+                        ]}
+                      >
                         {t("auth.rememberMe", "Remember me")}
                       </ThemedText>
                     </Pressable>
@@ -522,7 +615,13 @@ export default function LoginScreen() {
                       }}
                       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
-                      <ThemedText style={{ color: theme.primary, fontSize: 13, fontWeight: "600" }}>
+                      <ThemedText
+                        style={{
+                          color: theme.primary,
+                          fontSize: 13,
+                          fontWeight: "600",
+                        }}
+                      >
                         {t("auth.forgotPassword", "Forgot Password?")}
                       </ThemedText>
                     </Pressable>
@@ -532,7 +631,11 @@ export default function LoginScreen() {
 
               {/* Action Buttons */}
               <AnimatedPressable
-                style={[styles.primaryBtn, { shadowColor: theme.primary }, animatedButtonStyle]}
+                style={[
+                  styles.primaryBtn,
+                  { shadowColor: theme.primary },
+                  animatedButtonStyle,
+                ]}
                 onPress={() => {
                   triggerHaptic();
                   if (loginMode === "password") handlePasswordLogin();
@@ -540,15 +643,25 @@ export default function LoginScreen() {
                 }}
                 disabled={isLoading}
               >
-                <LinearGradient colors={["#F97316", "#EA580C"]} style={styles.btnGradient}>
+                <LinearGradient
+                  colors={["#F97316", "#EA580C"]}
+                  style={styles.btnGradient}
+                >
                   {isLoading ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
                     <>
                       <ThemedText style={styles.btnLabel}>
-                        {loginMode === "password" ? t("auth.secureLogin", "Secure Login") : t("auth.sendOtp", "Send OTP code")}
+                        {loginMode === "password"
+                          ? t("auth.secureLogin", "Secure Login")
+                          : t("auth.sendOtp", "Send OTP code")}
                       </ThemedText>
-                      <Feather name="arrow-right" size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                      <Feather
+                        name="arrow-right"
+                        size={16}
+                        color="#FFFFFF"
+                        style={{ marginLeft: 8 }}
+                      />
                     </>
                   )}
                 </LinearGradient>
@@ -561,8 +674,19 @@ export default function LoginScreen() {
                 {otpArray.map((digit, idx) => (
                   <TextInput
                     key={idx}
-                    ref={(ref) => { otpRefs.current[idx] = ref; }}
-                    style={[styles.otpBox, { color: theme.text, borderColor: theme.border, backgroundColor: isDark ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.02)" }]}
+                    ref={(ref) => {
+                      otpRefs.current[idx] = ref;
+                    }}
+                    style={[
+                      styles.otpBox,
+                      {
+                        color: theme.text,
+                        borderColor: theme.border,
+                        backgroundColor: isDark
+                          ? "rgba(0,0,0,0.2)"
+                          : "rgba(0,0,0,0.02)",
+                      },
+                    ]}
                     keyboardType="number-pad"
                     maxLength={1}
                     value={digit}
@@ -573,12 +697,18 @@ export default function LoginScreen() {
               </View>
 
               <View style={styles.otpActions}>
-                <Pressable
-                  disabled={otpCountdown > 0}
-                  onPress={handleSendOtp}
-                >
-                  <ThemedText style={{ color: otpCountdown > 0 ? theme.textSecondary : theme.primary, fontSize: 13, fontWeight: "600" }}>
-                    {otpCountdown > 0 ? `${t("auth.resendOtpIn", "Resend in")} ${otpCountdown}s` : t("auth.resendOtp", "Resend code")}
+                <Pressable disabled={otpCountdown > 0} onPress={handleSendOtp}>
+                  <ThemedText
+                    style={{
+                      color:
+                        otpCountdown > 0 ? theme.textSecondary : theme.primary,
+                      fontSize: 13,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {otpCountdown > 0
+                      ? `${t("auth.resendOtpIn", "Resend in")} ${otpCountdown}s`
+                      : t("auth.resendOtp", "Resend code")}
                   </ThemedText>
                 </Pressable>
 
@@ -590,22 +720,40 @@ export default function LoginScreen() {
                   }}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <ThemedText style={{ color: theme.textSecondary, fontSize: 13, fontWeight: "500" }}>
+                  <ThemedText
+                    style={{
+                      color: theme.textSecondary,
+                      fontSize: 13,
+                      fontWeight: "500",
+                    }}
+                  >
                     {t("common.cancel", "Change Number / Cancel")}
                   </ThemedText>
                 </Pressable>
               </View>
 
               <AnimatedPressable
-                style={[styles.primaryBtn, { shadowColor: theme.primary }, animatedButtonStyle]}
-                onPress={() => { triggerHaptic(); handleVerifyOtp(); }}
+                style={[
+                  styles.primaryBtn,
+                  { shadowColor: theme.primary },
+                  animatedButtonStyle,
+                ]}
+                onPress={() => {
+                  triggerHaptic();
+                  handleVerifyOtp();
+                }}
                 disabled={isLoading}
               >
-                <LinearGradient colors={["#F97316", "#EA580C"]} style={styles.btnGradient}>
+                <LinearGradient
+                  colors={["#F97316", "#EA580C"]}
+                  style={styles.btnGradient}
+                >
                   {isLoading ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <ThemedText style={styles.btnLabel}>{t("auth.verifyOtp", "Verify & Continue")}</ThemedText>
+                    <ThemedText style={styles.btnLabel}>
+                      {t("auth.verifyOtp", "Verify & Continue")}
+                    </ThemedText>
                   )}
                 </LinearGradient>
               </AnimatedPressable>
@@ -616,16 +764,32 @@ export default function LoginScreen() {
           {!showOtpVerification && (
             <>
               <View style={styles.dividerRow}>
-                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-                <ThemedText style={[styles.dividerLabel, { color: theme.textSecondary }]}>{t("auth.orContinueWith", "or continue with")}</ThemedText>
-                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+                <View
+                  style={[
+                    styles.dividerLine,
+                    { backgroundColor: theme.border },
+                  ]}
+                />
+                <ThemedText
+                  style={[styles.dividerLabel, { color: theme.textSecondary }]}
+                >
+                  {t("auth.orContinueWith", "or continue with")}
+                </ThemedText>
+                <View
+                  style={[
+                    styles.dividerLine,
+                    { backgroundColor: theme.border },
+                  ]}
+                />
               </View>
 
               <Pressable
                 style={[
                   styles.googleBtn,
                   {
-                    backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#FFFFFF",
+                    backgroundColor: isDark
+                      ? "rgba(255, 255, 255, 0.05)"
+                      : "#FFFFFF",
                     borderColor: theme.border,
                   },
                 ]}
@@ -634,15 +798,28 @@ export default function LoginScreen() {
               >
                 {isGoogleLoading ? (
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <ActivityIndicator size="small" color="#4285F4" style={{ marginRight: 8 }} />
-                    <ThemedText style={[styles.googleBtnLabel, { color: theme.text }]}>
+                    <ActivityIndicator
+                      size="small"
+                      color="#4285F4"
+                      style={{ marginRight: 8 }}
+                    />
+                    <ThemedText
+                      style={[styles.googleBtnLabel, { color: theme.text }]}
+                    >
                       {googleLoadingText || "Connecting to Google..."}
                     </ThemedText>
                   </View>
                 ) : (
                   <>
-                    <Ionicons name="logo-google" size={18} color="#4285F4" style={{ marginRight: 10 }} />
-                    <ThemedText style={[styles.googleBtnLabel, { color: theme.text }]}>
+                    <Ionicons
+                      name="logo-google"
+                      size={18}
+                      color="#4285F4"
+                      style={{ marginRight: 10 }}
+                    />
+                    <ThemedText
+                      style={[styles.googleBtnLabel, { color: theme.text }]}
+                    >
                       {t("auth.continueWithGoogle", "Continue with Google")}
                     </ThemedText>
                   </>
@@ -652,11 +829,24 @@ export default function LoginScreen() {
               <View style={styles.altAuthRow}>
                 <Pressable
                   style={[styles.altBtn, { borderColor: theme.border }]}
-                  onPress={() => setLoginMode(loginMode === "password" ? "otp" : "password")}
+                  onPress={() =>
+                    setLoginMode(loginMode === "password" ? "otp" : "password")
+                  }
                 >
-                  <Feather name={loginMode === "password" ? "mail" : "lock"} size={16} color={theme.text} />
-                  <ThemedText style={[styles.altBtnLabel, { color: theme.text, marginLeft: 8 }]}>
-                    {loginMode === "password" ? t("auth.useOtpLogin", "Use OTP Login") : t("auth.usePassword", "Use Password")}
+                  <Feather
+                    name={loginMode === "password" ? "mail" : "lock"}
+                    size={16}
+                    color={theme.text}
+                  />
+                  <ThemedText
+                    style={[
+                      styles.altBtnLabel,
+                      { color: theme.text, marginLeft: 8 },
+                    ]}
+                  >
+                    {loginMode === "password"
+                      ? t("auth.useOtpLogin", "Use OTP Login")
+                      : t("auth.usePassword", "Use Password")}
                   </ThemedText>
                 </Pressable>
 
@@ -665,8 +855,17 @@ export default function LoginScreen() {
                     style={[styles.altBtn, { borderColor: theme.border }]}
                     onPress={handleBiometricLogin}
                   >
-                    <MaterialCommunityIcons name="fingerprint" size={20} color={theme.text} />
-                    <ThemedText style={[styles.altBtnLabel, { color: theme.text, marginLeft: 8 }]}>
+                    <MaterialCommunityIcons
+                      name="fingerprint"
+                      size={20}
+                      color={theme.text}
+                    />
+                    <ThemedText
+                      style={[
+                        styles.altBtnLabel,
+                        { color: theme.text, marginLeft: 8 },
+                      ]}
+                    >
                       {biometricLabel}
                     </ThemedText>
                   </Pressable>
@@ -677,11 +876,19 @@ export default function LoginScreen() {
         </Animated.View>
 
         {/* Bottom links */}
-        <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.bottomNavRow}>
-          <Pressable onPress={() => navigationProp.push("Signup" as any)} style={{ paddingVertical: 4 }}>
+        <Animated.View
+          entering={FadeInDown.delay(300).springify()}
+          style={styles.bottomNavRow}
+        >
+          <Pressable
+            onPress={() => navigationProp.push("Signup" as any)}
+            style={{ paddingVertical: 4 }}
+          >
             <ThemedText style={{ color: theme.textSecondary, fontSize: 14 }}>
               {t("auth.dontHaveAccount", "Don't have an account?")}{" "}
-              <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>{t("auth.signUp", "Register Here")}</ThemedText>
+              <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>
+                {t("auth.signUp", "Register Here")}
+              </ThemedText>
             </ThemedText>
           </Pressable>
         </Animated.View>
@@ -699,8 +906,12 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 24 },
-  
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+
   // Hero section
   heroSection: { alignItems: "center", marginBottom: 32 },
   logoBadge: {
@@ -747,7 +958,13 @@ const styles = StyleSheet.create({
   eyeButton: { padding: 4 },
 
   // Options
-  optionsRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: 16 },
+  optionsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+    marginBottom: 16,
+  },
   checkboxRow: { flexDirection: "row", alignItems: "center" },
   optionsLabel: { fontSize: 13 },
 
@@ -770,9 +987,17 @@ const styles = StyleSheet.create({
   btnLabel: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
 
   // Divider
-  dividerRow: { flexDirection: "row", alignItems: "center", marginVertical: 20 },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 20,
+  },
   dividerLine: { flex: 1, height: 1 },
-  dividerLabel: { marginHorizontal: 12, fontSize: 12, textTransform: "lowercase" },
+  dividerLabel: {
+    marginHorizontal: 12,
+    fontSize: 12,
+    textTransform: "lowercase",
+  },
 
   // Alt auth
   altAuthRow: { flexDirection: "row", gap: 10 },
@@ -798,7 +1023,11 @@ const styles = StyleSheet.create({
   altBtnLabel: { fontSize: 13, fontWeight: "600" },
 
   // OTP Verification boxes
-  otpContainer: { flexDirection: "row", justifyContent: "space-between", marginVertical: 16 },
+  otpContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginVertical: 16,
+  },
   otpBox: {
     width: 42,
     height: 52,
@@ -808,7 +1037,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
   },
-  otpActions: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 20 },
+  otpActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginBottom: 20,
+  },
 
   // Bottom navigation links
   bottomNavRow: { alignItems: "center", marginTop: 32, gap: 16 },
@@ -831,5 +1064,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 16,
   },
-  errorText: { color: "#FCA5A5", fontSize: 13, fontWeight: "600", marginLeft: 8, flex: 1 },
+  errorText: {
+    color: "#FCA5A5",
+    fontSize: 13,
+    fontWeight: "600",
+    marginLeft: 8,
+    flex: 1,
+  },
 });

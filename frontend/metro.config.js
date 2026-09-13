@@ -5,9 +5,7 @@ const path = require("path");
 const projectRoot = __dirname;
 const config = getDefaultConfig(projectRoot);
 
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, "node_modules"),
-];
+config.resolver.nodeModulesPaths = [path.resolve(projectRoot, "node_modules")];
 
 config.resolver.blockList = [
   /\.local\/skills\/\.tmp-.*/,
@@ -26,7 +24,11 @@ config.server = {
   ...config.server,
   enhanceMiddleware: (middleware) => {
     return (req, res, next) => {
-      if (req.url && req.url.includes("runtime=custom") && req.url.includes("platform=android")) {
+      if (
+        req.url &&
+        req.url.includes("runtime=custom") &&
+        req.url.includes("platform=android")
+      ) {
         res.setHeader("Access-Control-Allow-Origin", "*");
       }
       return middleware(req, res, next);

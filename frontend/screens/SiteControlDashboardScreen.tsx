@@ -25,7 +25,14 @@ import { storage, Site } from "@/utils/storage";
 import { useLanguage } from "@/hooks/useLanguage";
 import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
 
-const FILTER_OPTIONS = ["All", "Planning", "Started", "In Progress", "Delayed", "Completed"];
+const FILTER_OPTIONS = [
+  "All",
+  "Planning",
+  "Started",
+  "In Progress",
+  "Delayed",
+  "Completed",
+];
 
 interface DashboardStats {
   totalSites: number;
@@ -96,7 +103,7 @@ export default function SiteControlDashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData(true);
-    }, [search, activeFilter])
+    }, [search, activeFilter]),
   );
 
   const handleRefresh = () => {
@@ -123,7 +130,7 @@ export default function SiteControlDashboardScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -153,7 +160,10 @@ export default function SiteControlDashboardScreen() {
   const getStatusColors = (status: string) => {
     switch (status) {
       case "Planning":
-        return { text: isDark ? "#CBD5E1" : "#475569", bg: isDark ? "#334155" : "#E2E8F0" };
+        return {
+          text: isDark ? "#CBD5E1" : "#475569",
+          bg: isDark ? "#334155" : "#E2E8F0",
+        };
       case "Started":
         return { text: "#16A34A", bg: "rgba(22,163,74,0.12)" };
       case "In Progress":
@@ -190,7 +200,15 @@ export default function SiteControlDashboardScreen() {
     const eveningPhoto = (item as any).eveningPhoto || true;
 
     return (
-      <View style={[styles.siteOverviewCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+      <View
+        style={[
+          styles.siteOverviewCard,
+          {
+            backgroundColor: theme.backgroundDefault,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         {/* Top Header: Title, Description, and Three-Dot Menu (⋮) */}
         <View style={styles.cardTopRow}>
           <View style={{ flex: 1, paddingRight: 8 }}>
@@ -210,30 +228,71 @@ export default function SiteControlDashboardScreen() {
             hitSlop={12}
             style={styles.threeDotBtn}
           >
-            <Feather name="more-vertical" size={20} color={theme.textSecondary} />
+            <Feather
+              name="more-vertical"
+              size={20}
+              color={theme.textSecondary}
+            />
           </Pressable>
         </View>
 
         {/* Row 2: Status Badge & Progress Badge */}
         <View style={styles.statusProgressRow}>
-          <View style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}>
-            <Text style={[styles.statusDot, { color: statusColors.text }]}>●</Text>
+          <View
+            style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}
+          >
+            <Text style={[styles.statusDot, { color: statusColors.text }]}>
+              ●
+            </Text>
             <Text style={[styles.statusText, { color: statusColors.text }]}>
               {t.translateSiteStatus(item.status || "ACTIVE")}
             </Text>
           </View>
-          <Text style={[styles.progressPctBadgeText, { color: theme.primary }]}>{progress}% {t("sites.complete", "Complete")}</Text>
+          <Text style={[styles.progressPctBadgeText, { color: theme.primary }]}>
+            {progress}% {t("sites.complete", "Complete")}
+          </Text>
         </View>
 
         {/* Row 3: TODAY'S WORK Section */}
-        <View style={[styles.todaysWorkBox, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: theme.border }]}>
-          <ThemedText style={styles.todaysWorkHeaderTitle}>{(t.sites?.todaysWork || "TODAY'S WORK").toUpperCase()}</ThemedText>
+        <View
+          style={[
+            styles.todaysWorkBox,
+            {
+              backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <ThemedText style={styles.todaysWorkHeaderTitle}>
+            {(t.sites?.todaysWork || "TODAY'S WORK").toUpperCase()}
+          </ThemedText>
           <View style={styles.workDetailRow}>
-            <Text style={styles.workTypeTitle}>🧱 {item.currentWork ? t.translateWorkType(item.currentWork) : t.translateWorkType("BRICK_WORK")}</Text>
-            <Text style={styles.workProgressVal}>{t.sites?.progress || "Progress"}: {item.currentProgress || progress}%</Text>
+            <Text style={styles.workTypeTitle}>
+              🧱{" "}
+              {item.currentWork
+                ? t.translateWorkType(item.currentWork)
+                : t.translateWorkType("BRICK_WORK")}
+            </Text>
+            <Text style={styles.workProgressVal}>
+              {t.sites?.progress || "Progress"}:{" "}
+              {item.currentProgress || progress}%
+            </Text>
           </View>
-          <View style={[styles.progressBarBg, { backgroundColor: isDark ? "#334155" : "#E2E8F0" }]}>
-            <View style={[styles.progressBarFill, { width: `${item.currentProgress || progress}%`, backgroundColor: theme.primary }]} />
+          <View
+            style={[
+              styles.progressBarBg,
+              { backgroundColor: isDark ? "#334155" : "#E2E8F0" },
+            ]}
+          >
+            <View
+              style={[
+                styles.progressBarFill,
+                {
+                  width: `${item.currentProgress || progress}%`,
+                  backgroundColor: theme.primary,
+                },
+              ]}
+            />
           </View>
         </View>
 
@@ -241,16 +300,34 @@ export default function SiteControlDashboardScreen() {
         <View style={styles.workforcePhotoRow}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={{ fontSize: 15 }}>👷</Text>
-            <Text style={{ fontSize: 13, fontWeight: "800", color: theme.text }}>{totalWorkers} {t.workers?.title || "Workers"}</Text>
+            <Text
+              style={{ fontSize: 13, fontWeight: "800", color: theme.text }}
+            >
+              {totalWorkers} {t.workers?.title || "Workers"}
+            </Text>
             <Text style={{ color: "#94A3B8", fontSize: 12 }}>•</Text>
-            <Text style={{ color: "#16A34A", fontSize: 13, fontWeight: "800" }}>✓ {presentWorkers} {t.summary?.present || "Present"}</Text>
+            <Text style={{ color: "#16A34A", fontSize: 13, fontWeight: "800" }}>
+              ✓ {presentWorkers} {t.summary?.present || "Present"}
+            </Text>
           </View>
 
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text style={{ fontSize: 12, fontWeight: "800", color: morningPhoto ? "#16A34A" : "#64748B" }}>
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: "800",
+                color: morningPhoto ? "#16A34A" : "#64748B",
+              }}
+            >
               📷 {t.sites?.morning || "Morning"} {morningPhoto ? "✓" : "—"}
             </Text>
-            <Text style={{ fontSize: 12, fontWeight: "800", color: eveningPhoto ? "#16A34A" : "#64748B" }}>
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: "800",
+                color: eveningPhoto ? "#16A34A" : "#64748B",
+              }}
+            >
               {t.sites?.evening || "Evening"} {eveningPhoto ? "✓" : "—"}
             </Text>
           </View>
@@ -264,7 +341,9 @@ export default function SiteControlDashboardScreen() {
           }}
           style={[styles.openSiteMainBtn, { backgroundColor: theme.primary }]}
         >
-          <Text style={styles.openSiteMainBtnText}>{t("sites.openSite", "Open Site")}</Text>
+          <Text style={styles.openSiteMainBtnText}>
+            {t("sites.openSite", "Open Site")}
+          </Text>
           <Feather name="arrow-right" size={16} color="#FFFFFF" />
         </Pressable>
       </View>
@@ -276,12 +355,20 @@ export default function SiteControlDashboardScreen() {
 
     return (
       <View style={styles.emptyContainer}>
-        <View style={[styles.emptyIconCircle, { backgroundColor: theme.backgroundSecondary }]}>
+        <View
+          style={[
+            styles.emptyIconCircle,
+            { backgroundColor: theme.backgroundSecondary },
+          ]}
+        >
           <Feather name="layers" size={36} color={theme.primary} />
         </View>
-        <ThemedText style={styles.emptyTitle}>{t.sites?.noSites || "No Sites Yet"}</ThemedText>
+        <ThemedText style={styles.emptyTitle}>
+          {t.sites?.noSites || "No Sites Yet"}
+        </ThemedText>
         <ThemedText style={styles.emptyDesc}>
-          {t.project?.noProjects || "Create your first construction site to start tracking work, workers and daily progress."}
+          {t.project?.noProjects ||
+            "Create your first construction site to start tracking work, workers and daily progress."}
         </ThemedText>
 
         <Pressable
@@ -289,21 +376,37 @@ export default function SiteControlDashboardScreen() {
             triggerHaptic();
             navigation.navigate("CreateSite");
           }}
-          style={[styles.createSiteEmptyBtn, { backgroundColor: theme.primary }]}
+          style={[
+            styles.createSiteEmptyBtn,
+            { backgroundColor: theme.primary },
+          ]}
         >
-          <Feather name="plus" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-          <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 14 }}>+ {t.sites?.addSite || "Create Site"}</Text>
+          <Feather
+            name="plus"
+            size={16}
+            color="#FFFFFF"
+            style={{ marginRight: 6 }}
+          />
+          <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 14 }}>
+            + {t.sites?.addSite || "Create Site"}
+          </Text>
         </Pressable>
       </View>
     );
   };
 
   return (
-    <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+    <ThemedView
+      style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
+    >
       {/* 1. HEADER SECTION */}
-      <View style={[styles.header, { paddingTop: Math.max(insets.top + 12, 28) }]}>
+      <View
+        style={[styles.header, { paddingTop: Math.max(insets.top + 12, 28) }]}
+      >
         <View style={{ flex: 1 }}>
-          <ThemedText style={styles.headerTitle}>Site Control Center</ThemedText>
+          <ThemedText style={styles.headerTitle}>
+            Site Control Center
+          </ThemedText>
         </View>
         <Pressable
           onPress={() => {
@@ -312,17 +415,38 @@ export default function SiteControlDashboardScreen() {
           }}
           style={[styles.topCreateSiteBtn, { backgroundColor: theme.primary }]}
         >
-          <Feather name="plus" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+          <Feather
+            name="plus"
+            size={16}
+            color="#FFFFFF"
+            style={{ marginRight: 4 }}
+          />
           <Text style={styles.topCreateSiteBtnText}>Create Site</Text>
         </Pressable>
       </View>
 
       {/* 2. FULL-WIDTH SEARCH BAR */}
       <View style={styles.searchContainer}>
-        <View style={[styles.searchBar, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-          <Feather name="search" size={16} color={theme.textSecondary} style={{ marginRight: 8 }} />
+        <View
+          style={[
+            styles.searchBar,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <Feather
+            name="search"
+            size={16}
+            color={theme.textSecondary}
+            style={{ marginRight: 8 }}
+          />
           <TextInput
-            placeholder={t("sites.searchPlaceholder", "Search by site, client, supervisor...")}
+            placeholder={t(
+              "sites.searchPlaceholder",
+              "Search by site, client, supervisor...",
+            )}
             placeholderTextColor={theme.textSecondary}
             value={search}
             onChangeText={setSearch}
@@ -338,10 +462,17 @@ export default function SiteControlDashboardScreen() {
 
       {/* 3. HORIZONTALLY SCROLLABLE FILTERS */}
       <View style={styles.filtersScrollContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+        >
           {FILTER_OPTIONS.map((opt) => {
             const isActive = activeFilter === opt;
-            const label = opt === "All" ? (t.common?.all || "All") : t.translateSiteStatus(opt);
+            const label =
+              opt === "All"
+                ? t.common?.all || "All"
+                : t.translateSiteStatus(opt);
             return (
               <Pressable
                 key={opt}
@@ -352,12 +483,31 @@ export default function SiteControlDashboardScreen() {
                 style={[
                   styles.filterChip,
                   {
-                    backgroundColor: isActive ? theme.primary : (isDark ? "#1E293B" : "#F1F5F9"),
-                    borderColor: isActive ? theme.primary : (isDark ? "#334155" : "#E2E8F0"),
+                    backgroundColor: isActive
+                      ? theme.primary
+                      : isDark
+                        ? "#1E293B"
+                        : "#F1F5F9",
+                    borderColor: isActive
+                      ? theme.primary
+                      : isDark
+                        ? "#334155"
+                        : "#E2E8F0",
                   },
                 ]}
               >
-                <Text style={[styles.filterChipText, { color: isActive ? "#FFFFFF" : (isDark ? "#CBD5E1" : "#475569") }]}>
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    {
+                      color: isActive
+                        ? "#FFFFFF"
+                        : isDark
+                          ? "#CBD5E1"
+                          : "#475569",
+                    },
+                  ]}
+                >
                   {label}
                 </Text>
               </Pressable>
@@ -378,10 +528,18 @@ export default function SiteControlDashboardScreen() {
           data={sites}
           renderItem={renderSiteCard}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120, paddingTop: 4 }}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingBottom: 120,
+            paddingTop: 4,
+          }}
           ListEmptyComponent={renderEmptyState}
           refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={[theme.primary]} />
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              colors={[theme.primary]}
+            />
           }
           initialNumToRender={8}
           maxToRenderPerBatch={8}
@@ -391,11 +549,29 @@ export default function SiteControlDashboardScreen() {
       )}
 
       {/* 5. THREE-DOT ACTION MENU MODAL (Edit Site, Manage Workforce, Archive Site, Delete Site) */}
-      <Modal visible={menuTargetSite !== null} transparent animationType="fade" onRequestClose={() => setMenuTargetSite(null)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setMenuTargetSite(null)}>
-          <View style={[styles.menuSheetContent, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+      <Modal
+        visible={menuTargetSite !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuTargetSite(null)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setMenuTargetSite(null)}
+        >
+          <View
+            style={[
+              styles.menuSheetContent,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             <View style={styles.menuHeader}>
-              <ThemedText style={styles.menuHeaderTitle}>{menuTargetSite?.name}</ThemedText>
+              <ThemedText style={styles.menuHeaderTitle}>
+                {menuTargetSite?.name}
+              </ThemedText>
               <Pressable onPress={() => setMenuTargetSite(null)} hitSlop={10}>
                 <Feather name="x" size={20} color={theme.textSecondary} />
               </Pressable>
@@ -412,7 +588,9 @@ export default function SiteControlDashboardScreen() {
               style={styles.menuOptionBtn}
             >
               <Feather name="edit-2" size={18} color="#2563EB" />
-              <Text style={[styles.menuOptionText, { color: theme.text }]}>Edit Site</Text>
+              <Text style={[styles.menuOptionText, { color: theme.text }]}>
+                Edit Site
+              </Text>
             </Pressable>
 
             <Pressable
@@ -420,57 +598,94 @@ export default function SiteControlDashboardScreen() {
                 if (menuTargetSite) {
                   const targetId = menuTargetSite.id;
                   setMenuTargetSite(null);
-                  navigation.navigate("SiteDetailControl", { siteId: targetId, initialTab: "workers" });
+                  navigation.navigate("SiteDetailControl", {
+                    siteId: targetId,
+                    initialTab: "workers",
+                  });
                 }
               }}
               style={styles.menuOptionBtn}
             >
               <Feather name="users" size={18} color="#2563EB" />
-              <Text style={[styles.menuOptionText, { color: theme.text }]}>Manage Workforce</Text>
+              <Text style={[styles.menuOptionText, { color: theme.text }]}>
+                Manage Workforce
+              </Text>
             </Pressable>
 
-            {menuTargetSite && !menuTargetSite.isArchived && menuTargetSite.status !== "Completed" && (
-              <Pressable
-                onPress={() => menuTargetSite && handleArchiveSite(menuTargetSite)}
-                style={styles.menuOptionBtn}
-              >
-                <Feather name="archive" size={18} color="#D97706" />
-                <Text style={[styles.menuOptionText, { color: theme.text }]}>Archive Site</Text>
-              </Pressable>
-            )}
+            {menuTargetSite &&
+              !menuTargetSite.isArchived &&
+              menuTargetSite.status !== "Completed" && (
+                <Pressable
+                  onPress={() =>
+                    menuTargetSite && handleArchiveSite(menuTargetSite)
+                  }
+                  style={styles.menuOptionBtn}
+                >
+                  <Feather name="archive" size={18} color="#D97706" />
+                  <Text style={[styles.menuOptionText, { color: theme.text }]}>
+                    Archive Site
+                  </Text>
+                </Pressable>
+              )}
 
             <Pressable
               onPress={() => menuTargetSite && handleDeleteSite(menuTargetSite)}
               style={[styles.menuOptionBtn, { borderBottomWidth: 0 }]}
             >
               <Feather name="trash-2" size={18} color="#DC2626" />
-              <Text style={[styles.menuOptionText, { color: "#DC2626" }]}>Delete Site</Text>
+              <Text style={[styles.menuOptionText, { color: "#DC2626" }]}>
+                Delete Site
+              </Text>
             </Pressable>
           </View>
         </Pressable>
       </Modal>
 
       {/* 6. CONFIRM DELETE DIALOG MODAL */}
-      <Modal visible={deleteTargetSite !== null} transparent animationType="fade" onRequestClose={() => setDeleteTargetSite(null)}>
+      <Modal
+        visible={deleteTargetSite !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteTargetSite(null)}
+      >
         <View style={styles.modalOverlay}>
-          <View style={[styles.dialogContent, { backgroundColor: theme.backgroundDefault }]}>
-            <Feather name="alert-triangle" size={38} color="#DC2626" style={{ marginBottom: 12 }} />
+          <View
+            style={[
+              styles.dialogContent,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
+            <Feather
+              name="alert-triangle"
+              size={38}
+              color="#DC2626"
+              style={{ marginBottom: 12 }}
+            />
             <ThemedText style={styles.dialogTitle}>Delete Site?</ThemedText>
             <ThemedText style={styles.dialogDesc}>
-              Are you sure you want to delete "{deleteTargetSite?.name}"? All associated attendance records and daily logs will remain safely stored.
+              Are you sure you want to delete "{deleteTargetSite?.name}"? All
+              associated attendance records and daily logs will remain safely
+              stored.
             </ThemedText>
             <View style={styles.dialogActions}>
               <Pressable
                 onPress={() => setDeleteTargetSite(null)}
-                style={[styles.dialogBtn, { backgroundColor: isDark ? "#334155" : "#E2E8F0" }]}
+                style={[
+                  styles.dialogBtn,
+                  { backgroundColor: isDark ? "#334155" : "#E2E8F0" },
+                ]}
               >
-                <Text style={{ fontWeight: "700", color: theme.text }}>Cancel</Text>
+                <Text style={{ fontWeight: "700", color: theme.text }}>
+                  Cancel
+                </Text>
               </Pressable>
               <Pressable
                 onPress={confirmDeleteSite}
                 style={[styles.dialogBtn, { backgroundColor: "#DC2626" }]}
               >
-                <Text style={{ fontWeight: "800", color: "#FFFFFF" }}>Delete</Text>
+                <Text style={{ fontWeight: "800", color: "#FFFFFF" }}>
+                  Delete
+                </Text>
               </Pressable>
             </View>
           </View>

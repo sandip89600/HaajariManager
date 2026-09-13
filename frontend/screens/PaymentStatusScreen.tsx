@@ -25,8 +25,14 @@ export default function PaymentStatusScreen() {
         return {
           title: `🎉 Welcome to Haajari ${planName === "super" ? "Super" : "Premium"}`,
           desc: "Your subscription is now active.",
-          workers: planName === "super" ? "100 Workers unlocked" : "Unlimited Workers unlocked",
-          sites: planName === "super" ? "10 Sites unlocked" : "Unlimited Sites unlocked",
+          workers:
+            planName === "super"
+              ? "100 Workers unlocked"
+              : "Unlimited Workers unlocked",
+          sites:
+            planName === "super"
+              ? "10 Sites unlocked"
+              : "Unlimited Sites unlocked",
           extra: "Thank you for choosing Haajari Manager.",
           color: "#22C55E",
           icon: "checkmark-circle",
@@ -73,10 +79,20 @@ export default function PaymentStatusScreen() {
   const config = getStatusConfig();
 
   return (
-    <View style={[styles.root, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", paddingTop: insets.top }]}>
+    <View
+      style={[
+        styles.root,
+        {
+          backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
+          paddingTop: insets.top,
+        },
+      ]}
+    >
       <View style={styles.container}>
         {/* Animated Icon */}
-        <View style={[styles.iconWrap, { backgroundColor: `${config.color}15` }]}>
+        <View
+          style={[styles.iconWrap, { backgroundColor: `${config.color}15` }]}
+        >
           <Ionicons name={config.icon as any} size={72} color={config.color} />
         </View>
 
@@ -84,17 +100,26 @@ export default function PaymentStatusScreen() {
         <ThemedText style={styles.desc}>{config.desc}</ThemedText>
 
         {(config.workers || config.sites) && (
-          <View style={[styles.benefitsCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]}>
+          <View
+            style={[
+              styles.benefitsCard,
+              { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" },
+            ]}
+          >
             {config.workers && (
               <View style={styles.benefitRow}>
                 <Ionicons name="people" size={16} color="#EA580C" />
-                <ThemedText style={styles.benefitText}>{config.workers}</ThemedText>
+                <ThemedText style={styles.benefitText}>
+                  {config.workers}
+                </ThemedText>
               </View>
             )}
             {config.sites && (
               <View style={styles.benefitRow}>
                 <Ionicons name="business" size={16} color="#EA580C" />
-                <ThemedText style={styles.benefitText}>{config.sites}</ThemedText>
+                <ThemedText style={styles.benefitText}>
+                  {config.sites}
+                </ThemedText>
               </View>
             )}
           </View>
@@ -102,7 +127,10 @@ export default function PaymentStatusScreen() {
 
         <ThemedText style={styles.extra}>{config.extra}</ThemedText>
 
-        <Pressable onPress={config.action} style={[styles.btn, { backgroundColor: config.color }]}>
+        <Pressable
+          onPress={config.action}
+          style={[styles.btn, { backgroundColor: config.color }]}
+        >
           <ThemedText style={styles.btnText}>{config.btnText}</ThemedText>
         </Pressable>
       </View>
@@ -113,13 +141,42 @@ export default function PaymentStatusScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, paddingHorizontal: 24, justifyContent: "center" },
   container: { alignItems: "center", width: "100%" },
-  iconWrap: { width: 120, height: 120, borderRadius: 60, alignItems: "center", justifyContent: "center", marginBottom: 24 },
-  title: { fontSize: 22, fontWeight: "900", textAlign: "center", marginBottom: 12 },
-  desc: { fontSize: 14, color: "#64748B", textAlign: "center", lineHeight: 20, marginBottom: 24 },
-  benefitsCard: { width: "100%", padding: 16, borderRadius: 16, gap: 10, marginBottom: 24 },
+  iconWrap: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "900",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  desc: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  benefitsCard: {
+    width: "100%",
+    padding: 16,
+    borderRadius: 16,
+    gap: 10,
+    marginBottom: 24,
+  },
   benefitRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   benefitText: { fontSize: 13, fontWeight: "600" },
   extra: { fontSize: 12, color: "#94A3B8", marginBottom: 30 },
-  btn: { width: "100%", paddingVertical: 14, borderRadius: 12, alignItems: "center" },
+  btn: {
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
   btnText: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
 });

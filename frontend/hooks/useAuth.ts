@@ -7,7 +7,14 @@ import {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DeviceEventEmitter } from "react-native";
-import { storage, AuthData, User, generateId, API_URL, authenticatedFetch } from "@/utils/storage";
+import {
+  storage,
+  AuthData,
+  User,
+  generateId,
+  API_URL,
+  authenticatedFetch,
+} from "@/utils/storage";
 import { registerExpoPushToken } from "@/utils/notifications";
 import { getDeviceHeaders } from "@/utils/device";
 
@@ -63,7 +70,7 @@ interface AuthContextType {
     companyName?: string,
     role?: "contractor" | "builder",
     googleId?: string,
-    email?: string
+    email?: string,
   ) => Promise<any>;
 }
 
@@ -112,10 +119,14 @@ export function useAuthProvider() {
               const profileData = await res.json();
               const serverUser = profileData.user;
               if (serverUser) {
-                const tenantObj = typeof serverUser.tenantId === "object" ? serverUser.tenantId : null;
+                const tenantObj =
+                  typeof serverUser.tenantId === "object"
+                    ? serverUser.tenantId
+                    : null;
                 userData = {
                   id: serverUser._id || serverUser.id || auth.userId,
-                  uniqueId: serverUser.uniqueId || (userData ? userData.uniqueId : ""),
+                  uniqueId:
+                    serverUser.uniqueId || (userData ? userData.uniqueId : ""),
                   name: serverUser.name || (userData ? userData.name : ""),
                   phone: serverUser.phone || "",
                   email: serverUser.email || "",
@@ -125,18 +136,32 @@ export function useAuthProvider() {
                   profileImage: serverUser.profileImage || undefined,
                   address: serverUser.address || "",
                   role: serverUser.role || auth.role || "contractor",
-                  workerCategory: serverUser.workerCategory || (userData ? userData.workerCategory : ""),
-                  dailyWage: serverUser.dailyWage !== undefined ? serverUser.dailyWage : (userData ? userData.dailyWage : undefined),
-                  contractorName: serverUser.contractorName || (userData ? userData.contractorName : ""),
-                  contractorCompany: serverUser.contractorCompany || (userData ? userData.contractorCompany : ""),
-                  connectionStatus: serverUser.connectionStatus || (userData ? userData.connectionStatus : "not_connected"),
+                  workerCategory:
+                    serverUser.workerCategory ||
+                    (userData ? userData.workerCategory : ""),
+                  dailyWage:
+                    serverUser.dailyWage !== undefined
+                      ? serverUser.dailyWage
+                      : userData
+                        ? userData.dailyWage
+                        : undefined,
+                  contractorName:
+                    serverUser.contractorName ||
+                    (userData ? userData.contractorName : ""),
+                  contractorCompany:
+                    serverUser.contractorCompany ||
+                    (userData ? userData.contractorCompany : ""),
+                  connectionStatus:
+                    serverUser.connectionStatus ||
+                    (userData ? userData.connectionStatus : "not_connected"),
                   isActive: true,
                   createdAt: serverUser.createdAt
                     ? new Date(serverUser.createdAt).getTime()
                     : Date.now(),
                   loginHistory: [Date.now()],
                   companyName: tenantObj?.name || serverUser.companyName || "",
-                  plan: tenantObj?.plan || serverUser.plan || auth.plan || "free",
+                  plan:
+                    tenantObj?.plan || serverUser.plan || auth.plan || "free",
                 };
                 await storage.updateUser(userData);
               }
@@ -156,7 +181,7 @@ export function useAuthProvider() {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  "Authorization": `Bearer ${auth.token}`,
+                  Authorization: `Bearer ${auth.token}`,
                 },
                 body: JSON.stringify({ pushToken }),
               }).catch(() => {});
@@ -180,8 +205,12 @@ export function useAuthProvider() {
 
       // 1. Try server login
       try {
-        const url = otp ? `${API_URL}/auth/verify-otp-login` : `${API_URL}/auth/login`;
-        const payload = otp ? { phone: phoneTrimmed, otp } : { phone: phoneTrimmed, password };
+        const url = otp
+          ? `${API_URL}/auth/verify-otp-login`
+          : `${API_URL}/auth/login`;
+        const payload = otp
+          ? { phone: phoneTrimmed, otp }
+          : { phone: phoneTrimmed, password };
         const deviceHeaders = await getDeviceHeaders().catch(() => ({}));
 
         const res = await fetch(url, {
@@ -283,7 +312,7 @@ export function useAuthProvider() {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  "Authorization": `Bearer ${data.token}`,
+                  Authorization: `Bearer ${data.token}`,
                 },
                 body: JSON.stringify({ pushToken }),
               }).catch(() => {});
@@ -301,7 +330,13 @@ export function useAuthProvider() {
       } catch (e: any) {
         console.warn("Backend login failed, attempting local fallback", e);
         // If it was an explicit server validation/auth error, propagate it directly
-        if (e && e.message && !e.message.includes("Network request failed") && !e.message.includes("Failed to fetch") && !e.message.includes("JSON Parse")) {
+        if (
+          e &&
+          e.message &&
+          !e.message.includes("Network request failed") &&
+          !e.message.includes("Failed to fetch") &&
+          !e.message.includes("JSON Parse")
+        ) {
           throw e;
         }
       }
@@ -312,7 +347,7 @@ export function useAuthProvider() {
         (u) =>
           u.phone === phoneTrimmed ||
           u.email?.toLowerCase() === phoneTrimmed.toLowerCase() ||
-          u.username?.toLowerCase() === phoneTrimmed.toLowerCase()
+          u.username?.toLowerCase() === phoneTrimmed.toLowerCase(),
       );
 
       if (userData && userData.isActive) {
@@ -323,7 +358,8 @@ export function useAuthProvider() {
 
         if (isMatched) {
           await storage.recordUserLogin(userData.id);
-          const uType = userData.role === "admin" ? ("admin" as const) : ("user" as const);
+          const uType =
+            userData.role === "admin" ? ("admin" as const) : ("user" as const);
           const authData: AuthData = {
             isLoggedIn: true,
             userId: userData.id,
@@ -461,7 +497,7 @@ export function useAuthProvider() {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  "Authorization": `Bearer ${data.token}`,
+                  Authorization: `Bearer ${data.token}`,
                 },
                 body: JSON.stringify({ pushToken }),
               }).catch(() => {});
@@ -630,7 +666,7 @@ export function useAuthProvider() {
       companyName?: string,
       role?: "contractor" | "builder",
       googleId?: string,
-      email?: string
+      email?: string,
     ): Promise<any> => {
       try {
         const deviceHeaders = await getDeviceHeaders().catch(() => ({}));
@@ -655,7 +691,8 @@ export function useAuthProvider() {
         if (!res.ok || !data || !data.success) {
           return {
             success: false,
-            message: data?.message || "Google Sign-In failed. Please try again.",
+            message:
+              data?.message || "Google Sign-In failed. Please try again.",
           };
         }
 
@@ -668,7 +705,8 @@ export function useAuthProvider() {
         }
 
         const uRole = data.user.role;
-        const uType = uRole === "admin" ? ("admin" as const) : ("user" as const);
+        const uType =
+          uRole === "admin" ? ("admin" as const) : ("user" as const);
 
         const authData: AuthData = {
           isLoggedIn: true,
@@ -724,7 +762,10 @@ export function useAuthProvider() {
         return { success: true };
       } catch (e: any) {
         console.warn("[loginWithGoogle Error]:", e);
-        return { success: false, message: "Unable to connect to server. Please try again." };
+        return {
+          success: false,
+          message: "Unable to connect to server. Please try again.",
+        };
       }
     },
     [],
@@ -766,11 +807,14 @@ export function useAuthProvider() {
         const profileData = await res.json();
         const serverUser = profileData.user;
         if (serverUser) {
-          const tenantObj = typeof serverUser.tenantId === "object" ? serverUser.tenantId : null;
+          const tenantObj =
+            typeof serverUser.tenantId === "object"
+              ? serverUser.tenantId
+              : null;
           const updatedUser: User = {
             id: serverUser._id || serverUser.id || auth.userId,
             uniqueId: serverUser.uniqueId || "",
-            name: serverUser.name || (user ? user.name : ""),
+            name: serverUser.name || "",
             phone: serverUser.phone || "",
             email: serverUser.email || "",
             username: serverUser.username || "",
@@ -788,23 +832,46 @@ export function useAuthProvider() {
             createdAt: serverUser.createdAt
               ? new Date(serverUser.createdAt).getTime()
               : Date.now(),
-            loginHistory: user ? user.loginHistory : [Date.now()],
+            loginHistory: [Date.now()],
             companyName: tenantObj?.name || serverUser.companyName || "",
             plan: tenantObj?.plan || serverUser.plan || auth.plan || "free",
           };
           await storage.updateUser(updatedUser);
-          setUser(updatedUser);
+          setUser((prev) => {
+            if (
+              prev &&
+              prev.id === updatedUser.id &&
+              prev.uniqueId === updatedUser.uniqueId &&
+              prev.name === updatedUser.name &&
+              prev.phone === updatedUser.phone &&
+              prev.role === updatedUser.role &&
+              prev.workerCategory === updatedUser.workerCategory &&
+              prev.dailyWage === updatedUser.dailyWage &&
+              prev.contractorName === updatedUser.contractorName &&
+              prev.contractorCompany === updatedUser.contractorCompany &&
+              prev.connectionStatus === updatedUser.connectionStatus &&
+              prev.companyName === updatedUser.companyName &&
+              prev.plan === updatedUser.plan
+            ) {
+              return prev;
+            }
+            return updatedUser;
+          });
         }
       }
     } catch (e) {
       console.warn("Failed to refresh user profile:", e);
     }
-  }, [user]);
+  }, []);
 
   const currentRole = user?.role || "contractor";
-  const isContractor = currentRole === "contractor" || currentRole === "builder" || userType === "admin";
+  const isContractor =
+    currentRole === "contractor" ||
+    currentRole === "builder" ||
+    userType === "admin";
   const isSupervisor = currentRole === "supervisor";
-  const isWorker = currentRole === "labor" || (currentRole as string) === "worker";
+  const isWorker =
+    currentRole === "labor" || (currentRole as string) === "worker";
 
   return {
     isLoggedIn,

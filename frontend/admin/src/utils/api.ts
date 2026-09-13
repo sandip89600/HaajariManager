@@ -1,16 +1,16 @@
-import axios from 'axios';
-import { useAuthStore } from '../stores/authStore';
+import axios from "axios";
+import { useAuthStore } from "../stores/authStore";
 
-const DEFAULT_API_URL = 'https://haajarimanager.onrender.com/api';
+const DEFAULT_API_URL = "https://haajarimanager.onrender.com/api";
 
 const getSanitizedApiUrl = () => {
   let url = (import.meta.env.VITE_API_URL || DEFAULT_API_URL).trim();
   // Remove trailing slashes
-  url = url.replace(/\/+$/, '');
+  url = url.replace(/\/+$/, "");
   // Prevent double /api/api if user specified /api/
-  if (url.endsWith('/api/api')) {
+  if (url.endsWith("/api/api")) {
     url = url.substring(0, url.length - 4);
-  } else if (!url.endsWith('/api')) {
+  } else if (!url.endsWith("/api")) {
     url = `${url}/api`;
   }
   return url;
@@ -21,7 +21,7 @@ const BASE_URL = getSanitizedApiUrl();
 export const api = axios.create({
   baseURL: BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -31,9 +31,9 @@ api.interceptors.request.use(
     let token = useAuthStore.getState().token;
 
     // Fallback: Read token directly from localStorage if store is initializing
-    if (!token && typeof window !== 'undefined') {
+    if (!token && typeof window !== "undefined") {
       try {
-        const stored = localStorage.getItem('haajari-admin-auth');
+        const stored = localStorage.getItem("haajari-admin-auth");
         if (stored) {
           const parsed = JSON.parse(stored);
           token = parsed?.state?.token || null;
@@ -48,7 +48,7 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 // Response interceptor to handle 401 Unauthorized token expiration & rotation
@@ -65,8 +65,11 @@ api.interceptors.response.use(
         const refreshToken = useAuthStore.getState().refreshToken;
         if (!refreshToken) {
           useAuthStore.getState().logout();
-          if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-            window.location.href = '/login';
+          if (
+            typeof window !== "undefined" &&
+            !window.location.pathname.includes("/login")
+          ) {
+            window.location.href = "/login";
           }
           return Promise.reject(error);
         }
@@ -76,7 +79,8 @@ api.interceptors.response.use(
           refreshToken,
         });
 
-        const { token: newAccessToken, refreshToken: newRefreshToken } = res.data;
+        const { token: newAccessToken, refreshToken: newRefreshToken } =
+          res.data;
 
         // Update store tokens
         useAuthStore.getState().setTokens(newAccessToken, newRefreshToken);
@@ -87,13 +91,16 @@ api.interceptors.response.use(
       } catch (refreshError) {
         // If refresh fails, clear auth state and redirect to Admin Login
         useAuthStore.getState().logout();
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
+        if (
+          typeof window !== "undefined" &&
+          !window.location.pathname.includes("/login")
+        ) {
+          window.location.href = "/login";
         }
         return Promise.reject(refreshError);
       }
     }
 
     return Promise.reject(error);
-  }
+  },
 );

@@ -49,12 +49,16 @@ export const startRazorpayWebCheckout = async ({
   try {
     const isLoaded = await loadRazorpayScript();
     if (!isLoaded) {
-      toast.error("Razorpay SDK failed to load. Please check your internet connection.");
+      toast.error(
+        "Razorpay SDK failed to load. Please check your internet connection.",
+      );
       return;
     }
 
-    const apiBaseUrl = import.meta.env.VITE_API_URL || "https://haajarimanager.onrender.com/api";
-    const razorpayKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_TSg4wZpi0xM7On";
+    const apiBaseUrl =
+      import.meta.env.VITE_API_URL || "https://haajarimanager.onrender.com/api";
+    const razorpayKeyId =
+      import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_TSg4wZpi0xM7On";
 
     const amountInPaise = Math.round(amount * 100);
 
@@ -71,7 +75,9 @@ export const startRazorpayWebCheckout = async ({
 
     const orderData = await orderRes.json();
     if (!orderRes.ok || !orderData.success) {
-      throw new Error(orderData.error || "Failed to create Razorpay payment order.");
+      throw new Error(
+        orderData.error || "Failed to create Razorpay payment order.",
+      );
     }
 
     const { order_id } = orderData;
@@ -100,7 +106,9 @@ export const startRazorpayWebCheckout = async ({
       handler: async function (response: any) {
         // STEP 3: BACKEND - Verify Signature
         try {
-          toast.loading("Verifying payment signature...", { id: "razorpay-verify" });
+          toast.loading("Verifying payment signature...", {
+            id: "razorpay-verify",
+          });
 
           const verifyRes = await fetch(`${apiBaseUrl}/verify-payment`, {
             method: "POST",
@@ -119,7 +127,9 @@ export const startRazorpayWebCheckout = async ({
             toast.success("Payment verified successfully! 🎉");
             if (onSuccess) onSuccess(verifyData);
           } else {
-            toast.error(verifyData.message || "Payment signature verification failed.");
+            toast.error(
+              verifyData.message || "Payment signature verification failed.",
+            );
             if (onFailure) onFailure(verifyData);
           }
         } catch (err: any) {

@@ -46,14 +46,20 @@ export default function SupervisorDashboardScreen() {
     unmarked: 0,
   });
 
+  const isFetchingRef = React.useRef(false);
+
   const loadSupervisorData = useCallback(async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       // 1. Fetch sites
       const sitesRes = await authenticatedFetch(`${API_URL}/sites`);
       let sitesList: any[] = [];
       if (sitesRes.ok) {
         const sitesData = await sitesRes.json();
-        sitesList = Array.isArray(sitesData) ? sitesData : sitesData.sites || [];
+        sitesList = Array.isArray(sitesData)
+          ? sitesData
+          : sitesData.sites || [];
         setAssignedSites(sitesList);
       }
 
@@ -70,14 +76,16 @@ export default function SupervisorDashboardScreen() {
       // 3. Fetch today's attendance
       const now = new Date();
       const attRes = await authenticatedFetch(
-        `${API_URL}/attendance/month?year=${now.getFullYear()}&month=${now.getMonth() + 1}`
+        `${API_URL}/attendance/month?year=${now.getFullYear()}&month=${now.getMonth() + 1}`,
       );
       if (attRes.ok) {
         const attData = await attRes.json();
         if (Array.isArray(attData)) {
           const today = now.getDate();
           const todayRecords = attData.filter((r: any) => r.day === today);
-          let p = 0, a = 0, h = 0;
+          let p = 0,
+            a = 0,
+            h = 0;
           for (const r of todayRecords) {
             if (r.value === "P" || r.value === "OT") p++;
             else if (r.value === "A") a++;
@@ -88,15 +96,14 @@ export default function SupervisorDashboardScreen() {
           setTodayAttendance({ present: p, absent: a, halfDay: h, unmarked });
         }
       }
-
-      await refreshUserProfile();
     } catch (error) {
       console.warn("Failed to load supervisor dashboard data:", error);
     } finally {
+      isFetchingRef.current = false;
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [refreshUserProfile]);
+  }, []);
 
   useEffect(() => {
     loadSupervisorData();
@@ -154,26 +161,48 @@ export default function SupervisorDashboardScreen() {
           </View>
           <Pressable
             onPress={() => navigation.navigate("Notifications")}
-            style={[styles.headerIconBtn, { backgroundColor: isDark ? "#334155" : "#F1F5F9" }]}
+            style={[
+              styles.headerIconBtn,
+              { backgroundColor: isDark ? "#334155" : "#F1F5F9" },
+            ]}
           >
             <Feather name="bell" size={20} color={theme.text} />
           </Pressable>
         </View>
 
         {/* Unique ID Badge */}
-        <View style={[styles.uniqueIdCard, { backgroundColor: isDark ? "#0F172A" : "#EFF6FF", borderColor: "#3B82F6" }]}>
+        <View
+          style={[
+            styles.uniqueIdCard,
+            {
+              backgroundColor: isDark ? "#0F172A" : "#EFF6FF",
+              borderColor: "#3B82F6",
+            },
+          ]}
+        >
           <View style={styles.uniqueIdLeft}>
-            <MaterialCommunityIcons name="shield-account" size={20} color="#3B82F6" />
+            <MaterialCommunityIcons
+              name="shield-account"
+              size={20}
+              color="#3B82F6"
+            />
             <View style={{ marginLeft: 8 }}>
-              <Text style={styles.uniqueIdLabel}>{t("auth.uniqueId", "Supervisor ID")}</Text>
-              <Text style={styles.uniqueIdValue}>{uniqueId || "HM-S-PENDING"}</Text>
+              <Text style={styles.uniqueIdLabel}>
+                {t("auth.uniqueId", "Supervisor ID")}
+              </Text>
+              <Text style={styles.uniqueIdValue}>
+                {uniqueId || "HM-S-PENDING"}
+              </Text>
             </View>
           </View>
           <View style={styles.uniqueIdActions}>
             <Pressable onPress={copyUniqueId} style={styles.idActionBtn}>
               <Feather name="copy" size={16} color="#3B82F6" />
             </Pressable>
-            <Pressable onPress={shareUniqueId} style={[styles.idActionBtn, { marginLeft: 8 }]}>
+            <Pressable
+              onPress={shareUniqueId}
+              style={[styles.idActionBtn, { marginLeft: 8 }]}
+            >
               <Feather name="share-2" size={16} color="#3B82F6" />
             </Pressable>
           </View>
@@ -181,8 +210,17 @@ export default function SupervisorDashboardScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + 80 },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primary}
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
         {/* Team Connection Widget */}
@@ -195,44 +233,72 @@ export default function SupervisorDashboardScreen() {
 
         <View style={styles.statsGrid}>
           {/* Sites Count */}
-          <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: borderCol }]}>
+          <View
+            style={[
+              styles.statBox,
+              { backgroundColor: cardBg, borderColor: borderCol },
+            ]}
+          >
             <View style={[styles.statIconBox, { backgroundColor: "#EEF2FF" }]}>
               <Feather name="layers" size={18} color="#4F46E5" />
             </View>
-            <Text style={[styles.statNum, { color: theme.text }]}>{assignedSites.length}</Text>
+            <Text style={[styles.statNum, { color: theme.text }]}>
+              {assignedSites.length}
+            </Text>
             <Text style={[styles.statLabel, { color: theme.textSecondary }]}>
               {t("supervisor.assignedSites", "Assigned Sites")}
             </Text>
           </View>
 
           {/* Workers Count */}
-          <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: borderCol }]}>
+          <View
+            style={[
+              styles.statBox,
+              { backgroundColor: cardBg, borderColor: borderCol },
+            ]}
+          >
             <View style={[styles.statIconBox, { backgroundColor: "#F0FDF4" }]}>
               <Feather name="users" size={18} color="#16A34A" />
             </View>
-            <Text style={[styles.statNum, { color: theme.text }]}>{assignedWorkers.length}</Text>
+            <Text style={[styles.statNum, { color: theme.text }]}>
+              {assignedWorkers.length}
+            </Text>
             <Text style={[styles.statLabel, { color: theme.textSecondary }]}>
               {t("supervisor.assignedWorkers", "Assigned Workers")}
             </Text>
           </View>
 
           {/* Present Today */}
-          <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: borderCol }]}>
+          <View
+            style={[
+              styles.statBox,
+              { backgroundColor: cardBg, borderColor: borderCol },
+            ]}
+          >
             <View style={[styles.statIconBox, { backgroundColor: "#ECFDF5" }]}>
               <Feather name="check-circle" size={18} color="#059669" />
             </View>
-            <Text style={[styles.statNum, { color: "#059669" }]}>{todayAttendance.present}</Text>
+            <Text style={[styles.statNum, { color: "#059669" }]}>
+              {todayAttendance.present}
+            </Text>
             <Text style={[styles.statLabel, { color: theme.textSecondary }]}>
               {t("attendance.present", "Present")}
             </Text>
           </View>
 
           {/* Absent Today */}
-          <View style={[styles.statBox, { backgroundColor: cardBg, borderColor: borderCol }]}>
+          <View
+            style={[
+              styles.statBox,
+              { backgroundColor: cardBg, borderColor: borderCol },
+            ]}
+          >
             <View style={[styles.statIconBox, { backgroundColor: "#FEF2F2" }]}>
               <Feather name="x-circle" size={18} color="#DC2626" />
             </View>
-            <Text style={[styles.statNum, { color: "#DC2626" }]}>{todayAttendance.absent}</Text>
+            <Text style={[styles.statNum, { color: "#DC2626" }]}>
+              {todayAttendance.absent}
+            </Text>
             <Text style={[styles.statLabel, { color: theme.textSecondary }]}>
               {t("attendance.absent", "Absent")}
             </Text>
@@ -241,50 +307,107 @@ export default function SupervisorDashboardScreen() {
 
         {/* Assigned Sites List Section */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: theme.text, marginBottom: 0 },
+            ]}
+          >
             {t("supervisor.myAssignedSites", "मेरी साइटें")}
           </Text>
-          <Text style={[styles.badgeCount, { backgroundColor: theme.primary, color: "#FFFFFF" }]}>
+          <Text
+            style={[
+              styles.badgeCount,
+              { backgroundColor: theme.primary, color: "#FFFFFF" },
+            ]}
+          >
             {assignedSites.length}
           </Text>
         </View>
 
         {isLoading ? (
-          <ActivityIndicator size="small" color={theme.primary} style={{ marginVertical: 20 }} />
+          <ActivityIndicator
+            size="small"
+            color={theme.primary}
+            style={{ marginVertical: 20 }}
+          />
         ) : assignedSites.length === 0 ? (
-          <View style={[styles.emptyBox, { backgroundColor: cardBg, borderColor: borderCol }]}>
+          <View
+            style={[
+              styles.emptyBox,
+              { backgroundColor: cardBg, borderColor: borderCol },
+            ]}
+          >
             <Feather name="inbox" size={32} color={theme.textSecondary} />
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-              {t("supervisor.noSitesAssignedDesc", "अभी आपके लिए कोई साइट असाइन नहीं की गई है।")}
+              {t(
+                "supervisor.noSitesAssignedDesc",
+                "अभी आपके लिए कोई साइट असाइन नहीं की गई है।",
+              )}
             </Text>
           </View>
         ) : (
           assignedSites.map((site: any) => (
             <Pressable
               key={site._id || site.id}
-              onPress={() => navigation.navigate("SiteDetailControl", { siteId: site._id || site.id })}
-              style={[styles.siteCard, { backgroundColor: cardBg, borderColor: borderCol }]}
+              onPress={() =>
+                navigation.navigate("SiteDetailControl", {
+                  siteId: site._id || site.id,
+                })
+              }
+              style={[
+                styles.siteCard,
+                { backgroundColor: cardBg, borderColor: borderCol },
+              ]}
             >
               <View style={styles.siteCardTop}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.siteName, { color: theme.text }]}>{site.name}</Text>
+                  <Text style={[styles.siteName, { color: theme.text }]}>
+                    {site.name}
+                  </Text>
                   {!!site.location && (
-                    <Text style={[styles.siteLocation, { color: theme.textSecondary }]}>
-                      <Feather name="map-pin" size={13} color={theme.textSecondary} /> {site.location}
+                    <Text
+                      style={[
+                        styles.siteLocation,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      <Feather
+                        name="map-pin"
+                        size={13}
+                        color={theme.textSecondary}
+                      />{" "}
+                      {site.location}
                     </Text>
                   )}
                 </View>
-                <View style={[styles.siteStatusPill, { backgroundColor: isDark ? "#334155" : "#F1F5F9" }]}>
-                  <Text style={[styles.siteStatusText, { color: theme.primary }]}>
-                    {t.translateSiteStatus ? t.translateSiteStatus(site.status) : site.status || "Active"}
+                <View
+                  style={[
+                    styles.siteStatusPill,
+                    { backgroundColor: isDark ? "#334155" : "#F1F5F9" },
+                  ]}
+                >
+                  <Text
+                    style={[styles.siteStatusText, { color: theme.primary }]}
+                  >
+                    {t.translateSiteStatus
+                      ? t.translateSiteStatus(site.status)
+                      : site.status || "Active"}
                   </Text>
                 </View>
               </View>
 
               <View style={styles.siteCardActions}>
                 <Pressable
-                  onPress={() => navigation.navigate("SiteDetailControl", { siteId: site._id || site.id })}
-                  style={[styles.siteActionBtn, { backgroundColor: theme.primary }]}
+                  onPress={() =>
+                    navigation.navigate("SiteDetailControl", {
+                      siteId: site._id || site.id,
+                    })
+                  }
+                  style={[
+                    styles.siteActionBtn,
+                    { backgroundColor: theme.primary },
+                  ]}
                 >
                   <Feather name="edit-3" size={14} color="#FFFFFF" />
                   <Text style={styles.siteActionBtnText}>

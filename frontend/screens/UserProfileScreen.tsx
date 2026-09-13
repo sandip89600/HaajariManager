@@ -89,21 +89,33 @@ export default function UserProfileScreen() {
     }
     setIsSendingPhoneOtp(true);
     try {
-      const res = await authenticatedFetch(`${API_URL}/auth/send-phone-verification-otp`, {
-        method: "POST",
-        body: JSON.stringify({ phone: user.phone }),
-      });
+      const res = await authenticatedFetch(
+        `${API_URL}/auth/send-phone-verification-otp`,
+        {
+          method: "POST",
+          body: JSON.stringify({ phone: user.phone }),
+        },
+      );
       const data = await res.json();
       if (res.ok) {
         setPhoneOtpCooldown(60);
         setShowPhoneVerifyModal(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("OTP Sent 📱", data.message || `Verification code sent to ${user.phone}.`);
+        Alert.alert(
+          "OTP Sent 📱",
+          data.message || `Verification code sent to ${user.phone}.`,
+        );
       } else {
-        Alert.alert("Notice", data.message || data.error || "Unable to send OTP.");
+        Alert.alert(
+          "Notice",
+          data.message || data.error || "Unable to send OTP.",
+        );
       }
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to send mobile verification code.");
+      Alert.alert(
+        "Error",
+        e.message || "Failed to send mobile verification code.",
+      );
     } finally {
       setIsSendingPhoneOtp(false);
     }
@@ -111,7 +123,10 @@ export default function UserProfileScreen() {
 
   const handleConfirmPhoneOtp = async () => {
     if (!phoneOtp || phoneOtp.trim().length < 6) {
-      Alert.alert("Invalid Code", "Please enter the complete 6-digit OTP code.");
+      Alert.alert(
+        "Invalid Code",
+        "Please enter the complete 6-digit OTP code.",
+      );
       return;
     }
     setIsVerifyingPhoneOtp(true);
@@ -130,9 +145,15 @@ export default function UserProfileScreen() {
         }
         setShowPhoneVerifyModal(false);
         setPhoneOtp("");
-        Alert.alert("Verified ✅", "Your mobile number has been verified successfully.");
+        Alert.alert(
+          "Verified ✅",
+          "Your mobile number has been verified successfully.",
+        );
       } else {
-        Alert.alert("Verification Failed", data.message || data.error || "Invalid OTP code.");
+        Alert.alert(
+          "Verification Failed",
+          data.message || data.error || "Invalid OTP code.",
+        );
       }
     } catch (e: any) {
       Alert.alert("Error", e.message || "Failed to verify OTP code.");
@@ -193,10 +214,14 @@ export default function UserProfileScreen() {
         const data = await res.json();
         const serverUser = data.user;
         if (serverUser) {
-          const tenantObj = typeof serverUser.tenantId === "object" ? serverUser.tenantId : null;
+          const tenantObj =
+            typeof serverUser.tenantId === "object"
+              ? serverUser.tenantId
+              : null;
           const freshUser: User = {
             id: serverUser._id || serverUser.id || authUser.id,
-            name: serverUser.name || (localUser ? localUser.name : authUser.name),
+            name:
+              serverUser.name || (localUser ? localUser.name : authUser.name),
             phone: serverUser.phone || authUser.phone || "",
             email: serverUser.email || "",
             username: serverUser.username || "",
@@ -211,7 +236,8 @@ export default function UserProfileScreen() {
               : Date.now(),
             companyName: tenantObj?.name || serverUser.companyName || "",
             plan: tenantObj?.plan || serverUser.plan || authUser.plan || "free",
-            loginHistory: serverUser.loginHistory || localUser?.loginHistory || [Date.now()],
+            loginHistory: serverUser.loginHistory ||
+              localUser?.loginHistory || [Date.now()],
           };
           setUser(freshUser);
           await storage.updateUser(freshUser);
@@ -514,7 +540,9 @@ export default function UserProfileScreen() {
       if (confirmed && user) {
         setIsUpdating(true);
         try {
-          alert("Account Deletion Scheduled: Your account data will be permanently deleted in 30 days.");
+          alert(
+            "Account Deletion Scheduled: Your account data will be permanently deleted in 30 days.",
+          );
           await storage.deleteUser(user.id);
           await logout();
         } catch (err: any) {
@@ -587,7 +615,10 @@ export default function UserProfileScreen() {
     if (user?.uniqueId) {
       await Clipboard.setStringAsync(user.uniqueId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(t("common.copied", "Copied"), `Unique ID ${user.uniqueId} copied to clipboard!`);
+      Alert.alert(
+        t("common.copied", "Copied"),
+        `Unique ID ${user.uniqueId} copied to clipboard!`,
+      );
     }
   };
 
@@ -618,7 +649,10 @@ export default function UserProfileScreen() {
       <ScrollView
         contentContainerStyle={{
           paddingHorizontal: Spacing.lg,
-          paddingTop: Math.max(insets.top + Spacing.lg, finalHeaderHeight > 0 ? finalHeaderHeight + 8 : 24),
+          paddingTop: Math.max(
+            insets.top + Spacing.lg,
+            finalHeaderHeight > 0 ? finalHeaderHeight + 8 : 24,
+          ),
           paddingBottom: insets.bottom + Spacing.xl,
         }}
         showsVerticalScrollIndicator={false}
@@ -663,13 +697,26 @@ export default function UserProfileScreen() {
                 marginRight: 10,
               }}
             >
-              <MaterialCommunityIcons name="card-account-details-outline" size={22} color="#2563EB" />
+              <MaterialCommunityIcons
+                name="card-account-details-outline"
+                size={22}
+                color="#2563EB"
+              />
             </View>
             <View>
-              <ThemedText style={{ fontSize: 11, fontWeight: "600", color: "#3B82F6" }}>
+              <ThemedText
+                style={{ fontSize: 11, fontWeight: "600", color: "#3B82F6" }}
+              >
                 {t("auth.uniqueId", "यूनिक आईडी (Unique ID)")}
               </ThemedText>
-              <ThemedText style={{ fontSize: 16, fontWeight: "800", letterSpacing: 1, color: isDark ? "#93C5FD" : "#1D4ED8" }}>
+              <ThemedText
+                style={{
+                  fontSize: 16,
+                  fontWeight: "800",
+                  letterSpacing: 1,
+                  color: isDark ? "#93C5FD" : "#1D4ED8",
+                }}
+              >
                 {user.uniqueId || "HM-PENDING"}
               </ThemedText>
             </View>
@@ -719,23 +766,40 @@ export default function UserProfileScreen() {
               <Feather name="phone" size={16} color={theme.textSecondary} />
             </View>
             <View style={styles.infoTextWrapper}>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>
                   {t.profile.mobile}
                 </ThemedText>
                 {user.isPhoneVerified ? (
                   <View style={styles.verifiedBadge}>
                     <Feather name="check-circle" size={11} color="#22C55E" />
-                    <ThemedText style={styles.verifiedBadgeText}>Verified</ThemedText>
+                    <ThemedText style={styles.verifiedBadgeText}>
+                      Verified
+                    </ThemedText>
                   </View>
                 ) : (
                   <View style={styles.unverifiedBadge}>
                     <Feather name="alert-triangle" size={11} color="#F59E0B" />
-                    <ThemedText style={styles.unverifiedBadgeText}>Not verified</ThemedText>
+                    <ThemedText style={styles.unverifiedBadgeText}>
+                      Not verified
+                    </ThemedText>
                   </View>
                 )}
               </View>
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginTop: 2,
+                }}
+              >
                 <ThemedText type="body" style={styles.infoValue}>
                   {user.phone}
                 </ThemedText>
@@ -749,7 +813,9 @@ export default function UserProfileScreen() {
                       <ActivityIndicator size="small" color="#FF6B35" />
                     ) : (
                       <ThemedText style={styles.verifyActionBtnText}>
-                        {phoneOtpCooldown > 0 ? `Enter OTP (${phoneOtpCooldown}s)` : "Verify Mobile"}
+                        {phoneOtpCooldown > 0
+                          ? `Enter OTP (${phoneOtpCooldown}s)`
+                          : "Verify Mobile"}
                       </ThemedText>
                     )}
                   </Pressable>
@@ -864,13 +930,31 @@ export default function UserProfileScreen() {
         </View>
 
         {/* ── DANGER ZONE (DELETE ACCOUNT) ── */}
-        <View style={{ marginTop: 28, paddingTop: 16, borderTopWidth: 1, borderTopColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)", marginBottom: 12 }}>
+        <View
+          style={{
+            marginTop: 28,
+            paddingTop: 16,
+            borderTopWidth: 1,
+            borderTopColor: isDark
+              ? "rgba(255,255,255,0.08)"
+              : "rgba(0,0,0,0.06)",
+            marginBottom: 12,
+          }}
+        >
           <Pressable
             onPress={handleDeleteAccount}
-            style={[styles.deleteButton, { borderColor: theme.error + "40", backgroundColor: theme.error + "0A" }]}
+            style={[
+              styles.deleteButton,
+              {
+                borderColor: theme.error + "40",
+                backgroundColor: theme.error + "0A",
+              },
+            ]}
           >
             <Feather name="trash-2" size={16} color={theme.error} />
-            <ThemedText style={[styles.deleteButtonText, { color: theme.error }]}>
+            <ThemedText
+              style={[styles.deleteButtonText, { color: theme.error }]}
+            >
               {t.profile.deleteAccountTitle}
             </ThemedText>
           </Pressable>
@@ -1318,7 +1402,7 @@ export default function UserProfileScreen() {
             >
               {Object.entries(languageNames)
                 .filter(([_, native]) =>
-                  native.toLowerCase().includes(langSearch.toLowerCase())
+                  native.toLowerCase().includes(langSearch.toLowerCase()),
                 )
                 .map(([code, native]) => (
                   <Pressable
@@ -1376,11 +1460,29 @@ export default function UserProfileScreen() {
             onPress={(e) => e.stopPropagation()}
           >
             <View style={{ alignItems: "center", marginBottom: Spacing.md }}>
-              <View style={[styles.infoIconWrapper, { width: 48, height: 48, borderRadius: 24, backgroundColor: "rgba(255, 107, 53, 0.1)", marginBottom: Spacing.sm }]}>
+              <View
+                style={[
+                  styles.infoIconWrapper,
+                  {
+                    width: 48,
+                    height: 48,
+                    borderRadius: 24,
+                    backgroundColor: "rgba(255, 107, 53, 0.1)",
+                    marginBottom: Spacing.sm,
+                  },
+                ]}
+              >
                 <Feather name="smartphone" size={24} color="#FF6B35" />
               </View>
               <ThemedText type="h3">Verify Mobile Number</ThemedText>
-              <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center", marginTop: 4 }}>
+              <ThemedText
+                type="small"
+                style={{
+                  color: theme.textSecondary,
+                  textAlign: "center",
+                  marginTop: 4,
+                }}
+              >
                 Enter the 6-digit verification code sent to {user?.phone}
               </ThemedText>
             </View>
@@ -1408,7 +1510,13 @@ export default function UserProfileScreen() {
               maxLength={6}
             />
 
-            <View style={{ flexDirection: "row", gap: Spacing.sm, marginBottom: Spacing.md }}>
+            <View
+              style={{
+                flexDirection: "row",
+                gap: Spacing.sm,
+                marginBottom: Spacing.md,
+              }}
+            >
               <Pressable
                 onPress={handleConfirmPhoneOtp}
                 disabled={isVerifyingPhoneOtp}
@@ -1417,22 +1525,41 @@ export default function UserProfileScreen() {
                 {isVerifyingPhoneOtp ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <ThemedText style={{ color: "#FFFFFF", fontWeight: "bold" }}>Confirm & Verify</ThemedText>
+                  <ThemedText style={{ color: "#FFFFFF", fontWeight: "bold" }}>
+                    Confirm & Verify
+                  </ThemedText>
                 )}
               </Pressable>
             </View>
 
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
               <Pressable
                 onPress={handleSendPhoneOtp}
                 disabled={phoneOtpCooldown > 0 || isSendingPhoneOtp}
               >
-                <ThemedText type="small" style={{ color: phoneOtpCooldown > 0 ? theme.textSecondary : "#FF6B35", fontWeight: "600" }}>
-                  {phoneOtpCooldown > 0 ? `Resend code in ${phoneOtpCooldown}s` : "Resend OTP"}
+                <ThemedText
+                  type="small"
+                  style={{
+                    color:
+                      phoneOtpCooldown > 0 ? theme.textSecondary : "#FF6B35",
+                    fontWeight: "600",
+                  }}
+                >
+                  {phoneOtpCooldown > 0
+                    ? `Resend code in ${phoneOtpCooldown}s`
+                    : "Resend OTP"}
                 </ThemedText>
               </Pressable>
               <Pressable onPress={() => setShowPhoneVerifyModal(false)}>
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>Cancel</ThemedText>
+                <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                  Cancel
+                </ThemedText>
               </Pressable>
             </View>
           </Pressable>

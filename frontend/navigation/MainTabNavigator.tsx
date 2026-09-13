@@ -74,7 +74,11 @@ export type RootStackParamList = {
   SiteDetails: { siteId: string };
   EnterpriseCollaboration: undefined;
   Subscription: undefined;
-  PaymentStatus: { status: "success" | "failed" | "pending"; planName?: string; transactionId?: string };
+  PaymentStatus: {
+    status: "success" | "failed" | "pending";
+    planName?: string;
+    transactionId?: string;
+  };
   BillingHistory: undefined;
   PaymentHandoverMenu: undefined;
   SecureAccount: { deviceInfo?: any } | undefined;
@@ -104,8 +108,8 @@ function AttendanceNavigator() {
   const DashboardComponent = isWorker
     ? WorkerDashboardScreen
     : isSupervisor
-    ? SupervisorDashboardScreen
-    : DashboardScreen;
+      ? SupervisorDashboardScreen
+      : DashboardScreen;
 
   return (
     <AttendanceStack.Navigator
@@ -155,11 +159,13 @@ function MainTabs() {
   const isDashboardVisible = isModuleVisible("dashboard");
   const isSiteControlVisible = !isWorker && isModuleVisible("siteControl");
   const isReportsVisible = isModuleVisible("reports");
-  const isWorkersVisible = !isWorker && !isSupervisor && isModuleVisible("workers");
+  const isWorkersVisible =
+    !isWorker && !isSupervisor && isModuleVisible("workers");
   const isSettingsVisible = isModuleVisible("settings");
 
   const tabBarStyle = {
-    backgroundColor: Platform.OS === "ios" ? "transparent" : theme.backgroundSecondary,
+    backgroundColor:
+      Platform.OS === "ios" ? "transparent" : theme.backgroundSecondary,
     borderTopColor: theme.border,
     borderTopWidth: 1,
     height: Platform.OS === "ios" ? 85 : 65,
@@ -195,8 +201,8 @@ function MainTabs() {
           title: isWorker
             ? t("roles.worker", "डैशबोर्ड")
             : isSupervisor
-            ? t("roles.supervisor", "डैशबोर्ड")
-            : t.tabs?.dashboard || "Dashboard",
+              ? t("roles.supervisor", "डैशबोर्ड")
+              : t.tabs?.dashboard || "Dashboard",
           headerShown: false,
           tabBarItemStyle: isDashboardVisible ? undefined : { display: "none" },
           tabBarIcon: ({ color, size }) => (
@@ -212,7 +218,9 @@ function MainTabs() {
             ? t("supervisor.assignedSites", "मेरी साइट्स")
             : t.tabs?.siteControl || "Site Control",
           headerShown: false,
-          tabBarItemStyle: isSiteControlVisible ? undefined : { display: "none" },
+          tabBarItemStyle: isSiteControlVisible
+            ? undefined
+            : { display: "none" },
           tabBarIcon: ({ color, size }) => (
             <Feather name="layers" size={size} color={color} />
           ),
@@ -263,7 +271,8 @@ function MainTabs() {
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
-  const { newDeviceAlert, clearNewDeviceAlert, setNewDeviceAlert, userId } = useAuth();
+  const { newDeviceAlert, clearNewDeviceAlert, setNewDeviceAlert, userId } =
+    useAuth();
   const { socket } = useSocket();
 
   React.useEffect(() => {
@@ -290,216 +299,215 @@ export default function MainTabNavigator() {
           ...getCommonScreenOptions({ theme, isDark }),
         }}
       >
-      <Stack.Screen
-        name="MainTabs"
-        component={MainTabs}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="AddWorker"
-        component={AddWorkerScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="ProjectManagement"
-        component={SiteControlDashboardScreen}
-        options={{
-          headerTitle: "Site Management",
-        }}
-      />
-      <Stack.Screen
-        name="SupervisorManagement"
-        component={SupervisorManagementScreen}
-        options={{
-          headerTitle: "Supervisor Management",
-        }}
-      />
-      <Stack.Screen
-        name="UserProfile"
-        component={UserProfileScreen}
-        options={{
-          headerTitle: "My Profile",
-        }}
-      />
-      <Stack.Screen
-        name="Support"
-        component={SupportScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="PrivacySettings"
-        component={PrivacySettingsScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="DeviceManagement"
-        component={DeviceManagementScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="SiteManagement"
-        component={SiteControlDashboardScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="SiteDetailControl"
-        component={SiteDetailControlScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="SiteList"
-        component={SiteListScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="CreateSite"
-        component={CreateSiteScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="EditSite"
-        component={EditSiteScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="SiteDetails"
-        component={SiteDetailsScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="EnterpriseCollaboration"
-        component={EnterpriseCollaborationScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="Subscription"
-        component={SubscriptionScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="PaymentStatus"
-        component={PaymentStatusScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="BillingHistory"
-        component={BillingHistoryScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="PaymentHandoverMenu"
-        component={PaymentHandoverMenuScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="SecureAccount"
-        component={SecureAccountScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="Notifications"
-        component={NotificationScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      
-      {/* Fallback stack screen mappings */}
-      <Stack.Screen
-        name="Dashboard"
-        component={DashboardScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="AttendanceDetail"
-        component={AttendanceScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="Workers"
-        component={WorkersScreen}
-        options={{
-          headerTitle: t.workers.title,
-        }}
-      />
-      <Stack.Screen
-        name="Summary"
-        component={SummaryScreen}
-        options={{
-          headerTitle: t.summary.title,
-        }}
-      />
-      {/* Fallback tab alias screen mappings */}
-      <Stack.Screen
-        name="AttendanceTab"
-        component={DashboardScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="WorkersTab"
-        component={WorkersScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="SettingsTab"
-        component={SettingsScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="SiteManagementTab"
-        component={SiteControlDashboardScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="ReportsTab"
-        component={SummaryScreen}
-        options={{ headerShown: false }}
-      />
-    </Stack.Navigator>
-    {newDeviceAlert && (
-      <SecurityAlertModal
-        visible={!!newDeviceAlert}
-        deviceInfo={newDeviceAlert}
-        onDismiss={clearNewDeviceAlert}
-      />
-    )}
+        <Stack.Screen
+          name="MainTabs"
+          component={MainTabs}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="AddWorker"
+          component={AddWorkerScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="ProjectManagement"
+          component={SiteControlDashboardScreen}
+          options={{
+            headerTitle: "Site Management",
+          }}
+        />
+        <Stack.Screen
+          name="SupervisorManagement"
+          component={SupervisorManagementScreen}
+          options={{
+            headerTitle: "Supervisor Management",
+          }}
+        />
+        <Stack.Screen
+          name="UserProfile"
+          component={UserProfileScreen}
+          options={{
+            headerTitle: "My Profile",
+          }}
+        />
+        <Stack.Screen
+          name="Support"
+          component={SupportScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="PrivacySettings"
+          component={PrivacySettingsScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="DeviceManagement"
+          component={DeviceManagementScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="SiteManagement"
+          component={SiteControlDashboardScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="SiteDetailControl"
+          component={SiteDetailControlScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="SiteList"
+          component={SiteListScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="CreateSite"
+          component={CreateSiteScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="EditSite"
+          component={EditSiteScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="SiteDetails"
+          component={SiteDetailsScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="EnterpriseCollaboration"
+          component={EnterpriseCollaborationScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="Subscription"
+          component={SubscriptionScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="PaymentStatus"
+          component={PaymentStatusScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="BillingHistory"
+          component={BillingHistoryScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="PaymentHandoverMenu"
+          component={PaymentHandoverMenuScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="SecureAccount"
+          component={SecureAccountScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="Notifications"
+          component={NotificationScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        {/* Fallback stack screen mappings */}
+        <Stack.Screen
+          name="Dashboard"
+          component={DashboardScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="AttendanceDetail"
+          component={AttendanceScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="Workers"
+          component={WorkersScreen}
+          options={{
+            headerTitle: t.workers.title,
+          }}
+        />
+        <Stack.Screen
+          name="Summary"
+          component={SummaryScreen}
+          options={{
+            headerTitle: t.summary.title,
+          }}
+        />
+        {/* Fallback tab alias screen mappings */}
+        <Stack.Screen
+          name="AttendanceTab"
+          component={DashboardScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="WorkersTab"
+          component={WorkersScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="SettingsTab"
+          component={SettingsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="SiteManagementTab"
+          component={SiteControlDashboardScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ReportsTab"
+          component={SummaryScreen}
+          options={{ headerShown: false }}
+        />
+      </Stack.Navigator>
+      {newDeviceAlert && (
+        <SecurityAlertModal
+          visible={!!newDeviceAlert}
+          deviceInfo={newDeviceAlert}
+          onDismiss={clearNewDeviceAlert}
+        />
+      )}
     </>
   );
 }
-

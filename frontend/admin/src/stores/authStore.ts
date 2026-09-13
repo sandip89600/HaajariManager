@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 export interface User {
   id: string;
@@ -48,8 +48,8 @@ export const useAuthStore = create<AuthState>()(
         }),
     }),
     {
-      name: 'haajari-admin-auth',
+      name: "haajari-admin-auth",
       storage: createJSONStorage(() => localStorage),
-    }
-  )
+    },
+  ),
 );

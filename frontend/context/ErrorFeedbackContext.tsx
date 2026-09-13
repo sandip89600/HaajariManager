@@ -1,4 +1,9 @@
-import React, { createContext, useContext, useState, PropsWithChildren } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  PropsWithChildren,
+} from "react";
 import {
   GlobalErrorFeedbackModal,
   ErrorReportConfig,
@@ -15,7 +20,9 @@ const ErrorFeedbackContext = createContext<ErrorFeedbackContextType>({
 });
 
 export function ErrorFeedbackProvider({ children }: PropsWithChildren) {
-  const [modalConfig, setModalConfig] = useState<ErrorReportConfig | null>(null);
+  const [modalConfig, setModalConfig] = useState<ErrorReportConfig | null>(
+    null,
+  );
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   const reportError = (config: ErrorReportConfig) => {

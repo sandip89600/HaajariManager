@@ -151,7 +151,10 @@ export default function DeviceManagementScreen() {
                 },
               );
               if (res.ok) {
-                Alert.alert("Success", "All other devices have been logged out.");
+                Alert.alert(
+                  "Success",
+                  "All other devices have been logged out.",
+                );
                 loadSessions();
               } else {
                 Alert.alert("Error", "Failed to logout other devices.");
@@ -184,8 +187,12 @@ export default function DeviceManagementScreen() {
   // Filter out revoked devices
   const activeDevices = trustedDevices.filter((d) => !d.isRevoked);
 
-  const currentDevice = activeDevices.find((d) => d.deviceId === currentDeviceId) || activeDevices[0];
-  const otherDevices = activeDevices.filter((d) => d.deviceId !== currentDevice?.deviceId);
+  const currentDevice =
+    activeDevices.find((d) => d.deviceId === currentDeviceId) ||
+    activeDevices[0];
+  const otherDevices = activeDevices.filter(
+    (d) => d.deviceId !== currentDevice?.deviceId,
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
@@ -220,7 +227,10 @@ export default function DeviceManagementScreen() {
         {/* CURRENT DEVICE SECTION */}
         {currentDevice && (
           <View style={styles.section}>
-            <ThemedText type="h4" style={[styles.sectionTitle, { marginBottom: Spacing.sm }]}>
+            <ThemedText
+              type="h4"
+              style={[styles.sectionTitle, { marginBottom: Spacing.sm }]}
+            >
               Current Device
             </ThemedText>
             <View
@@ -246,12 +256,16 @@ export default function DeviceManagementScreen() {
                 />
               </View>
               <View style={styles.deviceInfo}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
                   <ThemedText style={{ fontWeight: "700", fontSize: 16 }}>
                     {currentDevice.deviceName}
                   </ThemedText>
                   <View style={styles.thisDeviceBadge}>
-                    <ThemedText style={styles.thisDeviceBadgeText}>THIS DEVICE</ThemedText>
+                    <ThemedText style={styles.thisDeviceBadgeText}>
+                      THIS DEVICE
+                    </ThemedText>
                   </View>
                 </View>
 
@@ -259,7 +273,8 @@ export default function DeviceManagementScreen() {
                   type="small"
                   style={{ color: theme.textSecondary, marginTop: 2 }}
                 >
-                  {currentDevice.deviceOs || "Mobile"} | {currentDevice.deviceBrowser || "Haajari App"}
+                  {currentDevice.deviceOs || "Mobile"} |{" "}
+                  {currentDevice.deviceBrowser || "Haajari App"}
                 </ThemedText>
 
                 <ThemedText
@@ -314,8 +329,19 @@ export default function DeviceManagementScreen() {
                 },
               ]}
             >
-              <Feather name="shield" size={28} color="#10B981" style={{ marginBottom: 6 }} />
-              <ThemedText style={{ color: theme.textSecondary, fontSize: 13, textAlign: "center" }}>
+              <Feather
+                name="shield"
+                size={28}
+                color="#10B981"
+                style={{ marginBottom: 6 }}
+              />
+              <ThemedText
+                style={{
+                  color: theme.textSecondary,
+                  fontSize: 13,
+                  textAlign: "center",
+                }}
+              >
                 No other devices are currently signed in.
               </ThemedText>
             </View>
@@ -352,7 +378,8 @@ export default function DeviceManagementScreen() {
                     type="small"
                     style={{ color: theme.textSecondary, marginTop: 2 }}
                   >
-                    {device.deviceOs || "Unknown OS"} | {device.deviceBrowser || "Browser"}
+                    {device.deviceOs || "Unknown OS"} |{" "}
+                    {device.deviceBrowser || "Browser"}
                   </ThemedText>
                   <ThemedText
                     type="small"
@@ -360,27 +387,44 @@ export default function DeviceManagementScreen() {
                   >
                     📍 {device.location || "Location unavailable"}
                   </ThemedText>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                      marginTop: 4,
+                    }}
+                  >
                     <ThemedText
                       type="small"
                       style={{ color: theme.textSecondary }}
                     >
-                      Last active: {new Date(device.lastActiveAt).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
+                      Last active:{" "}
+                      {new Date(device.lastActiveAt).toLocaleString("en-IN", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}
                     </ThemedText>
                     {device.trusted ? (
                       <View style={styles.trustedBadge}>
                         <Feather name="check" size={10} color="#10B981" />
-                        <ThemedText style={styles.trustedBadgeText}>Trusted</ThemedText>
+                        <ThemedText style={styles.trustedBadgeText}>
+                          Trusted
+                        </ThemedText>
                       </View>
                     ) : (
                       <View style={styles.untrustedBadge}>
-                        <ThemedText style={styles.untrustedBadgeText}>Unverified</ThemedText>
+                        <ThemedText style={styles.untrustedBadgeText}>
+                          Unverified
+                        </ThemedText>
                       </View>
                     )}
                   </View>
                 </View>
                 <Pressable
-                  onPress={() => handleLogoutDevice(device.deviceId, device.deviceName)}
+                  onPress={() =>
+                    handleLogoutDevice(device.deviceId, device.deviceName)
+                  }
                   style={[
                     styles.revokeBtn,
                     { backgroundColor: theme.error + "15" },
@@ -413,7 +457,9 @@ export default function DeviceManagementScreen() {
           >
             {securityEvents.length === 0 ? (
               <View style={{ padding: Spacing.lg, alignItems: "center" }}>
-                <ThemedText style={{ color: theme.textSecondary, fontSize: 13 }}>
+                <ThemedText
+                  style={{ color: theme.textSecondary, fontSize: 13 }}
+                >
                   No security alerts recorded yet.
                 </ThemedText>
               </View>
@@ -433,8 +479,8 @@ export default function DeviceManagementScreen() {
                               backgroundColor: isSuspicious
                                 ? "#EF4444"
                                 : isConfirmed
-                                ? "#10B981"
-                                : theme.primary,
+                                  ? "#10B981"
+                                  : theme.primary,
                             },
                           ]}
                         />
@@ -448,36 +494,64 @@ export default function DeviceManagementScreen() {
                         )}
                       </View>
                       <View style={styles.historyContent}>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                          <ThemedText style={{ fontWeight: "700", fontSize: 14 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <ThemedText
+                            style={{ fontWeight: "700", fontSize: 14 }}
+                          >
                             {evt.eventType === "NEW_DEVICE_LOGIN"
                               ? "🔐 New Login Detected"
                               : evt.eventType === "TRUST_DEVICE"
-                              ? "✅ Device Trusted"
-                              : evt.eventType === "SECURITY_ALERT"
-                              ? "⚠️ Security Alert"
-                              : evt.eventType}
+                                ? "✅ Device Trusted"
+                                : evt.eventType === "SECURITY_ALERT"
+                                  ? "⚠️ Security Alert"
+                                  : evt.eventType}
                           </ThemedText>
-                          <ThemedText type="small" style={{ color: theme.textSecondary, fontSize: 11 }}>
-                            {new Date(evt.timestamp).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
+                          <ThemedText
+                            type="small"
+                            style={{ color: theme.textSecondary, fontSize: 11 }}
+                          >
+                            {new Date(evt.timestamp).toLocaleString("en-IN", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })}
                           </ThemedText>
                         </View>
 
-                        <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
-                          {evt.deviceName || "Device"} ({evt.platform || "Platform"}) &bull; 📍 {evt.approximateLocation || "Location unavailable"}
+                        <ThemedText
+                          type="small"
+                          style={{ color: theme.textSecondary, marginTop: 2 }}
+                        >
+                          {evt.deviceName || "Device"} (
+                          {evt.platform || "Platform"}) &bull; 📍{" "}
+                          {evt.approximateLocation || "Location unavailable"}
                         </ThemedText>
 
                         <View style={{ marginTop: 4 }}>
                           {isConfirmed ? (
-                            <ThemedText type="small" style={{ color: "#10B981", fontWeight: "700" }}>
+                            <ThemedText
+                              type="small"
+                              style={{ color: "#10B981", fontWeight: "700" }}
+                            >
                               Status: Confirmed by you
                             </ThemedText>
                           ) : isSuspicious ? (
-                            <ThemedText type="small" style={{ color: "#EF4444", fontWeight: "700" }}>
+                            <ThemedText
+                              type="small"
+                              style={{ color: "#EF4444", fontWeight: "700" }}
+                            >
                               Status: Marked as suspicious
                             </ThemedText>
                           ) : (
-                            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                            <ThemedText
+                              type="small"
+                              style={{ color: theme.textSecondary }}
+                            >
                               Status: Unverified new login
                             </ThemedText>
                           )}
@@ -485,7 +559,12 @@ export default function DeviceManagementScreen() {
                       </View>
                     </View>
                     {idx < Math.min(securityEvents.length, 15) - 1 && (
-                      <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                      <View
+                        style={[
+                          styles.divider,
+                          { backgroundColor: theme.border },
+                        ]}
+                      />
                     )}
                   </View>
                 );

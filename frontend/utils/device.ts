@@ -8,7 +8,9 @@ export async function getOrCreateDeviceId(): Promise<string> {
   try {
     // 1. Try SecureStore
     if (Platform.OS !== "web") {
-      let storedId = await SecureStore.getItemAsync(DEVICE_ID_KEY).catch(() => null);
+      let storedId = await SecureStore.getItemAsync(DEVICE_ID_KEY).catch(
+        () => null,
+      );
       if (storedId) return storedId;
     }
 
@@ -23,12 +25,14 @@ export async function getOrCreateDeviceId(): Promise<string> {
 
     // 3. Generate new persistent ID
     const randomHex = Array.from({ length: 16 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
+      Math.floor(Math.random() * 16).toString(16),
     ).join("");
     const newDeviceId = `dev_${randomHex}`;
 
     if (Platform.OS !== "web") {
-      await SecureStore.setItemAsync(DEVICE_ID_KEY, newDeviceId).catch(() => {});
+      await SecureStore.setItemAsync(DEVICE_ID_KEY, newDeviceId).catch(
+        () => {},
+      );
     }
     await AsyncStorage.setItem(DEVICE_ID_KEY, newDeviceId).catch(() => {});
 
@@ -39,8 +43,18 @@ export async function getOrCreateDeviceId(): Promise<string> {
 }
 
 export function getDeviceDetails() {
-  const platform = Platform.OS === "ios" ? "iOS" : Platform.OS === "android" ? "Android" : "Web";
-  let deviceName = Platform.OS === "ios" ? "iPhone" : Platform.OS === "android" ? "Android Device" : "Web Browser";
+  const platform =
+    Platform.OS === "ios"
+      ? "iOS"
+      : Platform.OS === "android"
+        ? "Android"
+        : "Web";
+  let deviceName =
+    Platform.OS === "ios"
+      ? "iPhone"
+      : Platform.OS === "android"
+        ? "Android Device"
+        : "Web Browser";
   let browser = Platform.OS === "web" ? "Web Browser" : "Haajari Mobile App";
 
   return {

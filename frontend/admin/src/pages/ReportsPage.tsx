@@ -1,44 +1,56 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { FileSpreadsheet, Download, FileText, CheckCircle, Search, Calendar, RefreshCw } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { api } from '../utils/api';
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  FileSpreadsheet,
+  Download,
+  FileText,
+  CheckCircle,
+  Search,
+  Calendar,
+  RefreshCw,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import { api } from "../utils/api";
 
 interface SystemReport {
   _id: string;
   name: string;
-  type: 'PDF' | 'Excel';
+  type: "PDF" | "Excel";
   size: string;
   generatedAt: string;
   downloadUrl: string;
 }
 
 export default function ReportsPage() {
-  const [reportType, setReportType] = useState('attendance');
-  const [dateRange, setDateRange] = useState('7days');
+  const [reportType, setReportType] = useState("attendance");
+  const [dateRange, setDateRange] = useState("7days");
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Fetch reports list
-  const { data: reports = [], refetch, isFetching } = useQuery<SystemReport[]>({
-    queryKey: ['systemReports'],
+  const {
+    data: reports = [],
+    refetch,
+    isFetching,
+  } = useQuery<SystemReport[]>({
+    queryKey: ["systemReports"],
     queryFn: async () => {
-      const res = await api.get('/admin/reports');
+      const res = await api.get("/admin/reports");
       return res.data;
-    }
+    },
   });
 
   const handleGenerateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsGenerating(true);
     try {
-      await api.post('/admin/reports/generate', {
+      await api.post("/admin/reports/generate", {
         type: reportType,
-        range: dateRange
+        range: dateRange,
       });
-      toast.success('Report generated successfully!');
+      toast.success("Report generated successfully!");
       refetch();
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to generate report');
+      toast.error(err.response?.data?.error || "Failed to generate report");
     } finally {
       setIsGenerating(false);
     }
@@ -49,17 +61,22 @@ export default function ReportsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-extrabold text-white">System Reports</h1>
-          <p className="text-slate-400 text-sm mt-1">Export executive PDF summaries and raw Excel attendance and payroll data sheets</p>
+          <p className="text-slate-400 text-sm mt-1">
+            Export executive PDF summaries and raw Excel attendance and payroll
+            data sheets
+          </p>
         </div>
         <button
           onClick={() => {
             refetch();
-            toast.success('Reports list refreshed');
+            toast.success("Reports list refreshed");
           }}
           disabled={isFetching}
           className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-850 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
         >
-          <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isFetching ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`w-3.5 h-3.5 text-orange-400 ${isFetching ? "animate-spin" : ""}`}
+          />
           <span>Refresh</span>
         </button>
       </div>
@@ -73,7 +90,9 @@ export default function ReportsPage() {
           </h3>
           <form onSubmit={handleGenerateReport} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-400">Report Category</label>
+              <label className="text-xs font-semibold text-slate-400">
+                Report Category
+              </label>
               <select
                 value={reportType}
                 onChange={(e) => setReportType(e.target.value)}
@@ -87,7 +106,9 @@ export default function ReportsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-400">Time Range</label>
+              <label className="text-xs font-semibold text-slate-400">
+                Time Range
+              </label>
               <select
                 value={dateRange}
                 onChange={(e) => setDateRange(e.target.value)}
@@ -105,28 +126,43 @@ export default function ReportsPage() {
               disabled={isGenerating}
               className="w-full premium-btn-primary py-2.5 flex items-center justify-center gap-2 text-xs font-bold"
             >
-              {isGenerating ? 'Compiling Report...' : 'Compile Audit Report'}
+              {isGenerating ? "Compiling Report..." : "Compile Audit Report"}
             </button>
           </form>
         </div>
 
         {/* List of generated reports */}
         <div className="lg:col-span-2 glass-card p-6 rounded-2xl border border-slate-850 space-y-4">
-          <h3 className="text-lg font-bold text-white">Download Generated Archives</h3>
+          <h3 className="text-lg font-bold text-white">
+            Download Generated Archives
+          </h3>
           <div className="divide-y divide-slate-850/40">
             {reports.map((report) => (
-              <div key={report._id} className="py-4 flex items-center justify-between gap-4">
+              <div
+                key={report._id}
+                className="py-4 flex items-center justify-between gap-4"
+              >
                 <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl border ${
-                    report.type === 'PDF' 
-                      ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' 
-                      : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
-                  }`}>
-                    {report.type === 'PDF' ? <FileText className="w-5 h-5" /> : <FileSpreadsheet className="w-5 h-5" />}
+                  <div
+                    className={`p-2.5 rounded-xl border ${
+                      report.type === "PDF"
+                        ? "bg-rose-500/10 border-rose-500/20 text-rose-500"
+                        : "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
+                    }`}
+                  >
+                    {report.type === "PDF" ? (
+                      <FileText className="w-5 h-5" />
+                    ) : (
+                      <FileSpreadsheet className="w-5 h-5" />
+                    )}
                   </div>
                   <div>
-                    <span className="block font-bold text-white text-sm">{report.name}</span>
-                    <span className="block text-[11px] text-slate-500 font-semibold">{report.size} &bull; Generated {report.generatedAt}</span>
+                    <span className="block font-bold text-white text-sm">
+                      {report.name}
+                    </span>
+                    <span className="block text-[11px] text-slate-500 font-semibold">
+                      {report.size} &bull; Generated {report.generatedAt}
+                    </span>
                   </div>
                 </div>
 

@@ -19,9 +19,22 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Spacing } from "@/constants/theme";
-import { storage, Project, Worker, authenticatedFetch, API_URL } from "@/utils/storage";
+import {
+  storage,
+  Project,
+  Worker,
+  authenticatedFetch,
+  API_URL,
+} from "@/utils/storage";
 
-type ActiveTab = "overview" | "workers" | "materials" | "expenses" | "reports" | "analytics" | "photos";
+type ActiveTab =
+  | "overview"
+  | "workers"
+  | "materials"
+  | "expenses"
+  | "reports"
+  | "analytics"
+  | "photos";
 
 export default function SiteDetailControlScreen() {
   const { theme } = useTheme();
@@ -32,7 +45,9 @@ export default function SiteDetailControlScreen() {
 
   const [site, setSite] = useState<Project | null>(null);
   const [allWorkers, setAllWorkers] = useState<Worker[]>([]);
-  const [activeTab, setActiveTab] = useState<ActiveTab>(route.params?.initialTab || "overview");
+  const [activeTab, setActiveTab] = useState<ActiveTab>(
+    route.params?.initialTab || "overview",
+  );
   const [isLoading, setIsLoading] = useState(false);
 
   // Detail Data States from API/Cache
@@ -51,12 +66,15 @@ export default function SiteDetailControlScreen() {
   // Worker skills filter
   const [skillFilter, setSkillFilter] = useState<string>("all");
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [selectedWorkerForTransfer, setSelectedWorkerForTransfer] = useState<Worker | null>(null);
+  const [selectedWorkerForTransfer, setSelectedWorkerForTransfer] =
+    useState<Worker | null>(null);
   const [allSitesForTransfer, setAllSitesForTransfer] = useState<Project[]>([]);
 
   // Expense form states
   const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [expType, setExpType] = useState<"material" | "machinery" | "labour" | "vendor" | "other">("material");
+  const [expType, setExpType] = useState<
+    "material" | "machinery" | "labour" | "vendor" | "other"
+  >("material");
   const [expAmount, setExpAmount] = useState("");
   const [expVendor, setExpVendor] = useState("");
   const [expDesc, setExpDesc] = useState("");
@@ -66,9 +84,19 @@ export default function SiteDetailControlScreen() {
   const [photos, setPhotos] = useState<any[]>([]);
   const [searchMaterial, setSearchMaterial] = useState("");
   const [showMaterialModal, setShowMaterialModal] = useState(false);
-  const [materialForm, setMaterialForm] = useState({ name: "", unit: "bags", required: "0", minThreshold: "0", id: "" });
+  const [materialForm, setMaterialForm] = useState({
+    name: "",
+    unit: "bags",
+    required: "0",
+    minThreshold: "0",
+    id: "",
+  });
   const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [photoForm, setPhotoForm] = useState({ workerId: "", type: "before", uri: "" });
+  const [photoForm, setPhotoForm] = useState({
+    workerId: "",
+    type: "before",
+    uri: "",
+  });
   const [materialHistoryModal, setMaterialHistoryModal] = useState(false);
   const [materialHistory, setMaterialHistory] = useState<any[]>([]);
   const [showAssignWorkerModal, setShowAssignWorkerModal] = useState(false);
@@ -84,10 +112,30 @@ export default function SiteDetailControlScreen() {
 
   // Documents Local Mock state
   const [documents, setDocuments] = useState([
-    { id: "doc-1", name: "Agreement_Contract_Signed.pdf", type: "Agreement", date: "2026-06-10" },
-    { id: "doc-2", name: "Structural_Drawings_Slab.dwg", type: "Drawings", date: "2026-06-15" },
-    { id: "doc-3", name: "BOQ_Quantities_Final.xlsx", type: "BOQ", date: "2026-06-20" },
-    { id: "doc-4", name: "Cement_Invoice_UltraTech.pdf", type: "Invoices", date: "2026-07-02" },
+    {
+      id: "doc-1",
+      name: "Agreement_Contract_Signed.pdf",
+      type: "Agreement",
+      date: "2026-06-10",
+    },
+    {
+      id: "doc-2",
+      name: "Structural_Drawings_Slab.dwg",
+      type: "Drawings",
+      date: "2026-06-15",
+    },
+    {
+      id: "doc-3",
+      name: "BOQ_Quantities_Final.xlsx",
+      type: "BOQ",
+      date: "2026-06-20",
+    },
+    {
+      id: "doc-4",
+      name: "Cement_Invoice_UltraTech.pdf",
+      type: "Invoices",
+      date: "2026-07-02",
+    },
   ]);
 
   const loadSiteData = async () => {
@@ -95,14 +143,14 @@ export default function SiteDetailControlScreen() {
     setIsLoading(true);
     try {
       // 1. Fetch site details from our new Site Management API first
-      let currentSite = await storage.getSiteById(siteId) as any;
-      
+      let currentSite = (await storage.getSiteById(siteId)) as any;
+
       // 2. Fallback to Project model if it was an older project
       const allProjects = await storage.getProjects();
       if (!currentSite) {
         currentSite = allProjects.find((p) => p.id === siteId) || null;
       }
-      
+
       setSite(currentSite);
 
       const workersList = await storage.getWorkers();
@@ -118,44 +166,55 @@ export default function SiteDetailControlScreen() {
           name: s.name,
           location: s.address,
           status: "active" as const,
-          createdAt: s.createdAt ? new Date(s.createdAt).getTime() : Date.now()
-        }))
+          createdAt: s.createdAt ? new Date(s.createdAt).getTime() : Date.now(),
+        })),
       ];
-      setAllSitesForTransfer(combinedSites.filter(p => p.id !== siteId));
+      setAllSitesForTransfer(combinedSites.filter((p) => p.id !== siteId));
 
       // Load analytics and ledger from Server if online, else mock fallback
       try {
-        const res = await authenticatedFetch(`${API_URL}/projects/${siteId}/dashboard`);
+        const res = await authenticatedFetch(
+          `${API_URL}/projects/${siteId}/dashboard`,
+        );
         if (res.ok) {
           const data = await res.json();
           setSpentAmount(data.totalSpent || 0);
           setExpenseBreakdown(data.expenseBreakdown || {});
           setDelayDays(data.totalDelayDays || 0);
         }
-        
-        const expRes = await authenticatedFetch(`${API_URL}/projects/${siteId}/expenses`);
+
+        const expRes = await authenticatedFetch(
+          `${API_URL}/projects/${siteId}/expenses`,
+        );
         if (expRes.ok) {
           setExpenses(await expRes.json());
         }
 
-        const mbRes = await authenticatedFetch(`${API_URL}/projects/${siteId}/mb-entries`);
+        const mbRes = await authenticatedFetch(
+          `${API_URL}/projects/${siteId}/mb-entries`,
+        );
         if (mbRes.ok) {
           setMbEntries(await mbRes.json());
         }
         // Fetch materials and photos
         try {
-          const matRes = await authenticatedFetch(`${API_URL}/sites/${siteId}/materials`);
+          const matRes = await authenticatedFetch(
+            `${API_URL}/sites/${siteId}/materials`,
+          );
           if (matRes.ok) setMaterials(await matRes.json());
-          
-          const photRes = await authenticatedFetch(`${API_URL}/sites/${siteId}/photos`);
+
+          const photRes = await authenticatedFetch(
+            `${API_URL}/sites/${siteId}/photos`,
+          );
           if (photRes.ok) setPhotos(await photRes.json());
         } catch (e) {
           console.warn("Failed to fetch materials or photos", e);
         }
-
       } catch (e) {
         // Offline cache / simulated values
-        const spent = currentSite?.budget ? Math.round(currentSite.budget * 0.45) : 180000;
+        const spent = currentSite?.budget
+          ? Math.round(currentSite.budget * 0.45)
+          : 180000;
         setSpentAmount(spent);
         setExpenseBreakdown({
           material: Math.round(spent * 0.5),
@@ -179,20 +238,28 @@ export default function SiteDetailControlScreen() {
 
   const getProgressPercentage = (project: Project) => {
     if (project.phases && project.phases.length > 0) {
-      const sumWeight = project.phases.reduce((sum, p) => sum + (p.weight || 0), 0);
+      const sumWeight = project.phases.reduce(
+        (sum, p) => sum + (p.weight || 0),
+        0,
+      );
       const achievedWeight = project.phases.reduce((sum, p) => {
-        return sum + (((p.percentDone || 0) * (p.weight || 0)) / 100);
+        return sum + ((p.percentDone || 0) * (p.weight || 0)) / 100;
       }, 0);
       return Math.round(sumWeight > 0 ? (achievedWeight / sumWeight) * 100 : 0);
     }
     if (project.plannedQty && project.plannedQty > 0) {
-      return Math.round(Math.min(((project.completedQty || 0) / project.plannedQty) * 100, 100));
+      return Math.round(
+        Math.min(((project.completedQty || 0) / project.plannedQty) * 100, 100),
+      );
     }
     return 0;
   };
 
   // Phase completion change updater
-  const handleUpdatePhaseProgress = async (phaseName: string, newPercentage: number) => {
+  const handleUpdatePhaseProgress = async (
+    phaseName: string,
+    newPercentage: number,
+  ) => {
     if (!site) return;
     const updatedPhases = (site.phases || []).map((p) => {
       if (p.name === phaseName) {
@@ -200,7 +267,12 @@ export default function SiteDetailControlScreen() {
         return {
           ...p,
           percentDone: finalPercent,
-          status: finalPercent >= 100 ? "completed" as const : finalPercent > 0 ? "in_progress" as const : "pending" as const,
+          status:
+            finalPercent >= 100
+              ? ("completed" as const)
+              : finalPercent > 0
+                ? ("in_progress" as const)
+                : ("pending" as const),
         };
       }
       return p;
@@ -238,10 +310,16 @@ export default function SiteDetailControlScreen() {
 
       // Backend sync if possible
       try {
-        await authenticatedFetch(`${API_URL}/workers/${selectedWorkerForTransfer.id}`, {
-          method: "PUT",
-          body: JSON.stringify({ ...selectedWorkerForTransfer, projectId: targetProjectId }),
-        });
+        await authenticatedFetch(
+          `${API_URL}/workers/${selectedWorkerForTransfer.id}`,
+          {
+            method: "PUT",
+            body: JSON.stringify({
+              ...selectedWorkerForTransfer,
+              projectId: targetProjectId,
+            }),
+          },
+        );
       } catch {}
 
       setShowTransferModal(false);
@@ -296,7 +374,6 @@ export default function SiteDetailControlScreen() {
 
   // Material usage logger
   const handleLogMaterialUse = (materialName: string) => {
-    
     Alert.prompt(
       "Log Material Used",
       `How many units of ${materialName} did you use today?`,
@@ -307,29 +384,40 @@ export default function SiteDetailControlScreen() {
           onPress: async (val?: string) => {
             if (!val || isNaN(Number(val))) return;
             const qty = Number(val);
-            const mat = materials.find(m => m.name === materialName);
-            if(!mat) return;
+            const mat = materials.find((m) => m.name === materialName);
+            if (!mat) return;
             try {
-              const r = await authenticatedFetch(`${API_URL}/sites/${siteId}/materials/${mat.id || mat._id}/consume`, {
-                method: "POST",
-                body: JSON.stringify({ quantity: qty })
-              });
-              if(r.ok) loadSiteData();
-            }catch(e){}
+              const r = await authenticatedFetch(
+                `${API_URL}/sites/${siteId}/materials/${mat.id || mat._id}/consume`,
+                {
+                  method: "POST",
+                  body: JSON.stringify({ quantity: qty }),
+                },
+              );
+              if (r.ok) loadSiteData();
+            } catch (e) {}
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
       ],
-      "plain-text", "", "number-pad"
+      "plain-text",
+      "",
+      "number-pad",
     );
-
   };
 
   // Measuring Tape progress bar
   const renderTapeProgress = (percentage: number) => {
     const ticks = [10, 20, 30, 40, 50, 60, 70, 80, 90];
     return (
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: Spacing.sm }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+          marginTop: Spacing.sm,
+        }}
+      >
         <View
           style={{
             flex: 1,
@@ -366,7 +454,9 @@ export default function SiteDetailControlScreen() {
             />
           ))}
         </View>
-        <ThemedText style={{ fontSize: 13, fontWeight: "700", color: theme.text }}>
+        <ThemedText
+          style={{ fontSize: 13, fontWeight: "700", color: theme.text }}
+        >
           {percentage}%
         </ThemedText>
       </View>
@@ -381,33 +471,62 @@ export default function SiteDetailControlScreen() {
     );
   }
 
-  const budgetUsedPct = site.budget ? Math.min(100, Math.round((spentAmount / site.budget) * 100)) : 0;
+  const budgetUsedPct = site.budget
+    ? Math.min(100, Math.round((spentAmount / site.budget) * 100))
+    : 0;
   const progressPercent = getProgressPercentage(site);
 
   return (
     <ThemedView style={{ flex: 1, backgroundColor: theme.backgroundRoot }}>
       {/* Detail Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
           <Feather name="arrow-left" size={22} color={theme.text} />
         </Pressable>
         <View style={{ flex: 1, marginLeft: 8 }}>
-          <ThemedText numberOfLines={1} style={styles.headerTitle}>{site.name}</ThemedText>
-          <ThemedText numberOfLines={1} style={styles.headerSubtitle}>{site.location || (site as any).address || "N/A"}</ThemedText>
+          <ThemedText numberOfLines={1} style={styles.headerTitle}>
+            {site.name}
+          </ThemedText>
+          <ThemedText numberOfLines={1} style={styles.headerSubtitle}>
+            {site.location || (site as any).address || "N/A"}
+          </ThemedText>
         </View>
       </View>
 
       {/* Tabs list */}
-      <View style={[styles.tabsScrollContainer, { borderBottomColor: theme.border }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
-          {([
-            { id: "overview", label: t("sites.timelineStages", "Timeline & Stages") },
-            { id: "workers", label: t("sites.workersWages", "Workers & Wages") },
-            { id: "materials", label: t("sites.materials", "Materials") },
-            { id: "reports", label: t("sites.reportsDocs", "Reports & Docs") },
-            { id: "analytics", label: t("sites.analytics", "Analytics") },
-            { id: "photos", label: t("sites.photos", "Photos") },
-          ] as const).map((tab) => {
+      <View
+        style={[
+          styles.tabsScrollContainer,
+          { borderBottomColor: theme.border },
+        ]}
+      >
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabsRow}
+        >
+          {(
+            [
+              {
+                id: "overview",
+                label: t("sites.timelineStages", "Timeline & Stages"),
+              },
+              {
+                id: "workers",
+                label: t("sites.workersWages", "Workers & Wages"),
+              },
+              { id: "materials", label: t("sites.materials", "Materials") },
+              {
+                id: "reports",
+                label: t("sites.reportsDocs", "Reports & Docs"),
+              },
+              { id: "analytics", label: t("sites.analytics", "Analytics") },
+              { id: "photos", label: t("sites.photos", "Photos") },
+            ] as const
+          ).map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <Pressable
@@ -418,10 +537,17 @@ export default function SiteDetailControlScreen() {
                 }}
                 style={[
                   styles.tabItem,
-                  { borderBottomColor: isActive ? theme.primary : "transparent" },
+                  {
+                    borderBottomColor: isActive ? theme.primary : "transparent",
+                  },
                 ]}
               >
-                <ThemedText style={[styles.tabText, { color: isActive ? theme.primary : "#6B7280" }]}>
+                <ThemedText
+                  style={[
+                    styles.tabText,
+                    { color: isActive ? theme.primary : "#6B7280" },
+                  ]}
+                >
                   {tab.label}
                 </ThemedText>
               </Pressable>
@@ -430,23 +556,46 @@ export default function SiteDetailControlScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* TAB 1: OVERVIEW & STAGES */}
         {activeTab === "overview" && (
           <View>
             {/* Site Card Header Info */}
-            <View style={[styles.infoCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-              <ThemedText style={styles.infoTitle}>{t("sites.siteClientDetails", "Site & Client Details")}</ThemedText>
+            <View
+              style={[
+                styles.infoCard,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <ThemedText style={styles.infoTitle}>
+                {t("sites.siteClientDetails", "Site & Client Details")}
+              </ThemedText>
               <View style={styles.infoRow}>
-                <ThemedText style={styles.infoLabel}>{t("sites.clientName", "Client Name")}</ThemedText>
-                <ThemedText style={styles.infoValue}>{site.clientName || "N/A"}</ThemedText>
+                <ThemedText style={styles.infoLabel}>
+                  {t("sites.clientName", "Client Name")}
+                </ThemedText>
+                <ThemedText style={styles.infoValue}>
+                  {site.clientName || "N/A"}
+                </ThemedText>
               </View>
               <View style={styles.infoRow}>
-                <ThemedText style={styles.infoLabel}>{t("sites.budget", "Budget")}</ThemedText>
-                <ThemedText style={styles.infoValue}>₹{site.budget?.toLocaleString("en-IN") || "N/A"}</ThemedText>
+                <ThemedText style={styles.infoLabel}>
+                  {t("sites.budget", "Budget")}
+                </ThemedText>
+                <ThemedText style={styles.infoValue}>
+                  ₹{site.budget?.toLocaleString("en-IN") || "N/A"}
+                </ThemedText>
               </View>
               <View style={styles.infoRow}>
-                <ThemedText style={styles.infoLabel}>{t("sites.timeline", "Timeline")}</ThemedText>
+                <ThemedText style={styles.infoLabel}>
+                  {t("sites.timeline", "Timeline")}
+                </ThemedText>
                 <ThemedText style={styles.infoValue}>
                   {site.startDate || "N/A"} to {site.endDate || "N/A"}
                 </ThemedText>
@@ -454,27 +603,67 @@ export default function SiteDetailControlScreen() {
             </View>
 
             {/* Stages & Phases Controls */}
-            <ThemedText style={styles.sectionHeaderTitle}>{t("sites.constructionStagesCompletion", "Construction Stages Completion")}</ThemedText>
-            {(!site.phases || site.phases.length === 0) ? (
-              <ThemedText style={styles.emptyText}>{t("sites.noStagesRegistered", "No stages registered for this project.")}</ThemedText>
+            <ThemedText style={styles.sectionHeaderTitle}>
+              {t(
+                "sites.constructionStagesCompletion",
+                "Construction Stages Completion",
+              )}
+            </ThemedText>
+            {!site.phases || site.phases.length === 0 ? (
+              <ThemedText style={styles.emptyText}>
+                {t(
+                  "sites.noStagesRegistered",
+                  "No stages registered for this project.",
+                )}
+              </ThemedText>
             ) : (
               site.phases.map((phase) => {
                 const colorBadge =
                   phase.percentDone >= 100
-                    ? { bg: "#D1FAE5", text: "#16A34A", label: t.translateSiteStatus("COMPLETED") }
+                    ? {
+                        bg: "#D1FAE5",
+                        text: "#16A34A",
+                        label: t.translateSiteStatus("COMPLETED"),
+                      }
                     : phase.percentDone > 0
-                    ? { bg: "#E0F2FE", text: "#0284C7", label: t.translateSiteStatus("IN_PROGRESS") }
-                    : { bg: "#F3F4F6", text: "#4B5563", label: t.translateSiteStatus("NOT_STARTED") };
+                      ? {
+                          bg: "#E0F2FE",
+                          text: "#0284C7",
+                          label: t.translateSiteStatus("IN_PROGRESS"),
+                        }
+                      : {
+                          bg: "#F3F4F6",
+                          text: "#4B5563",
+                          label: t.translateSiteStatus("NOT_STARTED"),
+                        };
 
                 return (
                   <View
                     key={phase.name}
-                    style={[styles.stageCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+                    style={[
+                      styles.stageCard,
+                      {
+                        backgroundColor: theme.backgroundDefault,
+                        borderColor: theme.border,
+                      },
+                    ]}
                   >
                     <View style={styles.stageCardHeader}>
-                      <ThemedText style={styles.stageName}>{phase.name}</ThemedText>
-                      <View style={[styles.statusBadge, { backgroundColor: colorBadge.bg }]}>
-                        <ThemedText style={[styles.statusBadgeText, { color: colorBadge.text }]}>
+                      <ThemedText style={styles.stageName}>
+                        {phase.name}
+                      </ThemedText>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          { backgroundColor: colorBadge.bg },
+                        ]}
+                      >
+                        <ThemedText
+                          style={[
+                            styles.statusBadgeText,
+                            { color: colorBadge.text },
+                          ]}
+                        >
                           {colorBadge.label}
                         </ThemedText>
                       </View>
@@ -484,14 +673,26 @@ export default function SiteDetailControlScreen() {
 
                     <View style={styles.stageControllerRow}>
                       <Pressable
-                        onPress={() => handleUpdatePhaseProgress(phase.name, phase.percentDone - 10)}
+                        onPress={() =>
+                          handleUpdatePhaseProgress(
+                            phase.name,
+                            phase.percentDone - 10,
+                          )
+                        }
                         style={styles.stageButton}
                       >
                         <Feather name="minus" size={16} color={theme.text} />
                       </Pressable>
-                      <ThemedText style={styles.stageControllerPercent}>{phase.percentDone}% {t("sites.done", "done")}</ThemedText>
+                      <ThemedText style={styles.stageControllerPercent}>
+                        {phase.percentDone}% {t("sites.done", "done")}
+                      </ThemedText>
                       <Pressable
-                        onPress={() => handleUpdatePhaseProgress(phase.name, phase.percentDone + 10)}
+                        onPress={() =>
+                          handleUpdatePhaseProgress(
+                            phase.name,
+                            phase.percentDone + 10,
+                          )
+                        }
                         style={styles.stageButton}
                       >
                         <Feather name="plus" size={16} color={theme.text} />
@@ -508,56 +709,143 @@ export default function SiteDetailControlScreen() {
         {activeTab === "workers" && (
           <View>
             <View style={styles.headcountRow}>
-              <View style={[styles.headcountStat, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                <ThemedText style={styles.headcountVal}>{siteWorkers.length}</ThemedText>
-                <ThemedText style={styles.headcountLabel}>{t("sites.workersAssigned", "Workers Assigned")}</ThemedText>
-              </View>
-              <View style={[styles.headcountStat, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+              <View
+                style={[
+                  styles.headcountStat,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
                 <ThemedText style={styles.headcountVal}>
-                  ₹{(siteWorkers.reduce((sum: number, w: Worker) => sum + (w.dailyRate || 0), 0)).toLocaleString("en-IN")}
+                  {siteWorkers.length}
                 </ThemedText>
-                <ThemedText style={styles.headcountLabel}>{t("sites.dailyWageBudget", "Daily Wage Budget")}</ThemedText>
+                <ThemedText style={styles.headcountLabel}>
+                  {t("sites.workersAssigned", "Workers Assigned")}
+                </ThemedText>
+              </View>
+              <View
+                style={[
+                  styles.headcountStat,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <ThemedText style={styles.headcountVal}>
+                  ₹
+                  {siteWorkers
+                    .reduce(
+                      (sum: number, w: Worker) => sum + (w.dailyRate || 0),
+                      0,
+                    )
+                    .toLocaleString("en-IN")}
+                </ThemedText>
+                <ThemedText style={styles.headcountLabel}>
+                  {t("sites.dailyWageBudget", "Daily Wage Budget")}
+                </ThemedText>
               </View>
             </View>
 
             {/* Category Filter selector */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skillsFilterContainer}>
-              {["all", "labour", "bai", "mistri", "tiles", "plaster"].map((cat) => (
-                <Pressable
-                  key={cat}
-                  onPress={() => setSkillFilter(cat)}
-                  style={[
-                    styles.skillFilterItem,
-                    { backgroundColor: skillFilter === cat ? theme.primary : theme.border },
-                  ]}
-                >
-                  <ThemedText style={{ color: skillFilter === cat ? "#FFFFFF" : theme.text, fontSize: 11, fontWeight: "700" }}>
-                    {cat === "all" ? (t.common?.all || "ALL").toUpperCase() : t.translateCategory(cat).toUpperCase()}
-                  </ThemedText>
-                </Pressable>
-              ))}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.skillsFilterContainer}
+            >
+              {["all", "labour", "bai", "mistri", "tiles", "plaster"].map(
+                (cat) => (
+                  <Pressable
+                    key={cat}
+                    onPress={() => setSkillFilter(cat)}
+                    style={[
+                      styles.skillFilterItem,
+                      {
+                        backgroundColor:
+                          skillFilter === cat ? theme.primary : theme.border,
+                      },
+                    ]}
+                  >
+                    <ThemedText
+                      style={{
+                        color: skillFilter === cat ? "#FFFFFF" : theme.text,
+                        fontSize: 11,
+                        fontWeight: "700",
+                      }}
+                    >
+                      {cat === "all"
+                        ? (t.common?.all || "ALL").toUpperCase()
+                        : t.translateCategory(cat).toUpperCase()}
+                    </ThemedText>
+                  </Pressable>
+                ),
+              )}
             </ScrollView>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 12 }}>
-              <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 0, marginBottom: 0 }]}>{t("sites.assignedRosterList", "Assigned Roster List")}</ThemedText>
-              <Pressable onPress={() => setShowAssignWorkerModal(true)} style={[styles.transferButton, { backgroundColor: theme.primary }]}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+                marginTop: 12,
+              }}
+            >
+              <ThemedText
+                style={[
+                  styles.sectionHeaderTitle,
+                  { marginTop: 0, marginBottom: 0 },
+                ]}
+              >
+                {t("sites.assignedRosterList", "Assigned Roster List")}
+              </ThemedText>
+              <Pressable
+                onPress={() => setShowAssignWorkerModal(true)}
+                style={[
+                  styles.transferButton,
+                  { backgroundColor: theme.primary },
+                ]}
+              >
                 <Feather name="plus" size={14} color="#FFF" />
-                <ThemedText style={[styles.transferText, { color: "#FFF" }]}>{t("common.assign", "Assign")}</ThemedText>
+                <ThemedText style={[styles.transferText, { color: "#FFF" }]}>
+                  {t("common.assign", "Assign")}
+                </ThemedText>
               </Pressable>
             </View>
             {filteredWorkers.length === 0 ? (
-              <ThemedText style={styles.emptyText}>{t("sites.noWorkersMatch", "No workers match the selected category.")}</ThemedText>
+              <ThemedText style={styles.emptyText}>
+                {t(
+                  "sites.noWorkersMatch",
+                  "No workers match the selected category.",
+                )}
+              </ThemedText>
             ) : (
               filteredWorkers.map((worker: Worker) => (
                 <View
                   key={worker.id}
-                  style={[styles.workerCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+                  style={[
+                    styles.workerCard,
+                    {
+                      backgroundColor: theme.backgroundDefault,
+                      borderColor: theme.border,
+                    },
+                  ]}
                 >
                   <View style={{ flex: 1 }}>
-                    <ThemedText style={styles.workerName}>{worker.name}</ThemedText>
-                    <View style={{ flexDirection: "row", gap: 6, marginTop: 2 }}>
-                      <ThemedText style={styles.workerCategoryBadge}>{worker.category}</ThemedText>
-                      <ThemedText style={styles.workerRate}>₹{worker.dailyRate}/day</ThemedText>
+                    <ThemedText style={styles.workerName}>
+                      {worker.name}
+                    </ThemedText>
+                    <View
+                      style={{ flexDirection: "row", gap: 6, marginTop: 2 }}
+                    >
+                      <ThemedText style={styles.workerCategoryBadge}>
+                        {worker.category}
+                      </ThemedText>
+                      <ThemedText style={styles.workerRate}>
+                        ₹{worker.dailyRate}/day
+                      </ThemedText>
                     </View>
                   </View>
                   <Pressable
@@ -565,26 +853,42 @@ export default function SiteDetailControlScreen() {
                       setSelectedWorkerForTransfer(worker);
                       setShowTransferModal(true);
                     }}
-                    style={[styles.transferButton, { backgroundColor: theme.border }]}
+                    style={[
+                      styles.transferButton,
+                      { backgroundColor: theme.border },
+                    ]}
                   >
                     <Feather name="move" size={14} color={theme.text} />
-                    <ThemedText style={styles.transferText}>Transfer</ThemedText>
+                    <ThemedText style={styles.transferText}>
+                      Transfer
+                    </ThemedText>
                   </Pressable>
                   <Pressable
                     onPress={async () => {
                       try {
                         const updated = { ...worker, projectId: undefined };
                         await storage.updateWorker(updated);
-                        setAllWorkers(allWorkers.map(w => w.id === worker.id ? updated : w));
+                        setAllWorkers(
+                          allWorkers.map((w) =>
+                            w.id === worker.id ? updated : w,
+                          ),
+                        );
                         Alert.alert("Success", "Worker removed from site.");
                       } catch (e) {
                         Alert.alert("Error", "Failed to remove worker");
                       }
                     }}
-                    style={[styles.transferButton, { backgroundColor: '#FEE2E2', marginLeft: 6 }]}
+                    style={[
+                      styles.transferButton,
+                      { backgroundColor: "#FEE2E2", marginLeft: 6 },
+                    ]}
                   >
                     <Feather name="user-minus" size={14} color="#EF4444" />
-                    <ThemedText style={[styles.transferText, { color: "#EF4444" }]}>Remove</ThemedText>
+                    <ThemedText
+                      style={[styles.transferText, { color: "#EF4444" }]}
+                    >
+                      Remove
+                    </ThemedText>
                   </Pressable>
                 </View>
               ))
@@ -595,91 +899,197 @@ export default function SiteDetailControlScreen() {
         {/* TAB 3: MATERIALS TRACKER */}
         {activeTab === "materials" && (
           <View>
-            <ThemedText style={styles.sectionHeaderTitle}>Stock Levels & Alerts</ThemedText>
-            
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <ThemedText style={styles.sectionHeaderTitle}>
+              Stock Levels & Alerts
+            </ThemedText>
+
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
               <TextInput
                 placeholder="Search materials..."
                 placeholderTextColor="#9CA3AF"
                 value={searchMaterial}
                 onChangeText={setSearchMaterial}
-                style={[styles.formInput, { flex: 1, marginRight: 8, borderColor: theme.border, color: theme.text, height: 40, marginBottom: 0 }]}
+                style={[
+                  styles.formInput,
+                  {
+                    flex: 1,
+                    marginRight: 8,
+                    borderColor: theme.border,
+                    color: theme.text,
+                    height: 40,
+                    marginBottom: 0,
+                  },
+                ]}
               />
-              <Pressable onPress={() => { setMaterialForm({name:"", unit:"bags", required:"0", minThreshold:"0", id:""}); setShowMaterialModal(true); }} style={[styles.transferButton, { backgroundColor: theme.primary, height: 40 }]}>
+              <Pressable
+                onPress={() => {
+                  setMaterialForm({
+                    name: "",
+                    unit: "bags",
+                    required: "0",
+                    minThreshold: "0",
+                    id: "",
+                  });
+                  setShowMaterialModal(true);
+                }}
+                style={[
+                  styles.transferButton,
+                  { backgroundColor: theme.primary, height: 40 },
+                ]}
+              >
                 <Feather name="plus" size={16} color="#FFF" />
-                <ThemedText style={[styles.transferText, {color: "#FFF"}]}>Add</ThemedText>
+                <ThemedText style={[styles.transferText, { color: "#FFF" }]}>
+                  Add
+                </ThemedText>
               </Pressable>
-              <Pressable onPress={async () => { 
-                try {
-                   const r = await authenticatedFetch(`${API_URL}/sites/${siteId}/materials-history`);
-                   if(r.ok) { setMaterialHistory(await r.json()); setMaterialHistoryModal(true); }
-                }catch(e){}
-              }} style={[styles.transferButton, { backgroundColor: theme.backgroundSecondary, height: 40, marginLeft: 8 }]}>
+              <Pressable
+                onPress={async () => {
+                  try {
+                    const r = await authenticatedFetch(
+                      `${API_URL}/sites/${siteId}/materials-history`,
+                    );
+                    if (r.ok) {
+                      setMaterialHistory(await r.json());
+                      setMaterialHistoryModal(true);
+                    }
+                  } catch (e) {}
+                }}
+                style={[
+                  styles.transferButton,
+                  {
+                    backgroundColor: theme.backgroundSecondary,
+                    height: 40,
+                    marginLeft: 8,
+                  },
+                ]}
+              >
                 <Feather name="clock" size={16} color={theme.text} />
               </Pressable>
             </View>
 
-            {materials.filter(m => m.name.toLowerCase().includes(searchMaterial.toLowerCase())).map((mat) => {
-              const remaining = mat.remaining || 0;
-              const isLow = remaining <= mat.minThreshold;
+            {materials
+              .filter((m) =>
+                m.name.toLowerCase().includes(searchMaterial.toLowerCase()),
+              )
+              .map((mat) => {
+                const remaining = mat.remaining || 0;
+                const isLow = remaining <= mat.minThreshold;
 
-              return (
-                <View
-                  key={mat.name}
-                  style={[styles.materialCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
-                >
-                  <View style={styles.materialHeader}>
-                    <ThemedText style={styles.materialName}>{mat.name}</ThemedText>
-                    {isLow && (
-                      <View style={styles.lowStockBadge}>
-                        <ThemedText style={styles.lowStockText}>LOW STOCK</ThemedText>
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.materialMetricsRow}>
-                    <View>
-                      <ThemedText style={styles.matMetricLabel}>Required</ThemedText>
-                      <ThemedText style={styles.matMetricVal}>{mat.required} {mat.unit}</ThemedText>
-                    </View>
-                    <View>
-                      <ThemedText style={styles.matMetricLabel}>Used</ThemedText>
-                      <ThemedText style={styles.matMetricVal}>{mat.used} {mat.unit}</ThemedText>
-                    </View>
-                    <View>
-                      <ThemedText style={styles.matMetricLabel}>Stock Remaining</ThemedText>
-                      <ThemedText style={[styles.matMetricVal, { color: isLow ? "#DC2626" : theme.text }]}>
-                        {mat.remaining} {mat.unit}
-                      </ThemedText>
-                    </View>
-                  </View>
-
-                  <Pressable
-                    onPress={() => handleLogMaterialUse(mat.name)}
-                    style={[styles.logUsageButton, { backgroundColor: theme.border }]}
+                return (
+                  <View
+                    key={mat.name}
+                    style={[
+                      styles.materialCard,
+                      {
+                        backgroundColor: theme.backgroundDefault,
+                        borderColor: theme.border,
+                      },
+                    ]}
                   >
-                    <Feather name="edit-2" size={14} color={theme.text} />
-                    <ThemedText style={styles.logUsageText}>Log Usage</ThemedText>
-                  </Pressable>
-                </View>
-              );
-            })}
+                    <View style={styles.materialHeader}>
+                      <ThemedText style={styles.materialName}>
+                        {mat.name}
+                      </ThemedText>
+                      {isLow && (
+                        <View style={styles.lowStockBadge}>
+                          <ThemedText style={styles.lowStockText}>
+                            LOW STOCK
+                          </ThemedText>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.materialMetricsRow}>
+                      <View>
+                        <ThemedText style={styles.matMetricLabel}>
+                          Required
+                        </ThemedText>
+                        <ThemedText style={styles.matMetricVal}>
+                          {mat.required} {mat.unit}
+                        </ThemedText>
+                      </View>
+                      <View>
+                        <ThemedText style={styles.matMetricLabel}>
+                          Used
+                        </ThemedText>
+                        <ThemedText style={styles.matMetricVal}>
+                          {mat.used} {mat.unit}
+                        </ThemedText>
+                      </View>
+                      <View>
+                        <ThemedText style={styles.matMetricLabel}>
+                          Stock Remaining
+                        </ThemedText>
+                        <ThemedText
+                          style={[
+                            styles.matMetricVal,
+                            { color: isLow ? "#DC2626" : theme.text },
+                          ]}
+                        >
+                          {mat.remaining} {mat.unit}
+                        </ThemedText>
+                      </View>
+                    </View>
+
+                    <Pressable
+                      onPress={() => handleLogMaterialUse(mat.name)}
+                      style={[
+                        styles.logUsageButton,
+                        { backgroundColor: theme.border },
+                      ]}
+                    >
+                      <Feather name="edit-2" size={14} color={theme.text} />
+                      <ThemedText style={styles.logUsageText}>
+                        Log Usage
+                      </ThemedText>
+                    </Pressable>
+                  </View>
+                );
+              })}
           </View>
         )}
 
         {/* TAB 4: EXPENSES LEDGER */}
         {activeTab === "expenses" && (
           <View>
-            <View style={[styles.budgetTracker, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-              <ThemedText style={styles.budgetTitle}>Budget Utilization</ThemedText>
+            <View
+              style={[
+                styles.budgetTracker,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <ThemedText style={styles.budgetTitle}>
+                Budget Utilization
+              </ThemedText>
               <View style={styles.budgetStats}>
                 <View>
-                  <ThemedText style={styles.budgetText}>Total Budget</ThemedText>
-                  <ThemedText style={styles.budgetVal}>₹{site.budget?.toLocaleString("en-IN") || "N/A"}</ThemedText>
+                  <ThemedText style={styles.budgetText}>
+                    Total Budget
+                  </ThemedText>
+                  <ThemedText style={styles.budgetVal}>
+                    ₹{site.budget?.toLocaleString("en-IN") || "N/A"}
+                  </ThemedText>
                 </View>
                 <View style={{ alignItems: "flex-end" }}>
-                  <ThemedText style={styles.budgetText}>Spent (Ledger)</ThemedText>
-                  <ThemedText style={[styles.budgetVal, { color: budgetUsedPct > 80 ? "#DC2626" : theme.primary }]}>
+                  <ThemedText style={styles.budgetText}>
+                    Spent (Ledger)
+                  </ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.budgetVal,
+                      { color: budgetUsedPct > 80 ? "#DC2626" : theme.primary },
+                    ]}
+                  >
                     ₹{spentAmount.toLocaleString("en-IN")}
                   </ThemedText>
                 </View>
@@ -691,35 +1101,85 @@ export default function SiteDetailControlScreen() {
                   style={[
                     styles.barFill,
                     {
-                      backgroundColor: budgetUsedPct > 80 ? "#DC2626" : theme.primary,
+                      backgroundColor:
+                        budgetUsedPct > 80 ? "#DC2626" : theme.primary,
                       width: `${budgetUsedPct}%`,
                     },
                   ]}
                 />
               </View>
               <ThemedText style={styles.budgetSubtext}>
-                {budgetUsedPct}% of allocation consumed. Remaining: ₹{Math.max(0, (site.budget || 0) - spentAmount).toLocaleString("en-IN")}
+                {budgetUsedPct}% of allocation consumed. Remaining: ₹
+                {Math.max(0, (site.budget || 0) - spentAmount).toLocaleString(
+                  "en-IN",
+                )}
               </ThemedText>
             </View>
 
             {/* Expense Breakdown Category Grid */}
-            <ThemedText style={styles.sectionHeaderTitle}>Ledger Categories</ThemedText>
+            <ThemedText style={styles.sectionHeaderTitle}>
+              Ledger Categories
+            </ThemedText>
             <View style={styles.ledgerGrid}>
-              <View style={[styles.ledgerItem, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                <ThemedText style={styles.ledgerVal}>₹{expenseBreakdown.material?.toLocaleString("en-IN") || 0}</ThemedText>
+              <View
+                style={[
+                  styles.ledgerItem,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <ThemedText style={styles.ledgerVal}>
+                  ₹{expenseBreakdown.material?.toLocaleString("en-IN") || 0}
+                </ThemedText>
                 <ThemedText style={styles.ledgerLabel}>Materials</ThemedText>
               </View>
-              <View style={[styles.ledgerItem, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                <ThemedText style={styles.ledgerVal}>₹{expenseBreakdown.labour?.toLocaleString("en-IN") || 0}</ThemedText>
+              <View
+                style={[
+                  styles.ledgerItem,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <ThemedText style={styles.ledgerVal}>
+                  ₹{expenseBreakdown.labour?.toLocaleString("en-IN") || 0}
+                </ThemedText>
                 <ThemedText style={styles.ledgerLabel}>Labour wages</ThemedText>
               </View>
-              <View style={[styles.ledgerItem, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                <ThemedText style={styles.ledgerVal}>₹{expenseBreakdown.machinery?.toLocaleString("en-IN") || 0}</ThemedText>
-                <ThemedText style={styles.ledgerLabel}>Machinery Rent</ThemedText>
-              </View>
-              <View style={[styles.ledgerItem, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+              <View
+                style={[
+                  styles.ledgerItem,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
                 <ThemedText style={styles.ledgerVal}>
-                  ₹{((expenseBreakdown.vendor || 0) + (expenseBreakdown.other || 0)).toLocaleString("en-IN")}
+                  ₹{expenseBreakdown.machinery?.toLocaleString("en-IN") || 0}
+                </ThemedText>
+                <ThemedText style={styles.ledgerLabel}>
+                  Machinery Rent
+                </ThemedText>
+              </View>
+              <View
+                style={[
+                  styles.ledgerItem,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <ThemedText style={styles.ledgerVal}>
+                  ₹
+                  {(
+                    (expenseBreakdown.vendor || 0) +
+                    (expenseBreakdown.other || 0)
+                  ).toLocaleString("en-IN")}
                 </ThemedText>
                 <ThemedText style={styles.ledgerLabel}>Other / Misc</ThemedText>
               </View>
@@ -730,7 +1190,9 @@ export default function SiteDetailControlScreen() {
               style={[styles.addExpenseFAB, { backgroundColor: theme.primary }]}
             >
               <Feather name="plus" size={18} color="#FFFFFF" />
-              <ThemedText style={styles.addExpenseText}>Log Ledger Expense</ThemedText>
+              <ThemedText style={styles.addExpenseText}>
+                Log Ledger Expense
+              </ThemedText>
             </Pressable>
           </View>
         )}
@@ -738,42 +1200,93 @@ export default function SiteDetailControlScreen() {
         {/* TAB 5: REPORTS & DOCUMENTS */}
         {activeTab === "reports" && (
           <View>
-            <ThemedText style={styles.sectionHeaderTitle}>Automated Daily Report Preview</ThemedText>
-            <View style={[styles.dailyReportCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-              <ThemedText style={styles.reportHeader}>Daily Supervisor Compilation</ThemedText>
-              <ThemedText style={styles.reportDate}>Report Date: {new Date().toISOString().split("T")[0]}</ThemedText>
-              
+            <ThemedText style={styles.sectionHeaderTitle}>
+              Automated Daily Report Preview
+            </ThemedText>
+            <View
+              style={[
+                styles.dailyReportCard,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <ThemedText style={styles.reportHeader}>
+                Daily Supervisor Compilation
+              </ThemedText>
+              <ThemedText style={styles.reportDate}>
+                Report Date: {new Date().toISOString().split("T")[0]}
+              </ThemedText>
+
               <View style={styles.reportDivider} />
-              
+
               <View style={styles.reportRow}>
-                <ThemedText style={styles.reportLabel}>Project Progress</ThemedText>
-                <ThemedText style={styles.reportValue}>{progressPercent}% stages completed</ThemedText>
+                <ThemedText style={styles.reportLabel}>
+                  Project Progress
+                </ThemedText>
+                <ThemedText style={styles.reportValue}>
+                  {progressPercent}% stages completed
+                </ThemedText>
               </View>
               <View style={styles.reportRow}>
-                <ThemedText style={styles.reportLabel}>Labour Present</ThemedText>
-                <ThemedText style={styles.reportValue}>{siteWorkers.length} active heads today</ThemedText>
+                <ThemedText style={styles.reportLabel}>
+                  Labour Present
+                </ThemedText>
+                <ThemedText style={styles.reportValue}>
+                  {siteWorkers.length} active heads today
+                </ThemedText>
               </View>
               <View style={styles.reportRow}>
                 <ThemedText style={styles.reportLabel}>Delay status</ThemedText>
-                <ThemedText style={[styles.reportValue, { color: delayDays > 0 ? "#DC2626" : theme.text }]}>
-                  {delayDays > 0 ? `${delayDays} Days logged delay` : "On schedule"}
+                <ThemedText
+                  style={[
+                    styles.reportValue,
+                    { color: delayDays > 0 ? "#DC2626" : theme.text },
+                  ]}
+                >
+                  {delayDays > 0
+                    ? `${delayDays} Days logged delay`
+                    : "On schedule"}
                 </ThemedText>
               </View>
             </View>
 
-            <ThemedText style={styles.sectionHeaderTitle}>Site Documents Library</ThemedText>
+            <ThemedText style={styles.sectionHeaderTitle}>
+              Site Documents Library
+            </ThemedText>
             {documents.map((doc) => (
               <View
                 key={doc.id}
-                style={[styles.documentCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}
+                style={[
+                  styles.documentCard,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
               >
-                <Feather name="file-text" size={24} color={theme.primary} style={{ marginRight: 10 }} />
+                <Feather
+                  name="file-text"
+                  size={24}
+                  color={theme.primary}
+                  style={{ marginRight: 10 }}
+                />
                 <View style={{ flex: 1 }}>
-                  <ThemedText style={styles.docName} numberOfLines={1}>{doc.name}</ThemedText>
-                  <ThemedText style={styles.docMeta}>{doc.type} • Uploaded {doc.date}</ThemedText>
+                  <ThemedText style={styles.docName} numberOfLines={1}>
+                    {doc.name}
+                  </ThemedText>
+                  <ThemedText style={styles.docMeta}>
+                    {doc.type} • Uploaded {doc.date}
+                  </ThemedText>
                 </View>
                 <Pressable
-                  onPress={() => Alert.alert("Download Document", `Downloading ${doc.name}...`)}
+                  onPress={() =>
+                    Alert.alert(
+                      "Download Document",
+                      `Downloading ${doc.name}...`,
+                    )
+                  }
                   style={styles.downloadIcon}
                 >
                   <Feather name="download" size={16} color={theme.text} />
@@ -786,60 +1299,148 @@ export default function SiteDetailControlScreen() {
         {/* TAB 6: ANALYTICS */}
         {activeTab === "analytics" && (
           <View>
-            <View style={[styles.analyticsCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-              <ThemedText style={styles.analyticsTitle}>Completion Curve Progress</ThemedText>
-              <ThemedText style={styles.analyticsStat}>{progressPercent}%</ThemedText>
-              <ThemedText style={styles.analyticsLabel}>Weighted physical progress completed.</ThemedText>
+            <View
+              style={[
+                styles.analyticsCard,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <ThemedText style={styles.analyticsTitle}>
+                Completion Curve Progress
+              </ThemedText>
+              <ThemedText style={styles.analyticsStat}>
+                {progressPercent}%
+              </ThemedText>
+              <ThemedText style={styles.analyticsLabel}>
+                Weighted physical progress completed.
+              </ThemedText>
             </View>
 
-            <View style={[styles.analyticsCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-              <ThemedText style={styles.analyticsTitle}>Labour Roll Attendance %</ThemedText>
+            <View
+              style={[
+                styles.analyticsCard,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <ThemedText style={styles.analyticsTitle}>
+                Labour Roll Attendance %
+              </ThemedText>
               <ThemedText style={styles.analyticsStat}>88%</ThemedText>
-              <ThemedText style={styles.analyticsLabel}>Average active ratio for assigned roster over past 30 days.</ThemedText>
+              <ThemedText style={styles.analyticsLabel}>
+                Average active ratio for assigned roster over past 30 days.
+              </ThemedText>
             </View>
 
-            <View style={[styles.analyticsCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-              <ThemedText style={styles.analyticsTitle}>Delayed Days Registered</ThemedText>
-              <ThemedText style={[styles.analyticsStat, { color: delayDays > 0 ? "#DC2626" : theme.text }]}>
+            <View
+              style={[
+                styles.analyticsCard,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <ThemedText style={styles.analyticsTitle}>
+                Delayed Days Registered
+              </ThemedText>
+              <ThemedText
+                style={[
+                  styles.analyticsStat,
+                  { color: delayDays > 0 ? "#DC2626" : theme.text },
+                ]}
+              >
                 {delayDays} Days
               </ThemedText>
-              <ThemedText style={styles.analyticsLabel}>Days logged from weather issues, material deficits, or design changes.</ThemedText>
+              <ThemedText style={styles.analyticsLabel}>
+                Days logged from weather issues, material deficits, or design
+                changes.
+              </ThemedText>
             </View>
           </View>
         )}
-      
+
         {/* TAB 7: PHOTOS */}
         {activeTab === "photos" && (
           <View>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <ThemedText style={styles.sectionHeaderTitle}>Site Progress Photos</ThemedText>
-              <Pressable onPress={() => setShowPhotoModal(true)} style={[styles.transferButton, { backgroundColor: theme.primary }]}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <ThemedText style={styles.sectionHeaderTitle}>
+                Site Progress Photos
+              </ThemedText>
+              <Pressable
+                onPress={() => setShowPhotoModal(true)}
+                style={[
+                  styles.transferButton,
+                  { backgroundColor: theme.primary },
+                ]}
+              >
                 <Feather name="camera" size={14} color="#FFF" />
-                <ThemedText style={[styles.transferText, {color: "#FFF"}]}>Upload</ThemedText>
+                <ThemedText style={[styles.transferText, { color: "#FFF" }]}>
+                  Upload
+                </ThemedText>
               </Pressable>
             </View>
             {photos.length === 0 ? (
-              <ThemedText style={styles.emptyText}>No photos available.</ThemedText>
+              <ThemedText style={styles.emptyText}>
+                No photos available.
+              </ThemedText>
             ) : (
               photos.map((p, i) => (
-                <View key={i} style={[styles.workerCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                  <Feather name="image" size={24} color={theme.primary} style={{marginRight: 10}} />
+                <View
+                  key={i}
+                  style={[
+                    styles.workerCard,
+                    {
+                      backgroundColor: theme.backgroundDefault,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
+                  <Feather
+                    name="image"
+                    size={24}
+                    color={theme.primary}
+                    style={{ marginRight: 10 }}
+                  />
                   <View style={{ flex: 1 }}>
-                    <ThemedText style={styles.workerName}>{p.type === 'before' ? "Before Work" : "After Work"}</ThemedText>
-                    <ThemedText style={styles.workerRate}>{new Date(p.timestamp || Date.now()).toLocaleString()}</ThemedText>
+                    <ThemedText style={styles.workerName}>
+                      {p.type === "before" ? "Before Work" : "After Work"}
+                    </ThemedText>
+                    <ThemedText style={styles.workerRate}>
+                      {new Date(p.timestamp || Date.now()).toLocaleString()}
+                    </ThemedText>
                   </View>
                 </View>
               ))
             )}
           </View>
         )}
-
       </ScrollView>
 
       {/* Worker Transfer Modal */}
       <Modal visible={showTransferModal} animationType="slide" transparent>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowTransferModal(false)}>
-          <View style={[styles.modalSheet, { backgroundColor: theme.backgroundDefault }]}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowTransferModal(false)}
+        >
+          <View
+            style={[
+              styles.modalSheet,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
             <View style={styles.sheetHeader}>
               <ThemedText style={styles.sheetTitle}>Transfer Worker</ThemedText>
               <Pressable onPress={() => setShowTransferModal(false)}>
@@ -848,11 +1449,17 @@ export default function SiteDetailControlScreen() {
             </View>
 
             <ThemedText style={{ fontSize: 13, marginBottom: 12 }}>
-              Select target construction site to relocate <ThemedText style={{ fontWeight: "700" }}>{selectedWorkerForTransfer?.name}</ThemedText>:
+              Select target construction site to relocate{" "}
+              <ThemedText style={{ fontWeight: "700" }}>
+                {selectedWorkerForTransfer?.name}
+              </ThemedText>
+              :
             </ThemedText>
 
             {allSitesForTransfer.length === 0 ? (
-              <ThemedText style={styles.emptyText}>No other active sites available to transfer.</ThemedText>
+              <ThemedText style={styles.emptyText}>
+                No other active sites available to transfer.
+              </ThemedText>
             ) : (
               allSitesForTransfer.map((p) => (
                 <Pressable
@@ -860,8 +1467,12 @@ export default function SiteDetailControlScreen() {
                   onPress={() => handleTransferWorker(p.id)}
                   style={[styles.siteOptionItem, { borderColor: theme.border }]}
                 >
-                  <ThemedText style={{ fontWeight: "700", fontSize: 13 }}>{p.name}</ThemedText>
-                  <ThemedText style={{ fontSize: 11, color: "#6B7280" }}>{p.location || (p as any).address || "N/A"}</ThemedText>
+                  <ThemedText style={{ fontWeight: "700", fontSize: 13 }}>
+                    {p.name}
+                  </ThemedText>
+                  <ThemedText style={{ fontSize: 11, color: "#6B7280" }}>
+                    {p.location || (p as any).address || "N/A"}
+                  </ThemedText>
                 </Pressable>
               ))
             )}
@@ -869,10 +1480,17 @@ export default function SiteDetailControlScreen() {
         </Pressable>
       </Modal>
 
-      
       <Modal visible={showAssignWorkerModal} animationType="slide" transparent>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowAssignWorkerModal(false)}>
-          <View style={[styles.modalSheet, { backgroundColor: theme.backgroundDefault }]}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowAssignWorkerModal(false)}
+        >
+          <View
+            style={[
+              styles.modalSheet,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
             <View style={styles.sheetHeader}>
               <ThemedText style={styles.sheetTitle}>Assign Worker</ThemedText>
               <Pressable onPress={() => setShowAssignWorkerModal(false)}>
@@ -880,82 +1498,201 @@ export default function SiteDetailControlScreen() {
               </Pressable>
             </View>
             <ScrollView>
-              {allWorkers.filter(w => w.projectId !== siteId).length === 0 ? (
-                <ThemedText style={styles.emptyText}>No unassigned workers available.</ThemedText>
+              {allWorkers.filter((w) => w.projectId !== siteId).length === 0 ? (
+                <ThemedText style={styles.emptyText}>
+                  No unassigned workers available.
+                </ThemedText>
               ) : (
-                allWorkers.filter(w => w.projectId !== siteId).map(w => (
-                  <View key={w.id} style={[styles.workerCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                    <View style={{ flex: 1 }}>
-                      <ThemedText style={styles.workerName}>{w.name}</ThemedText>
-                      <ThemedText style={styles.workerRate}>{w.category}</ThemedText>
-                    </View>
-                    <Pressable
-                      onPress={async () => {
-                        try {
-                          const updated = { ...w, projectId: siteId };
-                          await storage.updateWorker(updated);
-                          setAllWorkers(allWorkers.map(aw => aw.id === w.id ? updated : aw));
-                          Alert.alert("Success", "Worker assigned.");
-                        } catch(e){}
-                      }}
-                      style={[styles.transferButton, { backgroundColor: theme.primary }]}
+                allWorkers
+                  .filter((w) => w.projectId !== siteId)
+                  .map((w) => (
+                    <View
+                      key={w.id}
+                      style={[
+                        styles.workerCard,
+                        {
+                          backgroundColor: theme.backgroundDefault,
+                          borderColor: theme.border,
+                        },
+                      ]}
                     >
-                      <ThemedText style={[styles.transferText, {color:"#FFF"}]}>Assign</ThemedText>
-                    </Pressable>
-                  </View>
-                ))
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={styles.workerName}>
+                          {w.name}
+                        </ThemedText>
+                        <ThemedText style={styles.workerRate}>
+                          {w.category}
+                        </ThemedText>
+                      </View>
+                      <Pressable
+                        onPress={async () => {
+                          try {
+                            const updated = { ...w, projectId: siteId };
+                            await storage.updateWorker(updated);
+                            setAllWorkers(
+                              allWorkers.map((aw) =>
+                                aw.id === w.id ? updated : aw,
+                              ),
+                            );
+                            Alert.alert("Success", "Worker assigned.");
+                          } catch (e) {}
+                        }}
+                        style={[
+                          styles.transferButton,
+                          { backgroundColor: theme.primary },
+                        ]}
+                      >
+                        <ThemedText
+                          style={[styles.transferText, { color: "#FFF" }]}
+                        >
+                          Assign
+                        </ThemedText>
+                      </Pressable>
+                    </View>
+                  ))
               )}
             </ScrollView>
           </View>
         </Pressable>
       </Modal>
 
-      
       <Modal visible={showMaterialModal} animationType="slide" transparent>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowMaterialModal(false)}>
-          <View style={[styles.modalSheet, { backgroundColor: theme.backgroundDefault }]}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowMaterialModal(false)}
+        >
+          <View
+            style={[
+              styles.modalSheet,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
             <View style={styles.sheetHeader}>
-              <ThemedText style={styles.sheetTitle}>{materialForm.id ? "Edit Material" : "Add Material"}</ThemedText>
+              <ThemedText style={styles.sheetTitle}>
+                {materialForm.id ? "Edit Material" : "Add Material"}
+              </ThemedText>
               <Pressable onPress={() => setShowMaterialModal(false)}>
                 <Feather name="x" size={20} color={theme.text} />
               </Pressable>
             </View>
             <ScrollView>
-              <TextInput placeholder="Name" value={materialForm.name} onChangeText={t => setMaterialForm({...materialForm, name:t})} style={[styles.formInput, {color:theme.text, borderColor:theme.border}]} />
-              <TextInput placeholder="Unit" value={materialForm.unit} onChangeText={t => setMaterialForm({...materialForm, unit:t})} style={[styles.formInput, {color:theme.text, borderColor:theme.border}]} />
-              <TextInput placeholder="Required" value={materialForm.required} onChangeText={t => setMaterialForm({...materialForm, required:t})} keyboardType="numeric" style={[styles.formInput, {color:theme.text, borderColor:theme.border}]} />
-              <TextInput placeholder="Min Threshold" value={materialForm.minThreshold} onChangeText={t => setMaterialForm({...materialForm, minThreshold:t})} keyboardType="numeric" style={[styles.formInput, {color:theme.text, borderColor:theme.border}]} />
-              <Pressable onPress={async () => {
-                try {
-                  const m = materialForm.id ? "PUT" : "POST";
-                  const u = materialForm.id ? `${API_URL}/sites/${siteId}/materials/${materialForm.id}` : `${API_URL}/sites/${siteId}/materials`;
-                  const r = await authenticatedFetch(u, {
-                    method: m,
-                    body: JSON.stringify({ name: materialForm.name, unit: materialForm.unit, required: Number(materialForm.required), minThreshold: Number(materialForm.minThreshold) })
-                  });
-                  if(r.ok) loadSiteData();
-                  setShowMaterialModal(false);
-                }catch(e){}
-              }} style={[styles.submitButton, { backgroundColor: theme.primary }]}><ThemedText style={{color:"#FFF", fontWeight:"700"}}>Save</ThemedText></Pressable>
+              <TextInput
+                placeholder="Name"
+                value={materialForm.name}
+                onChangeText={(t) =>
+                  setMaterialForm({ ...materialForm, name: t })
+                }
+                style={[
+                  styles.formInput,
+                  { color: theme.text, borderColor: theme.border },
+                ]}
+              />
+              <TextInput
+                placeholder="Unit"
+                value={materialForm.unit}
+                onChangeText={(t) =>
+                  setMaterialForm({ ...materialForm, unit: t })
+                }
+                style={[
+                  styles.formInput,
+                  { color: theme.text, borderColor: theme.border },
+                ]}
+              />
+              <TextInput
+                placeholder="Required"
+                value={materialForm.required}
+                onChangeText={(t) =>
+                  setMaterialForm({ ...materialForm, required: t })
+                }
+                keyboardType="numeric"
+                style={[
+                  styles.formInput,
+                  { color: theme.text, borderColor: theme.border },
+                ]}
+              />
+              <TextInput
+                placeholder="Min Threshold"
+                value={materialForm.minThreshold}
+                onChangeText={(t) =>
+                  setMaterialForm({ ...materialForm, minThreshold: t })
+                }
+                keyboardType="numeric"
+                style={[
+                  styles.formInput,
+                  { color: theme.text, borderColor: theme.border },
+                ]}
+              />
+              <Pressable
+                onPress={async () => {
+                  try {
+                    const m = materialForm.id ? "PUT" : "POST";
+                    const u = materialForm.id
+                      ? `${API_URL}/sites/${siteId}/materials/${materialForm.id}`
+                      : `${API_URL}/sites/${siteId}/materials`;
+                    const r = await authenticatedFetch(u, {
+                      method: m,
+                      body: JSON.stringify({
+                        name: materialForm.name,
+                        unit: materialForm.unit,
+                        required: Number(materialForm.required),
+                        minThreshold: Number(materialForm.minThreshold),
+                      }),
+                    });
+                    if (r.ok) loadSiteData();
+                    setShowMaterialModal(false);
+                  } catch (e) {}
+                }}
+                style={[
+                  styles.submitButton,
+                  { backgroundColor: theme.primary },
+                ]}
+              >
+                <ThemedText style={{ color: "#FFF", fontWeight: "700" }}>
+                  Save
+                </ThemedText>
+              </Pressable>
             </ScrollView>
           </View>
         </Pressable>
       </Modal>
-      
+
       <Modal visible={materialHistoryModal} animationType="slide" transparent>
-        <Pressable style={styles.modalOverlay} onPress={() => setMaterialHistoryModal(false)}>
-          <View style={[styles.modalSheet, { backgroundColor: theme.backgroundDefault }]}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setMaterialHistoryModal(false)}
+        >
+          <View
+            style={[
+              styles.modalSheet,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
             <View style={styles.sheetHeader}>
-              <ThemedText style={styles.sheetTitle}>Material Usage History</ThemedText>
+              <ThemedText style={styles.sheetTitle}>
+                Material Usage History
+              </ThemedText>
               <Pressable onPress={() => setMaterialHistoryModal(false)}>
                 <Feather name="x" size={20} color={theme.text} />
               </Pressable>
             </View>
             <ScrollView>
               {materialHistory.map((h, i) => (
-                <View key={i} style={[styles.workerCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                  <ThemedText style={styles.workerName}>{h.materialName} - Used {h.quantity}</ThemedText>
-                  <ThemedText style={styles.workerRate}>{new Date(h.date || Date.now()).toLocaleDateString()}</ThemedText>
+                <View
+                  key={i}
+                  style={[
+                    styles.workerCard,
+                    {
+                      backgroundColor: theme.backgroundDefault,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
+                  <ThemedText style={styles.workerName}>
+                    {h.materialName} - Used {h.quantity}
+                  </ThemedText>
+                  <ThemedText style={styles.workerRate}>
+                    {new Date(h.date || Date.now()).toLocaleDateString()}
+                  </ThemedText>
                 </View>
               ))}
             </ScrollView>
@@ -963,10 +1700,17 @@ export default function SiteDetailControlScreen() {
         </Pressable>
       </Modal>
 
-      
       <Modal visible={showPhotoModal} animationType="slide" transparent>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowPhotoModal(false)}>
-          <View style={[styles.modalSheet, { backgroundColor: theme.backgroundDefault }]}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowPhotoModal(false)}
+        >
+          <View
+            style={[
+              styles.modalSheet,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
             <View style={styles.sheetHeader}>
               <ThemedText style={styles.sheetTitle}>Upload Photo</ThemedText>
               <Pressable onPress={() => setShowPhotoModal(false)}>
@@ -974,19 +1718,55 @@ export default function SiteDetailControlScreen() {
               </Pressable>
             </View>
             <ScrollView>
-              <TextInput placeholder="Worker ID (optional)" value={photoForm.workerId} onChangeText={t => setPhotoForm({...photoForm, workerId:t})} style={[styles.formInput, {color:theme.text, borderColor:theme.border}]} />
-              <TextInput placeholder="Type (before/after)" value={photoForm.type} onChangeText={t => setPhotoForm({...photoForm, type:t})} style={[styles.formInput, {color:theme.text, borderColor:theme.border}]} />
-              
-              <Pressable onPress={async () => {
-                try {
-                  const r = await authenticatedFetch(`${API_URL}/sites/${siteId}/photos`, {
-                    method: "POST",
-                    body: JSON.stringify({ workerId: photoForm.workerId || undefined, type: photoForm.type, uri: "fake_uri.jpg", location: {lat: 28.7041, lng: 77.1025} })
-                  });
-                  if(r.ok) loadSiteData();
-                  setShowPhotoModal(false);
-                }catch(e){}
-              }} style={[styles.submitButton, { backgroundColor: theme.primary }]}><ThemedText style={{color:"#FFF", fontWeight:"700"}}>Upload (Simulated)</ThemedText></Pressable>
+              <TextInput
+                placeholder="Worker ID (optional)"
+                value={photoForm.workerId}
+                onChangeText={(t) =>
+                  setPhotoForm({ ...photoForm, workerId: t })
+                }
+                style={[
+                  styles.formInput,
+                  { color: theme.text, borderColor: theme.border },
+                ]}
+              />
+              <TextInput
+                placeholder="Type (before/after)"
+                value={photoForm.type}
+                onChangeText={(t) => setPhotoForm({ ...photoForm, type: t })}
+                style={[
+                  styles.formInput,
+                  { color: theme.text, borderColor: theme.border },
+                ]}
+              />
+
+              <Pressable
+                onPress={async () => {
+                  try {
+                    const r = await authenticatedFetch(
+                      `${API_URL}/sites/${siteId}/photos`,
+                      {
+                        method: "POST",
+                        body: JSON.stringify({
+                          workerId: photoForm.workerId || undefined,
+                          type: photoForm.type,
+                          uri: "fake_uri.jpg",
+                          location: { lat: 28.7041, lng: 77.1025 },
+                        }),
+                      },
+                    );
+                    if (r.ok) loadSiteData();
+                    setShowPhotoModal(false);
+                  } catch (e) {}
+                }}
+                style={[
+                  styles.submitButton,
+                  { backgroundColor: theme.primary },
+                ]}
+              >
+                <ThemedText style={{ color: "#FFF", fontWeight: "700" }}>
+                  Upload (Simulated)
+                </ThemedText>
+              </Pressable>
             </ScrollView>
           </View>
         </Pressable>
@@ -994,8 +1774,16 @@ export default function SiteDetailControlScreen() {
 
       {/* Add Expense Modal */}
       <Modal visible={showExpenseModal} animationType="slide" transparent>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowExpenseModal(false)}>
-          <View style={[styles.modalSheet, { backgroundColor: theme.backgroundDefault }]}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowExpenseModal(false)}
+        >
+          <View
+            style={[
+              styles.modalSheet,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
             <View style={styles.sheetHeader}>
               <ThemedText style={styles.sheetTitle}>Log New Expense</ThemedText>
               <Pressable onPress={() => setShowExpenseModal(false)}>
@@ -1004,26 +1792,37 @@ export default function SiteDetailControlScreen() {
             </View>
 
             <ScrollView>
-              <ThemedText style={styles.inputLabel}>Expense Category</ThemedText>
+              <ThemedText style={styles.inputLabel}>
+                Expense Category
+              </ThemedText>
               <View style={styles.filterGroup}>
-                {([
-                  { id: "material", label: "Material" },
-                  { id: "labour", label: "Labour Wages" },
-                  { id: "machinery", label: "Machinery" },
-                  { id: "vendor", label: "Vendor" },
-                  { id: "other", label: "Other" },
-                ] as const).map((cat) => (
+                {(
+                  [
+                    { id: "material", label: "Material" },
+                    { id: "labour", label: "Labour Wages" },
+                    { id: "machinery", label: "Machinery" },
+                    { id: "vendor", label: "Vendor" },
+                    { id: "other", label: "Other" },
+                  ] as const
+                ).map((cat) => (
                   <Pressable
                     key={cat.id}
                     onPress={() => setExpType(cat.id)}
                     style={[
                       styles.filterItem,
                       {
-                        backgroundColor: expType === cat.id ? theme.primary : theme.border,
+                        backgroundColor:
+                          expType === cat.id ? theme.primary : theme.border,
                       },
                     ]}
                   >
-                    <ThemedText style={{ color: expType === cat.id ? "#FFFFFF" : theme.text, fontSize: 11, fontWeight: "700" }}>
+                    <ThemedText
+                      style={{
+                        color: expType === cat.id ? "#FFFFFF" : theme.text,
+                        fontSize: 11,
+                        fontWeight: "700",
+                      }}
+                    >
                       {cat.label}
                     </ThemedText>
                   </Pressable>
@@ -1037,7 +1836,10 @@ export default function SiteDetailControlScreen() {
                 keyboardType="numeric"
                 value={expAmount}
                 onChangeText={setExpAmount}
-                style={[styles.formInput, { color: theme.text, borderColor: theme.border }]}
+                style={[
+                  styles.formInput,
+                  { color: theme.text, borderColor: theme.border },
+                ]}
               />
 
               <ThemedText style={styles.inputLabel}>Vendor Name</ThemedText>
@@ -1046,23 +1848,36 @@ export default function SiteDetailControlScreen() {
                 placeholderTextColor="#9CA3AF"
                 value={expVendor}
                 onChangeText={setExpVendor}
-                style={[styles.formInput, { color: theme.text, borderColor: theme.border }]}
+                style={[
+                  styles.formInput,
+                  { color: theme.text, borderColor: theme.border },
+                ]}
               />
 
-              <ThemedText style={styles.inputLabel}>Notes / Specifications</ThemedText>
+              <ThemedText style={styles.inputLabel}>
+                Notes / Specifications
+              </ThemedText>
               <TextInput
                 placeholder="e.g. 50 bags purchased"
                 placeholderTextColor="#9CA3AF"
                 value={expDesc}
                 onChangeText={setExpDesc}
-                style={[styles.formInput, { color: theme.text, borderColor: theme.border }]}
+                style={[
+                  styles.formInput,
+                  { color: theme.text, borderColor: theme.border },
+                ]}
               />
 
               <Pressable
                 onPress={handleLogExpenseSubmit}
-                style={[styles.submitButton, { backgroundColor: theme.primary }]}
+                style={[
+                  styles.submitButton,
+                  { backgroundColor: theme.primary },
+                ]}
               >
-                <ThemedText style={styles.submitButtonText}>Log Expense Entry</ThemedText>
+                <ThemedText style={styles.submitButtonText}>
+                  Log Expense Entry
+                </ThemedText>
               </Pressable>
             </ScrollView>
           </View>

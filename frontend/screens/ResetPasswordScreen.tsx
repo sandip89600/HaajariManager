@@ -77,7 +77,9 @@ export default function ResetPasswordScreen() {
     console.log("[Reset Password] Reset token received:", token ? "YES" : "NO");
 
     if (!token) {
-      setError("Reset token is missing. Please request a new password reset email.");
+      setError(
+        "Reset token is missing. Please request a new password reset email.",
+      );
       return;
     }
 
@@ -108,7 +110,11 @@ export default function ResetPasswordScreen() {
 
       const data = await res.json();
       if (!res.ok || (data && data.success === false)) {
-        throw new Error(data.message || data.error || "Unable to reset password right now. Please try again.");
+        throw new Error(
+          data.message ||
+            data.error ||
+            "Unable to reset password right now. Please try again.",
+        );
       }
 
       if (Platform.OS !== "web") {
@@ -123,21 +129,26 @@ export default function ResetPasswordScreen() {
             text: "Go to Login",
             onPress: () => navigation.navigate("Login"),
           },
-        ]
+        ],
       );
       if (Platform.OS === "web") {
         setTimeout(() => {
-          try { navigation.navigate("Login"); } catch (e) {}
+          try {
+            navigation.navigate("Login");
+          } catch (e) {}
         }, 500);
       }
     } catch (err: any) {
-      setError(err.message || "Unable to reset password right now. Please try again.");
+      setError(
+        err.message || "Unable to reset password right now. Please try again.",
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const ScrollContainer = Platform.OS === "web" ? ScrollView : KeyboardAwareScrollView;
+  const ScrollContainer =
+    Platform.OS === "web" ? ScrollView : KeyboardAwareScrollView;
 
   return (
     <ThemedView style={styles.container}>
@@ -157,13 +168,21 @@ export default function ResetPasswordScreen() {
         <View style={styles.header}>
           <Pressable
             onPress={() => navigation.goBack()}
-            style={[styles.backButton, { backgroundColor: theme.backgroundSecondary }]}
+            style={[
+              styles.backButton,
+              { backgroundColor: theme.backgroundSecondary },
+            ]}
           >
             <Feather name="arrow-left" size={22} color={theme.text} />
           </Pressable>
-          <ThemedText style={styles.title}>{t("auth.resetPassword", "Reset Password")}</ThemedText>
+          <ThemedText style={styles.title}>
+            {t("auth.resetPassword", "Reset Password")}
+          </ThemedText>
           <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {t("auth.resetPasswordDesc", "Enter your new secure password below to regain account access")}
+            {t(
+              "auth.resetPasswordDesc",
+              "Enter your new secure password below to regain account access",
+            )}
           </ThemedText>
         </View>
 
@@ -176,7 +195,9 @@ export default function ResetPasswordScreen() {
 
         {/* New Password */}
         <View style={styles.inputContainer}>
-          <ThemedText style={styles.inputLabel}>{t("auth.newPassword", "New Password")}</ThemedText>
+          <ThemedText style={styles.inputLabel}>
+            {t("auth.newPassword", "New Password")}
+          </ThemedText>
           <View
             style={[
               styles.inputWrapper,
@@ -304,7 +325,9 @@ export default function ResetPasswordScreen() {
 
         {/* Confirm Password */}
         <View style={styles.inputContainer}>
-          <ThemedText style={styles.inputLabel}>{t("auth.confirmPassword", "Confirm New Password")}</ThemedText>
+          <ThemedText style={styles.inputLabel}>
+            {t("auth.confirmPassword", "Confirm New Password")}
+          </ThemedText>
           <View
             style={[
               styles.inputWrapper,
@@ -323,7 +346,10 @@ export default function ResetPasswordScreen() {
             />
             <TextInput
               style={[styles.input, { color: theme.text }]}
-              placeholder={t("auth.confirmPasswordPlaceholder", "Confirm your password")}
+              placeholder={t(
+                "auth.confirmPasswordPlaceholder",
+                "Confirm your password",
+              )}
               placeholderTextColor={theme.textSecondary}
               value={confirmPassword}
               onChangeText={(tVal) => {
@@ -345,7 +371,9 @@ export default function ResetPasswordScreen() {
             </Pressable>
           </View>
           {confirmPassword.length > 0 && !isMatching && (
-            <ThemedText style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>
+            <ThemedText
+              style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}
+            >
               {t("auth.passwordsDoNotMatch", "Passwords do not match")}
             </ThemedText>
           )}
@@ -368,7 +396,9 @@ export default function ResetPasswordScreen() {
           {isLoading ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <ThemedText style={styles.submitButtonText}>{t("auth.resetPassword", "Set New Password")}</ThemedText>
+            <ThemedText style={styles.submitButtonText}>
+              {t("auth.resetPassword", "Set New Password")}
+            </ThemedText>
           )}
         </AnimatedPressable>
       </ScrollContainer>

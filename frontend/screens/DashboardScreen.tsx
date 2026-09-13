@@ -28,7 +28,10 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import SettingsDrawer from "@/components/SettingsDrawer";
-import { useNotifications, registerForPushNotificationsAsync } from "@/hooks/useNotifications";
+import {
+  useNotifications,
+  registerForPushNotificationsAsync,
+} from "@/hooks/useNotifications";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -80,14 +83,62 @@ interface QuickAction {
 }
 
 const getQuickActions = (t: any): QuickAction[] => [
-  { id: "grid", label: t.dashboard?.attendanceGrid || "Attendance Grid", icon: "grid", colors: ["#22C55E", "#16A34A"], screen: "AttendanceDetail" },
-  { id: "log", label: t.dashboard?.attendanceLog || "Attendance Log", icon: "file-text", colors: ["#3B82F6", "#2563EB"], screen: "Summary" },
-  { id: "progress", label: t.dashboard?.workProgress || "Work / Progress", icon: "trending-up", colors: ["#A855F7", "#9333EA"], screen: "SiteManagementTab" },
-  { id: "material", label: t.dashboard?.material || "Material", icon: "box", colors: ["#F97316", "#EA580C"], screen: "SiteManagementTab" },
-  { id: "expense", label: t.dashboard?.expense || "Expense", icon: "credit-card", colors: ["#EC4899", "#DB2777"], screen: "SiteManagementTab" },
-  { id: "photos", label: t.dashboard?.photos || "Photos", icon: "camera", colors: ["#06B6D4", "#0891B2"], screen: "SiteManagementTab" },
-  { id: "gps", label: t.dashboard?.gpsLocation || "GPS Location", icon: "map-pin", colors: ["#10B981", "#059669"], screen: "AttendanceDetail" },
-  { id: "issues", label: t.dashboard?.issuesDelays || "Issues / Delays", icon: "alert-circle", colors: ["#EF4444", "#DC2626"], screen: "Support" },
+  {
+    id: "grid",
+    label: t.dashboard?.attendanceGrid || "Attendance Grid",
+    icon: "grid",
+    colors: ["#22C55E", "#16A34A"],
+    screen: "AttendanceDetail",
+  },
+  {
+    id: "log",
+    label: t.dashboard?.attendanceLog || "Attendance Log",
+    icon: "file-text",
+    colors: ["#3B82F6", "#2563EB"],
+    screen: "Summary",
+  },
+  {
+    id: "progress",
+    label: t.dashboard?.workProgress || "Work / Progress",
+    icon: "trending-up",
+    colors: ["#A855F7", "#9333EA"],
+    screen: "SiteManagementTab",
+  },
+  {
+    id: "material",
+    label: t.dashboard?.material || "Material",
+    icon: "box",
+    colors: ["#F97316", "#EA580C"],
+    screen: "SiteManagementTab",
+  },
+  {
+    id: "expense",
+    label: t.dashboard?.expense || "Expense",
+    icon: "credit-card",
+    colors: ["#EC4899", "#DB2777"],
+    screen: "SiteManagementTab",
+  },
+  {
+    id: "photos",
+    label: t.dashboard?.photos || "Photos",
+    icon: "camera",
+    colors: ["#06B6D4", "#0891B2"],
+    screen: "SiteManagementTab",
+  },
+  {
+    id: "gps",
+    label: t.dashboard?.gpsLocation || "GPS Location",
+    icon: "map-pin",
+    colors: ["#10B981", "#059669"],
+    screen: "AttendanceDetail",
+  },
+  {
+    id: "issues",
+    label: t.dashboard?.issuesDelays || "Issues / Delays",
+    icon: "alert-circle",
+    colors: ["#EF4444", "#DC2626"],
+    screen: "Support",
+  },
 ];
 
 export default function DashboardScreen() {
@@ -95,7 +146,11 @@ export default function DashboardScreen() {
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
-  const { config: featureConfig, isSubscriptionEnabled, isModuleVisible } = useFeatureAccess();
+  const {
+    config: featureConfig,
+    isSubscriptionEnabled,
+    isModuleVisible,
+  } = useFeatureAccess();
   const subscriptionsEnabled = isSubscriptionEnabled;
   const { socket, connectSocket } = useSocket();
   const { unreadCount } = useNotifications();
@@ -125,8 +180,18 @@ export default function DashboardScreen() {
   const [activeSite, setActiveSite] = useState<Project | null>(null);
   const [projectsList, setProjectsList] = useState<Project[]>([]);
   const [workersList, setWorkersList] = useState<Worker[]>([]);
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [currentPlan, setCurrentPlan] = useState<"free" | "starter" | "professional" | "business" | "basic" | "super" | "premium">("free");
+  const [attendanceRecords, setAttendanceRecords] = useState<
+    AttendanceRecord[]
+  >([]);
+  const [currentPlan, setCurrentPlan] = useState<
+    | "free"
+    | "starter"
+    | "professional"
+    | "business"
+    | "basic"
+    | "super"
+    | "premium"
+  >("free");
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [showToast, setShowToast] = useState(false);
@@ -161,9 +226,12 @@ export default function DashboardScreen() {
   } catch {
     tabBarHeight = insets.bottom + 65;
   }
-  const toastBottom = (tabBarHeight > 0 ? tabBarHeight : insets.bottom + 65) + 16;
+  const toastBottom =
+    (tabBarHeight > 0 ? tabBarHeight : insets.bottom + 65) + 16;
   const [streakCount, setStreakCount] = useState(1);
-  const [smartInsight, setSmartInsight] = useState("Calculating live analytics...");
+  const [smartInsight, setSmartInsight] = useState(
+    "Calculating live analytics...",
+  );
   const [quickMarkModalVisible, setQuickMarkModalVisible] = useState(false);
   const [quickMarkWorker, setQuickMarkWorker] = useState<Worker | null>(null);
   const [selectedSiteFilter, setSelectedSiteFilter] = useState<string>("ALL");
@@ -199,9 +267,14 @@ export default function DashboardScreen() {
 
   const greetingHour = today.getHours();
   const greeting =
-    greetingHour < 12 ? "Good morning" : greetingHour < 17 ? "Good afternoon" : "Good evening";
+    greetingHour < 12
+      ? "Good morning"
+      : greetingHour < 17
+        ? "Good afternoon"
+        : "Good evening";
 
-  const triggerHaptic = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const triggerHaptic = () =>
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
   // Load dashboard data
   const loadDashboardData = async (silent = false) => {
@@ -214,7 +287,10 @@ export default function DashboardScreen() {
         id: s.id,
         name: s.name,
         location: s.address || s.location,
-        status: (s.status === "Completed" || s.status === "On Hold") ? "inactive" : "active",
+        status:
+          s.status === "Completed" || s.status === "On Hold"
+            ? "inactive"
+            : "active",
         startDate: s.startDate,
         endDate: s.endDate,
         clientName: s.clientName,
@@ -228,7 +304,10 @@ export default function DashboardScreen() {
       const todayMonth = today.getMonth();
       const todayDay = today.getDate();
 
-      const attendance = await storage.getAttendanceForMonth(todayYear, todayMonth);
+      const attendance = await storage.getAttendanceForMonth(
+        todayYear,
+        todayMonth,
+      );
 
       const auth = await storage.getAuth();
       if (auth?.plan) setCurrentPlan(auth.plan);
@@ -238,20 +317,25 @@ export default function DashboardScreen() {
       setWorkersList(workers);
       setAttendanceRecords(attendance);
 
-      const active = projects.find((p) => p.status === "active") || projects[0] || null;
+      const active =
+        projects.find((p) => p.status === "active") || projects[0] || null;
       setActiveSite(active);
 
       // Default to ALL workers (contractor-wide scope) unless an explicit site filter is selected
-      const siteWorkers = (selectedSiteFilter && selectedSiteFilter !== "ALL" && active)
-        ? workers.filter((w) => w.projectId === active.id)
-        : workers;
+      const siteWorkers =
+        selectedSiteFilter && selectedSiteFilter !== "ALL" && active
+          ? workers.filter((w) => w.projectId === active.id)
+          : workers;
       const totalWorkers = siteWorkers.length;
 
       const todayAttendance = attendance.filter(
-        (r) => r.year === todayYear && r.month === todayMonth && r.day === todayDay
+        (r) =>
+          r.year === todayYear && r.month === todayMonth && r.day === todayDay,
       );
 
-      let presentCount = 0, halfDayCount = 0, overtimeCount = 0;
+      let presentCount = 0,
+        halfDayCount = 0,
+        overtimeCount = 0;
       todayAttendance.forEach((rec) => {
         const belongsToScope = siteWorkers.some((sw) => sw.id === rec.workerId);
         if (belongsToScope) {
@@ -261,10 +345,15 @@ export default function DashboardScreen() {
         }
       });
 
-      const absentCount = totalWorkers - presentCount - halfDayCount - overtimeCount;
-      const rate = totalWorkers > 0
-        ? Math.round(((presentCount + halfDayCount + overtimeCount) / totalWorkers) * 100)
-        : 0;
+      const absentCount =
+        totalWorkers - presentCount - halfDayCount - overtimeCount;
+      const rate =
+        totalWorkers > 0
+          ? Math.round(
+              ((presentCount + halfDayCount + overtimeCount) / totalWorkers) *
+                100,
+            )
+          : 0;
 
       setStats({
         totalWorkers,
@@ -283,13 +372,23 @@ export default function DashboardScreen() {
         const month = checkDate.getMonth();
         const day = checkDate.getDate();
         const hasAttendance = attendance.some(
-          (r) => r.year === year && r.month === month && r.day === day &&
-            (r.value === "P" || r.value === "A" || r.value === "H" || r.value === "OT" || typeof r.value === "number")
+          (r) =>
+            r.year === year &&
+            r.month === month &&
+            r.day === day &&
+            (r.value === "P" ||
+              r.value === "A" ||
+              r.value === "H" ||
+              r.value === "OT" ||
+              typeof r.value === "number"),
         );
-        if (hasAttendance) { streak++; checkDate.setDate(checkDate.getDate() - 1); }
-        else {
+        if (hasAttendance) {
+          streak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else {
           if (streak === 0 && checkDate.getDate() === today.getDate()) {
-            checkDate.setDate(checkDate.getDate() - 1); continue;
+            checkDate.setDate(checkDate.getDate() - 1);
+            continue;
           }
           break;
         }
@@ -300,23 +399,41 @@ export default function DashboardScreen() {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayAttendance = attendance.filter(
-        (r) => r.year === yesterday.getFullYear() && r.month === yesterday.getMonth() && r.day === yesterday.getDate()
+        (r) =>
+          r.year === yesterday.getFullYear() &&
+          r.month === yesterday.getMonth() &&
+          r.day === yesterday.getDate(),
       );
       let yesterdayPresent = 0;
       yesterdayAttendance.forEach((rec) => {
         const belongs = siteWorkers.some((sw) => sw.id === rec.workerId);
-        if (belongs && (rec.value === "P" || rec.value === "H" || rec.value === "OT")) yesterdayPresent++;
+        if (
+          belongs &&
+          (rec.value === "P" || rec.value === "H" || rec.value === "OT")
+        )
+          yesterdayPresent++;
       });
-      const yesterdayRate = totalWorkers > 0 ? Math.round((yesterdayPresent / totalWorkers) * 100) : 0;
+      const yesterdayRate =
+        totalWorkers > 0
+          ? Math.round((yesterdayPresent / totalWorkers) * 100)
+          : 0;
 
       if (totalWorkers > 0) {
-        if (rate > yesterdayRate) setSmartInsight(`Attendance improved by ${rate - yesterdayRate}% vs yesterday 🎉`);
-        else if (rate < yesterdayRate) setSmartInsight(`Attendance dropped by ${yesterdayRate - rate}% vs yesterday ⚠️`);
-        else setSmartInsight("Attendance is stable, matching yesterday's levels.");
+        if (rate > yesterdayRate)
+          setSmartInsight(
+            `Attendance improved by ${rate - yesterdayRate}% vs yesterday 🎉`,
+          );
+        else if (rate < yesterdayRate)
+          setSmartInsight(
+            `Attendance dropped by ${yesterdayRate - rate}% vs yesterday ⚠️`,
+          );
+        else
+          setSmartInsight("Attendance is stable, matching yesterday's levels.");
       } else {
-        setSmartInsight("Welcome! Register workers and sites to see live insights.");
+        setSmartInsight(
+          "Welcome! Register workers and sites to see live insights.",
+        );
       }
-
     } catch (error) {
       console.warn("Failed to load dashboard statistics:", error);
     } finally {
@@ -326,12 +443,18 @@ export default function DashboardScreen() {
   };
 
   // Effects
-  useEffect(() => { connectSocket(); }, []);
+  useEffect(() => {
+    connectSocket();
+  }, []);
 
   useEffect(() => {
-    const handleUpdate = () => { loadDashboardData(true); };
+    const handleUpdate = () => {
+      loadDashboardData(true);
+    };
     socket.on("admin_dashboard_update", handleUpdate);
-    const sub = DeviceEventEmitter.addListener("refreshData", () => loadDashboardData(true));
+    const sub = DeviceEventEmitter.addListener("refreshData", () =>
+      loadDashboardData(true),
+    );
     return () => {
       socket.off("admin_dashboard_update", handleUpdate);
       sub.remove();
@@ -342,15 +465,26 @@ export default function DashboardScreen() {
     useCallback(() => {
       loadDashboardData();
       markSessionStart();
-    }, [activeSite?.id])
+    }, [activeSite?.id]),
   );
 
   useInAppReview({ isReady: !loading && !refreshing });
 
-  const deleteAttendanceLocally = async (workerId: string, year: number, month: number, day: number) => {
+  const deleteAttendanceLocally = async (
+    workerId: string,
+    year: number,
+    month: number,
+    day: number,
+  ) => {
     const allRecords = await storage.getAttendance();
     const filtered = allRecords.filter(
-      (r) => !(r.workerId === workerId && r.year === year && r.month === month && r.day === day)
+      (r) =>
+        !(
+          r.workerId === workerId &&
+          r.year === year &&
+          r.month === month &&
+          r.day === day
+        ),
     );
     await storage.setAttendance(filtered);
   };
@@ -378,7 +512,11 @@ export default function DashboardScreen() {
     const previousRecords = [...attendanceRecords];
     setAttendanceRecords((prev) => {
       const idx = prev.findIndex(
-        (r) => r.workerId === worker.id && r.year === todayYear && r.month === todayMonth && r.day === todayDay
+        (r) =>
+          r.workerId === worker.id &&
+          r.year === todayYear &&
+          r.month === todayMonth &&
+          r.day === todayDay,
       );
       const updated = [...prev];
       if (idx !== -1) {
@@ -412,7 +550,11 @@ export default function DashboardScreen() {
       await storage.setAttendanceRecord(record);
       setAttendanceRecords((prev) => {
         const idx = prev.findIndex(
-          (r) => r.workerId === record.workerId && r.year === record.year && r.month === record.month && r.day === record.day
+          (r) =>
+            r.workerId === record.workerId &&
+            r.year === record.year &&
+            r.month === record.month &&
+            r.day === record.day,
         );
         const updated = [...prev];
         if (idx !== -1) {
@@ -438,11 +580,22 @@ export default function DashboardScreen() {
       const todayYear = today.getFullYear();
       const todayMonth = today.getMonth();
       const todayDay = today.getDate();
-      await deleteAttendanceLocally(quickMarkWorker.id, todayYear, todayMonth, todayDay);
+      await deleteAttendanceLocally(
+        quickMarkWorker.id,
+        todayYear,
+        todayMonth,
+        todayDay,
+      );
       setAttendanceRecords((prev) =>
         prev.filter(
-          (r) => !(r.workerId === quickMarkWorker.id && r.year === todayYear && r.month === todayMonth && r.day === todayDay)
-        )
+          (r) =>
+            !(
+              r.workerId === quickMarkWorker.id &&
+              r.year === todayYear &&
+              r.month === todayMonth &&
+              r.day === todayDay
+            ),
+        ),
       );
       setQuickMarkModalVisible(false);
       await loadDashboardData(true);
@@ -452,9 +605,10 @@ export default function DashboardScreen() {
     }
   };
 
-  const displayWorkers = (selectedSiteFilter && selectedSiteFilter !== "ALL" && activeSite)
-    ? workersList.filter((w) => w.projectId === activeSite.id)
-    : workersList;
+  const displayWorkers =
+    selectedSiteFilter && selectedSiteFilter !== "ALL" && activeSite
+      ? workersList.filter((w) => w.projectId === activeSite.id)
+      : workersList;
 
   const handleMarkAllPresent = async () => {
     triggerHaptic();
@@ -472,7 +626,11 @@ export default function DashboardScreen() {
 
       for (const worker of displayWorkers) {
         const idx = updated.findIndex(
-          (r) => r.workerId === worker.id && r.year === todayYear && r.month === todayMonth && r.day === todayDay
+          (r) =>
+            r.workerId === worker.id &&
+            r.year === todayYear &&
+            r.month === todayMonth &&
+            r.day === todayDay,
         );
 
         const dailyRate = worker.dailyRate ?? 0;
@@ -505,7 +663,10 @@ export default function DashboardScreen() {
     }
   };
 
-  const onRefresh = async () => { setRefreshing(true); await loadDashboardData(false); };
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadDashboardData(false);
+  };
 
   const ratePercent = stats.rate;
   const recentWorkers = workersList.slice(0, 6);
@@ -521,10 +682,22 @@ export default function DashboardScreen() {
         colors={isDark ? ["#0F172A", "#1E293B"] : ["#F97316", "#EA580C"]}
         style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
-        <View style={styles.headerInner} ref={welcomeRef} onLayout={onLayoutWelcome}>
+        <View
+          style={styles.headerInner}
+          ref={welcomeRef}
+          onLayout={onLayoutWelcome}
+        >
           <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <ThemedText style={{ fontSize: 20, fontWeight: "900", color: "#FFFFFF" }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <ThemedText
+                style={{ fontSize: 20, fontWeight: "900", color: "#FFFFFF" }}
+              >
                 Haajari Manager
               </ThemedText>
               <Pressable
@@ -550,7 +723,13 @@ export default function DashboardScreen() {
                       paddingHorizontal: 3,
                     }}
                   >
-                    <ThemedText style={{ color: "#FFFFFF", fontSize: 10, fontWeight: "800" }}>
+                    <ThemedText
+                      style={{
+                        color: "#FFFFFF",
+                        fontSize: 10,
+                        fontWeight: "800",
+                      }}
+                    >
                       {unreadCount > 99 ? "99+" : unreadCount}
                     </ThemedText>
                   </View>
@@ -561,21 +740,47 @@ export default function DashboardScreen() {
             {/* Small Plan Badge Nudge — only visible when subscriptions are enabled */}
             {subscriptionsEnabled && (
               <Pressable
-                onPress={() => { triggerHaptic(); navigation.navigate("Subscription"); }}
+                onPress={() => {
+                  triggerHaptic();
+                  navigation.navigate("Subscription");
+                }}
                 style={styles.nudgeBadge}
               >
                 <ThemedText style={styles.nudgeBadgeText}>
-                  {currentPlan === "free" || currentPlan === "basic" ? t("settings.basicPlan", "Basic Plan") : currentPlan === "professional" || currentPlan === "super" ? t("settings.superPlan", "Super Plan") : t("settings.premiumPlan", "Premium Plan")}
+                  {currentPlan === "free" || currentPlan === "basic"
+                    ? t("settings.basicPlan", "Basic Plan")
+                    : currentPlan === "professional" || currentPlan === "super"
+                      ? t("settings.superPlan", "Super Plan")
+                      : t("settings.premiumPlan", "Premium Plan")}
                 </ThemedText>
                 <View style={styles.nudgeDivider} />
                 <ThemedText style={styles.nudgeBadgeText}>
-                  {workersList.length} / {currentPlan === "free" || currentPlan === "basic" ? 20 : currentPlan === "professional" || currentPlan === "super" ? 100 : t("common.unlimited", "Unlimited")} {t("dashboard.used", "Used")}
+                  {workersList.length} /{" "}
+                  {currentPlan === "free" || currentPlan === "basic"
+                    ? 20
+                    : currentPlan === "professional" || currentPlan === "super"
+                      ? 100
+                      : t("common.unlimited", "Unlimited")}{" "}
+                  {t("dashboard.used", "Used")}
                 </ThemedText>
-                <Feather name="arrow-right" size={10} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                <Feather
+                  name="arrow-right"
+                  size={10}
+                  color="#FFFFFF"
+                  style={{ marginLeft: 4 }}
+                />
               </Pressable>
             )}
 
-            <ThemedText style={[styles.dateText, { color: isDark ? "#64748B" : "rgba(255,255,255,0.7)", marginTop: 6 }]}>
+            <ThemedText
+              style={[
+                styles.dateText,
+                {
+                  color: isDark ? "#64748B" : "rgba(255,255,255,0.7)",
+                  marginTop: 6,
+                },
+              ]}
+            >
               {formattedDate}
             </ThemedText>
           </View>
@@ -583,18 +788,33 @@ export default function DashboardScreen() {
           {subscriptionsEnabled && (
             <View style={styles.headerActions}>
               <Pressable
-                onPress={() => { triggerHaptic(); navigation.navigate("Subscription"); }}
+                onPress={() => {
+                  triggerHaptic();
+                  navigation.navigate("Subscription");
+                }}
                 style={styles.premiumBadgeBtn}
               >
-                <Ionicons name="sparkles" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
-                <ThemedText style={styles.premiumBadgeBtnText}>{t.settings?.upgradePlan || "Upgrade"}</ThemedText>
+                <Ionicons
+                  name="sparkles"
+                  size={13}
+                  color="#FFFFFF"
+                  style={{ marginRight: 4 }}
+                />
+                <ThemedText style={styles.premiumBadgeBtnText}>
+                  {t.settings?.upgradePlan || "Upgrade"}
+                </ThemedText>
               </Pressable>
             </View>
           )}
         </View>
 
         {/* Streak badge */}
-        <View style={[styles.streakBadge, { backgroundColor: isDark ? "#334155" : "rgba(255,255,255,0.2)" }]}>
+        <View
+          style={[
+            styles.streakBadge,
+            { backgroundColor: isDark ? "#334155" : "rgba(255,255,255,0.2)" },
+          ]}
+        >
           <Feather name="zap" size={14} color="#F97316" />
           <ThemedText style={[styles.streakText, { color: "#FFFFFF" }]}>
             {streakCount} {t("dashboard.dayStreak", "day streak")}
@@ -605,7 +825,9 @@ export default function DashboardScreen() {
       <ScrollView
         ref={scrollViewRef}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 120, tabBarHeight + 90) }}
+        contentContainerStyle={{
+          paddingBottom: Math.max(insets.bottom + 120, tabBarHeight + 90),
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -617,79 +839,201 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ── 1. Top Site Information Card ───────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(100).springify()} style={[styles.topSiteCard, { backgroundColor: cardBg, borderColor }]}>
+        <Animated.View
+          entering={FadeInDown.delay(100).springify()}
+          style={[styles.topSiteCard, { backgroundColor: cardBg, borderColor }]}
+        >
           <View style={styles.topSiteHeaderRow}>
             <View style={{ flex: 1 }}>
-              <ThemedText style={[styles.topSiteName, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
-                {activeSite ? activeSite.name : (user?.companyName || t.sites?.title || "Main Construction Site")}
+              <ThemedText
+                style={[
+                  styles.topSiteName,
+                  { color: isDark ? "#FFFFFF" : "#0F172A" },
+                ]}
+              >
+                {activeSite
+                  ? activeSite.name
+                  : user?.companyName ||
+                    t.sites?.title ||
+                    "Main Construction Site"}
               </ThemedText>
-              <ThemedText style={[styles.topSiteDate, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>
+              <ThemedText
+                style={[
+                  styles.topSiteDate,
+                  { color: isDark ? "#94A3B8" : theme.textSecondary },
+                ]}
+              >
                 {formattedDate}
               </ThemedText>
             </View>
             <View style={styles.topSiteStatusBadge}>
               <View style={styles.activeDot} />
-              <Text style={styles.activeStatusText}>{activeSite ? t.translateSiteStatus("ACTIVE") : t.translateSiteStatus("ACTIVE")}</Text>
+              <Text style={styles.activeStatusText}>
+                {activeSite
+                  ? t.translateSiteStatus("ACTIVE")
+                  : t.translateSiteStatus("ACTIVE")}
+              </Text>
             </View>
           </View>
           <View style={[styles.supervisorRow, { borderTopColor: borderColor }]}>
-            <Feather name="user-check" size={14} color="#F97316" style={{ marginRight: 6 }} />
-            <Text style={[styles.supervisorLabel, { color: isDark ? "#CBD5E1" : theme.textSecondary }]}>
-              {t.sites?.supervisor || "Supervisor"}: <Text style={{ fontWeight: "700", color: isDark ? "#FFFFFF" : "#0F172A" }}>{
-                typeof (activeSite as any)?.supervisor === "object" && (activeSite as any)?.supervisor?.name
+            <Feather
+              name="user-check"
+              size={14}
+              color="#F97316"
+              style={{ marginRight: 6 }}
+            />
+            <Text
+              style={[
+                styles.supervisorLabel,
+                { color: isDark ? "#CBD5E1" : theme.textSecondary },
+              ]}
+            >
+              {t.sites?.supervisor || "Supervisor"}:{" "}
+              <Text
+                style={{
+                  fontWeight: "700",
+                  color: isDark ? "#FFFFFF" : "#0F172A",
+                }}
+              >
+                {typeof (activeSite as any)?.supervisor === "object" &&
+                (activeSite as any)?.supervisor?.name
                   ? (activeSite as any).supervisor.name
-                  : typeof (activeSite as any)?.supervisor === "string" && (activeSite as any).supervisor.trim().length > 0
-                  ? (activeSite as any).supervisor
-                  : (activeSite as any)?.supervisorName
-                  ? (activeSite as any).supervisorName
-                  : t("supervisor.notAssigned", "Not Assigned")
-              }</Text>
+                  : typeof (activeSite as any)?.supervisor === "string" &&
+                      (activeSite as any).supervisor.trim().length > 0
+                    ? (activeSite as any).supervisor
+                    : (activeSite as any)?.supervisorName
+                      ? (activeSite as any).supervisorName
+                      : t("supervisor.notAssigned", "Not Assigned")}
+              </Text>
             </Text>
           </View>
         </Animated.View>
 
         {/* ── 2. Attendance Summary Cards (Compact Grid) ─────────────── */}
-        <Animated.View entering={FadeInDown.delay(150).springify()} style={styles.summaryGridContainer}>
-          <SectionHeader title={t.dashboard?.todayAttendance || "Attendance Summary"} />
+        <Animated.View
+          entering={FadeInDown.delay(150).springify()}
+          style={styles.summaryGridContainer}
+        >
+          <SectionHeader
+            title={t.dashboard?.todayAttendance || "Attendance Summary"}
+          />
           <View style={styles.summaryCompactGrid}>
-            <View style={[styles.summaryCompactCard, { backgroundColor: cardBg, borderColor }]}>
-              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>{t.common?.total || "Total"}</Text>
-              <Text style={[styles.summaryCardValue, { color: "#3B82F6" }]}>{stats.totalWorkers}</Text>
+            <View
+              style={[
+                styles.summaryCompactCard,
+                { backgroundColor: cardBg, borderColor },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.summaryCardLabel,
+                  { color: isDark ? "#94A3B8" : theme.textSecondary },
+                ]}
+              >
+                {t.common?.total || "Total"}
+              </Text>
+              <Text style={[styles.summaryCardValue, { color: "#3B82F6" }]}>
+                {stats.totalWorkers}
+              </Text>
             </View>
-            <View style={[styles.summaryCompactCard, { backgroundColor: cardBg, borderColor }]}>
-              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>{t.summary?.present || "Present"}</Text>
-              <Text style={[styles.summaryCardValue, { color: "#22C55E" }]}>{stats.present}</Text>
+            <View
+              style={[
+                styles.summaryCompactCard,
+                { backgroundColor: cardBg, borderColor },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.summaryCardLabel,
+                  { color: isDark ? "#94A3B8" : theme.textSecondary },
+                ]}
+              >
+                {t.summary?.present || "Present"}
+              </Text>
+              <Text style={[styles.summaryCardValue, { color: "#22C55E" }]}>
+                {stats.present}
+              </Text>
             </View>
-            <View style={[styles.summaryCompactCard, { backgroundColor: cardBg, borderColor }]}>
-              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>{t.summary?.absent || "Absent"}</Text>
-              <Text style={[styles.summaryCardValue, { color: "#EF4444" }]}>{stats.absent}</Text>
+            <View
+              style={[
+                styles.summaryCompactCard,
+                { backgroundColor: cardBg, borderColor },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.summaryCardLabel,
+                  { color: isDark ? "#94A3B8" : theme.textSecondary },
+                ]}
+              >
+                {t.summary?.absent || "Absent"}
+              </Text>
+              <Text style={[styles.summaryCardValue, { color: "#EF4444" }]}>
+                {stats.absent}
+              </Text>
             </View>
-            <View style={[styles.summaryCompactCard, { backgroundColor: cardBg, borderColor }]}>
-              <Text style={[styles.summaryCardLabel, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>{t.summary?.halfDay || "Half Day"}</Text>
-              <Text style={[styles.summaryCardValue, { color: "#F59E0B" }]}>{stats.halfDay}</Text>
+            <View
+              style={[
+                styles.summaryCompactCard,
+                { backgroundColor: cardBg, borderColor },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.summaryCardLabel,
+                  { color: isDark ? "#94A3B8" : theme.textSecondary },
+                ]}
+              >
+                {t.summary?.halfDay || "Half Day"}
+              </Text>
+              <Text style={[styles.summaryCardValue, { color: "#F59E0B" }]}>
+                {stats.halfDay}
+              </Text>
             </View>
           </View>
         </Animated.View>
 
         {/* ── 3. Attendance Grid Launcher Card ──────────────────────── */}
         {isModuleVisible("attendance") && (
-          <Animated.View entering={FadeInDown.delay(200).springify()} style={{ paddingHorizontal: 16, marginTop: 12 }}>
+          <Animated.View
+            entering={FadeInDown.delay(200).springify()}
+            style={{ paddingHorizontal: 16, marginTop: 12 }}
+          >
             <Pressable
               onPress={() => {
                 triggerHaptic();
                 navigation.navigate("AttendanceDetail");
               }}
-              style={[styles.attendanceGridLauncherCard, { backgroundColor: isDark ? "#1E293B" : "#FFF7ED", borderColor: "#F97316" }]}
+              style={[
+                styles.attendanceGridLauncherCard,
+                {
+                  backgroundColor: isDark ? "#1E293B" : "#FFF7ED",
+                  borderColor: "#F97316",
+                },
+              ]}
             >
               <View style={styles.launcherIconCircle}>
                 <Feather name="calendar" size={20} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <ThemedText style={[styles.launcherTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
+                <ThemedText
+                  style={[
+                    styles.launcherTitle,
+                    { color: isDark ? "#FFFFFF" : "#0F172A" },
+                  ]}
+                >
                   📅 {t.dashboard?.attendanceGrid || "Attendance Grid"}
                 </ThemedText>
-                <ThemedText style={[styles.launcherSubtitle, { color: isDark ? "#94A3B8" : "#92400E" }]}>
-                  {t("dashboard.viewAttendanceByDate", "View worker attendance by date")}
+                <ThemedText
+                  style={[
+                    styles.launcherSubtitle,
+                    { color: isDark ? "#94A3B8" : "#92400E" },
+                  ]}
+                >
+                  {t(
+                    "dashboard.viewAttendanceByDate",
+                    "View worker attendance by date",
+                  )}
                 </ThemedText>
               </View>
               <Feather name="chevron-right" size={20} color="#F97316" />
@@ -708,13 +1052,23 @@ export default function DashboardScreen() {
           <View style={styles.quickActionsGrid}>
             {getQuickActions(t)
               .filter((action) => {
-                if (action.screen === "AddWorker" || action.screen === "Workers") {
+                if (
+                  action.screen === "AddWorker" ||
+                  action.screen === "Workers"
+                ) {
                   return isModuleVisible("workers");
                 }
-                if (action.screen === "ProjectManagement" || action.screen === "SiteList" || action.screen === "CreateSite") {
+                if (
+                  action.screen === "ProjectManagement" ||
+                  action.screen === "SiteList" ||
+                  action.screen === "CreateSite"
+                ) {
                   return isModuleVisible("siteControl");
                 }
-                if (action.screen === "ReportsTab" || action.screen === "Summary") {
+                if (
+                  action.screen === "ReportsTab" ||
+                  action.screen === "Summary"
+                ) {
                   return isModuleVisible("reports");
                 }
                 return true;
@@ -722,17 +1076,34 @@ export default function DashboardScreen() {
               .map((action) => (
                 <AnimatedPressable
                   key={action.id}
-                  style={[styles.quickActionCard, { backgroundColor: cardBg, borderColor }]}
+                  style={[
+                    styles.quickActionCard,
+                    { backgroundColor: cardBg, borderColor },
+                  ]}
                   onPress={() => {
                     triggerHaptic();
                     trackInteraction("screen_navigated");
                     navigation.navigate(action.screen);
                   }}
                 >
-                  <LinearGradient colors={action.colors} style={styles.quickActionIconWrap}>
-                    <Feather name={action.icon as any} size={20} color="#FFFFFF" />
+                  <LinearGradient
+                    colors={action.colors}
+                    style={styles.quickActionIconWrap}
+                  >
+                    <Feather
+                      name={action.icon as any}
+                      size={20}
+                      color="#FFFFFF"
+                    />
                   </LinearGradient>
-                  <ThemedText style={[styles.quickActionLabel, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>{action.label}</ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.quickActionLabel,
+                      { color: isDark ? "#FFFFFF" : "#0F172A" },
+                    ]}
+                  >
+                    {action.label}
+                  </ThemedText>
                 </AnimatedPressable>
               ))}
           </View>
@@ -745,45 +1116,99 @@ export default function DashboardScreen() {
             style={[styles.siteCard, { backgroundColor: cardBg, borderColor }]}
           >
             <View style={styles.siteCardHeader}>
-              <LinearGradient colors={["#F97316", "#EA580C"]} style={styles.siteIconWrap}>
+              <LinearGradient
+                colors={["#F97316", "#EA580C"]}
+                style={styles.siteIconWrap}
+              >
                 <Feather name="map-pin" size={16} color="#FFF" />
               </LinearGradient>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <ThemedText style={[styles.siteCardTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]} numberOfLines={1}>{activeSite.name}</ThemedText>
-                <ThemedText style={[styles.siteCardLocation, { color: isDark ? "#94A3B8" : theme.textSecondary }]} numberOfLines={1}>
-                  {activeSite.location || t("sites.defaultLocation", "Default Location")}
+                <ThemedText
+                  style={[
+                    styles.siteCardTitle,
+                    { color: isDark ? "#FFFFFF" : "#0F172A" },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {activeSite.name}
+                </ThemedText>
+                <ThemedText
+                  style={[
+                    styles.siteCardLocation,
+                    { color: isDark ? "#94A3B8" : theme.textSecondary },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {activeSite.location ||
+                    t("sites.defaultLocation", "Default Location")}
                 </ThemedText>
               </View>
-              <Badge label={t.translateSiteStatus("ACTIVE")} variant="success" />
+              <Badge
+                label={t.translateSiteStatus("ACTIVE")}
+                variant="success"
+              />
             </View>
 
             <View style={styles.siteCardStats}>
-              <Feather name="users" size={14} color={isDark ? "#94A3B8" : theme.textSecondary} style={{ marginRight: 6 }} />
-              <ThemedText style={{ color: isDark ? "#CBD5E1" : theme.textSecondary, fontSize: 13 }}>
-                {siteStats.workersPresent}/{siteStats.totalWorkers} {t("dashboard.workersOnSite", "workers on site")}
+              <Feather
+                name="users"
+                size={14}
+                color={isDark ? "#94A3B8" : theme.textSecondary}
+                style={{ marginRight: 6 }}
+              />
+              <ThemedText
+                style={{
+                  color: isDark ? "#CBD5E1" : theme.textSecondary,
+                  fontSize: 13,
+                }}
+              >
+                {siteStats.workersPresent}/{siteStats.totalWorkers}{" "}
+                {t("dashboard.workersOnSite", "workers on site")}
               </ThemedText>
             </View>
 
             <View style={styles.siteCardActions}>
               <PrimaryButton
                 label={t.dashboard?.markAttendance || "Mark Attendance"}
-                onPress={() => { triggerHaptic(); navigation.navigate("AttendanceDetail"); }}
+                onPress={() => {
+                  triggerHaptic();
+                  navigation.navigate("AttendanceDetail");
+                }}
                 size="sm"
                 style={{ flex: 1 }}
               />
               <Pressable
-                onPress={() => { triggerHaptic(); navigation.navigate("ProjectManagement"); }}
+                onPress={() => {
+                  triggerHaptic();
+                  navigation.navigate("ProjectManagement");
+                }}
                 style={[styles.siteActionOutlineBtn, { borderColor }]}
               >
-                <Feather name="external-link" size={14} color={isDark ? "#FFFFFF" : theme.text} style={{ marginRight: 6 }} />
-                <ThemedText style={{ color: isDark ? "#FFFFFF" : theme.text, fontSize: 13, fontWeight: "600" }}>{t("common.manage", "Manage")}</ThemedText>
+                <Feather
+                  name="external-link"
+                  size={14}
+                  color={isDark ? "#FFFFFF" : theme.text}
+                  style={{ marginRight: 6 }}
+                />
+                <ThemedText
+                  style={{
+                    color: isDark ? "#FFFFFF" : theme.text,
+                    fontSize: 13,
+                    fontWeight: "600",
+                  }}
+                >
+                  {t("common.manage", "Manage")}
+                </ThemedText>
               </Pressable>
             </View>
           </Animated.View>
         ) : null}
 
         {/* ── Team & Connections Section ─────────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(300).springify()} style={{ paddingHorizontal: 16, marginTop: 12 }}>
+        <Animated.View
+          entering={FadeInDown.delay(300).springify()}
+          style={{ paddingHorizontal: 16, marginTop: 12 }}
+        >
           <TeamConnectionWidget onRefreshParent={loadDashboardData} />
         </Animated.View>
 
@@ -796,25 +1221,61 @@ export default function DashboardScreen() {
         >
           <View style={styles.sectionCardHeader}>
             <View style={{ flex: 1 }}>
-              <ThemedText style={[styles.sectionTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>{t.dashboard?.attendanceLog || "Today's Attendance Log"}</ThemedText>
-              <ThemedText style={[styles.sectionSubtitle, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>
-                {t("dashboard.tapToMarkHoldForOptions", "Tap row to mark, hold for options.")}
+              <ThemedText
+                style={[
+                  styles.sectionTitle,
+                  { color: isDark ? "#FFFFFF" : "#0F172A" },
+                ]}
+              >
+                {t.dashboard?.attendanceLog || "Today's Attendance Log"}
+              </ThemedText>
+              <ThemedText
+                style={[
+                  styles.sectionSubtitle,
+                  { color: isDark ? "#94A3B8" : theme.textSecondary },
+                ]}
+              >
+                {t(
+                  "dashboard.tapToMarkHoldForOptions",
+                  "Tap row to mark, hold for options.",
+                )}
               </ThemedText>
             </View>
             <Pressable
               onPress={handleMarkAllPresent}
-              style={[styles.viewAllBtn, { backgroundColor: theme.primary + "15" }]}
+              style={[
+                styles.viewAllBtn,
+                { backgroundColor: theme.primary + "15" },
+              ]}
             >
               <Feather name="check" size={14} color={theme.primary} />
-              <ThemedText style={[styles.viewAllText, { color: theme.primary, marginLeft: 4 }]}>{t("dashboard.allPresent", "All Present")}</ThemedText>
+              <ThemedText
+                style={[
+                  styles.viewAllText,
+                  { color: theme.primary, marginLeft: 4 },
+                ]}
+              >
+                {t("dashboard.allPresent", "All Present")}
+              </ThemedText>
             </Pressable>
           </View>
 
           {displayWorkers.length === 0 ? (
             <View style={styles.emptyWorkersLog}>
-              <Feather name="users" size={24} color={isDark ? "#94A3B8" : theme.textSecondary} style={{ marginBottom: 8 }} />
-              <ThemedText style={{ color: isDark ? "#94A3B8" : theme.textSecondary, fontSize: 13 }}>
-                {t.attendance?.noWorkers || "No workers registered for this site."}
+              <Feather
+                name="users"
+                size={24}
+                color={isDark ? "#94A3B8" : theme.textSecondary}
+                style={{ marginBottom: 8 }}
+              />
+              <ThemedText
+                style={{
+                  color: isDark ? "#94A3B8" : theme.textSecondary,
+                  fontSize: 13,
+                }}
+              >
+                {t.attendance?.noWorkers ||
+                  "No workers registered for this site."}
               </ThemedText>
             </View>
           ) : (
@@ -828,7 +1289,7 @@ export default function DashboardScreen() {
                     r.workerId === worker.id &&
                     r.year === todayYear &&
                     r.month === todayMonth &&
-                    r.day === todayDay
+                    r.day === todayDay,
                 );
                 const val = todayRec?.value;
 
@@ -853,25 +1314,71 @@ export default function DashboardScreen() {
                       styles.workerLogRow,
                       {
                         backgroundColor: pressed
-                          ? (isDark ? "#334155" : "#F1F5F9")
-                          : (isDark ? "#0F172A" : "#F8FAFC"),
+                          ? isDark
+                            ? "#334155"
+                            : "#F1F5F9"
+                          : isDark
+                            ? "#0F172A"
+                            : "#F8FAFC",
                         borderColor,
                       },
                     ]}
                   >
                     <Avatar name={worker.name} size="sm" />
                     <View style={styles.workerLogInfo}>
-                      <ThemedText style={[styles.workerLogName, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>{worker.name}</ThemedText>
-                      <ThemedText style={[styles.workerLogCategory, { color: isDark ? "#94A3B8" : theme.textSecondary }]}>
-                        {worker.category ? (t.translateCategory(worker.category) || worker.category).toUpperCase() : t("workers.generalWorker", "GENERAL WORKER")}
+                      <ThemedText
+                        style={[
+                          styles.workerLogName,
+                          { color: isDark ? "#FFFFFF" : "#0F172A" },
+                        ]}
+                      >
+                        {worker.name}
+                      </ThemedText>
+                      <ThemedText
+                        style={[
+                          styles.workerLogCategory,
+                          { color: isDark ? "#94A3B8" : theme.textSecondary },
+                        ]}
+                      >
+                        {worker.category
+                          ? (
+                              t.translateCategory(worker.category) ||
+                              worker.category
+                            ).toUpperCase()
+                          : t("workers.generalWorker", "GENERAL WORKER")}
                       </ThemedText>
                     </View>
                     <View style={styles.workerLogStatus}>
-                      {val === "P" && <Badge label={t.translateAttendanceStatus("P")} variant="success" />}
-                      {val === "H" && <Badge label={t.translateAttendanceStatus("H")} variant="warning" />}
-                      {val === "OT" && <Badge label={t.translateAttendanceStatus("OT")} variant="info" />}
-                      {val === "A" && <Badge label={t.translateAttendanceStatus("A")} variant="error" />}
-                      {!val && <Badge label={t("attendance.unmarked", "Unmarked")} variant="neutral" />}
+                      {val === "P" && (
+                        <Badge
+                          label={t.translateAttendanceStatus("P")}
+                          variant="success"
+                        />
+                      )}
+                      {val === "H" && (
+                        <Badge
+                          label={t.translateAttendanceStatus("H")}
+                          variant="warning"
+                        />
+                      )}
+                      {val === "OT" && (
+                        <Badge
+                          label={t.translateAttendanceStatus("OT")}
+                          variant="info"
+                        />
+                      )}
+                      {val === "A" && (
+                        <Badge
+                          label={t.translateAttendanceStatus("A")}
+                          variant="error"
+                        />
+                      )}
+                      {!val && (
+                        <Badge
+                          label={t("attendance.unmarked", "Unmarked")}
+                          variant="neutral"
+                        />
+                      )}
                     </View>
                   </Pressable>
                 );
@@ -882,38 +1389,64 @@ export default function DashboardScreen() {
 
         {/* ── Recent Workers Row ────────────────────────────────────── */}
         {recentWorkers.length > 0 && (
-          <Animated.View entering={FadeInDown.delay(360).springify()} style={styles.section}>
+          <Animated.View
+            entering={FadeInDown.delay(360).springify()}
+            style={styles.section}
+          >
             <SectionHeader
               title={t.dashboard?.activeWorkers || "Recent Workers"}
               actionLabel={t.dashboard?.viewAll || "View All"}
               onAction={() => navigation.navigate("Workers")}
             />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 12 }}
+            >
               {recentWorkers.map((worker, idx) => {
                 const todayRec = attendanceRecords.find(
                   (r) =>
                     r.workerId === worker.id &&
                     r.year === today.getFullYear() &&
                     r.month === today.getMonth() &&
-                    r.day === today.getDate()
+                    r.day === today.getDate(),
                 );
                 const status = todayRec?.value;
-                let badgeVariant: "success" | "warning" | "error" | "info" | "neutral" = "neutral";
+                let badgeVariant:
+                  | "success"
+                  | "warning"
+                  | "error"
+                  | "info"
+                  | "neutral" = "neutral";
                 let label = t("attendance.unmarked", "Unmarked");
-                
-                if (status === "P") { badgeVariant = "success"; label = t.translateAttendanceStatus("P"); }
-                else if (status === "A") { badgeVariant = "error"; label = t.translateAttendanceStatus("A"); }
-                else if (status === "H") { badgeVariant = "warning"; label = t.translateAttendanceStatus("H"); }
-                else if (status === "OT") { badgeVariant = "info"; label = t.translateAttendanceStatus("OT"); }
+
+                if (status === "P") {
+                  badgeVariant = "success";
+                  label = t.translateAttendanceStatus("P");
+                } else if (status === "A") {
+                  badgeVariant = "error";
+                  label = t.translateAttendanceStatus("A");
+                } else if (status === "H") {
+                  badgeVariant = "warning";
+                  label = t.translateAttendanceStatus("H");
+                } else if (status === "OT") {
+                  badgeVariant = "info";
+                  label = t.translateAttendanceStatus("OT");
+                }
 
                 return (
                   <Animated.View
                     key={worker.id}
                     entering={FadeInRight.delay(idx * 50).springify()}
-                    style={[styles.workerChip, { backgroundColor: cardBg, borderColor }]}
+                    style={[
+                      styles.workerChip,
+                      { backgroundColor: cardBg, borderColor },
+                    ]}
                   >
                     <Avatar name={worker.name} size="md" />
-                    <ThemedText style={styles.workerName} numberOfLines={1}>{worker.name}</ThemedText>
+                    <ThemedText style={styles.workerName} numberOfLines={1}>
+                      {worker.name}
+                    </ThemedText>
                     <Badge label={label} variant={badgeVariant} />
                   </Animated.View>
                 );
@@ -922,14 +1455,16 @@ export default function DashboardScreen() {
           </Animated.View>
         )}
 
-
         {/* ── Empty State ───────────────────────────────────────────── */}
         {!loading && stats.totalWorkers === 0 && workersList.length === 0 && (
           <Animated.View entering={FadeInDown.delay(400).springify()}>
             <EmptyState
               icon="users"
               title={t("dashboard.startManaging", "Start Managing Workforce")}
-              subtitle={t.attendance?.addWorkerFirst || "Add your first site and workers to begin tracking attendance."}
+              subtitle={
+                t.attendance?.addWorkerFirst ||
+                "Add your first site and workers to begin tracking attendance."
+              }
               actionLabel={t.workers?.addWorker || "Add First Worker"}
               onAction={() => navigation.navigate("AddWorker")}
             />
@@ -966,7 +1501,12 @@ export default function DashboardScreen() {
             <View style={styles.toastIconCircle}>
               <Feather name="check" size={16} color="#FFFFFF" />
             </View>
-            <ThemedText style={[styles.toastText, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
+            <ThemedText
+              style={[
+                styles.toastText,
+                { color: isDark ? "#FFFFFF" : "#0F172A" },
+              ]}
+            >
               {toastMessage || "Attendance marked successfully."}
             </ThemedText>
             <Pressable
@@ -980,7 +1520,11 @@ export default function DashboardScreen() {
               hitSlop={8}
               style={styles.toastCloseBtn}
             >
-              <Feather name="x" size={16} color={isDark ? "#94A3B8" : "#64748B"} />
+              <Feather
+                name="x"
+                size={16}
+                color={isDark ? "#94A3B8" : "#64748B"}
+              />
             </Pressable>
           </Animated.View>
         </View>
@@ -1005,7 +1549,7 @@ export default function DashboardScreen() {
                   r.workerId === quickMarkWorker.id &&
                   r.year === today.getFullYear() &&
                   r.month === today.getMonth() &&
-                  r.day === today.getDate()
+                  r.day === today.getDate(),
               ) || null
             : null
         }
@@ -1022,9 +1566,18 @@ const styles = StyleSheet.create({
 
   // Header
   header: { paddingHorizontal: 20, paddingBottom: 24 },
-  headerInner: { flexDirection: "row", alignItems: "flex-start", marginBottom: 12 },
+  headerInner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
   greeting: { fontSize: 13, fontWeight: "500", marginBottom: 2 },
-  userName: { fontSize: 22, fontWeight: "800", letterSpacing: 0.3, marginBottom: 2 },
+  userName: {
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+    marginBottom: 2,
+  },
   dateText: { fontSize: 12 },
   headerActions: { flexDirection: "row", gap: 8 },
   nudgeBadge: {
@@ -1128,7 +1681,12 @@ const styles = StyleSheet.create({
 
   // Attendance Breakdown
   attendanceRow: { flexDirection: "row", alignItems: "center", gap: 24 },
-  rateRingWrap: { width: 80, height: 80, alignItems: "center", justifyContent: "center" },
+  rateRingWrap: {
+    width: 80,
+    height: 80,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   rateRing: {
     width: 72,
     height: 72,
@@ -1320,10 +1878,20 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 20,
   },
-  qmWorkerHeader: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
+  qmWorkerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+  },
   qmWorkerName: { fontSize: 16, fontWeight: "800" },
   qmWorkerSub: { fontSize: 12, marginTop: 2 },
-  qmTitle: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5, marginBottom: 12, textTransform: "uppercase" },
+  qmTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    marginBottom: 12,
+    textTransform: "uppercase",
+  },
   qmGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 },
   qmStatusBtn: {
     flex: 1,

@@ -65,7 +65,10 @@ export default function ConnectionModal({
     if (!q) {
       Alert.alert(
         t("common.required", "आवश्यक"),
-        t("connection.enterUniqueIdError", "कृपया यूनिक आईडी या मोबाइल नंबर दर्ज करें।")
+        t(
+          "connection.enterUniqueIdError",
+          "कृपया यूनिक आईडी या मोबाइल नंबर दर्ज करें।",
+        ),
       );
       return;
     }
@@ -73,7 +76,7 @@ export default function ConnectionModal({
     setIsSearching(true);
     try {
       const res = await authenticatedFetch(
-        `${API_URL}/connections/lookup?uniqueId=${encodeURIComponent(q)}`
+        `${API_URL}/connections/lookup?uniqueId=${encodeURIComponent(q)}`,
       );
       const data = await res.json();
 
@@ -84,11 +87,18 @@ export default function ConnectionModal({
       } else {
         Alert.alert(
           t("common.notFound", "नहीं मिला"),
-          data.message || t("connection.userNotFound", "इस आईडी के साथ कोई उपयोगकर्ता नहीं मिला।")
+          data.message ||
+            t(
+              "connection.userNotFound",
+              "इस आईडी के साथ कोई उपयोगकर्ता नहीं मिला।",
+            ),
         );
       }
     } catch (error: any) {
-      Alert.alert(t("common.error", "त्रुटि"), error.message || "Failed to search.");
+      Alert.alert(
+        t("common.error", "त्रुटि"),
+        error.message || "Failed to search.",
+      );
     } finally {
       setIsSearching(false);
     }
@@ -114,7 +124,8 @@ export default function ConnectionModal({
       } else {
         Alert.alert(
           t("common.error", "त्रुटि"),
-          data.message || t("connection.requestFailed", "कनेक्शन अनुरोध भेजने में विफल।")
+          data.message ||
+            t("connection.requestFailed", "कनेक्शन अनुरोध भेजने में विफल।"),
         );
       }
     } catch (error: any) {
@@ -130,7 +141,10 @@ export default function ConnectionModal({
     if (cleanCode.length !== 6) {
       Alert.alert(
         t("common.invalid", "अमान्य"),
-        t("connection.enterSixDigitCode", "कृपया 6-अंकों का सत्यापन कोड दर्ज करें।")
+        t(
+          "connection.enterSixDigitCode",
+          "कृपया 6-अंकों का सत्यापन कोड दर्ज करें।",
+        ),
       );
       return;
     }
@@ -160,12 +174,16 @@ export default function ConnectionModal({
                 onSuccess?.();
               },
             },
-          ]
+          ],
         );
       } else {
         Alert.alert(
           t("common.verificationFailed", "सत्यापन विफल"),
-          data.message || t("connection.invalidCode", "अमान्य या समाप्त हो चुका कोड। कृपया पुनः प्रयास करें।")
+          data.message ||
+            t(
+              "connection.invalidCode",
+              "अमान्य या समाप्त हो चुका कोड। कृपया पुनः प्रयास करें।",
+            ),
         );
       }
     } catch (error: any) {
@@ -179,7 +197,12 @@ export default function ConnectionModal({
   const borderCol = isDark ? "#334155" : "#E2E8F0";
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={handleClose}
+    >
       <View style={styles.modalOverlay}>
         <View
           style={[
@@ -190,9 +213,21 @@ export default function ConnectionModal({
           {/* Header */}
           <View style={[styles.modalHeader, { borderBottomColor: borderCol }]}>
             <View style={styles.modalHeaderLeft}>
-              <MaterialCommunityIcons name="account-switch" size={24} color={theme.primary} />
-              <Text style={[styles.modalTitle, { color: theme.text, marginLeft: 8 }]}>
-                {t("connection.connectUserTitle", "नया व्यक्ति जोड़ें (Connect Account)")}
+              <MaterialCommunityIcons
+                name="account-switch"
+                size={24}
+                color={theme.primary}
+              />
+              <Text
+                style={[
+                  styles.modalTitle,
+                  { color: theme.text, marginLeft: 8 },
+                ]}
+              >
+                {t(
+                  "connection.connectUserTitle",
+                  "नया व्यक्ति जोड़ें (Connect Account)",
+                )}
               </Text>
             </View>
             <Pressable onPress={handleClose} style={styles.closeBtn}>
@@ -200,12 +235,20 @@ export default function ConnectionModal({
             </Pressable>
           </View>
 
-          <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={styles.modalBody}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Step 1: Role & Unique ID Search */}
             {step === "search" && (
               <View>
-                <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                  {t("connection.selectRoleToConnect", "खाता प्रकार चुनें (Role to Connect)")}
+                <Text
+                  style={[styles.fieldLabel, { color: theme.textSecondary }]}
+                >
+                  {t(
+                    "connection.selectRoleToConnect",
+                    "खाता प्रकार चुनें (Role to Connect)",
+                  )}
                 </Text>
                 <View style={styles.roleToggleRow}>
                   <Pressable
@@ -259,7 +302,9 @@ export default function ConnectionModal({
                     <Text
                       style={[
                         styles.roleToggleText,
-                        { color: role === "supervisor" ? "#FFFFFF" : theme.text },
+                        {
+                          color: role === "supervisor" ? "#FFFFFF" : theme.text,
+                        },
                       ]}
                     >
                       {t("roles.supervisor", "सुपरवाइजर (HM-S)")}
@@ -267,17 +312,41 @@ export default function ConnectionModal({
                   </Pressable>
                 </View>
 
-                <Text style={[styles.fieldLabel, { color: theme.textSecondary, marginTop: 16 }]}>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: theme.textSecondary, marginTop: 16 },
+                  ]}
+                >
                   {role === "worker"
-                    ? t("connection.workerIdPrompt", "वर्कर की यूनिक आईडी दर्ज करें (e.g. HM-W-123456)")
-                    : t("connection.supervisorIdPrompt", "सुपरवाइजर की यूनिक आईडी दर्ज करें (e.g. HM-S-123456)")}
+                    ? t(
+                        "connection.workerIdPrompt",
+                        "वर्कर की यूनिक आईडी दर्ज करें (e.g. HM-W-123456)",
+                      )
+                    : t(
+                        "connection.supervisorIdPrompt",
+                        "सुपरवाइजर की यूनिक आईडी दर्ज करें (e.g. HM-S-123456)",
+                      )}
                 </Text>
 
-                <View style={[styles.searchBox, { borderColor: borderCol, backgroundColor: cardBg }]}>
-                  <Feather name="search" size={20} color={theme.textSecondary} />
+                <View
+                  style={[
+                    styles.searchBox,
+                    { borderColor: borderCol, backgroundColor: cardBg },
+                  ]}
+                >
+                  <Feather
+                    name="search"
+                    size={20}
+                    color={theme.textSecondary}
+                  />
                   <TextInput
                     style={[styles.searchInput, { color: theme.text }]}
-                    placeholder={role === "worker" ? "HM-W-XXXXXX या मोबाइल नंबर" : "HM-S-XXXXXX या मोबाइल नंबर"}
+                    placeholder={
+                      role === "worker"
+                        ? "HM-W-XXXXXX या मोबाइल नंबर"
+                        : "HM-S-XXXXXX या मोबाइल नंबर"
+                    }
                     placeholderTextColor={theme.textSecondary}
                     value={uniqueIdInput}
                     onChangeText={(val) => setUniqueIdInput(val.toUpperCase())}
@@ -287,22 +356,31 @@ export default function ConnectionModal({
                   />
                   {uniqueIdInput.length > 0 && (
                     <Pressable onPress={() => setUniqueIdInput("")}>
-                      <Feather name="x-circle" size={18} color={theme.textSecondary} />
+                      <Feather
+                        name="x-circle"
+                        size={18}
+                        color={theme.textSecondary}
+                      />
                     </Pressable>
                   )}
                 </View>
 
-                <Text style={[styles.helperGuide, { color: theme.textSecondary }]}>
+                <Text
+                  style={[styles.helperGuide, { color: theme.textSecondary }]}
+                >
                   {t(
                     "connection.uniqueIdInstruction",
-                    "💡 सुपरवाइजर या वर्कर के ऐप में ऊपर दिख रही यूनिक आईडी (HM-...) यहां डालें।"
+                    "💡 सुपरवाइजर या वर्कर के ऐप में ऊपर दिख रही यूनिक आईडी (HM-...) यहां डालें।",
                   )}
                 </Text>
 
                 <Pressable
                   onPress={handleLookup}
                   disabled={isSearching}
-                  style={[styles.actionBtn, { backgroundColor: theme.primary, marginTop: 20 }]}
+                  style={[
+                    styles.actionBtn,
+                    { backgroundColor: theme.primary, marginTop: 20 },
+                  ]}
                 >
                   {isSearching ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
@@ -321,7 +399,12 @@ export default function ConnectionModal({
             {/* Step 2: Account Safe Preview */}
             {step === "preview" && foundUser && (
               <View>
-                <View style={[styles.previewCard, { backgroundColor: cardBg, borderColor: borderCol }]}>
+                <View
+                  style={[
+                    styles.previewCard,
+                    { backgroundColor: cardBg, borderColor: borderCol },
+                  ]}
+                >
                   <View style={styles.previewAvatar}>
                     <Text style={styles.previewAvatarText}>
                       {(foundUser.name || "U")[0].toUpperCase()}
@@ -331,24 +414,43 @@ export default function ConnectionModal({
                     {foundUser.name}
                   </Text>
                   <View style={styles.previewIdPill}>
-                    <Text style={styles.previewIdText}>{foundUser.uniqueId}</Text>
+                    <Text style={styles.previewIdText}>
+                      {foundUser.uniqueId}
+                    </Text>
                   </View>
 
                   <View style={styles.previewDetailGrid}>
                     <View style={styles.previewDetailItem}>
-                      <Text style={[styles.previewDetailLbl, { color: theme.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.previewDetailLbl,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         {t("auth.role", "भूमिका (Role)")}
                       </Text>
-                      <Text style={[styles.previewDetailVal, { color: theme.text }]}>
+                      <Text
+                        style={[styles.previewDetailVal, { color: theme.text }]}
+                      >
                         {foundUser.workerCategory || foundUser.role}
                       </Text>
                     </View>
                     {foundUser.dailyWage > 0 && (
                       <View style={styles.previewDetailItem}>
-                        <Text style={[styles.previewDetailLbl, { color: theme.textSecondary }]}>
+                        <Text
+                          style={[
+                            styles.previewDetailLbl,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
                           {t("workers.dailyWage", "दैनिक दर (Daily Rate)")}
                         </Text>
-                        <Text style={[styles.previewDetailVal, { color: "#10B981", fontWeight: "700" }]}>
+                        <Text
+                          style={[
+                            styles.previewDetailVal,
+                            { color: "#10B981", fontWeight: "700" },
+                          ]}
+                        >
                           ₹{foundUser.dailyWage} / {t("common.day", "दिन")}
                         </Text>
                       </View>
@@ -357,12 +459,20 @@ export default function ConnectionModal({
                 </View>
 
                 <Text style={[styles.confirmPrompt, { color: theme.text }]}>
-                  {t("connection.confirmPrompt", "क्या आप इस व्यक्ति से जुड़ना चाहते हैं?")}
+                  {t(
+                    "connection.confirmPrompt",
+                    "क्या आप इस व्यक्ति से जुड़ना चाहते हैं?",
+                  )}
                 </Text>
-                <Text style={[styles.confirmSubtext, { color: theme.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.confirmSubtext,
+                    { color: theme.textSecondary },
+                  ]}
+                >
                   {t(
                     "connection.confirmSubtext",
-                    "अनुरोध भेजने पर उनके फोन पर एक 6-अंकों का कोड जाएगा, जिसे आपको यहां दर्ज करना होगा।"
+                    "अनुरोध भेजने पर उनके फोन पर एक 6-अंकों का कोड जाएगा, जिसे आपको यहां दर्ज करना होगा।",
                   )}
                 </Text>
 
@@ -379,7 +489,14 @@ export default function ConnectionModal({
                   <Pressable
                     onPress={handleSendRequest}
                     disabled={isSendingRequest}
-                    style={[styles.actionBtn, { flex: 1, backgroundColor: theme.primary, marginLeft: 10 }]}
+                    style={[
+                      styles.actionBtn,
+                      {
+                        flex: 1,
+                        backgroundColor: theme.primary,
+                        marginLeft: 10,
+                      },
+                    ]}
                   >
                     {isSendingRequest ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
@@ -387,7 +504,10 @@ export default function ConnectionModal({
                       <>
                         <Feather name="send" size={18} color="#FFFFFF" />
                         <Text style={styles.actionBtnText}>
-                          {t("connection.sendRequestBtn", "कोड भेजें (Send Request)")}
+                          {t(
+                            "connection.sendRequestBtn",
+                            "कोड भेजें (Send Request)",
+                          )}
                         </Text>
                       </>
                     )}
@@ -399,13 +519,34 @@ export default function ConnectionModal({
             {/* Step 3: Enter 6-Digit Code */}
             {step === "verify" && foundUser && (
               <View>
-                <View style={[styles.verifyHeaderBox, { backgroundColor: isDark ? "#1E1B4B" : "#EEF2FF" }]}>
-                  <MaterialCommunityIcons name="cellphone-key" size={32} color="#6366F1" />
+                <View
+                  style={[
+                    styles.verifyHeaderBox,
+                    { backgroundColor: isDark ? "#1E1B4B" : "#EEF2FF" },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="cellphone-key"
+                    size={32}
+                    color="#6366F1"
+                  />
                   <Text style={styles.verifyPromptTitle}>
-                    {t("connection.enterReceivedCodeTitle", "6-अंकों का कोड दर्ज करें")}
+                    {t(
+                      "connection.enterReceivedCodeTitle",
+                      "6-अंकों का कोड दर्ज करें",
+                    )}
                   </Text>
-                  <Text style={[styles.verifyPromptDesc, { color: theme.textSecondary }]}>
-                    {foundUser.name} {t("connection.askUserForCode", "के स्क्रीन पर दिख रहा 6-अंकों का कोड पूछकर यहां डालें:")}
+                  <Text
+                    style={[
+                      styles.verifyPromptDesc,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    {foundUser.name}{" "}
+                    {t(
+                      "connection.askUserForCode",
+                      "के स्क्रीन पर दिख रहा 6-अंकों का कोड पूछकर यहां डालें:",
+                    )}
                   </Text>
                 </View>
 
@@ -415,7 +556,8 @@ export default function ConnectionModal({
                     {
                       color: theme.text,
                       backgroundColor: cardBg,
-                      borderColor: verificationCode.length === 6 ? "#10B981" : borderCol,
+                      borderColor:
+                        verificationCode.length === 6 ? "#10B981" : borderCol,
                     },
                   ]}
                   placeholder="• • • • • •"
@@ -428,7 +570,10 @@ export default function ConnectionModal({
                 />
 
                 <Text style={[styles.codeTimerNote, { color: "#6366F1" }]}>
-                  {t("connection.codeValidTenMin", "⏱️ यह कोड 10 मिनट के लिए मान्य है।")}
+                  {t(
+                    "connection.codeValidTenMin",
+                    "⏱️ यह कोड 10 मिनट के लिए मान्य है।",
+                  )}
                 </Text>
 
                 <View style={styles.btnRow}>
@@ -448,7 +593,10 @@ export default function ConnectionModal({
                       styles.actionBtn,
                       {
                         flex: 1,
-                        backgroundColor: verificationCode.length === 6 ? "#10B981" : theme.primary,
+                        backgroundColor:
+                          verificationCode.length === 6
+                            ? "#10B981"
+                            : theme.primary,
                         opacity: verificationCode.length === 6 ? 1 : 0.6,
                         marginLeft: 10,
                       },
@@ -460,7 +608,10 @@ export default function ConnectionModal({
                       <>
                         <Feather name="check" size={18} color="#FFFFFF" />
                         <Text style={styles.actionBtnText}>
-                          {t("connection.verifyAndConnectBtn", "सत्यापित करें (Verify & Connect)")}
+                          {t(
+                            "connection.verifyAndConnectBtn",
+                            "सत्यापित करें (Verify & Connect)",
+                          )}
                         </Text>
                       </>
                     )}

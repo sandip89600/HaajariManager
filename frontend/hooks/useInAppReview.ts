@@ -23,10 +23,7 @@
 
 import { useEffect, useRef } from "react";
 import * as StoreReview from "expo-store-review";
-import {
-  shouldRequestReview,
-  markRequested,
-} from "@/utils/reviewTracker";
+import { shouldRequestReview, markRequested } from "@/utils/reviewTracker";
 
 interface UseInAppReviewOptions {
   /**
@@ -77,7 +74,6 @@ export function useInAppReview({ isReady }: UseInAppReviewOptions): void {
         // Step 4: Request the native review dialog
         // Google/Apple may or may not show it — that's their decision
         await StoreReview.requestReview();
-
       } catch (error) {
         // Silently swallow all errors — review must never crash the app
         // In development, you can uncomment the line below for debugging:

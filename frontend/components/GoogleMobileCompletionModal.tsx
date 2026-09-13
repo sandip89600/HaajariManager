@@ -82,7 +82,9 @@ export default function GoogleMobileCompletionModal({
             <ThemedText type="h2" style={styles.titleText}>
               Complete Your Profile
             </ThemedText>
-            <ThemedText style={[styles.subtitleText, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.subtitleText, { color: theme.textSecondary }]}
+            >
               Just a few details before you continue.
             </ThemedText>
           </View>
@@ -105,12 +107,21 @@ export default function GoogleMobileCompletionModal({
                     styles.readOnlyWrapper,
                     {
                       borderColor: theme.border,
-                      backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.04)"
+                        : "rgba(0,0,0,0.03)",
                     },
                   ]}
                 >
-                  <Feather name="user" size={16} color={theme.textSecondary} style={{ marginRight: 8 }} />
-                  <ThemedText style={[styles.readOnlyText, { color: theme.text }]}>
+                  <Feather
+                    name="user"
+                    size={16}
+                    color={theme.textSecondary}
+                    style={{ marginRight: 8 }}
+                  />
+                  <ThemedText
+                    style={[styles.readOnlyText, { color: theme.text }]}
+                  >
                     {googleProfile.name}
                   </ThemedText>
                   <Feather name="lock" size={14} color={theme.textSecondary} />
@@ -127,12 +138,21 @@ export default function GoogleMobileCompletionModal({
                     styles.readOnlyWrapper,
                     {
                       borderColor: theme.border,
-                      backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.04)"
+                        : "rgba(0,0,0,0.03)",
                     },
                   ]}
                 >
-                  <Feather name="mail" size={16} color={theme.textSecondary} style={{ marginRight: 8 }} />
-                  <ThemedText style={[styles.readOnlyText, { color: theme.text }]}>
+                  <Feather
+                    name="mail"
+                    size={16}
+                    color={theme.textSecondary}
+                    style={{ marginRight: 8 }}
+                  />
+                  <ThemedText
+                    style={[styles.readOnlyText, { color: theme.text }]}
+                  >
                     {googleProfile.email}
                   </ThemedText>
                   <Feather name="lock" size={14} color={theme.textSecondary} />
@@ -143,8 +163,15 @@ export default function GoogleMobileCompletionModal({
             {/* Mobile Number Input */}
             <View style={{ marginBottom: Spacing.sm }}>
               <ThemedText style={styles.label}>Mobile Number</ThemedText>
-              <View style={[styles.inputWrapper, { borderColor: theme.border }]}>
-                <Feather name="phone" size={18} color={theme.textSecondary} style={{ marginRight: 8 }} />
+              <View
+                style={[styles.inputWrapper, { borderColor: theme.border }]}
+              >
+                <Feather
+                  name="phone"
+                  size={18}
+                  color={theme.textSecondary}
+                  style={{ marginRight: 8 }}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   placeholder="Enter 10-digit mobile number"
@@ -170,7 +197,9 @@ export default function GoogleMobileCompletionModal({
               {loading ? (
                 <View style={styles.loadingRow}>
                   <ActivityIndicator color="#FFFFFF" size="small" />
-                  <ThemedText style={styles.buttonText}>Creating account...</ThemedText>
+                  <ThemedText style={styles.buttonText}>
+                    Creating account...
+                  </ThemedText>
                 </View>
               ) : (
                 <ThemedText style={styles.buttonText}>Continue</ThemedText>

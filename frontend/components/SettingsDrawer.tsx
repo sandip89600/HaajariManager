@@ -1,5 +1,12 @@
 import React, { useEffect, useRef } from "react";
-import { Modal, View, StyleSheet, Pressable, Animated, Dimensions } from "react-native";
+import {
+  Modal,
+  View,
+  StyleSheet,
+  Pressable,
+  Animated,
+  Dimensions,
+} from "react-native";
 import SettingsScreen from "@/screens/SettingsScreen";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -10,7 +17,10 @@ interface SettingsDrawerProps {
   onClose: () => void;
 }
 
-export default function SettingsDrawer({ visible, onClose }: SettingsDrawerProps) {
+export default function SettingsDrawer({
+  visible,
+  onClose,
+}: SettingsDrawerProps) {
   const { theme } = useTheme();
   const slideAnim = useRef(new Animated.Value(-SCREEN_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -46,7 +56,12 @@ export default function SettingsDrawer({ visible, onClose }: SettingsDrawerProps
   }, [visible]);
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+    >
       <View style={styles.container}>
         <Pressable style={styles.backdrop} onPress={onClose}>
           <Animated.View style={[styles.backdropFill, { opacity: fadeAnim }]} />

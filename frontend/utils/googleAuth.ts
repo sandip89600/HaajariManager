@@ -5,7 +5,8 @@ declare const process: any;
 
 // Google OAuth 2.0 Web Client ID configuration (Server Audience)
 const GOOGLE_WEB_CLIENT_ID =
-  (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) ||
+  (typeof process !== "undefined" &&
+    process.env?.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) ||
   "734339237204-ck40vfaneag57k5u541g1vsr1v18uule.apps.googleusercontent.com";
 
 let isGoogleConfigured = false;
@@ -57,7 +58,8 @@ export async function promptGoogleSignIn(): Promise<GoogleAuthResult> {
   if (Constants.appOwnership === "expo") {
     return {
       type: "error",
-      error: "Native Google Sign-In requires an Expo Development Build (EAS Build). Please build and install the Haajari Development Build APK.",
+      error:
+        "Native Google Sign-In requires an Expo Development Build (EAS Build). Please build and install the Haajari Development Build APK.",
     };
   }
 
@@ -66,7 +68,8 @@ export async function promptGoogleSignIn(): Promise<GoogleAuthResult> {
   if (!nativeModule || !nativeModule.GoogleSignin) {
     return {
       type: "error",
-      error: "RNGoogleSignin native module is missing from the installed APK. Please build and install a new EAS Development Build.",
+      error:
+        "RNGoogleSignin native module is missing from the installed APK. Please build and install a new EAS Development Build.",
     };
   }
 
@@ -77,7 +80,9 @@ export async function promptGoogleSignIn(): Promise<GoogleAuthResult> {
 
     // Ensure Google Play Services are available on Android devices
     if (Platform.OS === "android") {
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
     }
 
     const signInResult = await GoogleSignin.signIn();
@@ -97,7 +102,9 @@ export async function promptGoogleSignIn(): Promise<GoogleAuthResult> {
       return {
         type: "success",
         idToken,
-        accessToken: (signInResult as any)?.data?.accessToken || (signInResult as any)?.accessToken,
+        accessToken:
+          (signInResult as any)?.data?.accessToken ||
+          (signInResult as any)?.accessToken,
         user: user
           ? {
               email: user.email,
@@ -119,7 +126,10 @@ export async function promptGoogleSignIn(): Promise<GoogleAuthResult> {
     } else if (err.code === statusCodes?.IN_PROGRESS) {
       return { type: "cancel" };
     } else if (err.code === statusCodes?.PLAY_SERVICES_NOT_AVAILABLE) {
-      return { type: "error", error: "Google Play Services is not available on this device." };
+      return {
+        type: "error",
+        error: "Google Play Services is not available on this device.",
+      };
     } else if (
       errCode === (statusCodes as any)?.DEVELOPER_ERROR ||
       errCode === "10" ||
@@ -128,7 +138,8 @@ export async function promptGoogleSignIn(): Promise<GoogleAuthResult> {
       console.warn("[Google Sign-In DEVELOPER_ERROR]:", errMessage);
       return {
         type: "error",
-        error: "Google Sign-In configuration mismatch (DEVELOPER_ERROR). Please ensure the Web Client ID in Google Cloud Console is distinct from the Android Client ID, and that package (com.haajari.app) & SHA-1 are registered under your Android Client ID.",
+        error:
+          "Google Sign-In configuration mismatch (DEVELOPER_ERROR). Please ensure the Web Client ID in Google Cloud Console is distinct from the Android Client ID, and that package (com.haajari.app) & SHA-1 are registered under your Android Client ID.",
       };
     } else if (
       errMessage.includes("RNGoogleSignin") ||
@@ -137,11 +148,15 @@ export async function promptGoogleSignIn(): Promise<GoogleAuthResult> {
     ) {
       return {
         type: "error",
-        error: "RNGoogleSignin native module is missing from the installed APK. Please build and install a new EAS Development Build.",
+        error:
+          "RNGoogleSignin native module is missing from the installed APK. Please build and install a new EAS Development Build.",
       };
     } else {
       console.warn("[Google Sign-In Exception]:", errMessage);
-      return { type: "error", error: errMessage || "Google Sign-In failed. Please try again." };
+      return {
+        type: "error",
+        error: errMessage || "Google Sign-In failed. Please try again.",
+      };
     }
   }
 }

@@ -1,11 +1,5 @@
 import React, { useCallback } from "react";
-import {
-  View,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Platform,
-} from "react-native";
+import { View, Modal, Pressable, StyleSheet, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { ThemedText } from "@/components/ThemedText";
@@ -27,7 +21,11 @@ interface Props {
   onDismiss: () => void;
 }
 
-export default function SecurityAlertModal({ visible, deviceInfo, onDismiss }: Props) {
+export default function SecurityAlertModal({
+  visible,
+  deviceInfo,
+  onDismiss,
+}: Props) {
   const { theme, isDark } = useTheme();
   const navigation = useNavigation<any>();
   const { clearNewDeviceAlert } = useAuth();
@@ -86,59 +84,121 @@ export default function SecurityAlertModal({ visible, deviceInfo, onDismiss }: P
       statusBarTranslucent
     >
       <View style={styles.overlay}>
-        <View style={[styles.sheet, { backgroundColor: isDark ? "#111827" : "#FFFFFF" }]}>
+        <View
+          style={[
+            styles.sheet,
+            { backgroundColor: isDark ? "#111827" : "#FFFFFF" },
+          ]}
+        >
           <View style={styles.header}>
-            <View style={[styles.iconCircle, { backgroundColor: isDark ? "#1E293B" : "#FFF7ED" }]}>
+            <View
+              style={[
+                styles.iconCircle,
+                { backgroundColor: isDark ? "#1E293B" : "#FFF7ED" },
+              ]}
+            >
               <Feather name="shield" size={26} color="#FF6B35" />
             </View>
             <ThemedText style={[styles.title, { color: theme.text }]}>
               New Login Detected
             </ThemedText>
-            <ThemedText style={[styles.subtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>
+            <ThemedText
+              style={[
+                styles.subtitle,
+                { color: isDark ? "#94A3B8" : "#64748B" },
+              ]}
+            >
               Your Haajari account was just signed in from a new device.
             </ThemedText>
           </View>
 
-          <View style={[styles.infoCard, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
+          <View
+            style={[
+              styles.infoCard,
+              {
+                backgroundColor: isDark ? "#1E293B" : "#F8FAFC",
+                borderColor: isDark ? "#334155" : "#E2E8F0",
+              },
+            ]}
+          >
             {[
               { label: "Device", value: deviceInfo.deviceName },
               { label: "Platform", value: deviceInfo.platform },
               { label: "Browser", value: browserDisplay },
-              { label: "Location", value: deviceInfo.location || "Unknown Location" },
+              {
+                label: "Location",
+                value: deviceInfo.location || "Unknown Location",
+              },
               { label: "Time", value: formattedTime },
             ].map(({ label, value }) => (
               <View key={label} style={styles.infoRow}>
-                <ThemedText style={[styles.infoLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>{label}</ThemedText>
-                <ThemedText style={[styles.infoValue, { color: theme.text }]} numberOfLines={1}>{value}</ThemedText>
+                <ThemedText
+                  style={[
+                    styles.infoLabel,
+                    { color: isDark ? "#94A3B8" : "#64748B" },
+                  ]}
+                >
+                  {label}
+                </ThemedText>
+                <ThemedText
+                  style={[styles.infoValue, { color: theme.text }]}
+                  numberOfLines={1}
+                >
+                  {value}
+                </ThemedText>
               </View>
             ))}
           </View>
 
-          <ThemedText style={[styles.question, { color: isDark ? "#CBD5E1" : "#374151" }]}>
+          <ThemedText
+            style={[styles.question, { color: isDark ? "#CBD5E1" : "#374151" }]}
+          >
             Was this you?
           </ThemedText>
 
           <Pressable
             onPress={handleTrustDevice}
-            style={({ pressed }) => [styles.btnPrimary, pressed && { opacity: 0.85 }]}
+            style={({ pressed }) => [
+              styles.btnPrimary,
+              pressed && { opacity: 0.85 },
+            ]}
           >
-            <Feather name="check-circle" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
-            <ThemedText style={styles.btnPrimaryText}>Yes, It Was Me</ThemedText>
+            <Feather
+              name="check-circle"
+              size={16}
+              color="#FFFFFF"
+              style={{ marginRight: 8 }}
+            />
+            <ThemedText style={styles.btnPrimaryText}>
+              Yes, It Was Me
+            </ThemedText>
           </Pressable>
 
           <Pressable
             onPress={handleSuspicious}
             style={({ pressed }) => [
               styles.btnSecondary,
-              { borderColor: isDark ? "#475569" : "#E2E8F0", backgroundColor: isDark ? "#1E293B" : "#F8FAFC" },
-              pressed && { opacity: 0.75 }
+              {
+                borderColor: isDark ? "#475569" : "#E2E8F0",
+                backgroundColor: isDark ? "#1E293B" : "#F8FAFC",
+              },
+              pressed && { opacity: 0.75 },
             ]}
           >
-            <Feather name="alert-triangle" size={16} color="#EF4444" style={{ marginRight: 8 }} />
-            <ThemedText style={[styles.btnSecondaryText, { color: "#EF4444" }]}>No, It Was Not Me</ThemedText>
+            <Feather
+              name="alert-triangle"
+              size={16}
+              color="#EF4444"
+              style={{ marginRight: 8 }}
+            />
+            <ThemedText style={[styles.btnSecondaryText, { color: "#EF4444" }]}>
+              No, It Was Not Me
+            </ThemedText>
           </Pressable>
 
-          <ThemedText style={[styles.note, { color: isDark ? "#64748B" : "#9CA3AF" }]}>
+          <ThemedText
+            style={[styles.note, { color: isDark ? "#64748B" : "#9CA3AF" }]}
+          >
             Haajari will never ask for your password via email or SMS.
           </ThemedText>
         </View>
@@ -148,20 +208,72 @@ export default function SecurityAlertModal({ visible, deviceInfo, onDismiss }: P
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.lg, paddingBottom: Platform.OS === "ios" ? 40 : Spacing.lg },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: Spacing.lg,
+    paddingBottom: Platform.OS === "ios" ? 40 : Spacing.lg,
+  },
   header: { alignItems: "center", marginBottom: 20 },
-  iconCircle: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", marginBottom: 12 },
-  title: { fontSize: 20, fontWeight: "700", marginBottom: 6, textAlign: "center" },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 6,
+    textAlign: "center",
+  },
   subtitle: { fontSize: 14, textAlign: "center", lineHeight: 20 },
-  infoCard: { borderRadius: BorderRadius.md, borderWidth: 1, padding: 14, marginBottom: 16, gap: 8 },
-  infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  infoCard: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 16,
+    gap: 8,
+  },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   infoLabel: { fontSize: 13, width: 80 },
   infoValue: { fontSize: 13, fontWeight: "600", flex: 1, textAlign: "right" },
-  question: { fontSize: 15, fontWeight: "600", textAlign: "center", marginBottom: 14 },
-  btnPrimary: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#FF6B35", borderRadius: BorderRadius.md, paddingVertical: 14, marginBottom: 10 },
+  question: {
+    fontSize: 15,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 14,
+  },
+  btnPrimary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FF6B35",
+    borderRadius: BorderRadius.md,
+    paddingVertical: 14,
+    marginBottom: 10,
+  },
   btnPrimaryText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
-  btnSecondary: { flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: BorderRadius.md, borderWidth: 1, paddingVertical: 14, marginBottom: 16 },
+  btnSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingVertical: 14,
+    marginBottom: 16,
+  },
   btnSecondaryText: { fontSize: 15, fontWeight: "700" },
   note: { fontSize: 11, textAlign: "center", lineHeight: 16 },
 });

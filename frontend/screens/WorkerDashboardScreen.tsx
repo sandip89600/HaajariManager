@@ -19,7 +19,12 @@ import * as Haptics from "expo-haptics";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
-import { authenticatedFetch, API_URL, storage, calculateWorkerSummary } from "@/utils/storage";
+import {
+  authenticatedFetch,
+  API_URL,
+  storage,
+  calculateWorkerSummary,
+} from "@/utils/storage";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import TeamConnectionWidget from "@/components/TeamConnectionWidget";
 
@@ -64,12 +69,17 @@ export default function WorkerDashboardScreen() {
     netPayable: 0,
   });
 
-  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const isFetchingRef = React.useRef(false);
 
   const loadWorkerData = useCallback(async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       // 1. Immediately load cached dashboard data if available
-      const cached = await storage.getLabourDashboardCache(selectedYear, selectedMonth);
+      const cached = await storage.getLabourDashboardCache(
+        selectedYear,
+        selectedMonth,
+      );
       if (cached) {
         if (cached.worker) setWorkerInfo(cached.worker);
         if (cached.records) setAttendanceRecords(cached.records);
@@ -90,14 +100,16 @@ export default function WorkerDashboardScreen() {
         }
         const localAttendance = await storage.getAttendance();
         const monthRecords = localAttendance.filter(
-          (r) => r.year === selectedYear && (r.month === selectedMonth || r.month === selectedMonth - 1)
+          (r) =>
+            r.year === selectedYear &&
+            (r.month === selectedMonth || r.month === selectedMonth - 1),
         );
         if (monthRecords.length > 0) {
           setAttendanceRecords(monthRecords);
           const computed = calculateWorkerSummary(
             user?.id || "",
             localAttendance,
-            user?.dailyWage || 0
+            user?.dailyWage || 0,
           );
           setSummary({
             presentDays: computed.presentDays,
@@ -106,7 +118,10 @@ export default function WorkerDashboardScreen() {
             overtimeHours: 0,
             totalEarned: computed.totalAmount,
             advancePaid: computed.totalAdvanceAmount,
-            netPayable: Math.max(0, computed.totalAmount - computed.totalAdvanceAmount),
+            netPayable: Math.max(
+              0,
+              computed.totalAmount - computed.totalAdvanceAmount,
+            ),
           });
         }
       }
@@ -114,44 +129,38 @@ export default function WorkerDashboardScreen() {
       // 2. Fetch fresh data from backend
       try {
         const attRes = await authenticatedFetch(
-          `${API_URL}/attendance/my-attendance?year=${selectedYear}&month=${selectedMonth}`
+          `${API_URL}/attendance/my-attendance?year=${selectedYear}&month=${selectedMonth}`,
         );
         if (attRes.ok) {
           const data = await attRes.json();
           if (data.worker) setWorkerInfo(data.worker);
           if (data.records) setAttendanceRecords(data.records);
           if (data.summary) setSummary(data.summary);
-          await storage.setLabourDashboardCache(selectedYear, selectedMonth, data);
+          await storage.setLabourDashboardCache(
+            selectedYear,
+            selectedMonth,
+            data,
+          );
         }
-
-        const pendingRes = await authenticatedFetch(`${API_URL}/connections/user/pending-requests`);
-        if (pendingRes.ok) {
-          const pData = await pendingRes.json();
-          if (pData.success && Array.isArray(pData.requests)) {
-            setPendingRequests(pData.requests);
-          }
-        }
-
-        await refreshUserProfile();
       } catch (netErr) {
-        console.log("Worker dashboard using cached/offline data:", (netErr as any)?.message || netErr);
+        console.log(
+          "Worker dashboard using cached/offline data:",
+          (netErr as any)?.message || netErr,
+        );
       }
     } catch (error) {
       console.warn("Failed to load worker dashboard data:", error);
     } finally {
+      isFetchingRef.current = false;
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [selectedYear, selectedMonth, user, uniqueId, refreshUserProfile]);
-
-  useEffect(() => {
-    loadWorkerData();
-  }, [loadWorkerData]);
+  }, [selectedYear, selectedMonth]);
 
   useFocusEffect(
     useCallback(() => {
       loadWorkerData();
-    }, [loadWorkerData])
+    }, [loadWorkerData]),
   );
 
   useEffect(() => {
@@ -173,9 +182,11 @@ export default function WorkerDashboardScreen() {
     loadWorkerData();
   }, [loadWorkerData]);
 
-  const activeUniqueId = workerInfo?.uniqueId || uniqueId || user?.uniqueId || "HM-W-PENDING";
+  const activeUniqueId =
+    workerInfo?.uniqueId || uniqueId || user?.uniqueId || "HM-W-PENDING";
   const activeName = workerInfo?.name || user?.name || "Worker";
-  const activeCategory = workerInfo?.category || user?.workerCategory || "Labour";
+  const activeCategory =
+    workerInfo?.category || user?.workerCategory || "Labour";
 
   const copyUniqueId = async () => {
     if (activeUniqueId && activeUniqueId !== "HM-W-PENDING") {
@@ -207,7 +218,8 @@ export default function WorkerDashboardScreen() {
   const todayNum = new Date().getDate();
   const currentMonthNum = new Date().getMonth() + 1;
   const currentYearNum = new Date().getFullYear();
-  const isCurrentMonth = selectedYear === currentYearNum && selectedMonth === currentMonthNum;
+  const isCurrentMonth =
+    selectedYear === currentYearNum && selectedMonth === currentMonthNum;
   const todayRecord = isCurrentMonth
     ? attendanceRecords.find((r) => r.day === todayNum)
     : null;
@@ -218,15 +230,40 @@ export default function WorkerDashboardScreen() {
   const getStatusBadge = (val?: string) => {
     switch (val) {
       case "P":
-        return { label: t("attendance.present", "उपस्थित (Present)"), color: "#10B981", bg: "#DCFCE7", icon: "check-circle" };
+        return {
+          label: t("attendance.present", "उपस्थित (Present)"),
+          color: "#10B981",
+          bg: "#DCFCE7",
+          icon: "check-circle",
+        };
       case "A":
-        return { label: t("attendance.absent", "अनुपस्थित (Absent)"), color: "#EF4444", bg: "#FEE2E2", icon: "x-circle" };
+        return {
+          label: t("attendance.absent", "अनुपस्थित (Absent)"),
+          color: "#EF4444",
+          bg: "#FEE2E2",
+          icon: "x-circle",
+        };
       case "H":
-        return { label: t("attendance.halfDay", "आधा दिन (Half Day)"), color: "#F59E0B", bg: "#FEF3C7", icon: "clock" };
+        return {
+          label: t("attendance.halfDay", "आधा दिन (Half Day)"),
+          color: "#F59E0B",
+          bg: "#FEF3C7",
+          icon: "clock",
+        };
       case "OT":
-        return { label: t("attendance.overtime", "ओवरटाइम (Overtime)"), color: "#3B82F6", bg: "#DBEAFE", icon: "plus-circle" };
+        return {
+          label: t("attendance.overtime", "ओवरटाइम (Overtime)"),
+          color: "#3B82F6",
+          bg: "#DBEAFE",
+          icon: "plus-circle",
+        };
       default:
-        return { label: t("attendance.unmarked", "अचिह्नित (Not Marked)"), color: "#94A3B8", bg: isDark ? "#334155" : "#F1F5F9", icon: "help-circle" };
+        return {
+          label: t("attendance.unmarked", "अचिह्नित (Not Marked)"),
+          color: "#94A3B8",
+          bg: isDark ? "#334155" : "#F1F5F9",
+          icon: "help-circle",
+        };
     }
   };
 
@@ -263,9 +300,7 @@ export default function WorkerDashboardScreen() {
         <View style={styles.headerRow}>
           <View style={styles.headerUserInfo}>
             <View style={styles.categoryPill}>
-              <Text style={styles.categoryPillText}>
-                {activeCategory}
-              </Text>
+              <Text style={styles.categoryPillText}>{activeCategory}</Text>
             </View>
             <Text style={[styles.userNameText, { color: theme.text }]}>
               {activeName}
@@ -273,16 +308,31 @@ export default function WorkerDashboardScreen() {
           </View>
           <Pressable
             onPress={() => navigation.navigate("Notifications")}
-            style={[styles.headerIconBtn, { backgroundColor: isDark ? "#334155" : "#F1F5F9" }]}
+            style={[
+              styles.headerIconBtn,
+              { backgroundColor: isDark ? "#334155" : "#F1F5F9" },
+            ]}
           >
             <Feather name="bell" size={20} color={theme.text} />
           </Pressable>
         </View>
 
         {/* Unique ID Badge Card */}
-        <View style={[styles.uniqueIdCard, { backgroundColor: isDark ? "#064E3B" : "#ECFDF5", borderColor: "#10B981" }]}>
+        <View
+          style={[
+            styles.uniqueIdCard,
+            {
+              backgroundColor: isDark ? "#064E3B" : "#ECFDF5",
+              borderColor: "#10B981",
+            },
+          ]}
+        >
           <View style={styles.uniqueIdLeft}>
-            <MaterialCommunityIcons name="card-account-details" size={22} color="#10B981" />
+            <MaterialCommunityIcons
+              name="card-account-details"
+              size={22}
+              color="#10B981"
+            />
             <View style={{ marginLeft: 8 }}>
               <Text style={[styles.uniqueIdLabel, { color: "#047857" }]}>
                 {t("worker.uniqueIdLabel", "वर्कर यूनिक आईडी (Worker ID)")}
@@ -296,7 +346,10 @@ export default function WorkerDashboardScreen() {
             <Pressable onPress={copyUniqueId} style={styles.idActionBtn}>
               <Feather name="copy" size={16} color="#059669" />
             </Pressable>
-            <Pressable onPress={shareUniqueId} style={[styles.idActionBtn, { marginLeft: 8 }]}>
+            <Pressable
+              onPress={shareUniqueId}
+              style={[styles.idActionBtn, { marginLeft: 8 }]}
+            >
               <Feather name="share-2" size={16} color="#059669" />
             </Pressable>
           </View>
@@ -304,46 +357,90 @@ export default function WorkerDashboardScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + 80 },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primary}
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
         {/* Team Connection Widget */}
         <TeamConnectionWidget onRefreshParent={loadWorkerData} />
 
         {/* Today's Attendance Highlight Card */}
-        <View style={[styles.card, { backgroundColor: cardBg, borderColor: borderCol }]}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: cardBg, borderColor: borderCol },
+          ]}
+        >
           <View style={styles.cardTitleRow}>
             <Feather name="calendar" size={18} color={theme.primary} />
-            <Text style={[styles.sectionHeading, { color: theme.text, marginLeft: 8 }]}>
+            <Text
+              style={[
+                styles.sectionHeading,
+                { color: theme.text, marginLeft: 8 },
+              ]}
+            >
               {t("worker.todayStatus", "आज की हाजिरी (Today's Status)")}
             </Text>
             <Text style={[styles.dateSubtext, { color: theme.textSecondary }]}>
-              {new Date().toLocaleDateString("hi-IN", { day: "numeric", month: "short", year: "numeric" })}
+              {new Date().toLocaleDateString("hi-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
             </Text>
           </View>
 
-          <View style={[styles.todayBadgeBig, { backgroundColor: todayStatus.bg }]}>
-            <Feather name={todayStatus.icon as any} size={28} color={todayStatus.color} />
+          <View
+            style={[styles.todayBadgeBig, { backgroundColor: todayStatus.bg }]}
+          >
+            <Feather
+              name={todayStatus.icon as any}
+              size={28}
+              color={todayStatus.color}
+            />
             <View style={{ marginLeft: 12 }}>
-              <Text style={[styles.todayStatusText, { color: todayStatus.color }]}>
+              <Text
+                style={[styles.todayStatusText, { color: todayStatus.color }]}
+              >
                 {todayStatus.label}
               </Text>
               {todayRecord?.overtimeHours ? (
-                <Text style={[styles.todayOtText, { color: todayStatus.color }]}>
-                  +{todayRecord.overtimeHours} {t("attendance.hours", "घंटे ओवरटाइम")}
+                <Text
+                  style={[styles.todayOtText, { color: todayStatus.color }]}
+                >
+                  +{todayRecord.overtimeHours}{" "}
+                  {t("attendance.hours", "घंटे ओवरटाइम")}
                 </Text>
               ) : null}
             </View>
           </View>
 
-          <Text style={[styles.viewOnlyDisclaimer, { color: theme.textSecondary }]}>
-            {t("worker.viewOnlyNotice", "🔒 हाजिरी केवल साइट सुपरवाइजर या ठेकेदार द्वारा दर्ज की जाती है।")}
+          <Text
+            style={[styles.viewOnlyDisclaimer, { color: theme.textSecondary }]}
+          >
+            {t(
+              "worker.viewOnlyNotice",
+              "🔒 हाजिरी केवल साइट सुपरवाइजर या ठेकेदार द्वारा दर्ज की जाती है।",
+            )}
           </Text>
         </View>
 
         {/* Monthly Summary & Wage Calculation */}
-        <View style={[styles.card, { backgroundColor: cardBg, borderColor: borderCol }]}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: cardBg, borderColor: borderCol },
+          ]}
+        >
           <View style={styles.monthHeaderRow}>
             <View>
               <Text style={[styles.sectionHeading, { color: theme.text }]}>
@@ -363,7 +460,10 @@ export default function WorkerDashboardScreen() {
                     setSelectedMonth((m) => m - 1);
                   }
                 }}
-                style={[styles.monthArrowBtn, { backgroundColor: isDark ? "#334155" : "#F1F5F9" }]}
+                style={[
+                  styles.monthArrowBtn,
+                  { backgroundColor: isDark ? "#334155" : "#F1F5F9" },
+                ]}
               >
                 <Feather name="chevron-left" size={18} color={theme.text} />
               </Pressable>
@@ -376,7 +476,13 @@ export default function WorkerDashboardScreen() {
                     setSelectedMonth((m) => m + 1);
                   }
                 }}
-                style={[styles.monthArrowBtn, { backgroundColor: isDark ? "#334155" : "#F1F5F9", marginLeft: 6 }]}
+                style={[
+                  styles.monthArrowBtn,
+                  {
+                    backgroundColor: isDark ? "#334155" : "#F1F5F9",
+                    marginLeft: 6,
+                  },
+                ]}
               >
                 <Feather name="chevron-right" size={18} color={theme.text} />
               </Pressable>
@@ -385,47 +491,109 @@ export default function WorkerDashboardScreen() {
 
           {/* 4 Stat Boxes */}
           <View style={styles.statGrid}>
-            <View style={[styles.statBox, { backgroundColor: isDark ? "#064E3B" : "#ECFDF5" }]}>
-              <Text style={[styles.statNum, { color: "#10B981" }]}>{summary.presentDays}</Text>
-              <Text style={[styles.statLbl, { color: "#047857" }]}>{t("attendance.present", "Present")}</Text>
+            <View
+              style={[
+                styles.statBox,
+                { backgroundColor: isDark ? "#064E3B" : "#ECFDF5" },
+              ]}
+            >
+              <Text style={[styles.statNum, { color: "#10B981" }]}>
+                {summary.presentDays}
+              </Text>
+              <Text style={[styles.statLbl, { color: "#047857" }]}>
+                {t("attendance.present", "Present")}
+              </Text>
             </View>
-            <View style={[styles.statBox, { backgroundColor: isDark ? "#450A0A" : "#FEF2F2" }]}>
-              <Text style={[styles.statNum, { color: "#EF4444" }]}>{summary.absentDays}</Text>
-              <Text style={[styles.statLbl, { color: "#B91C1C" }]}>{t("attendance.absent", "Absent")}</Text>
+            <View
+              style={[
+                styles.statBox,
+                { backgroundColor: isDark ? "#450A0A" : "#FEF2F2" },
+              ]}
+            >
+              <Text style={[styles.statNum, { color: "#EF4444" }]}>
+                {summary.absentDays}
+              </Text>
+              <Text style={[styles.statLbl, { color: "#B91C1C" }]}>
+                {t("attendance.absent", "Absent")}
+              </Text>
             </View>
-            <View style={[styles.statBox, { backgroundColor: isDark ? "#451A03" : "#FFFBEB" }]}>
-              <Text style={[styles.statNum, { color: "#F59E0B" }]}>{summary.halfDays}</Text>
-              <Text style={[styles.statLbl, { color: "#B45309" }]}>{t("attendance.halfDay", "Half Day")}</Text>
+            <View
+              style={[
+                styles.statBox,
+                { backgroundColor: isDark ? "#451A03" : "#FFFBEB" },
+              ]}
+            >
+              <Text style={[styles.statNum, { color: "#F59E0B" }]}>
+                {summary.halfDays}
+              </Text>
+              <Text style={[styles.statLbl, { color: "#B45309" }]}>
+                {t("attendance.halfDay", "Half Day")}
+              </Text>
             </View>
-            <View style={[styles.statBox, { backgroundColor: isDark ? "#172554" : "#EFF6FF" }]}>
-              <Text style={[styles.statNum, { color: "#3B82F6" }]}>{summary.overtimeHours}h</Text>
-              <Text style={[styles.statLbl, { color: "#1D4ED8" }]}>{t("attendance.overtime", "Overtime")}</Text>
+            <View
+              style={[
+                styles.statBox,
+                { backgroundColor: isDark ? "#172554" : "#EFF6FF" },
+              ]}
+            >
+              <Text style={[styles.statNum, { color: "#3B82F6" }]}>
+                {summary.overtimeHours}h
+              </Text>
+              <Text style={[styles.statLbl, { color: "#1D4ED8" }]}>
+                {t("attendance.overtime", "Overtime")}
+              </Text>
             </View>
           </View>
 
           {/* Wage / Financial Details Container */}
-          <View style={[styles.wageCard, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: borderCol }]}>
+          <View
+            style={[
+              styles.wageCard,
+              {
+                backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
+                borderColor: borderCol,
+              },
+            ]}
+          >
             <View style={styles.wageRow}>
-              <Text style={[styles.wageRowLabel, { color: theme.textSecondary }]}>
+              <Text
+                style={[styles.wageRowLabel, { color: theme.textSecondary }]}
+              >
                 {t("workers.dailyWage", "दैनिक मजदूरी दर (Daily Rate)")}
               </Text>
               <Text style={[styles.wageRowValue, { color: theme.text }]}>
-                ₹{workerInfo?.dailyRate !== undefined ? workerInfo.dailyRate : (user?.dailyWage || 0)} / {t("common.day", "दिन")}
+                ₹
+                {workerInfo?.dailyRate !== undefined
+                  ? workerInfo.dailyRate
+                  : user?.dailyWage || 0}{" "}
+                / {t("common.day", "दिन")}
               </Text>
             </View>
             <View style={styles.wageDivider} />
             <View style={styles.wageRow}>
-              <Text style={[styles.wageRowLabel, { color: theme.textSecondary }]}>
+              <Text
+                style={[styles.wageRowLabel, { color: theme.textSecondary }]}
+              >
                 {t("worker.totalEarnings", "कुल अर्जित राशि (Gross Earned)")}
               </Text>
-              <Text style={[styles.wageRowValue, { color: "#10B981", fontWeight: "700" }]}>
+              <Text
+                style={[
+                  styles.wageRowValue,
+                  { color: "#10B981", fontWeight: "700" },
+                ]}
+              >
                 ₹{summary.totalEarned.toLocaleString("en-IN")}
               </Text>
             </View>
             {summary.advancePaid > 0 && (
               <View style={styles.wageRow}>
-                <Text style={[styles.wageRowLabel, { color: theme.textSecondary }]}>
-                  {t("worker.advanceDeductions", "उठाव / अग्रिम (Advance Taken)")}
+                <Text
+                  style={[styles.wageRowLabel, { color: theme.textSecondary }]}
+                >
+                  {t(
+                    "worker.advanceDeductions",
+                    "उठाव / अग्रिम (Advance Taken)",
+                  )}
                 </Text>
                 <Text style={[styles.wageRowValue, { color: "#EF4444" }]}>
                   -₹{summary.advancePaid.toLocaleString("en-IN")}
@@ -445,17 +613,37 @@ export default function WorkerDashboardScreen() {
         </View>
 
         {/* Daily Records List */}
-        <View style={[styles.card, { backgroundColor: cardBg, borderColor: borderCol }]}>
-          <Text style={[styles.sectionHeading, { color: theme.text, marginBottom: 12 }]}>
-            {t("worker.dailyBreakdown", "दैनिक विवरण (Daily Attendance History)")}
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: cardBg, borderColor: borderCol },
+          ]}
+        >
+          <Text
+            style={[
+              styles.sectionHeading,
+              { color: theme.text, marginBottom: 12 },
+            ]}
+          >
+            {t(
+              "worker.dailyBreakdown",
+              "दैनिक विवरण (Daily Attendance History)",
+            )}
           </Text>
           {isLoading ? (
-            <ActivityIndicator size="small" color={theme.primary} style={{ marginVertical: 20 }} />
+            <ActivityIndicator
+              size="small"
+              color={theme.primary}
+              style={{ marginVertical: 20 }}
+            />
           ) : attendanceRecords.length === 0 ? (
             <View style={styles.emptyBox}>
               <Feather name="calendar" size={32} color={theme.textSecondary} />
               <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                {t("worker.noRecordsThisMonth", "इस माह के लिए कोई रिकॉर्ड नहीं मिला।")}
+                {t(
+                  "worker.noRecordsThisMonth",
+                  "इस माह के लिए कोई रिकॉर्ड नहीं मिला।",
+                )}
               </Text>
             </View>
           ) : (
@@ -468,7 +656,8 @@ export default function WorkerDashboardScreen() {
                     styles.dailyRecordRow,
                     {
                       borderBottomColor: borderCol,
-                      borderBottomWidth: idx === attendanceRecords.length - 1 ? 0 : 1,
+                      borderBottomWidth:
+                        idx === attendanceRecords.length - 1 ? 0 : 1,
                     },
                   ]}
                 >
@@ -477,14 +666,31 @@ export default function WorkerDashboardScreen() {
                       {item.day} {monthNames[selectedMonth - 1]}
                     </Text>
                     {item.projectName && (
-                      <Text style={[styles.siteMiniText, { color: theme.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.siteMiniText,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
                         {item.projectName}
                       </Text>
                     )}
                   </View>
-                  <View style={[styles.dailyStatusBadge, { backgroundColor: statusInfo.bg }]}>
-                    <Text style={[styles.dailyStatusText, { color: statusInfo.color }]}>
-                      {item.value === "OT" ? `OT (${item.overtimeHours || 0}h)` : item.value}
+                  <View
+                    style={[
+                      styles.dailyStatusBadge,
+                      { backgroundColor: statusInfo.bg },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dailyStatusText,
+                        { color: statusInfo.color },
+                      ]}
+                    >
+                      {item.value === "OT"
+                        ? `OT (${item.overtimeHours || 0}h)`
+                        : item.value}
                     </Text>
                   </View>
                   <Text style={[styles.dailyPayText, { color: theme.text }]}>

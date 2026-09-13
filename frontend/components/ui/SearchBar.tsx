@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
-import { View, TextInput, Pressable, StyleSheet } from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolateColor } from 'react-native-reanimated';
-import { useTheme } from '@/hooks/useTheme';
+import React, { useState } from "react";
+import { View, TextInput, Pressable, StyleSheet } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  interpolateColor,
+} from "react-native-reanimated";
+import { useTheme } from "@/hooks/useTheme";
 
 export interface SearchBarProps {
   value: string;
@@ -14,7 +19,7 @@ export interface SearchBarProps {
 export const SearchBar: React.FC<SearchBarProps> = ({
   value,
   onChangeText,
-  placeholder = 'Search...',
+  placeholder = "Search...",
   onClear,
 }) => {
   const { theme, isDark } = useTheme();
@@ -38,7 +43,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   };
 
   const handleClear = () => {
-    onChangeText('');
+    onChangeText("");
     if (onClear) onClear();
   };
 
@@ -46,7 +51,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     const borderColor = interpolateColor(
       focusAnim.value,
       [0, 1],
-      [isDark ? '#334155' : '#E2E8F0', theme?.primary || '#F97316']
+      [isDark ? "#334155" : "#E2E8F0", theme?.primary || "#F97316"],
     );
     return {
       borderColor,
@@ -61,24 +66,45 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   });
 
   return (
-    <Animated.View style={[
-      styles.container,
-      { backgroundColor: isDark ? '#1E293B' : '#F8FAFC' },
-      containerAnimatedStyle,
-    ]}>
-      <Feather name="search" size={20} color={isFocused ? (theme?.primary || '#F97316') : (isDark ? '#94A3B8' : '#64748B')} style={styles.icon} />
+    <Animated.View
+      style={[
+        styles.container,
+        { backgroundColor: isDark ? "#1E293B" : "#F8FAFC" },
+        containerAnimatedStyle,
+      ]}
+    >
+      <Feather
+        name="search"
+        size={20}
+        color={
+          isFocused
+            ? theme?.primary || "#F97316"
+            : isDark
+              ? "#94A3B8"
+              : "#64748B"
+        }
+        style={styles.icon}
+      />
       <TextInput
-        style={[styles.input, { color: isDark ? '#F8FAFC' : '#0F172A' }]}
+        style={[styles.input, { color: isDark ? "#F8FAFC" : "#0F172A" }]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+        placeholderTextColor={isDark ? "#64748B" : "#94A3B8"}
         onFocus={handleFocus}
         onBlur={handleBlur}
       />
       <Animated.View style={clearButtonAnimatedStyle}>
-        <Pressable onPress={handleClear} style={styles.clearButton} hitSlop={10}>
-          <Feather name="x-circle" size={18} color={isDark ? '#94A3B8' : '#64748B'} />
+        <Pressable
+          onPress={handleClear}
+          style={styles.clearButton}
+          hitSlop={10}
+        >
+          <Feather
+            name="x-circle"
+            size={18}
+            color={isDark ? "#94A3B8" : "#64748B"}
+          />
         </Pressable>
       </Animated.View>
     </Animated.View>
@@ -87,8 +113,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     height: 48,
     borderRadius: 12,
     borderWidth: 1.5,
@@ -100,8 +126,8 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    fontWeight: '500',
-    height: '100%',
+    fontWeight: "500",
+    height: "100%",
   },
   clearButton: {
     padding: 4,

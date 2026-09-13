@@ -24,10 +24,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import Animated, {
-  FadeInDown,
-  FadeInUp,
-} from "react-native-reanimated";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -36,7 +33,12 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { translateWorkerName } from "@/utils/transliteration";
-import { storage, Worker, WorkerCategory, AttendanceRecord } from "@/utils/storage";
+import {
+  storage,
+  Worker,
+  WorkerCategory,
+  AttendanceRecord,
+} from "@/utils/storage";
 import { appContextTracker } from "@/utils/appContextTracker";
 import { Spacing, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/MainTabNavigator";
@@ -81,11 +83,16 @@ const WorkerCard = React.memo(function WorkerCard({
   const status = (worker as any).status || "Active";
   const isActive = status === "Active";
 
-  const photoUrl = worker.photoUri || (worker as any).avatar || (worker as any).image;
-  const initial = worker.name ? worker.name.trim().charAt(0).toUpperCase() : "W";
+  const photoUrl =
+    worker.photoUri || (worker as any).avatar || (worker as any).image;
+  const initial = worker.name
+    ? worker.name.trim().charAt(0).toUpperCase()
+    : "W";
 
   return (
-    <Animated.View entering={FadeInDown.delay(Math.min(index * 50, 400)).springify()}>
+    <Animated.View
+      entering={FadeInDown.delay(Math.min(index * 50, 400)).springify()}
+    >
       <View
         style={[
           styles.workerCard,
@@ -97,24 +104,49 @@ const WorkerCard = React.memo(function WorkerCard({
       >
         {/* Worker Info Row with Circular Avatar on Left */}
         <View style={styles.cardHeader}>
-          <View style={[styles.avatarCircle, { backgroundColor: isDark ? "#334155" : "#EFF6FF" }]}>
+          <View
+            style={[
+              styles.avatarCircle,
+              { backgroundColor: isDark ? "#334155" : "#EFF6FF" },
+            ]}
+          >
             {photoUrl ? (
               <Image source={{ uri: photoUrl }} style={styles.avatarImage} />
             ) : (
-              <Text style={[styles.avatarInitial, { color: isDark ? "#38BDF8" : "#2563EB" }]}>
+              <Text
+                style={[
+                  styles.avatarInitial,
+                  { color: isDark ? "#38BDF8" : "#2563EB" },
+                ]}
+              >
                 {initial}
               </Text>
             )}
           </View>
 
           <View style={styles.cardInfo}>
-            <ThemedText style={[styles.workerName, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
+            <ThemedText
+              style={[
+                styles.workerName,
+                { color: isDark ? "#FFFFFF" : "#0F172A" },
+              ]}
+            >
               {worker.name}
             </ThemedText>
-            <ThemedText style={[styles.workerRole, { color: isDark ? "#94A3B8" : "#64748B" }]}>
+            <ThemedText
+              style={[
+                styles.workerRole,
+                { color: isDark ? "#94A3B8" : "#64748B" },
+              ]}
+            >
               {t.categories?.[worker.category] || worker.category.toUpperCase()}
             </ThemedText>
-            <ThemedText style={[styles.workerWage, { color: isDark ? "#38BDF8" : "#2563EB" }]}>
+            <ThemedText
+              style={[
+                styles.workerWage,
+                { color: isDark ? "#38BDF8" : "#2563EB" },
+              ]}
+            >
               ₹{worker.dailyRate} / Day
             </ThemedText>
           </View>
@@ -122,9 +154,19 @@ const WorkerCard = React.memo(function WorkerCard({
 
         {/* Status Row */}
         <View style={styles.statusRow}>
-          <Text style={[styles.statusLabelText, { color: isDark ? "#CBD5E1" : "#475569" }]}>
+          <Text
+            style={[
+              styles.statusLabelText,
+              { color: isDark ? "#CBD5E1" : "#475569" },
+            ]}
+          >
             Status:{" "}
-            <Text style={{ color: isActive ? "#16A34A" : "#EF4444", fontWeight: "800" }}>
+            <Text
+              style={{
+                color: isActive ? "#16A34A" : "#EF4444",
+                fontWeight: "800",
+              }}
+            >
               {status}
             </Text>
           </Text>
@@ -132,13 +174,24 @@ const WorkerCard = React.memo(function WorkerCard({
 
         {/* Actions Row */}
         {role !== "supervisor" && (
-          <View style={[styles.cardActions, { borderTopColor: isDark ? "#334155" : "#F1F5F9" }]}>
-            <Pressable style={[styles.actionBtn, styles.editBtn]} onPress={onEdit}>
+          <View
+            style={[
+              styles.cardActions,
+              { borderTopColor: isDark ? "#334155" : "#F1F5F9" },
+            ]}
+          >
+            <Pressable
+              style={[styles.actionBtn, styles.editBtn]}
+              onPress={onEdit}
+            >
               <Feather name="edit-2" size={14} color="#2563EB" />
               <Text style={styles.editBtnText}>Edit</Text>
             </Pressable>
-            
-            <Pressable style={[styles.actionBtn, styles.deleteBtn]} onPress={onDelete}>
+
+            <Pressable
+              style={[styles.actionBtn, styles.deleteBtn]}
+              onPress={onDelete}
+            >
               <Feather name="trash-2" size={14} color="#EF4444" />
               <Text style={styles.deleteBtnText}>Delete</Text>
             </Pressable>
@@ -156,18 +209,32 @@ export default function WorkersScreen() {
   const { reportError } = useErrorFeedback();
   const role = user?.role;
 
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const insets = useSafeAreaInsets();
   const rawHeaderHeight = useHeaderHeight();
-  const headerHeight = rawHeaderHeight > 0 ? rawHeaderHeight : insets.top + Platform.select({ ios: 44, default: 56 });
+  const headerHeight =
+    rawHeaderHeight > 0
+      ? rawHeaderHeight
+      : insets.top + Platform.select({ ios: 44, default: 56 });
   const tabBarHeight = insets.bottom + 60;
 
   const [workers, setWorkers] = useState<Worker[]>([]);
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<
+    AttendanceRecord[]
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showUpgradeLimitModal, setShowUpgradeLimitModal] = useState(false);
-  const [currentPlan, setCurrentPlan] = useState<"free" | "starter" | "professional" | "business" | "basic" | "super" | "premium">("free");
+  const [currentPlan, setCurrentPlan] = useState<
+    | "free"
+    | "starter"
+    | "professional"
+    | "business"
+    | "basic"
+    | "super"
+    | "premium"
+  >("free");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState("All");
@@ -219,7 +286,7 @@ export default function WorkersScreen() {
       searchQuery === "" ||
       w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       transName.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const status = (w as any).status || "Active";
     let matchesFilter = true;
     if (filter === "Active") matchesFilter = status === "Active";
@@ -230,33 +297,38 @@ export default function WorkersScreen() {
 
   const assignedProjectsKey = user?.assignedProjects?.join(",") || "";
 
-  const loadWorkers = useCallback(async (silent = false) => {
-    if (!silent) setIsLoading(true);
-    try {
-      const today = new Date();
-      const [rawWorkers, attendance, auth] = await Promise.all([
-        storage.getWorkers(),
-        storage.getAttendanceForMonth(today.getFullYear(), today.getMonth()).catch(() => []),
-        storage.getAuth().catch(() => null),
-      ]);
+  const loadWorkers = useCallback(
+    async (silent = false) => {
+      if (!silent) setIsLoading(true);
+      try {
+        const today = new Date();
+        const [rawWorkers, attendance, auth] = await Promise.all([
+          storage.getWorkers(),
+          storage
+            .getAttendanceForMonth(today.getFullYear(), today.getMonth())
+            .catch(() => []),
+          storage.getAuth().catch(() => null),
+        ]);
 
-      let loadedWorkers = rawWorkers;
-      if (role === "supervisor") {
-        const assignedProjects = user?.assignedProjects || [];
-        loadedWorkers = loadedWorkers.filter(
-          (w) => w.projectId && assignedProjects.includes(w.projectId),
-        );
+        let loadedWorkers = rawWorkers;
+        if (role === "supervisor") {
+          const assignedProjects = user?.assignedProjects || [];
+          loadedWorkers = loadedWorkers.filter(
+            (w) => w.projectId && assignedProjects.includes(w.projectId),
+          );
+        }
+
+        setWorkers(loadedWorkers.sort((a, b) => b.createdAt - a.createdAt));
+        setAttendanceRecords(attendance || []);
+        setCurrentPlan(auth?.plan || "free");
+      } catch (err) {
+        console.error("Error loading workers:", err);
+      } finally {
+        if (!silent) setIsLoading(false);
       }
-
-      setWorkers(loadedWorkers.sort((a, b) => b.createdAt - a.createdAt));
-      setAttendanceRecords(attendance || []);
-      setCurrentPlan(auth?.plan || "free");
-    } catch (err) {
-      console.error("Error loading workers:", err);
-    } finally {
-      if (!silent) setIsLoading(false);
-    }
-  }, [role, user?.id, assignedProjectsKey]);
+    },
+    [role, user?.id, assignedProjectsKey],
+  );
 
   const handleAddWorker = useCallback(() => {
     if (role !== "supervisor") {
@@ -303,7 +375,9 @@ export default function WorkersScreen() {
     setEditName(worker.name);
     setEditCategory(worker.category || "labour");
     setEditDailyRate(worker.dailyRate ? String(worker.dailyRate) : "0");
-    setEditStatus(((worker as any).status as "Active" | "Inactive") || "Active");
+    setEditStatus(
+      ((worker as any).status as "Active" | "Inactive") || "Active",
+    );
     setUpdateError(null);
   };
 
@@ -344,7 +418,9 @@ export default function WorkersScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
       setIsUpdating(false);
-      setUpdateError(err?.message || "Failed to update worker. Please try again.");
+      setUpdateError(
+        err?.message || "Failed to update worker. Please try again.",
+      );
     }
   };
 
@@ -357,7 +433,9 @@ export default function WorkersScreen() {
     });
 
     if (Platform.OS === "web") {
-      const confirmed = window.confirm(`Delete Worker?\n\nAre you sure you want to delete ${worker.name}?`);
+      const confirmed = window.confirm(
+        `Delete Worker?\n\nAre you sure you want to delete ${worker.name}?`,
+      );
       if (confirmed) {
         setWorkers((prev) => prev.filter((w) => w.id !== worker.id));
         storage.deleteWorker(worker.id).catch((err) => {
@@ -378,7 +456,9 @@ export default function WorkersScreen() {
           onPress: async () => {
             try {
               setWorkers((prev) => prev.filter((w) => w.id !== worker.id));
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success,
+              );
               await storage.deleteWorker(worker.id);
               showSuccessToast("Worker deleted successfully");
             } catch (err: any) {
@@ -393,14 +473,18 @@ export default function WorkersScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
   const renderFilterChips = () => {
     const filters = ["All", "Active", "Inactive"];
     return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContainer}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterContainer}
+      >
         {filters.map((f) => {
           const isSelected = filter === f;
           return (
@@ -409,10 +493,27 @@ export default function WorkersScreen() {
               onPress={() => setFilter(f)}
               style={[
                 styles.filterChip,
-                { backgroundColor: isSelected ? theme.primary : (isDark ? "#1E293B" : "#F1F5F9") },
+                {
+                  backgroundColor: isSelected
+                    ? theme.primary
+                    : isDark
+                      ? "#1E293B"
+                      : "#F1F5F9",
+                },
               ]}
             >
-              <Text style={[styles.filterChipText, { color: isSelected ? "#FFFFFF" : (isDark ? "#FFFFFF" : "#475569") }]}>
+              <Text
+                style={[
+                  styles.filterChipText,
+                  {
+                    color: isSelected
+                      ? "#FFFFFF"
+                      : isDark
+                        ? "#FFFFFF"
+                        : "#475569",
+                  },
+                ]}
+              >
                 {f}
               </Text>
             </Pressable>
@@ -423,37 +524,115 @@ export default function WorkersScreen() {
   };
 
   const renderStats = () => {
-    const activeCount = workers.filter((w) => ((w as any).status || "Active") === "Active").length;
-    const inactiveCount = workers.filter((w) => (w as any).status === "Inactive").length;
-    
+    const activeCount = workers.filter(
+      (w) => ((w as any).status || "Active") === "Active",
+    ).length;
+    const inactiveCount = workers.filter(
+      (w) => (w as any).status === "Inactive",
+    ).length;
+
     // Calculate new workers added in the current calendar month
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-    const newThisMonth = workers.filter((w) => w.createdAt && w.createdAt >= startOfMonth).length;
+    const startOfMonth = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1,
+    ).getTime();
+    const newThisMonth = workers.filter(
+      (w) => w.createdAt && w.createdAt >= startOfMonth,
+    ).length;
 
     return (
       <View style={styles.summaryGrid}>
         <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
-            <Text style={[styles.summaryNumber, { color: "#3B82F6" }]}>{workers.length}</Text>
-            <Text style={[styles.summaryLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>Total Worker</Text>
+          <View
+            style={[
+              styles.summaryCard,
+              {
+                backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                borderColor: isDark ? "#334155" : "#E2E8F0",
+              },
+            ]}
+          >
+            <Text style={[styles.summaryNumber, { color: "#3B82F6" }]}>
+              {workers.length}
+            </Text>
+            <Text
+              style={[
+                styles.summaryLabel,
+                { color: isDark ? "#94A3B8" : "#64748B" },
+              ]}
+            >
+              Total Worker
+            </Text>
           </View>
 
-          <View style={[styles.summaryCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
-            <Text style={[styles.summaryNumber, { color: "#16A34A" }]}>{activeCount}</Text>
-            <Text style={[styles.summaryLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>Active</Text>
+          <View
+            style={[
+              styles.summaryCard,
+              {
+                backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                borderColor: isDark ? "#334155" : "#E2E8F0",
+              },
+            ]}
+          >
+            <Text style={[styles.summaryNumber, { color: "#16A34A" }]}>
+              {activeCount}
+            </Text>
+            <Text
+              style={[
+                styles.summaryLabel,
+                { color: isDark ? "#94A3B8" : "#64748B" },
+              ]}
+            >
+              Active
+            </Text>
           </View>
         </View>
 
         <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
-            <Text style={[styles.summaryNumber, { color: "#F59E0B" }]}>{inactiveCount}</Text>
-            <Text style={[styles.summaryLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>On Leave</Text>
+          <View
+            style={[
+              styles.summaryCard,
+              {
+                backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                borderColor: isDark ? "#334155" : "#E2E8F0",
+              },
+            ]}
+          >
+            <Text style={[styles.summaryNumber, { color: "#F59E0B" }]}>
+              {inactiveCount}
+            </Text>
+            <Text
+              style={[
+                styles.summaryLabel,
+                { color: isDark ? "#94A3B8" : "#64748B" },
+              ]}
+            >
+              On Leave
+            </Text>
           </View>
 
-          <View style={[styles.summaryCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
-            <Text style={[styles.summaryNumber, { color: "#8B5CF6" }]}>{newThisMonth}</Text>
-            <Text style={[styles.summaryLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>New This Month</Text>
+          <View
+            style={[
+              styles.summaryCard,
+              {
+                backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                borderColor: isDark ? "#334155" : "#E2E8F0",
+              },
+            ]}
+          >
+            <Text style={[styles.summaryNumber, { color: "#8B5CF6" }]}>
+              {newThisMonth}
+            </Text>
+            <Text
+              style={[
+                styles.summaryLabel,
+                { color: isDark ? "#94A3B8" : "#64748B" },
+              ]}
+            >
+              New This Month
+            </Text>
           </View>
         </View>
       </View>
@@ -464,15 +643,28 @@ export default function WorkersScreen() {
     return (
       <View style={{ gap: Spacing.md, paddingBottom: Spacing.md }}>
         <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.xs }}>
-          <ThemedText style={{ fontSize: 24, fontWeight: "800" }}>Workers</ThemedText>
+          <ThemedText style={{ fontSize: 24, fontWeight: "800" }}>
+            Workers
+          </ThemedText>
         </View>
 
         {renderStats()}
 
         <View style={{ paddingHorizontal: Spacing.lg }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: Spacing.sm }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <ThemedText style={{ fontSize: 16, fontWeight: "700" }}>All Workers</ThemedText>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: Spacing.sm,
+            }}
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              <ThemedText style={{ fontSize: 16, fontWeight: "700" }}>
+                All Workers
+              </ThemedText>
               <Badge label={workers.length.toString()} variant="info" />
             </View>
             <Pressable
@@ -481,13 +673,28 @@ export default function WorkersScreen() {
                 setSortBy(sortBy === "Name A-Z" ? "Date Added" : "Name A-Z");
                 setWorkers((prev) =>
                   [...prev].sort((a, b) =>
-                    sortBy === "Date Added" ? a.name.localeCompare(b.name) : b.createdAt - a.createdAt
-                  )
+                    sortBy === "Date Added"
+                      ? a.name.localeCompare(b.name)
+                      : b.createdAt - a.createdAt,
+                  ),
                 );
               }}
             >
-              <Feather name="bar-chart-2" size={16} color={theme.primary} style={{ transform: [{ rotate: "90deg" }] }} />
-              <Text style={{ color: theme.primary, fontWeight: "600", fontSize: 12 }}>Sort</Text>
+              <Feather
+                name="bar-chart-2"
+                size={16}
+                color={theme.primary}
+                style={{ transform: [{ rotate: "90deg" }] }}
+              />
+              <Text
+                style={{
+                  color: theme.primary,
+                  fontWeight: "600",
+                  fontSize: 12,
+                }}
+              >
+                Sort
+              </Text>
             </Pressable>
           </View>
           <SearchBar
@@ -530,7 +737,11 @@ export default function WorkersScreen() {
       <EmptyState
         icon="users"
         title="No Workers Found"
-        subtitle={role === "supervisor" ? "No workers assigned to your projects yet." : t.workers.addFirst}
+        subtitle={
+          role === "supervisor"
+            ? "No workers assigned to your projects yet."
+            : t.workers.addFirst
+        }
         actionLabel={role !== "supervisor" ? "Add First Worker" : undefined}
         onAction={role !== "supervisor" ? handleAddWorker : undefined}
       />
@@ -567,7 +778,10 @@ export default function WorkersScreen() {
           style={[styles.fabContainer, { bottom: tabBarHeight + Spacing.md }]}
           onPress={handleAddWorker}
         >
-          <LinearGradient colors={["#F97316", "#EA580C"]} style={styles.fabGradient}>
+          <LinearGradient
+            colors={["#F97316", "#EA580C"]}
+            style={styles.fabGradient}
+          >
             <Feather name="plus" size={24} color="#FFFFFF" />
           </LinearGradient>
         </Pressable>
@@ -575,7 +789,13 @@ export default function WorkersScreen() {
 
       {/* Success Toast Notification Banner */}
       {showToast && (
-        <Animated.View entering={FadeInUp.duration(300)} style={[styles.toastContainer, { backgroundColor: isDark ? "#1E293B" : "#0F172A" }]}>
+        <Animated.View
+          entering={FadeInUp.duration(300)}
+          style={[
+            styles.toastContainer,
+            { backgroundColor: isDark ? "#1E293B" : "#0F172A" },
+          ]}
+        >
           <Ionicons name="checkmark-circle" size={20} color="#16A34A" />
           <Text style={styles.toastText}>{toastMessage}</Text>
         </Animated.View>
@@ -608,7 +828,12 @@ export default function WorkersScreen() {
           >
             {/* Sheet Header */}
             <View style={styles.sheetHeader}>
-              <Text style={[styles.sheetTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>
+              <Text
+                style={[
+                  styles.sheetTitle,
+                  { color: isDark ? "#FFFFFF" : "#0F172A" },
+                ]}
+              >
                 Update Worker
               </Text>
               <Pressable
@@ -617,7 +842,11 @@ export default function WorkersScreen() {
                 }}
                 hitSlop={10}
               >
-                <Feather name="x" size={22} color={isDark ? "#94A3B8" : "#64748B"} />
+                <Feather
+                  name="x"
+                  size={22}
+                  color={isDark ? "#94A3B8" : "#64748B"}
+                />
               </Pressable>
             </View>
 
@@ -629,10 +858,18 @@ export default function WorkersScreen() {
               </View>
             )}
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={{ maxHeight: 420 }}
+            >
               {/* Field 1: Name */}
               <View style={styles.formGroup}>
-                <Text style={[styles.fieldLabel, { color: isDark ? "#CBD5E1" : "#475569" }]}>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: isDark ? "#CBD5E1" : "#475569" },
+                  ]}
+                >
                   Name *
                 </Text>
                 <TextInput
@@ -653,7 +890,12 @@ export default function WorkersScreen() {
 
               {/* Field 2: Role / Category */}
               <View style={styles.formGroup}>
-                <Text style={[styles.fieldLabel, { color: isDark ? "#CBD5E1" : "#475569" }]}>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: isDark ? "#CBD5E1" : "#475569" },
+                  ]}
+                >
                   Role (Category)
                 </Text>
                 <View style={styles.categoryGrid}>
@@ -667,16 +909,30 @@ export default function WorkersScreen() {
                           styles.categoryOption,
                           {
                             backgroundColor: isSelected
-                              ? (isDark ? "#2563EB" : "#3B82F6")
-                              : (isDark ? "#0F172A" : "#F1F5F9"),
-                            borderColor: isSelected ? "#3B82F6" : (isDark ? "#334155" : "#E2E8F0"),
+                              ? isDark
+                                ? "#2563EB"
+                                : "#3B82F6"
+                              : isDark
+                                ? "#0F172A"
+                                : "#F1F5F9",
+                            borderColor: isSelected
+                              ? "#3B82F6"
+                              : isDark
+                                ? "#334155"
+                                : "#E2E8F0",
                           },
                         ]}
                       >
                         <Text
                           style={[
                             styles.categoryOptionText,
-                            { color: isSelected ? "#FFFFFF" : (isDark ? "#CBD5E1" : "#475569") },
+                            {
+                              color: isSelected
+                                ? "#FFFFFF"
+                                : isDark
+                                  ? "#CBD5E1"
+                                  : "#475569",
+                            },
                           ]}
                         >
                           {cat.label}
@@ -689,7 +945,12 @@ export default function WorkersScreen() {
 
               {/* Field 3: Daily Wage */}
               <View style={styles.formGroup}>
-                <Text style={[styles.fieldLabel, { color: isDark ? "#CBD5E1" : "#475569" }]}>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: isDark ? "#CBD5E1" : "#475569" },
+                  ]}
+                >
                   Daily Wage (₹) *
                 </Text>
                 <TextInput
@@ -711,7 +972,12 @@ export default function WorkersScreen() {
 
               {/* Field 4: Status */}
               <View style={styles.formGroup}>
-                <Text style={[styles.fieldLabel, { color: isDark ? "#CBD5E1" : "#475569" }]}>
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: isDark ? "#CBD5E1" : "#475569" },
+                  ]}
+                >
                   Status
                 </Text>
                 <View style={styles.statusToggleRow}>
@@ -725,7 +991,8 @@ export default function WorkersScreen() {
                     <Text
                       style={[
                         styles.statusToggleText,
-                        editStatus === "Active" && styles.statusToggleTextActive,
+                        editStatus === "Active" &&
+                          styles.statusToggleTextActive,
                       ]}
                     >
                       Active
@@ -736,13 +1003,15 @@ export default function WorkersScreen() {
                     onPress={() => setEditStatus("Inactive")}
                     style={[
                       styles.statusToggleBtn,
-                      editStatus === "Inactive" && styles.statusToggleBtnInactive,
+                      editStatus === "Inactive" &&
+                        styles.statusToggleBtnInactive,
                     ]}
                   >
                     <Text
                       style={[
                         styles.statusToggleText,
-                        editStatus === "Inactive" && styles.statusToggleTextInactive,
+                        editStatus === "Inactive" &&
+                          styles.statusToggleTextInactive,
                       ]}
                     >
                       Inactive
@@ -762,7 +1031,12 @@ export default function WorkersScreen() {
                   { borderColor: isDark ? "#475569" : "#CBD5E1" },
                 ]}
               >
-                <Text style={[styles.cancelBtnText, { color: isDark ? "#CBD5E1" : "#475569" }]}>
+                <Text
+                  style={[
+                    styles.cancelBtnText,
+                    { color: isDark ? "#CBD5E1" : "#475569" },
+                  ]}
+                >
                   Cancel
                 </Text>
               </Pressable>
@@ -790,30 +1064,67 @@ export default function WorkersScreen() {
         animationType="fade"
         onRequestClose={() => setShowUpgradeLimitModal(false)}
       >
-        <BlurView intensity={isDark ? 80 : 90} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill}>
+        <BlurView
+          intensity={isDark ? 80 : 90}
+          tint={isDark ? "dark" : "light"}
+          style={StyleSheet.absoluteFill}
+        >
           <View style={styles.modalCenteredView}>
-            <ThemedView style={[styles.upgradeModalContent, { backgroundColor: theme.backgroundDefault, borderColor: theme.border, borderWidth: 1 }]}>
+            <ThemedView
+              style={[
+                styles.upgradeModalContent,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                  borderWidth: 1,
+                },
+              ]}
+            >
               <View style={styles.modalIconContainer}>
                 <ThemedText style={{ fontSize: 48 }}>🚀</ThemedText>
               </View>
-              <ThemedText type="h2" style={styles.modalTitle}>🚀 Upgrade Required</ThemedText>
-              <ThemedText type="body" style={[styles.modalMessage, { color: theme.textSecondary }]}>
+              <ThemedText type="h2" style={styles.modalTitle}>
+                🚀 Upgrade Required
+              </ThemedText>
+              <ThemedText
+                type="body"
+                style={[styles.modalMessage, { color: theme.textSecondary }]}
+              >
                 You have reached the maximum worker limit for your current plan.
                 {"\n\n"}
-                {currentPlan === "free" ? "Free Plan allows up to 15 workers." : "Professional Plan allows up to 100 workers."}
+                {currentPlan === "free"
+                  ? "Free Plan allows up to 15 workers."
+                  : "Professional Plan allows up to 100 workers."}
                 {"\n\n"}
-                Upgrade to Pro or Business to add more workers and unlock advanced features.
+                Upgrade to Pro or Business to add more workers and unlock
+                advanced features.
               </ThemedText>
               <View style={styles.modalBtnContainer}>
                 <PrimaryButton
                   label="Upgrade Now"
                   onPress={() => {
                     setShowUpgradeLimitModal(false);
-                    navigation.navigate("MainTabs" as any, { screen: "SettingsTab", params: { openUpgrade: true } } as any);
+                    navigation.navigate(
+                      "MainTabs" as any,
+                      {
+                        screen: "SettingsTab",
+                        params: { openUpgrade: true },
+                      } as any,
+                    );
                   }}
                 />
-                <Pressable onPress={() => setShowUpgradeLimitModal(false)} style={[styles.maybeLaterBtn, { borderColor: theme.border, borderWidth: 1 }]}>
-                  <ThemedText style={[styles.maybeLaterText, { color: theme.text }]}>Maybe Later</ThemedText>
+                <Pressable
+                  onPress={() => setShowUpgradeLimitModal(false)}
+                  style={[
+                    styles.maybeLaterBtn,
+                    { borderColor: theme.border, borderWidth: 1 },
+                  ]}
+                >
+                  <ThemedText
+                    style={[styles.maybeLaterText, { color: theme.text }]}
+                  >
+                    Maybe Later
+                  </ThemedText>
                 </Pressable>
               </View>
             </ThemedView>
@@ -862,10 +1173,22 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  filterContainer: { gap: 8, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs },
+  filterContainer: {
+    gap: 8,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xs,
+  },
   filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
   filterChipText: { fontSize: 13, fontWeight: "600" },
-  sortButton: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(249,115,22,0.1)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  sortButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(249,115,22,0.1)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
 
   /* Clean Worker Card Styling */
   workerCard: {
@@ -900,7 +1223,12 @@ const styles = StyleSheet.create({
   },
   cardInfo: { flex: 1 },
   workerName: { fontSize: 18, fontWeight: "800", marginBottom: 2 },
-  workerRole: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", marginBottom: 4 },
+  workerRole: {
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
   workerWage: { fontSize: 15, fontWeight: "800", marginTop: 2 },
 
   statusRow: { marginTop: 10 },
@@ -925,16 +1253,45 @@ const styles = StyleSheet.create({
     flex: 0.48,
   },
   editBtn: { backgroundColor: "rgba(37,99,235,0.08)" },
-  editBtnText: { fontSize: 14, fontWeight: "800", color: "#2563EB", marginLeft: 6 },
+  editBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#2563EB",
+    marginLeft: 6,
+  },
   deleteBtn: { backgroundColor: "rgba(239,68,68,0.08)" },
-  deleteBtnText: { fontSize: 14, fontWeight: "800", color: "#EF4444", marginLeft: 6 },
+  deleteBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#EF4444",
+    marginLeft: 6,
+  },
 
   separator: { height: 12 },
-  fabContainer: { position: "absolute", right: Spacing.lg, zIndex: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
-  fabGradient: { width: 56, height: 56, borderRadius: 28, justifyContent: "center", alignItems: "center" },
+  fabContainer: {
+    position: "absolute",
+    right: Spacing.lg,
+    zIndex: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  fabGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 
   /* Update Worker Bottom Sheet Styling */
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
   bottomSheetContainer: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -943,7 +1300,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
     maxHeight: "85%",
   },
-  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  sheetHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   sheetTitle: { fontSize: 20, fontWeight: "800" },
   errorBanner: {
     flexDirection: "row",
@@ -956,7 +1318,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 16,
   },
-  errorBannerText: { color: "#EF4444", fontSize: 13, fontWeight: "600", flex: 1 },
+  errorBannerText: {
+    color: "#EF4444",
+    fontSize: 13,
+    fontWeight: "600",
+    flex: 1,
+  },
   formGroup: { marginBottom: 16 },
   fieldLabel: { fontSize: 13, fontWeight: "700", marginBottom: 6 },
   textInput: {
@@ -967,8 +1334,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
   },
-  categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
-  categoryOption: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1 },
+  categoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4,
+  },
+  categoryOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
   categoryOptionText: { fontSize: 12, fontWeight: "700" },
   statusToggleRow: { flexDirection: "row", gap: 10, marginTop: 4 },
   statusToggleBtn: {
@@ -982,14 +1359,36 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
   },
   statusToggleBtnActive: { backgroundColor: "#16A34A", borderColor: "#16A34A" },
-  statusToggleBtnInactive: { backgroundColor: "#EF4444", borderColor: "#EF4444" },
+  statusToggleBtnInactive: {
+    backgroundColor: "#EF4444",
+    borderColor: "#EF4444",
+  },
   statusToggleText: { fontSize: 14, fontWeight: "700", color: "#475569" },
   statusToggleTextActive: { color: "#FFFFFF" },
   statusToggleTextInactive: { color: "#FFFFFF" },
-  sheetActions: { flexDirection: "row", gap: 12, marginTop: 16, paddingTop: 12 },
-  cancelBtn: { flex: 1, height: 48, borderRadius: 12, borderWidth: 1, justifyContent: "center", alignItems: "center" },
+  sheetActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 16,
+    paddingTop: 12,
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   cancelBtnText: { fontSize: 15, fontWeight: "700" },
-  updateBtn: { flex: 1, height: 48, borderRadius: 12, backgroundColor: "#2563EB", justifyContent: "center", alignItems: "center" },
+  updateBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#2563EB",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   updateBtnText: { fontSize: 15, fontWeight: "800", color: "#FFFFFF" },
 
   /* Toast Notification */
@@ -1013,12 +1412,45 @@ const styles = StyleSheet.create({
   toastText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
 
   /* Upgrade Modal */
-  modalCenteredView: { flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl },
-  upgradeModalContent: { width: "100%", maxWidth: 340, borderRadius: 24, padding: Spacing.xl, alignItems: "center", ...Shadows.md },
-  modalIconContainer: { width: 80, height: 80, borderRadius: 40, justifyContent: "center", alignItems: "center", marginBottom: Spacing.md },
-  modalTitle: { fontWeight: "800", textAlign: "center", marginBottom: Spacing.md },
-  modalMessage: { textAlign: "center", lineHeight: 22, marginBottom: Spacing.xl },
+  modalCenteredView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.xl,
+  },
+  upgradeModalContent: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: 24,
+    padding: Spacing.xl,
+    alignItems: "center",
+    ...Shadows.md,
+  },
+  modalIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  modalTitle: {
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: Spacing.md,
+  },
+  modalMessage: {
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: Spacing.xl,
+  },
   modalBtnContainer: { width: "100%", gap: Spacing.md },
-  maybeLaterBtn: { width: "100%", paddingVertical: Spacing.md, alignItems: "center", justifyContent: "center", borderRadius: 14 },
+  maybeLaterBtn: {
+    width: "100%",
+    paddingVertical: Spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+  },
   maybeLaterText: { fontWeight: "600", fontSize: 16 },
 });

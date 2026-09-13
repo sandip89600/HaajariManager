@@ -71,7 +71,7 @@ export async function trackInteraction(type: InteractionType): Promise<void> {
     const current = raw ? parseInt(raw, 10) : 0;
     await AsyncStorage.setItem(
       KEYS.INTERACTION_COUNT,
-      (current + 1).toString()
+      (current + 1).toString(),
     );
   } catch (e) {
     // Silently ignore

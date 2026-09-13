@@ -17,7 +17,10 @@ export default function SecureAccountScreen() {
   const handleLogoutOtherDevices = async () => {
     setLoading("logout");
     try {
-      const res = await authenticatedFetch(`${API_URL}/auth/security/logout-all`, { method: "POST" });
+      const res = await authenticatedFetch(
+        `${API_URL}/auth/security/logout-all`,
+        { method: "POST" },
+      );
       if (res.ok) {
         Alert.alert("Done", "All other devices have been logged out.");
       }
@@ -64,26 +67,61 @@ export default function SecureAccountScreen() {
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? "#0B0F17" : "#F1F5F9" }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: isDark ? "#0B0F17" : "#F1F5F9" },
+      ]}
+    >
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: isDark ? "#111827" : "#FFFFFF", borderBottomColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: insets.top + 12,
+            backgroundColor: isDark ? "#111827" : "#FFFFFF",
+            borderBottomColor: isDark ? "#1E293B" : "#E2E8F0",
+          },
+        ]}
+      >
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Feather name="arrow-left" size={20} color={theme.text} />
         </Pressable>
-        <ThemedText style={[styles.headerTitle, { color: theme.text }]}>Secure My Account</ThemedText>
+        <ThemedText style={[styles.headerTitle, { color: theme.text }]}>
+          Secure My Account
+        </ThemedText>
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: Spacing.lg, paddingBottom: insets.bottom + 24 }}>
+      <ScrollView
+        contentContainerStyle={{
+          padding: Spacing.lg,
+          paddingBottom: insets.bottom + 24,
+        }}
+      >
         {/* Alert Banner */}
-        <View style={[styles.alertBanner, { backgroundColor: isDark ? "#2D1515" : "#FEF2F2", borderColor: "#EF4444" }]}>
+        <View
+          style={[
+            styles.alertBanner,
+            {
+              backgroundColor: isDark ? "#2D1515" : "#FEF2F2",
+              borderColor: "#EF4444",
+            },
+          ]}
+        >
           <Feather name="alert-triangle" size={20} color="#EF4444" />
           <ThemedText style={[styles.alertText, { color: "#EF4444" }]}>
-            We detected a suspicious login attempt. Take action to secure your account.
+            We detected a suspicious login attempt. Take action to secure your
+            account.
           </ThemedText>
         </View>
 
-        <ThemedText style={[styles.sectionTitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>
+        <ThemedText
+          style={[
+            styles.sectionTitle,
+            { color: isDark ? "#94A3B8" : "#64748B" },
+          ]}
+        >
           RECOMMENDED ACTIONS
         </ThemedText>
 
@@ -94,23 +132,47 @@ export default function SecureAccountScreen() {
             disabled={loading === action.id}
             style={({ pressed }) => [
               styles.actionCard,
-              { backgroundColor: isDark ? "#111827" : "#FFFFFF", borderColor: isDark ? "#1E293B" : "#E2E8F0" },
-              pressed && { opacity: 0.85 }
+              {
+                backgroundColor: isDark ? "#111827" : "#FFFFFF",
+                borderColor: isDark ? "#1E293B" : "#E2E8F0",
+              },
+              pressed && { opacity: 0.85 },
             ]}
           >
-            <View style={[styles.actionIcon, { backgroundColor: action.color + "22" }]}>
+            <View
+              style={[
+                styles.actionIcon,
+                { backgroundColor: action.color + "22" },
+              ]}
+            >
               <Feather name={action.icon} size={20} color={action.color} />
             </View>
             <View style={{ flex: 1 }}>
-              <ThemedText style={[styles.actionTitle, { color: theme.text }]}>{action.title}</ThemedText>
-              <ThemedText style={[styles.actionSubtitle, { color: isDark ? "#64748B" : "#94A3B8" }]}>{action.subtitle}</ThemedText>
+              <ThemedText style={[styles.actionTitle, { color: theme.text }]}>
+                {action.title}
+              </ThemedText>
+              <ThemedText
+                style={[
+                  styles.actionSubtitle,
+                  { color: isDark ? "#64748B" : "#94A3B8" },
+                ]}
+              >
+                {action.subtitle}
+              </ThemedText>
             </View>
-            <Feather name="chevron-right" size={18} color={isDark ? "#475569" : "#CBD5E1"} />
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={isDark ? "#475569" : "#CBD5E1"}
+            />
           </Pressable>
         ))}
 
-        <ThemedText style={[styles.note, { color: isDark ? "#64748B" : "#9CA3AF" }]}>
-          If you believe your account has been compromised, change your password immediately and logout all other devices.
+        <ThemedText
+          style={[styles.note, { color: isDark ? "#64748B" : "#9CA3AF" }]}
+        >
+          If you believe your account has been compromised, change your password
+          immediately and logout all other devices.
         </ThemedText>
       </ScrollView>
     </View>
@@ -119,14 +181,53 @@ export default function SecureAccountScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: Spacing.md, paddingBottom: 12, borderBottomWidth: 1 },
-  backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerTitle: { fontSize: 17, fontWeight: "700" },
-  alertBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, borderWidth: 1, borderRadius: BorderRadius.md, padding: 14, marginBottom: 20 },
+  alertBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: 14,
+    marginBottom: 20,
+  },
   alertText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: "600" },
-  sectionTitle: { fontSize: 11, fontWeight: "600", letterSpacing: 1, marginBottom: 12 },
-  actionCard: { flexDirection: "row", alignItems: "center", gap: 14, borderWidth: 1, borderRadius: BorderRadius.md, padding: 16, marginBottom: 10 },
-  actionIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  actionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: 16,
+    marginBottom: 10,
+  },
+  actionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   actionTitle: { fontSize: 15, fontWeight: "700", marginBottom: 2 },
   actionSubtitle: { fontSize: 12, lineHeight: 16 },
   note: { fontSize: 12, textAlign: "center", lineHeight: 17, marginTop: 16 },

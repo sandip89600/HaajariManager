@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
-import { useAuthStore } from '../stores/authStore';
+import { useEffect, useState } from "react";
+import { io, Socket } from "socket.io-client";
+import { useAuthStore } from "../stores/authStore";
 
-const DEFAULT_SOCKET_URL = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-  ? 'http://localhost:5000'
-  : 'https://haajarimanager.onrender.com';
+const DEFAULT_SOCKET_URL =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1")
+    ? "http://localhost:5000"
+    : "https://haajarimanager.onrender.com";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || DEFAULT_SOCKET_URL;
 
@@ -20,7 +23,7 @@ export const useSocket = () => {
 
     const newSocket = io(SOCKET_URL, {
       auth: { token },
-      transports: ['websocket'],
+      transports: ["websocket"],
     });
 
     setSocket(newSocket);

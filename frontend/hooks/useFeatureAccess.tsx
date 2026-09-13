@@ -1,7 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./useAuth";
 import { storage, API_URL } from "@/utils/storage";
-import { SubscriptionApi, SubscriptionStatusResponse } from "@/services/subscriptionApi";
+import {
+  SubscriptionApi,
+  SubscriptionStatusResponse,
+} from "@/services/subscriptionApi";
 
 export interface FeatureFlag {
   key: string;
@@ -44,12 +47,17 @@ interface FeatureAccessContextType {
   };
 }
 
-const FeatureAccessContext = createContext<FeatureAccessContextType | null>(null);
+const FeatureAccessContext = createContext<FeatureAccessContextType | null>(
+  null,
+);
 
-export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const { isLoggedIn, user } = useAuth();
   const [config, setConfig] = useState<AppConfig | null>(null);
-  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatusResponse | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] =
+    useState<SubscriptionStatusResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchConfig = async () => {
@@ -86,7 +94,8 @@ export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [isLoggedIn]);
 
-  const isSubscriptionEnabled = subscriptionStatus?.subscriptionEnabled ?? false;
+  const isSubscriptionEnabled =
+    subscriptionStatus?.subscriptionEnabled ?? false;
 
   const hasFeature = (featureKey: string): boolean => {
     if (!config) return true;
@@ -102,7 +111,9 @@ export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
     return mod.enabled;
   };
 
-  const isSupervisorManagementAllowed = (_userPlan: string = "free"): boolean => {
+  const isSupervisorManagementAllowed = (
+    _userPlan: string = "free",
+  ): boolean => {
     return true; // Always allowed on all plans when global mode is free
   };
 
@@ -178,7 +189,9 @@ export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
 export const useFeatureAccess = () => {
   const context = useContext(FeatureAccessContext);
   if (!context) {
-    throw new Error("useFeatureAccess must be used within a FeatureAccessProvider");
+    throw new Error(
+      "useFeatureAccess must be used within a FeatureAccessProvider",
+    );
   }
   return context;
 };

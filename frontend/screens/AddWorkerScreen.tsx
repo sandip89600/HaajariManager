@@ -50,7 +50,10 @@ const CATEGORIES: WorkerCategory[] = [
   "sutar",
 ];
 
-const CATEGORY_DETAILS: Record<WorkerCategory, { emoji: string; color: string }> = {
+const CATEGORY_DETAILS: Record<
+  WorkerCategory,
+  { emoji: string; color: string }
+> = {
   labour: { emoji: "👷‍♂️", color: "#10B981" },
   bai: { emoji: "👩", color: "#EC4899" },
   mistri: { emoji: "📐", color: "#6366F1" },
@@ -94,15 +97,21 @@ export default function AddWorkerScreen() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState<WorkerCategory>("labour");
   const [existingDailyRate, setExistingDailyRate] = useState<number>(0);
-  const [skillCategory, setSkillCategory] = useState<"skilled" | "semi_skilled" | "unskilled">("unskilled");
-  const [paymentType, setPaymentType] = useState<"daily" | "piece_rate" | "contract">("daily");
+  const [skillCategory, setSkillCategory] = useState<
+    "skilled" | "semi_skilled" | "unskilled"
+  >("unskilled");
+  const [paymentType, setPaymentType] = useState<
+    "daily" | "piece_rate" | "contract"
+  >("daily");
   const [pieceRateAmount, setPieceRateAmount] = useState("");
   const [subContractorName, setSubContractorName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [photoUri, setPhotoUri] = useState<string | undefined>(undefined);
-  const [workerUniqueId, setWorkerUniqueId] = useState<string | undefined>(undefined);
+  const [workerUniqueId, setWorkerUniqueId] = useState<string | undefined>(
+    undefined,
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [limitModalVisible, setLimitModalVisible] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -326,7 +335,9 @@ export default function AddWorkerScreen() {
           onPress={() => navigation.goBack()}
           style={styles.customHeaderBtnLeft}
         >
-          <ThemedText style={{ color: theme.primary, fontSize: 16, fontWeight: "600" }}>
+          <ThemedText
+            style={{ color: theme.primary, fontSize: 16, fontWeight: "600" }}
+          >
             {t.common.cancel}
           </ThemedText>
         </Pressable>
@@ -351,7 +362,9 @@ export default function AddWorkerScreen() {
             onPress={handlePickPhoto}
             style={[
               styles.avatarWrapper,
-              { borderColor: CATEGORY_DETAILS[category]?.color || theme.primary }
+              {
+                borderColor: CATEGORY_DETAILS[category]?.color || theme.primary,
+              },
             ]}
           >
             {photoUri ? (
@@ -360,7 +373,10 @@ export default function AddWorkerScreen() {
               <View
                 style={[
                   styles.avatarPlaceholder,
-                  { backgroundColor: CATEGORY_DETAILS[category]?.color || theme.primary },
+                  {
+                    backgroundColor:
+                      CATEGORY_DETAILS[category]?.color || theme.primary,
+                  },
                 ]}
               >
                 <ThemedText style={styles.avatarInitials}>
@@ -372,9 +388,10 @@ export default function AddWorkerScreen() {
               style={[
                 styles.cameraIcon,
                 {
-                  backgroundColor: CATEGORY_DETAILS[category]?.color || theme.primary,
+                  backgroundColor:
+                    CATEGORY_DETAILS[category]?.color || theme.primary,
                   borderColor: theme.backgroundDefault,
-                }
+                },
               ]}
             >
               <Feather name="camera" size={14} color="#FFFFFF" />
@@ -382,7 +399,11 @@ export default function AddWorkerScreen() {
           </Pressable>
           <ThemedText
             type="small"
-            style={{ color: theme.textSecondary, marginTop: Spacing.sm, fontWeight: "700" }}
+            style={{
+              color: theme.textSecondary,
+              marginTop: Spacing.sm,
+              fontWeight: "700",
+            }}
           >
             {photoUri ? t.workers.changePhoto : t.workers.addPhoto}
           </ThemedText>
@@ -423,7 +444,8 @@ export default function AddWorkerScreen() {
             style={[
               styles.dropdownSelector,
               {
-                backgroundColor: theme.backgroundSecondary || (theme.backgroundDefault + "90"),
+                backgroundColor:
+                  theme.backgroundSecondary || theme.backgroundDefault + "90",
                 borderColor: theme.border,
               },
             ]}
@@ -433,7 +455,9 @@ export default function AddWorkerScreen() {
                 style={[
                   styles.categoryCircleBadge,
                   {
-                    backgroundColor: (CATEGORY_DETAILS[category]?.color || theme.primary) + "22",
+                    backgroundColor:
+                      (CATEGORY_DETAILS[category]?.color || theme.primary) +
+                      "22",
                   },
                 ]}
               >
@@ -441,11 +465,17 @@ export default function AddWorkerScreen() {
                   {CATEGORY_DETAILS[category]?.emoji || "👷‍♂️"}
                 </ThemedText>
               </View>
-              <ThemedText style={[styles.dropdownValueText, { color: theme.text }]}>
+              <ThemedText
+                style={[styles.dropdownValueText, { color: theme.text }]}
+              >
                 {t.categories[category]}
               </ThemedText>
             </View>
-            <Feather name="chevron-down" size={20} color={theme.textSecondary} />
+            <Feather
+              name="chevron-down"
+              size={20}
+              color={theme.textSecondary}
+            />
           </Pressable>
         </View>
 
@@ -455,38 +485,40 @@ export default function AddWorkerScreen() {
             Skill Category
           </ThemedText>
           <View style={styles.pillRow}>
-            {(["skilled", "semi_skilled", "unskilled"] as const).map((skill) => {
-              const isSelected = skillCategory === skill;
-              const skillLabels = {
-                skilled: "Skilled (Mistri)",
-                semi_skilled: "Semi-Skilled",
-                unskilled: "Unskilled"
-              };
-              return (
-                <Pressable
-                  key={skill}
-                  onPress={() => setSkillCategory(skill)}
-                  style={[
-                    styles.pillButton,
-                    isSelected && {
-                      backgroundColor: theme.primary,
-                      borderColor: theme.primary,
-                    },
-                    { borderColor: theme.border },
-                  ]}
-                >
-                  <ThemedText
-                    style={{
-                      color: isSelected ? "#FFFFFF" : theme.text,
-                      fontWeight: "600",
-                      fontSize: 12,
-                    }}
+            {(["skilled", "semi_skilled", "unskilled"] as const).map(
+              (skill) => {
+                const isSelected = skillCategory === skill;
+                const skillLabels = {
+                  skilled: "Skilled (Mistri)",
+                  semi_skilled: "Semi-Skilled",
+                  unskilled: "Unskilled",
+                };
+                return (
+                  <Pressable
+                    key={skill}
+                    onPress={() => setSkillCategory(skill)}
+                    style={[
+                      styles.pillButton,
+                      isSelected && {
+                        backgroundColor: theme.primary,
+                        borderColor: theme.primary,
+                      },
+                      { borderColor: theme.border },
+                    ]}
                   >
-                    {skillLabels[skill]}
-                  </ThemedText>
-                </Pressable>
-              );
-            })}
+                    <ThemedText
+                      style={{
+                        color: isSelected ? "#FFFFFF" : theme.text,
+                        fontWeight: "600",
+                        fontSize: 12,
+                      }}
+                    >
+                      {skillLabels[skill]}
+                    </ThemedText>
+                  </Pressable>
+                );
+              },
+            )}
           </View>
         </View>
 
@@ -501,7 +533,7 @@ export default function AddWorkerScreen() {
               const payLabels = {
                 daily: "Daily Wage",
                 piece_rate: "Piece Rate",
-                contract: "Contract"
+                contract: "Contract",
               };
               return (
                 <Pressable
@@ -670,15 +702,38 @@ export default function AddWorkerScreen() {
             ]}
           >
             <View>
-              <ThemedText style={{ fontSize: 11, fontWeight: "700", color: "#059669", textTransform: "uppercase" }}>
+              <ThemedText
+                style={{
+                  fontSize: 11,
+                  fontWeight: "700",
+                  color: "#059669",
+                  textTransform: "uppercase",
+                }}
+              >
                 Worker Unique ID
               </ThemedText>
-              <ThemedText style={{ fontSize: 16, fontWeight: "800", color: theme.text, marginTop: 2 }}>
+              <ThemedText
+                style={{
+                  fontSize: 16,
+                  fontWeight: "800",
+                  color: theme.text,
+                  marginTop: 2,
+                }}
+              >
                 {workerUniqueId}
               </ThemedText>
             </View>
-            <View style={{ backgroundColor: "#DCFCE7", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
-              <ThemedText style={{ fontSize: 11, fontWeight: "700", color: "#059669" }}>
+            <View
+              style={{
+                backgroundColor: "#DCFCE7",
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 12,
+              }}
+            >
+              <ThemedText
+                style={{ fontSize: 11, fontWeight: "700", color: "#059669" }}
+              >
                 Active
               </ThemedText>
             </View>
@@ -739,7 +794,8 @@ export default function AddWorkerScreen() {
             paddingHorizontal: 4,
           }}
         >
-          💡 Entering worker&apos;s mobile number allows them to log in with OTP and view their attendance &amp; earnings automatically.
+          💡 Entering worker&apos;s mobile number allows them to log in with OTP
+          and view their attendance &amp; earnings automatically.
         </ThemedText>
 
         {/* Notes */}
@@ -807,13 +863,16 @@ export default function AddWorkerScreen() {
             style={[
               styles.bottomSheetContainer,
               {
-                backgroundColor: theme.backgroundSecondary || theme.backgroundDefault,
+                backgroundColor:
+                  theme.backgroundSecondary || theme.backgroundDefault,
                 paddingBottom: insets.bottom + Spacing.lg,
               },
             ]}
           >
             {/* Top Sheet indicator handle bar */}
-            <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
+            <View
+              style={[styles.sheetHandle, { backgroundColor: theme.border }]}
+            />
 
             {/* Header */}
             <View style={styles.sheetHeader}>
@@ -822,7 +881,10 @@ export default function AddWorkerScreen() {
               </ThemedText>
               <Pressable
                 onPress={() => setShowCategoryModal(false)}
-                style={[styles.closeButton, { backgroundColor: theme.border + "40" }]}
+                style={[
+                  styles.closeButton,
+                  { backgroundColor: theme.border + "40" },
+                ]}
                 hitSlop={12}
               >
                 <Feather name="x" size={18} color={theme.text} />
@@ -839,7 +901,12 @@ export default function AddWorkerScreen() {
                 },
               ]}
             >
-              <Feather name="search" size={16} color={theme.textSecondary} style={{ marginRight: 8 }} />
+              <Feather
+                name="search"
+                size={16}
+                color={theme.textSecondary}
+                style={{ marginRight: 8 }}
+              />
               <TextInput
                 style={[styles.sheetSearchInput, { color: theme.text }]}
                 placeholder="Search categories..."
@@ -849,8 +916,15 @@ export default function AddWorkerScreen() {
                 autoCorrect={false}
               />
               {categorySearchQuery.length > 0 && (
-                <Pressable onPress={() => setCategorySearchQuery("")} hitSlop={8}>
-                  <Feather name="x-circle" size={16} color={theme.textSecondary} />
+                <Pressable
+                  onPress={() => setCategorySearchQuery("")}
+                  hitSlop={8}
+                >
+                  <Feather
+                    name="x-circle"
+                    size={16}
+                    color={theme.textSecondary}
+                  />
                 </Pressable>
               )}
             </View>
@@ -862,7 +936,9 @@ export default function AddWorkerScreen() {
               keyboardShouldPersistTaps="handled"
             >
               {CATEGORIES.filter((cat) =>
-                t.categories[cat].toLowerCase().includes(categorySearchQuery.toLowerCase())
+                t.categories[cat]
+                  .toLowerCase()
+                  .includes(categorySearchQuery.toLowerCase()),
               ).map((cat) => {
                 const details = CATEGORY_DETAILS[cat];
                 const isSelected = category === cat;

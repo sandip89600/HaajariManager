@@ -20,7 +20,9 @@ export function isRunningInExpoGo(): boolean {
  * Dynamically retrieve expo-notifications module only when NOT running in Expo Go on Android.
  * This prevents expo-notifications top-level module evaluation from calling warnOfExpoGoPushUsage().
  */
-export function getNotificationsModule(): typeof import("expo-notifications") | null {
+export function getNotificationsModule():
+  | typeof import("expo-notifications")
+  | null {
   if (Platform.OS === "android" && isRunningInExpoGo()) {
     return null;
   }
@@ -80,7 +82,10 @@ export async function setupNotificationChannels(): Promise<void> {
         sound: "default",
       });
     } catch (err) {
-      console.warn("[Notifications] Failed to setup notification channel:", err);
+      console.warn(
+        "[Notifications] Failed to setup notification channel:",
+        err,
+      );
     }
   }
 }
@@ -120,7 +125,7 @@ export async function registerExpoPushToken(): Promise<string | null> {
   const Notifs = getNotificationsModule();
   if (!Notifs) {
     console.log(
-      "[Notifications] Android remote push notifications require a Development Build (npx expo start --dev-client). Skipping remote push token generation in Expo Go."
+      "[Notifications] Android remote push notifications require a Development Build (npx expo start --dev-client). Skipping remote push token generation in Expo Go.",
     );
     return null;
   }
@@ -152,7 +157,10 @@ export async function registerExpoPushToken(): Promise<string | null> {
     await AsyncStorage.setItem(LAST_PUSH_TOKEN_KEY, pushToken);
     return pushToken;
   } catch (error: any) {
-    console.warn("[Notifications] Remote push token retrieval:", error?.message || error);
+    console.warn(
+      "[Notifications] Remote push token retrieval:",
+      error?.message || error,
+    );
     return null;
   }
 }

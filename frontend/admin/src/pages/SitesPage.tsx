@@ -1,8 +1,16 @@
-import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { MapPin, Search, Plus, User, Building2, HardHat, RefreshCw } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { api } from '../utils/api';
+import React, { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  MapPin,
+  Search,
+  Plus,
+  User,
+  Building2,
+  HardHat,
+  RefreshCw,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import { api } from "../utils/api";
 
 interface Site {
   _id: string;
@@ -18,39 +26,49 @@ interface Site {
 
 export default function SitesPage() {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
 
   // Fetch sites
   const { data: sites = [], isLoading } = useQuery<Site[]>({
-    queryKey: ['sites'],
+    queryKey: ["sites"],
     queryFn: async () => {
-      const res = await api.get('/projects');
+      const res = await api.get("/projects");
       return res.data;
-    }
+    },
   });
 
   const filteredSites = sites.filter((site) => {
-    return site.name.toLowerCase().includes(search.toLowerCase()) || 
-           (site.location || '').toLowerCase().includes(search.toLowerCase()) ||
-           (site.clientName || site.company || '').toLowerCase().includes(search.toLowerCase());
+    return (
+      site.name.toLowerCase().includes(search.toLowerCase()) ||
+      (site.location || "").toLowerCase().includes(search.toLowerCase()) ||
+      (site.clientName || site.company || "")
+        .toLowerCase()
+        .includes(search.toLowerCase())
+    );
   });
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-extrabold text-white">Construction Sites</h1>
-          <p className="text-slate-400 text-sm mt-1">Audit active sites, geofences, and supervisors</p>
+          <h1 className="text-3xl font-extrabold text-white">
+            Construction Sites
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Audit active sites, geofences, and supervisors
+          </p>
         </div>
         <button
           onClick={() => {
-            queryClient.invalidateQueries({ queryKey: ['sites'] });
-            toast.success('Sites refreshed');
+            queryClient.invalidateQueries({ queryKey: ["sites"] });
+            toast.success("Sites refreshed");
           }}
           disabled={isLoading}
           className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-850 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
         >
-          <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? "animate-spin" : ""}`}
+          />
           <span>Refresh</span>
         </button>
       </div>
@@ -73,18 +91,23 @@ export default function SitesPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredSites.length > 0 ? (
           filteredSites.map((site) => {
-            const isSiteActive = site.isActive !== undefined ? site.isActive : site.status === 'active';
+            const isSiteActive =
+              site.isActive !== undefined
+                ? site.isActive
+                : site.status === "active";
             return (
-              <div 
-                key={site._id} 
+              <div
+                key={site._id}
                 className="glass-card p-6 rounded-2xl border border-slate-850 flex flex-col justify-between space-y-4 hover:border-slate-700/60 transition-all group"
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-400 font-bold uppercase tracking-wider px-2 py-0.5 rounded">
-                      {site.clientName || site.company || 'N/A'}
+                      {site.clientName || site.company || "N/A"}
                     </span>
-                    <span className={`w-2 h-2 rounded-full ${isSiteActive ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                    <span
+                      className={`w-2 h-2 rounded-full ${isSiteActive ? "bg-emerald-500" : "bg-rose-500"}`}
+                    ></span>
                   </div>
                   <h3 className="text-lg font-bold text-white group-hover:text-orange-500 transition-colors flex items-center gap-2">
                     <Building2 className="w-5 h-5 text-slate-400 shrink-0" />
@@ -92,7 +115,7 @@ export default function SitesPage() {
                   </h3>
                   <div className="flex items-center gap-1.5 text-xs text-slate-400">
                     <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
-                    <span>{site.location || 'No Location Details'}</span>
+                    <span>{site.location || "No Location Details"}</span>
                   </div>
                 </div>
 
@@ -100,7 +123,9 @@ export default function SitesPage() {
                   <div className="flex items-center gap-2.5 text-xs text-slate-400">
                     <User className="w-4 h-4 text-slate-500" />
                     <div>
-                      <span className="block font-bold text-white">{site.supervisorsCount || 0}</span>
+                      <span className="block font-bold text-white">
+                        {site.supervisorsCount || 0}
+                      </span>
                       <span>Supervisors</span>
                     </div>
                   </div>
@@ -108,7 +133,9 @@ export default function SitesPage() {
                   <div className="flex items-center gap-2.5 text-xs text-slate-400">
                     <HardHat className="w-4 h-4 text-slate-500" />
                     <div>
-                      <span className="block font-bold text-white">{site.workersCount || 0}</span>
+                      <span className="block font-bold text-white">
+                        {site.workersCount || 0}
+                      </span>
                       <span>Deployed Workers</span>
                     </div>
                   </div>

@@ -72,7 +72,10 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
               style={styles.avatarCircle}
             >
               {profileImage ? (
-                <Image source={{ uri: profileImage }} style={styles.avatarImage} />
+                <Image
+                  source={{ uri: profileImage }}
+                  style={styles.avatarImage}
+                />
               ) : (
                 <View style={styles.initialsContainer}>
                   <ThemedText style={styles.avatarInitialsText}>
@@ -87,12 +90,19 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
           <View style={styles.detailsContainer}>
             {/* Top Row: User Name & Optional Edit Action */}
             <View style={styles.topRow}>
-              <ThemedText style={[styles.nameText, { color: theme.text }]} numberOfLines={1}>
+              <ThemedText
+                style={[styles.nameText, { color: theme.text }]}
+                numberOfLines={1}
+              >
                 {name || "Ganesh Pandit"}
               </ThemedText>
 
               {onEditPress && editLabel ? (
-                <Pressable onPress={onEditPress} hitSlop={8} style={styles.editButton}>
+                <Pressable
+                  onPress={onEditPress}
+                  hitSlop={8}
+                  style={styles.editButton}
+                >
                   <ThemedText style={styles.editText}>{editLabel}</ThemedText>
                 </Pressable>
               ) : null}
@@ -104,9 +114,16 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
               {phone ? (
                 <View style={styles.contactItem}>
                   <View style={styles.iconBox}>
-                    <Feather name="phone" size={13} color={theme.textSecondary} />
+                    <Feather
+                      name="phone"
+                      size={13}
+                      color={theme.textSecondary}
+                    />
                   </View>
-                  <ThemedText style={[styles.contactText, { color: theme.textSecondary }]} numberOfLines={1}>
+                  <ThemedText
+                    style={[styles.contactText, { color: theme.textSecondary }]}
+                    numberOfLines={1}
+                  >
                     {phone}
                   </ThemedText>
                 </View>
@@ -116,9 +133,16 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
               {email ? (
                 <View style={styles.contactItem}>
                   <View style={styles.iconBox}>
-                    <Feather name="mail" size={13} color={theme.textSecondary} />
+                    <Feather
+                      name="mail"
+                      size={13}
+                      color={theme.textSecondary}
+                    />
                   </View>
-                  <ThemedText style={[styles.contactText, { color: theme.textSecondary }]} numberOfLines={1}>
+                  <ThemedText
+                    style={[styles.contactText, { color: theme.textSecondary }]}
+                    numberOfLines={1}
+                  >
                     {email}
                   </ThemedText>
                 </View>
@@ -128,9 +152,16 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
               {companyName ? (
                 <View style={styles.contactItem}>
                   <View style={styles.iconBox}>
-                    <Feather name="briefcase" size={13} color={theme.textSecondary} />
+                    <Feather
+                      name="briefcase"
+                      size={13}
+                      color={theme.textSecondary}
+                    />
                   </View>
-                  <ThemedText style={[styles.contactText, { color: theme.textSecondary }]} numberOfLines={1}>
+                  <ThemedText
+                    style={[styles.contactText, { color: theme.textSecondary }]}
+                    numberOfLines={1}
+                  >
                     {companyName}
                   </ThemedText>
                 </View>
@@ -141,7 +172,11 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
 
         {/* ── Bottom-Right Accent Sparkle ── */}
         <View style={styles.sparkleAccent} pointerEvents="none">
-          <Feather name="star" size={15} color={isDark ? "#2DD4BF" : "#F97316"} />
+          <Feather
+            name="star"
+            size={15}
+            color={isDark ? "#2DD4BF" : "#F97316"}
+          />
         </View>
       </LinearGradient>
     </View>

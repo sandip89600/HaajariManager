@@ -48,7 +48,9 @@ export async function uploadImageToServer(localUri: string): Promise<string> {
   } catch (err: any) {
     clearTimeout(timeoutId);
     if (err.name === "AbortError") {
-      console.warn("Image upload timed out after 8s, proceeding with local image");
+      console.warn(
+        "Image upload timed out after 8s, proceeding with local image",
+      );
       return localUri;
     }
     throw err;

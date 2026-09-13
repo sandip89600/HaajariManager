@@ -22,7 +22,12 @@ const HINDI_TIPS: { [key: string]: string } = {
   reports_summary: "👉 Mahine ki report yahan se nikalein.",
 };
 
-export default function ContextualTooltip({ tooltipKey, title, description, style }: ContextualTooltipProps) {
+export default function ContextualTooltip({
+  tooltipKey,
+  title,
+  description,
+  style,
+}: ContextualTooltipProps) {
   const { theme } = useTheme();
   const [visible, setVisible] = useState(false);
   const fadeAnim = useState(new Animated.Value(0))[0];
@@ -70,8 +75,14 @@ export default function ContextualTooltip({ tooltipKey, title, description, styl
     >
       <View style={styles.content}>
         <View style={styles.header}>
-          <ThemedText style={[styles.title, { color: theme.primary }]}>💡 Tip</ThemedText>
-          <Pressable onPress={handleDismiss} hitSlop={15} style={styles.closeBtn}>
+          <ThemedText style={[styles.title, { color: theme.primary }]}>
+            💡 Tip
+          </ThemedText>
+          <Pressable
+            onPress={handleDismiss}
+            hitSlop={15}
+            style={styles.closeBtn}
+          >
             <Feather name="x" size={16} color={theme.primary} />
           </Pressable>
         </View>

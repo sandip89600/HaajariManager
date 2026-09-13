@@ -89,21 +89,29 @@ export default function SiteManagementScreen() {
 
   // Role permissions
   const role = user?.role || "contractor";
-  const canSubmitWork = role === "supervisor" || role === "contractor" || role === "builder" || role === "admin";
+  const canSubmitWork =
+    role === "supervisor" ||
+    role === "contractor" ||
+    role === "builder" ||
+    role === "admin";
 
   // Main State
   const [sites, setSites] = useState<Project[]>([]);
   const [selectedSite, setSelectedSite] = useState<Project | null>(null);
-  const [todayUpdate, setTodayUpdate] = useState<DailyWorkUpdateItem | null>(null);
+  const [todayUpdate, setTodayUpdate] = useState<DailyWorkUpdateItem | null>(
+    null,
+  );
   const [dailyHistory, setDailyHistory] = useState<DailyWorkUpdateItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   // Modals & Views State
   const [startWorkModalVisible, setStartWorkModalVisible] = useState(false);
-  const [completeWorkModalVisible, setCompleteWorkModalVisible] = useState(false);
+  const [completeWorkModalVisible, setCompleteWorkModalVisible] =
+    useState(false);
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
-  const [selectedDetailUpdate, setSelectedDetailUpdate] = useState<DailyWorkUpdateItem | null>(null);
+  const [selectedDetailUpdate, setSelectedDetailUpdate] =
+    useState<DailyWorkUpdateItem | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
 
   // Morning Form State
@@ -113,19 +121,28 @@ export default function SiteManagementScreen() {
   const [customWorkType, setCustomWorkType] = useState<string>("");
   const [workDescription, setWorkDescription] = useState<string>("");
   const [startingPoint, setStartingPoint] = useState<string>("");
-  const [morningLocation, setMorningLocation] = useState<{ latitude: number; longitude: number; address?: string } | null>(null);
+  const [morningLocation, setMorningLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    address?: string;
+  } | null>(null);
   const [isSubmittingStart, setIsSubmittingStart] = useState(false);
 
   // Evening Form State
   const [eveningPhoto, setEveningPhoto] = useState<string>("");
   const [isUploadingEveningPhoto, setIsUploadingEveningPhoto] = useState(false);
-  const [completionDescription, setCompletionDescription] = useState<string>("");
+  const [completionDescription, setCompletionDescription] =
+    useState<string>("");
   const [endingPoint, setEndingPoint] = useState<string>("");
   const [progressOption, setProgressOption] = useState<string>("Completed");
   const [progressPercent, setProgressPercent] = useState<number>(100);
   const [progressText, setProgressText] = useState<string>("100%");
   const [issues, setIssues] = useState<string>("");
-  const [eveningLocation, setEveningLocation] = useState<{ latitude: number; longitude: number; address?: string } | null>(null);
+  const [eveningLocation, setEveningLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    address?: string;
+  } | null>(null);
   const [isSubmittingComplete, setIsSubmittingComplete] = useState(false);
 
   const [isCapturingLocation, setIsCapturingLocation] = useState(false);
@@ -135,7 +152,9 @@ export default function SiteManagementScreen() {
     try {
       setLoading(true);
       const allSites = await storage.getProjects();
-      const activeList = allSites.filter((s: any) => s.status === "active" || !s.isArchived);
+      const activeList = allSites.filter(
+        (s: any) => s.status === "active" || !s.isArchived,
+      );
       setSites(activeList);
 
       let current = selectedSite;
@@ -158,14 +177,18 @@ export default function SiteManagementScreen() {
   const fetchSiteUpdates = async (siteId: string) => {
     try {
       // 1. Fetch Today's Update
-      const resToday = await authenticatedFetch(`${API_URL}/sites/${siteId}/daily-work/today`);
+      const resToday = await authenticatedFetch(
+        `${API_URL}/sites/${siteId}/daily-work/today`,
+      );
       if (resToday.ok) {
         const data = await resToday.json();
         setTodayUpdate(data || null);
       }
 
       // 2. Fetch Daily History Timeline
-      const resHistory = await authenticatedFetch(`${API_URL}/sites/${siteId}/daily-work/history`);
+      const resHistory = await authenticatedFetch(
+        `${API_URL}/sites/${siteId}/daily-work/history`,
+      );
       if (resHistory.ok) {
         const list = await resHistory.json();
         setDailyHistory(Array.isArray(list) ? list : []);
@@ -178,7 +201,7 @@ export default function SiteManagementScreen() {
   useFocusEffect(
     useCallback(() => {
       loadSiteData();
-    }, [])
+    }, []),
   );
 
   const handleSelectSite = async (site: Project) => {
@@ -198,7 +221,10 @@ export default function SiteManagementScreen() {
 
       const formData = new FormData();
       formData.append("image", {
-        uri: Platform.OS === "android" ? localUri : localUri.replace("file://", ""),
+        uri:
+          Platform.OS === "android"
+            ? localUri
+            : localUri.replace("file://", ""),
         name: filename,
         type,
       } as any);
@@ -226,7 +252,10 @@ export default function SiteManagementScreen() {
     }
   };
 
-  const handlePickPhoto = async (mode: "camera" | "gallery", target: "morning" | "evening") => {
+  const handlePickPhoto = async (
+    mode: "camera" | "gallery",
+    target: "morning" | "evening",
+  ) => {
     try {
       let result: ImagePicker.ImagePickerResult;
 
@@ -238,8 +267,11 @@ export default function SiteManagementScreen() {
             "Camera permission is required to capture work photos. You can also pick a photo from your gallery.",
             [
               { text: "Cancel", style: "cancel" },
-              { text: "Choose from Gallery", onPress: () => handlePickPhoto("gallery", target) },
-            ]
+              {
+                text: "Choose from Gallery",
+                onPress: () => handlePickPhoto("gallery", target),
+              },
+            ],
           );
           return;
         }
@@ -250,12 +282,13 @@ export default function SiteManagementScreen() {
           quality: 0.8,
         });
       } else {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        const permission =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permission.granted) {
           Alert.alert(
             "Gallery Permission Required",
             "Media library access is needed to pick photos.",
-            [{ text: "OK" }]
+            [{ text: "OK" }],
           );
           return;
         }
@@ -283,10 +316,14 @@ export default function SiteManagementScreen() {
       }
     } catch (error) {
       console.warn("Photo picker error:", error);
-      Alert.alert("Photo Capture Failed", "Unable to select photo. Please try again.", [
-        { text: "Report a Problem", onPress: handleReportProblem },
-        { text: "OK" },
-      ]);
+      Alert.alert(
+        "Photo Capture Failed",
+        "Unable to select photo. Please try again.",
+        [
+          { text: "Report a Problem", onPress: handleReportProblem },
+          { text: "OK" },
+        ],
+      );
       if (target === "morning") setIsUploadingMorningPhoto(false);
       else setIsUploadingEveningPhoto(false);
     }
@@ -301,7 +338,7 @@ export default function SiteManagementScreen() {
         Alert.alert(
           "Location Permission Denied",
           "Location permission is optional. You can continue submitting without location.",
-          [{ text: "Continue Without Location" }]
+          [{ text: "Continue Without Location" }],
         );
         setIsCapturingLocation(false);
         return;
@@ -325,32 +362,47 @@ export default function SiteManagementScreen() {
     } catch (error) {
       console.warn("Location error:", error);
       setIsCapturingLocation(false);
-      Alert.alert("Location Capture Failed", "You can continue submitting without location.", [
-        { text: "Continue Without Location" },
-      ]);
+      Alert.alert(
+        "Location Capture Failed",
+        "You can continue submitting without location.",
+        [{ text: "Continue Without Location" }],
+      );
     }
   };
 
   // ─── SUBMIT MORNING START WORK ──────────────────────────────────────────────
   const handleStartWorkSubmit = async () => {
     if (!morningPhoto) {
-      Alert.alert("Morning Photo Required", "Please take or upload a morning photo before starting work.");
+      Alert.alert(
+        "Morning Photo Required",
+        "Please take or upload a morning photo before starting work.",
+      );
       return;
     }
 
-    const selectedType = workType === "Other" ? customWorkType.trim() : workType;
+    const selectedType =
+      workType === "Other" ? customWorkType.trim() : workType;
     if (!selectedType) {
-      Alert.alert("Work Type Required", "Please select or enter the work type.");
+      Alert.alert(
+        "Work Type Required",
+        "Please select or enter the work type.",
+      );
       return;
     }
 
     if (!workDescription.trim()) {
-      Alert.alert("Description Required", "Please enter what work you are starting today.");
+      Alert.alert(
+        "Description Required",
+        "Please enter what work you are starting today.",
+      );
       return;
     }
 
     if (!startingPoint.trim()) {
-      Alert.alert("Starting Point Required", "Please describe where the work is starting.");
+      Alert.alert(
+        "Starting Point Required",
+        "Please describe where the work is starting.",
+      );
       return;
     }
 
@@ -366,11 +418,14 @@ export default function SiteManagementScreen() {
         morningLocation,
       };
 
-      const res = await authenticatedFetch(`${API_URL}/sites/${selectedSite.id}/daily-work/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await authenticatedFetch(
+        `${API_URL}/sites/${selectedSite.id}/daily-work/start`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
 
       const data = await res.json();
       if (!res.ok) {
@@ -380,14 +435,21 @@ export default function SiteManagementScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTodayUpdate(data);
       setStartWorkModalVisible(false);
-      Alert.alert("Success", t.sites?.workStartedSuccess || "Work started successfully.");
+      Alert.alert(
+        "Success",
+        t.sites?.workStartedSuccess || "Work started successfully.",
+      );
       await fetchSiteUpdates(selectedSite.id);
     } catch (error: any) {
       console.warn("Start work submit error:", error);
-      Alert.alert("Submission Failed", error.message || "Unable to save today's work start update.", [
-        { text: "Report a Problem", onPress: handleReportProblem },
-        { text: "Retry" },
-      ]);
+      Alert.alert(
+        "Submission Failed",
+        error.message || "Unable to save today's work start update.",
+        [
+          { text: "Report a Problem", onPress: handleReportProblem },
+          { text: "Retry" },
+        ],
+      );
     } finally {
       setIsSubmittingStart(false);
     }
@@ -396,17 +458,26 @@ export default function SiteManagementScreen() {
   // ─── SUBMIT EVENING COMPLETE WORK ───────────────────────────────────────────
   const handleCompleteWorkSubmit = async () => {
     if (!eveningPhoto) {
-      Alert.alert("Evening Photo Required", "Please take or upload an evening final work photo.");
+      Alert.alert(
+        "Evening Photo Required",
+        "Please take or upload an evening final work photo.",
+      );
       return;
     }
 
     if (!completionDescription.trim()) {
-      Alert.alert("Completion Description Required", "Please describe what work was completed today.");
+      Alert.alert(
+        "Completion Description Required",
+        "Please describe what work was completed today.",
+      );
       return;
     }
 
     if (!endingPoint.trim()) {
-      Alert.alert("Ending Point Required", "Please specify where the work ended today.");
+      Alert.alert(
+        "Ending Point Required",
+        "Please specify where the work ended today.",
+      );
       return;
     }
 
@@ -424,11 +495,14 @@ export default function SiteManagementScreen() {
         issues: issues.trim() || undefined,
       };
 
-      const res = await authenticatedFetch(`${API_URL}/sites/${selectedSite.id}/daily-work/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await authenticatedFetch(
+        `${API_URL}/sites/${selectedSite.id}/daily-work/complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
 
       const data = await res.json();
       if (!res.ok) {
@@ -438,14 +512,21 @@ export default function SiteManagementScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTodayUpdate(data);
       setCompleteWorkModalVisible(false);
-      Alert.alert("Success", t.sites?.workCompletedSuccess || "Work completed successfully.");
+      Alert.alert(
+        "Success",
+        t.sites?.workCompletedSuccess || "Work completed successfully.",
+      );
       await fetchSiteUpdates(selectedSite.id);
     } catch (error: any) {
       console.warn("Complete work submit error:", error);
-      Alert.alert("Submission Failed", error.message || "Unable to save today's work completion update.", [
-        { text: "Report a Problem", onPress: handleReportProblem },
-        { text: "Retry" },
-      ]);
+      Alert.alert(
+        "Submission Failed",
+        error.message || "Unable to save today's work completion update.",
+        [
+          { text: "Report a Problem", onPress: handleReportProblem },
+          { text: "Retry" },
+        ],
+      );
     } finally {
       setIsSubmittingComplete(false);
     }
@@ -472,16 +553,31 @@ export default function SiteManagementScreen() {
       >
         <View style={styles.headerRow}>
           <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={20} color={isDark ? "#FFFFFF" : "#0F172A"} />
+            <Feather
+              name="arrow-left"
+              size={20}
+              color={isDark ? "#FFFFFF" : "#0F172A"}
+            />
           </Pressable>
           <View style={{ flex: 1 }}>
-            <ThemedText style={styles.headerTitle}>{t.sites?.siteManagement || "Site Management"}</ThemedText>
-            <ThemedText style={styles.headerSubtitle}>Daily Work Photo & Progress Tracking</ThemedText>
+            <ThemedText style={styles.headerTitle}>
+              {t.sites?.siteManagement || "Site Management"}
+            </ThemedText>
+            <ThemedText style={styles.headerSubtitle}>
+              Daily Work Photo & Progress Tracking
+            </ThemedText>
           </View>
           {canSubmitWork && (
             <Pressable
               onPress={() => setHistoryModalVisible(true)}
-              style={[styles.historyIconBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(249,115,22,0.1)" }]}
+              style={[
+                styles.historyIconBtn,
+                {
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.08)"
+                    : "rgba(249,115,22,0.1)",
+                },
+              ]}
             >
               <Feather name="clock" size={18} color="#F97316" />
             </Pressable>
@@ -490,7 +586,11 @@ export default function SiteManagementScreen() {
 
         {/* ─── SITE SELECTOR HORIZONTAL BAR ───────────────────────────────── */}
         {sites.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.siteChipsScroll}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.siteChipsScroll}
+          >
             {sites.map((site) => {
               const isSelected = selectedSite?.id === site.id;
               return (
@@ -503,20 +603,28 @@ export default function SiteManagementScreen() {
                       backgroundColor: isSelected
                         ? "#F97316"
                         : isDark
-                        ? "#334155"
-                        : "#F1F5F9",
+                          ? "#334155"
+                          : "#F1F5F9",
                     },
                   ]}
                 >
                   <Feather
                     name="map-pin"
                     size={13}
-                    color={isSelected ? "#FFFFFF" : isDark ? "#94A3B8" : "#64748B"}
+                    color={
+                      isSelected ? "#FFFFFF" : isDark ? "#94A3B8" : "#64748B"
+                    }
                   />
                   <ThemedText
                     style={[
                       styles.siteChipText,
-                      { color: isSelected ? "#FFFFFF" : isDark ? "#E2E8F0" : "#334155" },
+                      {
+                        color: isSelected
+                          ? "#FFFFFF"
+                          : isDark
+                            ? "#E2E8F0"
+                            : "#334155",
+                      },
                     ]}
                     numberOfLines={1}
                   >
@@ -530,7 +638,11 @@ export default function SiteManagementScreen() {
       </LinearGradient>
 
       {/* ─── MAIN CONTENT SCROLLVIEW ──────────────────────────────────────── */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#F97316" />
@@ -541,13 +653,32 @@ export default function SiteManagementScreen() {
         ) : selectedSite ? (
           <>
             {/* ─── 1. SITE HEADER CARD ─────────────────────────────────────── */}
-            <View style={[styles.card, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: theme.border }]}>
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                  borderColor: theme.border,
+                },
+              ]}
+            >
               <View style={styles.siteCardHeader}>
                 <View style={{ flex: 1 }}>
-                  <ThemedText style={styles.siteNameText}>{selectedSite.name}</ThemedText>
+                  <ThemedText style={styles.siteNameText}>
+                    {selectedSite.name}
+                  </ThemedText>
                   <View style={styles.siteLocationRow}>
-                    <Feather name="map-pin" size={14} color="#F97316" style={{ marginRight: 4 }} />
-                    <ThemedText style={styles.siteAddressText}>{selectedSite.location || selectedSite.clientName || "Main Construction Site"}</ThemedText>
+                    <Feather
+                      name="map-pin"
+                      size={14}
+                      color="#F97316"
+                      style={{ marginRight: 4 }}
+                    />
+                    <ThemedText style={styles.siteAddressText}>
+                      {selectedSite.location ||
+                        selectedSite.clientName ||
+                        "Main Construction Site"}
+                    </ThemedText>
                   </View>
                 </View>
                 <View
@@ -558,8 +689,8 @@ export default function SiteManagementScreen() {
                         (selectedSite as any).status === "Completed"
                           ? "#DCFCE7"
                           : (selectedSite as any).status === "Delayed"
-                          ? "#FEE2E2"
-                          : "#FEF3C7",
+                            ? "#FEE2E2"
+                            : "#FEF3C7",
                     },
                   ]}
                 >
@@ -571,8 +702,8 @@ export default function SiteManagementScreen() {
                           (selectedSite as any).status === "Completed"
                             ? "#166534"
                             : (selectedSite as any).status === "Delayed"
-                            ? "#EF4444"
-                            : "#D97706",
+                              ? "#EF4444"
+                              : "#D97706",
                       },
                     ]}
                   />
@@ -584,8 +715,8 @@ export default function SiteManagementScreen() {
                           (selectedSite as any).status === "Completed"
                             ? "#166534"
                             : (selectedSite as any).status === "Delayed"
-                            ? "#991B1B"
-                            : "#92400E",
+                              ? "#991B1B"
+                              : "#92400E",
                       },
                     ]}
                   >
@@ -595,47 +726,111 @@ export default function SiteManagementScreen() {
               </View>
 
               <View style={styles.supervisorInfoRow}>
-                <Feather name="user-check" size={14} color={theme.textSecondary} style={{ marginRight: 6 }} />
-                <ThemedText style={[styles.supervisorText, { color: theme.textSecondary }]}>
-                  Supervisor: <ThemedText style={{ fontWeight: "700" }}>{
-                    typeof (selectedSite as any)?.supervisor === "object" && (selectedSite as any)?.supervisor?.name
+                <Feather
+                  name="user-check"
+                  size={14}
+                  color={theme.textSecondary}
+                  style={{ marginRight: 6 }}
+                />
+                <ThemedText
+                  style={[
+                    styles.supervisorText,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Supervisor:{" "}
+                  <ThemedText style={{ fontWeight: "700" }}>
+                    {typeof (selectedSite as any)?.supervisor === "object" &&
+                    (selectedSite as any)?.supervisor?.name
                       ? (selectedSite as any).supervisor.name
-                      : typeof (selectedSite as any)?.supervisor === "string" && (selectedSite as any).supervisor.trim().length > 0
-                      ? (selectedSite as any).supervisor
-                      : (selectedSite as any)?.supervisorName
-                      ? (selectedSite as any).supervisorName
-                      : "Not Assigned"
-                  }</ThemedText>
+                      : typeof (selectedSite as any)?.supervisor === "string" &&
+                          (selectedSite as any).supervisor.trim().length > 0
+                        ? (selectedSite as any).supervisor
+                        : (selectedSite as any)?.supervisorName
+                          ? (selectedSite as any).supervisorName
+                          : "Not Assigned"}
+                  </ThemedText>
                 </ThemedText>
               </View>
             </View>
 
             {/* ─── 2. PROMINENT TODAY'S WORK CARD ─────────────────────────── */}
-            <View style={[styles.card, styles.todayWorkCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: "#F97316" }]}>
+            <View
+              style={[
+                styles.card,
+                styles.todayWorkCard,
+                {
+                  backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                  borderColor: "#F97316",
+                },
+              ]}
+            >
               <View style={styles.todayCardHeader}>
                 <View style={styles.todayCardTitleRow}>
                   <Feather name="clipboard" size={20} color="#F97316" />
-                  <ThemedText style={styles.todayCardTitle}>{t.sites?.todaysWork || "Today's Work"}</ThemedText>
+                  <ThemedText style={styles.todayCardTitle}>
+                    {t.sites?.todaysWork || "Today's Work"}
+                  </ThemedText>
                 </View>
 
                 {/* Status Badge */}
                 {todayStatus === "completed" ? (
-                  <View style={[styles.workStatusBadge, { backgroundColor: "#DCFCE7" }]}>
-                    <Feather name="check-circle" size={12} color="#166534" style={{ marginRight: 4 }} />
-                    <ThemedText style={{ color: "#166534", fontSize: 12, fontWeight: "800" }}>
+                  <View
+                    style={[
+                      styles.workStatusBadge,
+                      { backgroundColor: "#DCFCE7" },
+                    ]}
+                  >
+                    <Feather
+                      name="check-circle"
+                      size={12}
+                      color="#166534"
+                      style={{ marginRight: 4 }}
+                    />
+                    <ThemedText
+                      style={{
+                        color: "#166534",
+                        fontSize: 12,
+                        fontWeight: "800",
+                      }}
+                    >
                       {t.sites?.workCompleted || "Work Completed"}
                     </ThemedText>
                   </View>
                 ) : todayStatus === "in_progress" ? (
-                  <View style={[styles.workStatusBadge, { backgroundColor: "#FEF3C7" }]}>
-                    <View style={[styles.statusDot, { backgroundColor: "#D97706" }]} />
-                    <ThemedText style={{ color: "#92400E", fontSize: 12, fontWeight: "800" }}>
+                  <View
+                    style={[
+                      styles.workStatusBadge,
+                      { backgroundColor: "#FEF3C7" },
+                    ]}
+                  >
+                    <View
+                      style={[styles.statusDot, { backgroundColor: "#D97706" }]}
+                    />
+                    <ThemedText
+                      style={{
+                        color: "#92400E",
+                        fontSize: 12,
+                        fontWeight: "800",
+                      }}
+                    >
                       {t.sites?.workInProgress || "Work In Progress"}
                     </ThemedText>
                   </View>
                 ) : (
-                  <View style={[styles.workStatusBadge, { backgroundColor: "#F1F5F9" }]}>
-                    <ThemedText style={{ color: "#64748B", fontSize: 12, fontWeight: "700" }}>
+                  <View
+                    style={[
+                      styles.workStatusBadge,
+                      { backgroundColor: "#F1F5F9" },
+                    ]}
+                  >
+                    <ThemedText
+                      style={{
+                        color: "#64748B",
+                        fontSize: 12,
+                        fontWeight: "700",
+                      }}
+                    >
                       {t.sites?.notStarted || "Not Started"}
                     </ThemedText>
                   </View>
@@ -649,11 +844,19 @@ export default function SiteManagementScreen() {
                     {todayUpdate.workType || "General Work"}
                   </ThemedText>
                   {todayUpdate.description && (
-                    <ThemedText style={styles.workDescText}>{todayUpdate.description}</ThemedText>
+                    <ThemedText style={styles.workDescText}>
+                      {todayUpdate.description}
+                    </ThemedText>
                   )}
                   {todayUpdate.morningTimestamp && (
                     <ThemedText style={styles.timeInfoText}>
-                      Started: {new Date(todayUpdate.morningTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      Started:{" "}
+                      {new Date(
+                        todayUpdate.morningTimestamp,
+                      ).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </ThemedText>
                   )}
                 </View>
@@ -667,7 +870,12 @@ export default function SiteManagementScreen() {
                     size={16}
                     color={isMorningDone ? "#22C55E" : "#94A3B8"}
                   />
-                  <ThemedText style={[styles.photoCheckText, { color: isMorningDone ? "#22C55E" : "#94A3B8" }]}>
+                  <ThemedText
+                    style={[
+                      styles.photoCheckText,
+                      { color: isMorningDone ? "#22C55E" : "#94A3B8" },
+                    ]}
+                  >
                     Morning {isMorningDone ? "✓" : "—"}
                   </ThemedText>
                 </View>
@@ -678,7 +886,12 @@ export default function SiteManagementScreen() {
                     size={16}
                     color={isEveningDone ? "#22C55E" : "#94A3B8"}
                   />
-                  <ThemedText style={[styles.photoCheckText, { color: isEveningDone ? "#22C55E" : "#94A3B8" }]}>
+                  <ThemedText
+                    style={[
+                      styles.photoCheckText,
+                      { color: isEveningDone ? "#22C55E" : "#94A3B8" },
+                    ]}
+                  >
                     Evening {isEveningDone ? "✓" : "—"}
                   </ThemedText>
                 </View>
@@ -690,7 +903,12 @@ export default function SiteManagementScreen() {
                   onPress={() => setStartWorkModalVisible(true)}
                   style={styles.primaryActionBtn}
                 >
-                  <Feather name="plus-circle" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Feather
+                    name="plus-circle"
+                    size={18}
+                    color="#FFFFFF"
+                    style={{ marginRight: 8 }}
+                  />
                   <ThemedText style={styles.primaryActionBtnText}>
                     {t.sites?.startTodaysWork || "+ Start Today's Work"}
                   </ThemedText>
@@ -700,9 +918,17 @@ export default function SiteManagementScreen() {
               {todayStatus === "in_progress" && canSubmitWork && (
                 <Pressable
                   onPress={() => setCompleteWorkModalVisible(true)}
-                  style={[styles.primaryActionBtn, { backgroundColor: "#10B981" }]}
+                  style={[
+                    styles.primaryActionBtn,
+                    { backgroundColor: "#10B981" },
+                  ]}
                 >
-                  <Feather name="check-square" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Feather
+                    name="check-square"
+                    size={18}
+                    color="#FFFFFF"
+                    style={{ marginRight: 8 }}
+                  />
                   <ThemedText style={styles.primaryActionBtnText}>
                     {t.sites?.completeTodaysWork || "Complete Today's Work"}
                   </ThemedText>
@@ -715,9 +941,17 @@ export default function SiteManagementScreen() {
                     setSelectedDetailUpdate(todayUpdate);
                     setDetailModalVisible(true);
                   }}
-                  style={[styles.primaryActionBtn, { backgroundColor: "#3B82F6" }]}
+                  style={[
+                    styles.primaryActionBtn,
+                    { backgroundColor: "#3B82F6" },
+                  ]}
                 >
-                  <Feather name="eye" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Feather
+                    name="eye"
+                    size={18}
+                    color="#FFFFFF"
+                    style={{ marginRight: 8 }}
+                  />
                   <ThemedText style={styles.primaryActionBtnText}>
                     {t.sites?.viewTodaysUpdate || "View Today's Update"}
                   </ThemedText>
@@ -726,118 +960,269 @@ export default function SiteManagementScreen() {
             </View>
 
             {/* ─── 3. SECONDARY FEATURE CARDS (COMPACT GRID) ──────────────── */}
-            <ThemedText style={styles.sectionTitle}>Site Overview & Features</ThemedText>
+            <ThemedText style={styles.sectionTitle}>
+              Site Overview & Features
+            </ThemedText>
             <View style={styles.secondaryGrid}>
               {/* Progress Card */}
               <Pressable
                 onPress={() => setHistoryModalVisible(true)}
-                style={[styles.gridCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: theme.border }]}
+                style={[
+                  styles.gridCard,
+                  {
+                    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                    borderColor: theme.border,
+                  },
+                ]}
               >
-                <View style={[styles.gridIconWrap, { backgroundColor: "rgba(168, 85, 247, 0.15)" }]}>
+                <View
+                  style={[
+                    styles.gridIconWrap,
+                    { backgroundColor: "rgba(168, 85, 247, 0.15)" },
+                  ]}
+                >
                   <Feather name="trending-up" size={18} color="#A855F7" />
                 </View>
-                <ThemedText style={styles.gridCardTitle}>{t.sites?.progress || "Progress"}</ThemedText>
-                <ThemedText style={styles.gridCardSub}>{(selectedSite as any).currentProgress || 0}% Completed</ThemedText>
+                <ThemedText style={styles.gridCardTitle}>
+                  {t.sites?.progress || "Progress"}
+                </ThemedText>
+                <ThemedText style={styles.gridCardSub}>
+                  {(selectedSite as any).currentProgress || 0}% Completed
+                </ThemedText>
               </Pressable>
 
               {/* Materials Card */}
               <Pressable
-                onPress={() => navigation.navigate("SiteDetailControl", { siteId: selectedSite.id, tab: "materials" })}
-                style={[styles.gridCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: theme.border }]}
+                onPress={() =>
+                  navigation.navigate("SiteDetailControl", {
+                    siteId: selectedSite.id,
+                    tab: "materials",
+                  })
+                }
+                style={[
+                  styles.gridCard,
+                  {
+                    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                    borderColor: theme.border,
+                  },
+                ]}
               >
-                <View style={[styles.gridIconWrap, { backgroundColor: "rgba(249, 115, 22, 0.15)" }]}>
+                <View
+                  style={[
+                    styles.gridIconWrap,
+                    { backgroundColor: "rgba(249, 115, 22, 0.15)" },
+                  ]}
+                >
                   <Feather name="box" size={18} color="#F97316" />
                 </View>
-                <ThemedText style={styles.gridCardTitle}>{t.sites?.materials || "Materials"}</ThemedText>
-                <ThemedText style={styles.gridCardSub}>Stock & Usage</ThemedText>
+                <ThemedText style={styles.gridCardTitle}>
+                  {t.sites?.materials || "Materials"}
+                </ThemedText>
+                <ThemedText style={styles.gridCardSub}>
+                  Stock & Usage
+                </ThemedText>
               </Pressable>
 
               {/* Expenses Card */}
               <Pressable
-                onPress={() => navigation.navigate("SiteDetailControl", { siteId: selectedSite.id, tab: "expenses" })}
-                style={[styles.gridCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: theme.border }]}
+                onPress={() =>
+                  navigation.navigate("SiteDetailControl", {
+                    siteId: selectedSite.id,
+                    tab: "expenses",
+                  })
+                }
+                style={[
+                  styles.gridCard,
+                  {
+                    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                    borderColor: theme.border,
+                  },
+                ]}
               >
-                <View style={[styles.gridIconWrap, { backgroundColor: "rgba(236, 72, 153, 0.15)" }]}>
+                <View
+                  style={[
+                    styles.gridIconWrap,
+                    { backgroundColor: "rgba(236, 72, 153, 0.15)" },
+                  ]}
+                >
                   <Feather name="credit-card" size={18} color="#EC4899" />
                 </View>
-                <ThemedText style={styles.gridCardTitle}>{t.sites?.expenses || "Expenses"}</ThemedText>
-                <ThemedText style={styles.gridCardSub}>Petty Cash Log</ThemedText>
+                <ThemedText style={styles.gridCardTitle}>
+                  {t.sites?.expenses || "Expenses"}
+                </ThemedText>
+                <ThemedText style={styles.gridCardSub}>
+                  Petty Cash Log
+                </ThemedText>
               </Pressable>
 
               {/* Photos Gallery Card */}
               <Pressable
                 onPress={() => setHistoryModalVisible(true)}
-                style={[styles.gridCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: theme.border }]}
+                style={[
+                  styles.gridCard,
+                  {
+                    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                    borderColor: theme.border,
+                  },
+                ]}
               >
-                <View style={[styles.gridIconWrap, { backgroundColor: "rgba(6, 182, 212, 0.15)" }]}>
+                <View
+                  style={[
+                    styles.gridIconWrap,
+                    { backgroundColor: "rgba(6, 182, 212, 0.15)" },
+                  ]}
+                >
                   <Feather name="camera" size={18} color="#06B6D4" />
                 </View>
-                <ThemedText style={styles.gridCardTitle}>{t.sites?.photos || "Photos"}</ThemedText>
-                <ThemedText style={styles.gridCardSub}>Before / After</ThemedText>
+                <ThemedText style={styles.gridCardTitle}>
+                  {t.sites?.photos || "Photos"}
+                </ThemedText>
+                <ThemedText style={styles.gridCardSub}>
+                  Before / After
+                </ThemedText>
               </Pressable>
 
               {/* Issues Card */}
               <Pressable
                 onPress={() => setHistoryModalVisible(true)}
-                style={[styles.gridCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: theme.border }]}
+                style={[
+                  styles.gridCard,
+                  {
+                    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                    borderColor: theme.border,
+                  },
+                ]}
               >
-                <View style={[styles.gridIconWrap, { backgroundColor: "rgba(239, 68, 68, 0.15)" }]}>
+                <View
+                  style={[
+                    styles.gridIconWrap,
+                    { backgroundColor: "rgba(239, 68, 68, 0.15)" },
+                  ]}
+                >
                   <Feather name="alert-triangle" size={18} color="#EF4444" />
                 </View>
-                <ThemedText style={styles.gridCardTitle}>{t.sites?.issues || "Issues"}</ThemedText>
-                <ThemedText style={styles.gridCardSub}>Delays & Problems</ThemedText>
+                <ThemedText style={styles.gridCardTitle}>
+                  {t.sites?.issues || "Issues"}
+                </ThemedText>
+                <ThemedText style={styles.gridCardSub}>
+                  Delays & Problems
+                </ThemedText>
               </Pressable>
 
               {/* Location Card */}
               <Pressable
                 onPress={() => setHistoryModalVisible(true)}
-                style={[styles.gridCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: theme.border }]}
+                style={[
+                  styles.gridCard,
+                  {
+                    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                    borderColor: theme.border,
+                  },
+                ]}
               >
-                <View style={[styles.gridIconWrap, { backgroundColor: "rgba(34, 197, 94, 0.15)" }]}>
+                <View
+                  style={[
+                    styles.gridIconWrap,
+                    { backgroundColor: "rgba(34, 197, 94, 0.15)" },
+                  ]}
+                >
                   <Feather name="map-pin" size={18} color="#22C55E" />
                 </View>
-                <ThemedText style={styles.gridCardTitle}>{t.sites?.gpsLocation || "Location"}</ThemedText>
-                <ThemedText style={styles.gridCardSub}>GPS Verification</ThemedText>
+                <ThemedText style={styles.gridCardTitle}>
+                  {t.sites?.gpsLocation || "Location"}
+                </ThemedText>
+                <ThemedText style={styles.gridCardSub}>
+                  GPS Verification
+                </ThemedText>
               </Pressable>
             </View>
           </>
         ) : (
           <View style={styles.emptyContainer}>
             <Feather name="folder-plus" size={48} color="#F97316" />
-            <ThemedText style={{ fontSize: 16, fontWeight: "700", marginTop: 12 }}>
+            <ThemedText
+              style={{ fontSize: 16, fontWeight: "700", marginTop: 12 }}
+            >
               {t.sites?.noSites || "No construction sites found"}
             </ThemedText>
-            <ThemedText style={{ color: theme.textSecondary, textAlign: "center", marginTop: 4 }}>
-              Create your first project site to begin tracking daily work progress.
+            <ThemedText
+              style={{
+                color: theme.textSecondary,
+                textAlign: "center",
+                marginTop: 4,
+              }}
+            >
+              Create your first project site to begin tracking daily work
+              progress.
             </ThemedText>
           </View>
         )}
       </ScrollView>
 
       {/* ─── MODAL 1: START WORK (MORNING WORKFLOW) ─────────────────────────── */}
-      <Modal visible={startWorkModalVisible} animationType="slide" transparent={false}>
+      <Modal
+        visible={startWorkModalVisible}
+        animationType="slide"
+        transparent={false}
+      >
         <ThemedView style={{ flex: 1 }}>
-          <View style={[styles.modalHeader, { backgroundColor: isDark ? "#1E293B" : "#FFF7ED" }]}>
-            <ThemedText style={styles.modalHeaderTitle}>🌅 Start Today's Work</ThemedText>
+          <View
+            style={[
+              styles.modalHeader,
+              { backgroundColor: isDark ? "#1E293B" : "#FFF7ED" },
+            ]}
+          >
+            <ThemedText style={styles.modalHeaderTitle}>
+              🌅 Start Today's Work
+            </ThemedText>
             <Pressable onPress={() => setStartWorkModalVisible(false)}>
-              <Feather name="x" size={24} color={isDark ? "#FFFFFF" : "#0F172A"} />
+              <Feather
+                name="x"
+                size={24}
+                color={isDark ? "#FFFFFF" : "#0F172A"}
+              />
             </Pressable>
           </View>
 
           <ScrollView contentContainerStyle={styles.modalScroll}>
             {/* Step 1: Morning Photo */}
-            <ThemedText style={styles.inputGroupLabel}>📷 Step 1: Take Morning Photo</ThemedText>
+            <ThemedText style={styles.inputGroupLabel}>
+              📷 Step 1: Take Morning Photo
+            </ThemedText>
             {morningPhoto ? (
               <View style={styles.photoPreviewContainer}>
-                <Image source={{ uri: morningPhoto }} style={styles.photoPreviewImg} />
+                <Image
+                  source={{ uri: morningPhoto }}
+                  style={styles.photoPreviewImg}
+                />
                 <View style={styles.photoActionRow}>
-                  <Pressable onPress={() => handlePickPhoto("camera", "morning")} style={styles.photoBtnOutline}>
-                    <Feather name="refresh-cw" size={14} color="#F97316" style={{ marginRight: 6 }} />
-                    <ThemedText style={{ color: "#F97316", fontWeight: "700" }}>{t.sites?.retake || "Retake"}</ThemedText>
+                  <Pressable
+                    onPress={() => handlePickPhoto("camera", "morning")}
+                    style={styles.photoBtnOutline}
+                  >
+                    <Feather
+                      name="refresh-cw"
+                      size={14}
+                      color="#F97316"
+                      style={{ marginRight: 6 }}
+                    />
+                    <ThemedText style={{ color: "#F97316", fontWeight: "700" }}>
+                      {t.sites?.retake || "Retake"}
+                    </ThemedText>
                   </Pressable>
-                  <Pressable onPress={() => handlePickPhoto("gallery", "morning")} style={styles.photoBtnOutline}>
-                    <Feather name="image" size={14} color="#F97316" style={{ marginRight: 6 }} />
-                    <ThemedText style={{ color: "#F97316", fontWeight: "700" }}>Change</ThemedText>
+                  <Pressable
+                    onPress={() => handlePickPhoto("gallery", "morning")}
+                    style={styles.photoBtnOutline}
+                  >
+                    <Feather
+                      name="image"
+                      size={14}
+                      color="#F97316"
+                      style={{ marginRight: 6 }}
+                    />
+                    <ThemedText style={{ color: "#F97316", fontWeight: "700" }}>
+                      Change
+                    </ThemedText>
                   </Pressable>
                 </View>
               </View>
@@ -847,16 +1232,47 @@ export default function SiteManagementScreen() {
                   <ActivityIndicator size="large" color="#F97316" />
                 ) : (
                   <>
-                    <Feather name="camera" size={36} color="#F97316" style={{ marginBottom: 12 }} />
-                    <ThemedText style={{ fontWeight: "700", marginBottom: 12 }}>Capture Morning Work Site Photo</ThemedText>
+                    <Feather
+                      name="camera"
+                      size={36}
+                      color="#F97316"
+                      style={{ marginBottom: 12 }}
+                    />
+                    <ThemedText style={{ fontWeight: "700", marginBottom: 12 }}>
+                      Capture Morning Work Site Photo
+                    </ThemedText>
                     <View style={{ flexDirection: "row", gap: 10 }}>
-                      <Pressable onPress={() => handlePickPhoto("camera", "morning")} style={styles.primaryPhotoBtn}>
-                        <Feather name="camera" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                        <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>{t.sites?.openCamera || "Open Camera"}</ThemedText>
+                      <Pressable
+                        onPress={() => handlePickPhoto("camera", "morning")}
+                        style={styles.primaryPhotoBtn}
+                      >
+                        <Feather
+                          name="camera"
+                          size={16}
+                          color="#FFFFFF"
+                          style={{ marginRight: 6 }}
+                        />
+                        <ThemedText
+                          style={{ color: "#FFFFFF", fontWeight: "700" }}
+                        >
+                          {t.sites?.openCamera || "Open Camera"}
+                        </ThemedText>
                       </Pressable>
-                      <Pressable onPress={() => handlePickPhoto("gallery", "morning")} style={styles.secondaryPhotoBtn}>
-                        <Feather name="image" size={16} color="#F97316" style={{ marginRight: 6 }} />
-                        <ThemedText style={{ color: "#F97316", fontWeight: "700" }}>{t.sites?.chooseGallery || "Gallery"}</ThemedText>
+                      <Pressable
+                        onPress={() => handlePickPhoto("gallery", "morning")}
+                        style={styles.secondaryPhotoBtn}
+                      >
+                        <Feather
+                          name="image"
+                          size={16}
+                          color="#F97316"
+                          style={{ marginRight: 6 }}
+                        />
+                        <ThemedText
+                          style={{ color: "#F97316", fontWeight: "700" }}
+                        >
+                          {t.sites?.chooseGallery || "Gallery"}
+                        </ThemedText>
                       </Pressable>
                     </View>
                   </>
@@ -865,8 +1281,14 @@ export default function SiteManagementScreen() {
             )}
 
             {/* Step 2: Work Type Selection */}
-            <ThemedText style={[styles.inputGroupLabel, { marginTop: 20 }]}>🔨 Step 2: Select Work Type</ThemedText>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+            <ThemedText style={[styles.inputGroupLabel, { marginTop: 20 }]}>
+              🔨 Step 2: Select Work Type
+            </ThemedText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+            >
               {WORK_TYPES.map((type) => {
                 const isSel = workType === type;
                 return (
@@ -876,11 +1298,25 @@ export default function SiteManagementScreen() {
                     style={[
                       styles.chipItem,
                       {
-                        backgroundColor: isSel ? "#F97316" : isDark ? "#334155" : "#F1F5F9",
+                        backgroundColor: isSel
+                          ? "#F97316"
+                          : isDark
+                            ? "#334155"
+                            : "#F1F5F9",
                       },
                     ]}
                   >
-                    <ThemedText style={{ color: isSel ? "#FFFFFF" : isDark ? "#E2E8F0" : "#334155", fontWeight: "700", fontSize: 13 }}>
+                    <ThemedText
+                      style={{
+                        color: isSel
+                          ? "#FFFFFF"
+                          : isDark
+                            ? "#E2E8F0"
+                            : "#334155",
+                        fontWeight: "700",
+                        fontSize: 13,
+                      }}
+                    >
                       {type}
                     </ThemedText>
                   </Pressable>
@@ -890,8 +1326,17 @@ export default function SiteManagementScreen() {
 
             {workType === "Other" && (
               <TextInput
-                style={[styles.textInput, { backgroundColor: isDark ? "#334155" : "#F8FAFC", color: isDark ? "#FFF" : "#000", marginTop: 8 }]}
-                placeholder={t.sites?.enterCustomWork || "Enter custom work name"}
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: isDark ? "#334155" : "#F8FAFC",
+                    color: isDark ? "#FFF" : "#000",
+                    marginTop: 8,
+                  },
+                ]}
+                placeholder={
+                  t.sites?.enterCustomWork || "Enter custom work name"
+                }
                 placeholderTextColor={theme.textSecondary}
                 value={customWorkType}
                 onChangeText={setCustomWorkType}
@@ -899,10 +1344,21 @@ export default function SiteManagementScreen() {
             )}
 
             {/* Step 3: Work Description */}
-            <ThemedText style={[styles.inputGroupLabel, { marginTop: 16 }]}>📝 Work Description</ThemedText>
+            <ThemedText style={[styles.inputGroupLabel, { marginTop: 16 }]}>
+              📝 Work Description
+            </ThemedText>
             <TextInput
-              style={[styles.textInput, styles.textArea, { backgroundColor: isDark ? "#334155" : "#F8FAFC", color: isDark ? "#FFF" : "#000" }]}
-              placeholder={t.sites?.whatWorkStarting || "What work are you starting today?"}
+              style={[
+                styles.textInput,
+                styles.textArea,
+                {
+                  backgroundColor: isDark ? "#334155" : "#F8FAFC",
+                  color: isDark ? "#FFF" : "#000",
+                },
+              ]}
+              placeholder={
+                t.sites?.whatWorkStarting || "What work are you starting today?"
+              }
               placeholderTextColor={theme.textSecondary}
               multiline
               numberOfLines={3}
@@ -911,9 +1367,17 @@ export default function SiteManagementScreen() {
             />
 
             {/* Step 4: Starting Point */}
-            <ThemedText style={[styles.inputGroupLabel, { marginTop: 16 }]}>📍 Starting Point</ThemedText>
+            <ThemedText style={[styles.inputGroupLabel, { marginTop: 16 }]}>
+              📍 Starting Point
+            </ThemedText>
             <TextInput
-              style={[styles.textInput, { backgroundColor: isDark ? "#334155" : "#F8FAFC", color: isDark ? "#FFF" : "#000" }]}
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: isDark ? "#334155" : "#F8FAFC",
+                  color: isDark ? "#FFF" : "#000",
+                },
+              ]}
               placeholder="e.g. Ground Floor – East Wall"
               placeholderTextColor={theme.textSecondary}
               value={startingPoint}
@@ -923,22 +1387,38 @@ export default function SiteManagementScreen() {
             {/* Step 5: Optional Location */}
             <View style={styles.locationSectionRow}>
               <View style={{ flex: 1 }}>
-                <ThemedText style={{ fontWeight: "700" }}>GPS Location (Optional)</ThemedText>
-                <ThemedText style={{ fontSize: 12, color: theme.textSecondary }}>
-                  {morningLocation ? "Location Captured ✓" : "Optionally verify your site location"}
+                <ThemedText style={{ fontWeight: "700" }}>
+                  GPS Location (Optional)
+                </ThemedText>
+                <ThemedText
+                  style={{ fontSize: 12, color: theme.textSecondary }}
+                >
+                  {morningLocation
+                    ? "Location Captured ✓"
+                    : "Optionally verify your site location"}
                 </ThemedText>
               </View>
               <Pressable
                 onPress={() => handleCaptureLocation("morning")}
                 disabled={isCapturingLocation}
-                style={[styles.locationBtn, { backgroundColor: morningLocation ? "#22C55E" : "#F97316" }]}
+                style={[
+                  styles.locationBtn,
+                  { backgroundColor: morningLocation ? "#22C55E" : "#F97316" },
+                ]}
               >
                 {isCapturingLocation ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
                   <>
-                    <Feather name="map-pin" size={14} color="#FFF" style={{ marginRight: 4 }} />
-                    <ThemedText style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>
+                    <Feather
+                      name="map-pin"
+                      size={14}
+                      color="#FFF"
+                      style={{ marginRight: 4 }}
+                    />
+                    <ThemedText
+                      style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}
+                    >
                       {morningLocation ? "Captured ✓" : "Capture"}
                     </ThemedText>
                   </>
@@ -965,29 +1445,69 @@ export default function SiteManagementScreen() {
       </Modal>
 
       {/* ─── MODAL 2: COMPLETE WORK (EVENING WORKFLOW) ─────────────────────── */}
-      <Modal visible={completeWorkModalVisible} animationType="slide" transparent={false}>
+      <Modal
+        visible={completeWorkModalVisible}
+        animationType="slide"
+        transparent={false}
+      >
         <ThemedView style={{ flex: 1 }}>
-          <View style={[styles.modalHeader, { backgroundColor: isDark ? "#1E293B" : "#ECFDF5" }]}>
-            <ThemedText style={styles.modalHeaderTitle}>🌆 Complete Today's Work</ThemedText>
+          <View
+            style={[
+              styles.modalHeader,
+              { backgroundColor: isDark ? "#1E293B" : "#ECFDF5" },
+            ]}
+          >
+            <ThemedText style={styles.modalHeaderTitle}>
+              🌆 Complete Today's Work
+            </ThemedText>
             <Pressable onPress={() => setCompleteWorkModalVisible(false)}>
-              <Feather name="x" size={24} color={isDark ? "#FFFFFF" : "#0F172A"} />
+              <Feather
+                name="x"
+                size={24}
+                color={isDark ? "#FFFFFF" : "#0F172A"}
+              />
             </Pressable>
           </View>
 
           <ScrollView contentContainerStyle={styles.modalScroll}>
             {/* Step 1: Evening Photo */}
-            <ThemedText style={styles.inputGroupLabel}>📷 Step 1: Capture Final Work Photo</ThemedText>
+            <ThemedText style={styles.inputGroupLabel}>
+              📷 Step 1: Capture Final Work Photo
+            </ThemedText>
             {eveningPhoto ? (
               <View style={styles.photoPreviewContainer}>
-                <Image source={{ uri: eveningPhoto }} style={styles.photoPreviewImg} />
+                <Image
+                  source={{ uri: eveningPhoto }}
+                  style={styles.photoPreviewImg}
+                />
                 <View style={styles.photoActionRow}>
-                  <Pressable onPress={() => handlePickPhoto("camera", "evening")} style={styles.photoBtnOutline}>
-                    <Feather name="refresh-cw" size={14} color="#F97316" style={{ marginRight: 6 }} />
-                    <ThemedText style={{ color: "#F97316", fontWeight: "700" }}>{t.sites?.retake || "Retake"}</ThemedText>
+                  <Pressable
+                    onPress={() => handlePickPhoto("camera", "evening")}
+                    style={styles.photoBtnOutline}
+                  >
+                    <Feather
+                      name="refresh-cw"
+                      size={14}
+                      color="#F97316"
+                      style={{ marginRight: 6 }}
+                    />
+                    <ThemedText style={{ color: "#F97316", fontWeight: "700" }}>
+                      {t.sites?.retake || "Retake"}
+                    </ThemedText>
                   </Pressable>
-                  <Pressable onPress={() => handlePickPhoto("gallery", "evening")} style={styles.photoBtnOutline}>
-                    <Feather name="image" size={14} color="#F97316" style={{ marginRight: 6 }} />
-                    <ThemedText style={{ color: "#F97316", fontWeight: "700" }}>Change</ThemedText>
+                  <Pressable
+                    onPress={() => handlePickPhoto("gallery", "evening")}
+                    style={styles.photoBtnOutline}
+                  >
+                    <Feather
+                      name="image"
+                      size={14}
+                      color="#F97316"
+                      style={{ marginRight: 6 }}
+                    />
+                    <ThemedText style={{ color: "#F97316", fontWeight: "700" }}>
+                      Change
+                    </ThemedText>
                   </Pressable>
                 </View>
               </View>
@@ -997,16 +1517,50 @@ export default function SiteManagementScreen() {
                   <ActivityIndicator size="large" color="#F97316" />
                 ) : (
                   <>
-                    <Feather name="camera" size={36} color="#10B981" style={{ marginBottom: 12 }} />
-                    <ThemedText style={{ fontWeight: "700", marginBottom: 12 }}>Capture Evening Final Work Site Photo</ThemedText>
+                    <Feather
+                      name="camera"
+                      size={36}
+                      color="#10B981"
+                      style={{ marginBottom: 12 }}
+                    />
+                    <ThemedText style={{ fontWeight: "700", marginBottom: 12 }}>
+                      Capture Evening Final Work Site Photo
+                    </ThemedText>
                     <View style={{ flexDirection: "row", gap: 10 }}>
-                      <Pressable onPress={() => handlePickPhoto("camera", "evening")} style={[styles.primaryPhotoBtn, { backgroundColor: "#10B981" }]}>
-                        <Feather name="camera" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                        <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>{t.sites?.openCamera || "Open Camera"}</ThemedText>
+                      <Pressable
+                        onPress={() => handlePickPhoto("camera", "evening")}
+                        style={[
+                          styles.primaryPhotoBtn,
+                          { backgroundColor: "#10B981" },
+                        ]}
+                      >
+                        <Feather
+                          name="camera"
+                          size={16}
+                          color="#FFFFFF"
+                          style={{ marginRight: 6 }}
+                        />
+                        <ThemedText
+                          style={{ color: "#FFFFFF", fontWeight: "700" }}
+                        >
+                          {t.sites?.openCamera || "Open Camera"}
+                        </ThemedText>
                       </Pressable>
-                      <Pressable onPress={() => handlePickPhoto("gallery", "evening")} style={styles.secondaryPhotoBtn}>
-                        <Feather name="image" size={16} color="#10B981" style={{ marginRight: 6 }} />
-                        <ThemedText style={{ color: "#10B981", fontWeight: "700" }}>{t.sites?.chooseGallery || "Gallery"}</ThemedText>
+                      <Pressable
+                        onPress={() => handlePickPhoto("gallery", "evening")}
+                        style={styles.secondaryPhotoBtn}
+                      >
+                        <Feather
+                          name="image"
+                          size={16}
+                          color="#10B981"
+                          style={{ marginRight: 6 }}
+                        />
+                        <ThemedText
+                          style={{ color: "#10B981", fontWeight: "700" }}
+                        >
+                          {t.sites?.chooseGallery || "Gallery"}
+                        </ThemedText>
                       </Pressable>
                     </View>
                   </>
@@ -1015,10 +1569,21 @@ export default function SiteManagementScreen() {
             )}
 
             {/* Step 2: Completion Description */}
-            <ThemedText style={[styles.inputGroupLabel, { marginTop: 20 }]}>📝 What was completed today?</ThemedText>
+            <ThemedText style={[styles.inputGroupLabel, { marginTop: 20 }]}>
+              📝 What was completed today?
+            </ThemedText>
             <TextInput
-              style={[styles.textInput, styles.textArea, { backgroundColor: isDark ? "#334155" : "#F8FAFC", color: isDark ? "#FFF" : "#000" }]}
-              placeholder={t.sites?.whatWorkCompleted || "What was completed today?"}
+              style={[
+                styles.textInput,
+                styles.textArea,
+                {
+                  backgroundColor: isDark ? "#334155" : "#F8FAFC",
+                  color: isDark ? "#FFF" : "#000",
+                },
+              ]}
+              placeholder={
+                t.sites?.whatWorkCompleted || "What was completed today?"
+              }
               placeholderTextColor={theme.textSecondary}
               multiline
               numberOfLines={3}
@@ -1027,9 +1592,17 @@ export default function SiteManagementScreen() {
             />
 
             {/* Step 3: Ending Point */}
-            <ThemedText style={[styles.inputGroupLabel, { marginTop: 16 }]}>📍 Ending Point</ThemedText>
+            <ThemedText style={[styles.inputGroupLabel, { marginTop: 16 }]}>
+              📍 Ending Point
+            </ThemedText>
             <TextInput
-              style={[styles.textInput, { backgroundColor: isDark ? "#334155" : "#F8FAFC", color: isDark ? "#FFF" : "#000" }]}
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: isDark ? "#334155" : "#F8FAFC",
+                  color: isDark ? "#FFF" : "#000",
+                },
+              ]}
               placeholder="e.g. East Wall – 17 ft completed"
               placeholderTextColor={theme.textSecondary}
               value={endingPoint}
@@ -1037,25 +1610,48 @@ export default function SiteManagementScreen() {
             />
 
             {/* Step 4: Progress */}
-            <ThemedText style={[styles.inputGroupLabel, { marginTop: 16 }]}>📈 Progress</ThemedText>
+            <ThemedText style={[styles.inputGroupLabel, { marginTop: 16 }]}>
+              📈 Progress
+            </ThemedText>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
               {["In Progress", "Mostly Completed", "Completed"].map((opt) => (
                 <Pressable
                   key={opt}
                   onPress={() => {
                     setProgressOption(opt);
-                    const pct = opt === "Completed" ? 100 : opt === "Mostly Completed" ? 75 : 50;
+                    const pct =
+                      opt === "Completed"
+                        ? 100
+                        : opt === "Mostly Completed"
+                          ? 75
+                          : 50;
                     setProgressPercent(pct);
                     setProgressText(opt);
                   }}
                   style={[
                     styles.chipItem,
                     {
-                      backgroundColor: progressOption === opt ? "#10B981" : isDark ? "#334155" : "#F1F5F9",
+                      backgroundColor:
+                        progressOption === opt
+                          ? "#10B981"
+                          : isDark
+                            ? "#334155"
+                            : "#F1F5F9",
                     },
                   ]}
                 >
-                  <ThemedText style={{ color: progressOption === opt ? "#FFF" : isDark ? "#E2E8F0" : "#334155", fontWeight: "700", fontSize: 12 }}>
+                  <ThemedText
+                    style={{
+                      color:
+                        progressOption === opt
+                          ? "#FFF"
+                          : isDark
+                            ? "#E2E8F0"
+                            : "#334155",
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
                     {opt}
                   </ThemedText>
                 </Pressable>
@@ -1063,7 +1659,13 @@ export default function SiteManagementScreen() {
             </View>
 
             <TextInput
-              style={[styles.textInput, { backgroundColor: isDark ? "#334155" : "#F8FAFC", color: isDark ? "#FFF" : "#000" }]}
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: isDark ? "#334155" : "#F8FAFC",
+                  color: isDark ? "#FFF" : "#000",
+                },
+              ]}
               placeholder="Custom Progress (e.g. 17 / 25 ft or 68%)"
               placeholderTextColor={theme.textSecondary}
               value={progressText}
@@ -1071,10 +1673,20 @@ export default function SiteManagementScreen() {
             />
 
             {/* Step 5: Optional Issues */}
-            <ThemedText style={[styles.inputGroupLabel, { marginTop: 16 }]}>⚠️ Issues (Optional)</ThemedText>
+            <ThemedText style={[styles.inputGroupLabel, { marginTop: 16 }]}>
+              ⚠️ Issues (Optional)
+            </ThemedText>
             <TextInput
-              style={[styles.textInput, { backgroundColor: isDark ? "#334155" : "#F8FAFC", color: isDark ? "#FFF" : "#000" }]}
-              placeholder={t.sites?.issuePlaceholder || "Any problem or delay today?"}
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: isDark ? "#334155" : "#F8FAFC",
+                  color: isDark ? "#FFF" : "#000",
+                },
+              ]}
+              placeholder={
+                t.sites?.issuePlaceholder || "Any problem or delay today?"
+              }
               placeholderTextColor={theme.textSecondary}
               value={issues}
               onChangeText={setIssues}
@@ -1084,7 +1696,10 @@ export default function SiteManagementScreen() {
             <Pressable
               onPress={handleCompleteWorkSubmit}
               disabled={isSubmittingComplete}
-              style={[styles.modalSubmitBtn, { backgroundColor: "#10B981", marginTop: 24 }]}
+              style={[
+                styles.modalSubmitBtn,
+                { backgroundColor: "#10B981", marginTop: 24 },
+              ]}
             >
               {isSubmittingComplete ? (
                 <ActivityIndicator size="small" color="#FFF" />
@@ -1099,58 +1714,103 @@ export default function SiteManagementScreen() {
       </Modal>
 
       {/* ─── MODAL 3: DAILY UPDATES TIMELINE HISTORY (CONTRACTOR VIEW) ───────────── */}
-      <Modal visible={historyModalVisible} animationType="slide" transparent={false}>
+      <Modal
+        visible={historyModalVisible}
+        animationType="slide"
+        transparent={false}
+      >
         <ThemedView style={{ flex: 1 }}>
-          <View style={[styles.modalHeader, { backgroundColor: isDark ? "#1E293B" : "#FFF7ED" }]}>
-            <ThemedText style={styles.modalHeaderTitle}>📅 Daily Updates History</ThemedText>
+          <View
+            style={[
+              styles.modalHeader,
+              { backgroundColor: isDark ? "#1E293B" : "#FFF7ED" },
+            ]}
+          >
+            <ThemedText style={styles.modalHeaderTitle}>
+              📅 Daily Updates History
+            </ThemedText>
             <Pressable onPress={() => setHistoryModalVisible(false)}>
-              <Feather name="x" size={24} color={isDark ? "#FFFFFF" : "#0F172A"} />
+              <Feather
+                name="x"
+                size={24}
+                color={isDark ? "#FFFFFF" : "#0F172A"}
+              />
             </Pressable>
           </View>
 
           <ScrollView contentContainerStyle={styles.modalScroll}>
             {dailyHistory.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Feather name="calendar" size={40} color={theme.textSecondary} />
-                <ThemedText style={{ marginTop: 12, fontWeight: "700" }}>No daily updates recorded yet</ThemedText>
+                <Feather
+                  name="calendar"
+                  size={40}
+                  color={theme.textSecondary}
+                />
+                <ThemedText style={{ marginTop: 12, fontWeight: "700" }}>
+                  No daily updates recorded yet
+                </ThemedText>
               </View>
             ) : (
               dailyHistory.map((item) => (
                 <View
                   key={item._id || item.id || item.dateStr}
-                  style={[styles.timelineCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: theme.border }]}
+                  style={[
+                    styles.timelineCard,
+                    {
+                      backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                      borderColor: theme.border,
+                    },
+                  ]}
                 >
                   <View style={styles.timelineHeaderRow}>
-                    <ThemedText style={styles.timelineDateText}>{item.dateStr}</ThemedText>
+                    <ThemedText style={styles.timelineDateText}>
+                      {item.dateStr}
+                    </ThemedText>
                     <View
                       style={[
                         styles.workStatusBadge,
-                        { backgroundColor: item.status === "completed" ? "#DCFCE7" : "#FEF3C7" },
+                        {
+                          backgroundColor:
+                            item.status === "completed" ? "#DCFCE7" : "#FEF3C7",
+                        },
                       ]}
                     >
                       <ThemedText
                         style={{
                           fontSize: 11,
                           fontWeight: "800",
-                          color: item.status === "completed" ? "#166534" : "#92400E",
+                          color:
+                            item.status === "completed" ? "#166534" : "#92400E",
                         }}
                       >
-                        {item.status === "completed" ? "Work Completed" : "In Progress"}
+                        {item.status === "completed"
+                          ? "Work Completed"
+                          : "In Progress"}
                       </ThemedText>
                     </View>
                   </View>
 
-                  <ThemedText style={styles.timelineWorkType}>{item.workType || "General Construction Work"}</ThemedText>
+                  <ThemedText style={styles.timelineWorkType}>
+                    {item.workType || "General Construction Work"}
+                  </ThemedText>
 
                   {/* Morning / Evening Photos Comparison */}
                   <View style={styles.photoCompareRow}>
                     {item.morningPhoto ? (
                       <View style={styles.comparePhotoCol}>
-                        <ThemedText style={styles.comparePhotoTag}>🌅 MORNING</ThemedText>
-                        <Image source={{ uri: item.morningPhoto }} style={styles.comparePhotoImg} />
+                        <ThemedText style={styles.comparePhotoTag}>
+                          🌅 MORNING
+                        </ThemedText>
+                        <Image
+                          source={{ uri: item.morningPhoto }}
+                          style={styles.comparePhotoImg}
+                        />
                         {item.morningTimestamp && (
                           <ThemedText style={styles.compareTimeText}>
-                            {new Date(item.morningTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            {new Date(item.morningTimestamp).toLocaleTimeString(
+                              [],
+                              { hour: "2-digit", minute: "2-digit" },
+                            )}
                           </ThemedText>
                         )}
                       </View>
@@ -1158,11 +1818,19 @@ export default function SiteManagementScreen() {
 
                     {item.eveningPhoto ? (
                       <View style={styles.comparePhotoCol}>
-                        <ThemedText style={styles.comparePhotoTag}>🌆 EVENING</ThemedText>
-                        <Image source={{ uri: item.eveningPhoto }} style={styles.comparePhotoImg} />
+                        <ThemedText style={styles.comparePhotoTag}>
+                          🌆 EVENING
+                        </ThemedText>
+                        <Image
+                          source={{ uri: item.eveningPhoto }}
+                          style={styles.comparePhotoImg}
+                        />
                         {item.eveningTimestamp && (
                           <ThemedText style={styles.compareTimeText}>
-                            {new Date(item.eveningTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            {new Date(item.eveningTimestamp).toLocaleTimeString(
+                              [],
+                              { hour: "2-digit", minute: "2-digit" },
+                            )}
                           </ThemedText>
                         )}
                       </View>
@@ -1173,25 +1841,38 @@ export default function SiteManagementScreen() {
                   <View style={styles.timelineDetailsBox}>
                     {item.startingPoint && (
                       <ThemedText style={styles.timelineDetailText}>
-                        <ThemedText style={{ fontWeight: "700" }}>Started From: </ThemedText>
+                        <ThemedText style={{ fontWeight: "700" }}>
+                          Started From:{" "}
+                        </ThemedText>
                         {item.startingPoint}
                       </ThemedText>
                     )}
                     {item.endingPoint && (
                       <ThemedText style={styles.timelineDetailText}>
-                        <ThemedText style={{ fontWeight: "700" }}>Ended At: </ThemedText>
+                        <ThemedText style={{ fontWeight: "700" }}>
+                          Ended At:{" "}
+                        </ThemedText>
                         {item.endingPoint}
                       </ThemedText>
                     )}
                     {item.progress && (
                       <ThemedText style={styles.timelineDetailText}>
-                        <ThemedText style={{ fontWeight: "700" }}>Progress: </ThemedText>
+                        <ThemedText style={{ fontWeight: "700" }}>
+                          Progress:{" "}
+                        </ThemedText>
                         {item.progress}
                       </ThemedText>
                     )}
                     {item.issues && (
-                      <ThemedText style={[styles.timelineDetailText, { color: "#EF4444" }]}>
-                        <ThemedText style={{ fontWeight: "700" }}>Issues: </ThemedText>
+                      <ThemedText
+                        style={[
+                          styles.timelineDetailText,
+                          { color: "#EF4444" },
+                        ]}
+                      >
+                        <ThemedText style={{ fontWeight: "700" }}>
+                          Issues:{" "}
+                        </ThemedText>
                         {item.issues}
                       </ThemedText>
                     )}
@@ -1204,11 +1885,22 @@ export default function SiteManagementScreen() {
       </Modal>
 
       {/* ─── MODAL 4: SINGLE UPDATE DETAIL VIEW ───────────────────────────── */}
-      <Modal visible={detailModalVisible} animationType="fade" transparent={true}>
+      <Modal
+        visible={detailModalVisible}
+        animationType="fade"
+        transparent={true}
+      >
         <View style={styles.modalBackdrop}>
-          <View style={[styles.detailCardContainer, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]}>
+          <View
+            style={[
+              styles.detailCardContainer,
+              { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" },
+            ]}
+          >
             <View style={styles.detailCardHeader}>
-              <ThemedText style={{ fontSize: 18, fontWeight: "800" }}>Today's Work Summary</ThemedText>
+              <ThemedText style={{ fontSize: 18, fontWeight: "800" }}>
+                Today's Work Summary
+              </ThemedText>
               <Pressable onPress={() => setDetailModalVisible(false)}>
                 <Feather name="x" size={22} color={isDark ? "#FFF" : "#000"} />
               </Pressable>
@@ -1216,35 +1908,83 @@ export default function SiteManagementScreen() {
 
             {selectedDetailUpdate && (
               <ScrollView style={{ maxHeight: 450 }}>
-                <ThemedText style={{ fontSize: 16, fontWeight: "800", color: "#F97316", marginBottom: 6 }}>
+                <ThemedText
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "800",
+                    color: "#F97316",
+                    marginBottom: 6,
+                  }}
+                >
                   {selectedDetailUpdate.workType}
                 </ThemedText>
-                <ThemedText style={{ fontSize: 14, color: theme.textSecondary, marginBottom: 12 }}>
+                <ThemedText
+                  style={{
+                    fontSize: 14,
+                    color: theme.textSecondary,
+                    marginBottom: 12,
+                  }}
+                >
                   {selectedDetailUpdate.description}
                 </ThemedText>
 
                 <View style={styles.photoCompareRow}>
                   {selectedDetailUpdate.morningPhoto && (
                     <View style={styles.comparePhotoCol}>
-                      <ThemedText style={styles.comparePhotoTag}>🌅 MORNING</ThemedText>
-                      <Image source={{ uri: selectedDetailUpdate.morningPhoto }} style={styles.comparePhotoImg} />
+                      <ThemedText style={styles.comparePhotoTag}>
+                        🌅 MORNING
+                      </ThemedText>
+                      <Image
+                        source={{ uri: selectedDetailUpdate.morningPhoto }}
+                        style={styles.comparePhotoImg}
+                      />
                     </View>
                   )}
                   {selectedDetailUpdate.eveningPhoto && (
                     <View style={styles.comparePhotoCol}>
-                      <ThemedText style={styles.comparePhotoTag}>🌆 EVENING</ThemedText>
-                      <Image source={{ uri: selectedDetailUpdate.eveningPhoto }} style={styles.comparePhotoImg} />
+                      <ThemedText style={styles.comparePhotoTag}>
+                        🌆 EVENING
+                      </ThemedText>
+                      <Image
+                        source={{ uri: selectedDetailUpdate.eveningPhoto }}
+                        style={styles.comparePhotoImg}
+                      />
                     </View>
                   )}
                 </View>
 
                 <View style={{ marginTop: 12, gap: 6 }}>
-                  <ThemedText><ThemedText style={{ fontWeight: "700" }}>Started Point:</ThemedText> {selectedDetailUpdate.startingPoint || "N/A"}</ThemedText>
-                  <ThemedText><ThemedText style={{ fontWeight: "700" }}>Ended Point:</ThemedText> {selectedDetailUpdate.endingPoint || "N/A"}</ThemedText>
-                  <ThemedText><ThemedText style={{ fontWeight: "700" }}>Work Completed:</ThemedText> {selectedDetailUpdate.completionDescription || "N/A"}</ThemedText>
-                  <ThemedText><ThemedText style={{ fontWeight: "700" }}>Progress:</ThemedText> {selectedDetailUpdate.progress || "100%"}</ThemedText>
+                  <ThemedText>
+                    <ThemedText style={{ fontWeight: "700" }}>
+                      Started Point:
+                    </ThemedText>{" "}
+                    {selectedDetailUpdate.startingPoint || "N/A"}
+                  </ThemedText>
+                  <ThemedText>
+                    <ThemedText style={{ fontWeight: "700" }}>
+                      Ended Point:
+                    </ThemedText>{" "}
+                    {selectedDetailUpdate.endingPoint || "N/A"}
+                  </ThemedText>
+                  <ThemedText>
+                    <ThemedText style={{ fontWeight: "700" }}>
+                      Work Completed:
+                    </ThemedText>{" "}
+                    {selectedDetailUpdate.completionDescription || "N/A"}
+                  </ThemedText>
+                  <ThemedText>
+                    <ThemedText style={{ fontWeight: "700" }}>
+                      Progress:
+                    </ThemedText>{" "}
+                    {selectedDetailUpdate.progress || "100%"}
+                  </ThemedText>
                   {selectedDetailUpdate.issues && (
-                    <ThemedText style={{ color: "#EF4444" }}><ThemedText style={{ fontWeight: "700" }}>Issues:</ThemedText> {selectedDetailUpdate.issues}</ThemedText>
+                    <ThemedText style={{ color: "#EF4444" }}>
+                      <ThemedText style={{ fontWeight: "700" }}>
+                        Issues:
+                      </ThemedText>{" "}
+                      {selectedDetailUpdate.issues}
+                    </ThemedText>
                   )}
                 </View>
               </ScrollView>

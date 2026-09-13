@@ -3,7 +3,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Platform } from "react-native";
 import { authenticatedFetch, API_URL, storage } from "@/utils/storage";
 import { useSocket } from "@/hooks/useSocket";
-import { registerExpoPushToken, isRunningInExpoGo, getNotificationsModule } from "@/utils/notifications";
+import {
+  registerExpoPushToken,
+  isRunningInExpoGo,
+  getNotificationsModule,
+} from "@/utils/notifications";
 
 export interface NotificationItem {
   _id: string;
@@ -53,7 +57,9 @@ export function useNotifications() {
   const unreadCountQuery = useQuery<number>({
     queryKey: ["notifications-unread-count"],
     queryFn: async () => {
-      const res = await authenticatedFetch(`${API_URL}/notifications/unread-count`);
+      const res = await authenticatedFetch(
+        `${API_URL}/notifications/unread-count`,
+      );
       if (!res.ok) return 0;
       const data = await res.json();
       return data.unreadCount || 0;
@@ -64,29 +70,31 @@ export function useNotifications() {
   // 3. Mark single notification as read
   const markAsReadMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await authenticatedFetch(`${API_URL}/notifications/${id}/read`, {
-        method: "PATCH",
-      });
+      const res = await authenticatedFetch(
+        `${API_URL}/notifications/${id}/read`,
+        {
+          method: "PATCH",
+        },
+      );
       if (!res.ok) throw new Error("Failed to mark as read");
       return res.json();
     },
     onSuccess: (data, id) => {
-      queryClient.setQueryData<{ notifications: NotificationItem[]; unreadCount: number }>(
-        ["notifications"],
-        (old) => {
-          if (!old) return old as any;
-          const updatedList = old.notifications.map((item) =>
-            item._id === id ? { ...item, isRead: true } : item
-          );
-          return {
-            notifications: updatedList,
-            unreadCount: Math.max(0, data.unreadCount ?? old.unreadCount - 1),
-          };
-        }
-      );
-      queryClient.setQueryData<number>(
-        ["notifications-unread-count"],
-        (old) => Math.max(0, (old || 1) - 1)
+      queryClient.setQueryData<{
+        notifications: NotificationItem[];
+        unreadCount: number;
+      }>(["notifications"], (old) => {
+        if (!old) return old as any;
+        const updatedList = old.notifications.map((item) =>
+          item._id === id ? { ...item, isRead: true } : item,
+        );
+        return {
+          notifications: updatedList,
+          unreadCount: Math.max(0, data.unreadCount ?? old.unreadCount - 1),
+        };
+      });
+      queryClient.setQueryData<number>(["notifications-unread-count"], (old) =>
+        Math.max(0, (old || 1) - 1),
       );
     },
   });
@@ -94,23 +102,26 @@ export function useNotifications() {
   // 4. Mark all notifications as read
   const markAllAsReadMutation = useMutation({
     mutationFn: async () => {
-      const res = await authenticatedFetch(`${API_URL}/notifications/read-all`, {
-        method: "PATCH",
-      });
+      const res = await authenticatedFetch(
+        `${API_URL}/notifications/read-all`,
+        {
+          method: "PATCH",
+        },
+      );
       if (!res.ok) throw new Error("Failed to mark all as read");
       return res.json();
     },
     onSuccess: () => {
-      queryClient.setQueryData<{ notifications: NotificationItem[]; unreadCount: number }>(
-        ["notifications"],
-        (old) => {
-          if (!old) return old as any;
-          return {
-            notifications: old.notifications.map((n) => ({ ...n, isRead: true })),
-            unreadCount: 0,
-          };
-        }
-      );
+      queryClient.setQueryData<{
+        notifications: NotificationItem[];
+        unreadCount: number;
+      }>(["notifications"], (old) => {
+        if (!old) return old as any;
+        return {
+          notifications: old.notifications.map((n) => ({ ...n, isRead: true })),
+          unreadCount: 0,
+        };
+      });
       queryClient.setQueryData<number>(["notifications-unread-count"], 0);
     },
   });
@@ -125,16 +136,16 @@ export function useNotifications() {
       return res.json();
     },
     onSuccess: (data, id) => {
-      queryClient.setQueryData<{ notifications: NotificationItem[]; unreadCount: number }>(
-        ["notifications"],
-        (old) => {
-          if (!old) return old as any;
-          return {
-            notifications: old.notifications.filter((item) => item._id !== id),
-            unreadCount: data.unreadCount ?? old.unreadCount,
-          };
-        }
-      );
+      queryClient.setQueryData<{
+        notifications: NotificationItem[];
+        unreadCount: number;
+      }>(["notifications"], (old) => {
+        if (!old) return old as any;
+        return {
+          notifications: old.notifications.filter((item) => item._id !== id),
+          unreadCount: data.unreadCount ?? old.unreadCount,
+        };
+      });
     },
   });
 
@@ -149,7 +160,9 @@ export function useNotifications() {
     if (socket) {
       const handleNewNotification = () => {
         queryClient.invalidateQueries({ queryKey: ["notifications"] });
-        queryClient.invalidateQueries({ queryKey: ["notifications-unread-count"] });
+        queryClient.invalidateQueries({
+          queryKey: ["notifications-unread-count"],
+        });
       };
       socket.on("notification:new", handleNewNotification);
       return () => {
@@ -160,7 +173,10 @@ export function useNotifications() {
 
   // 7. Register Expo notification foreground & response listeners safely with Expo Go check
   useEffect(() => {
-    if (Platform.OS === "web" || (Platform.OS === "android" && isRunningInExpoGo())) {
+    if (
+      Platform.OS === "web" ||
+      (Platform.OS === "android" && isRunningInExpoGo())
+    ) {
       return;
     }
 
@@ -168,15 +184,25 @@ export function useNotifications() {
     if (!Notifications) return;
 
     try {
-      const notificationListener = Notifications.addNotificationReceivedListener((notification) => {
-        console.log("[Notifications] Received in foreground:", notification.request.content.title);
-        queryClient.invalidateQueries({ queryKey: ["notifications"] });
-        queryClient.invalidateQueries({ queryKey: ["notifications-unread-count"] });
-      });
+      const notificationListener =
+        Notifications.addNotificationReceivedListener((notification) => {
+          console.log(
+            "[Notifications] Received in foreground:",
+            notification.request.content.title,
+          );
+          queryClient.invalidateQueries({ queryKey: ["notifications"] });
+          queryClient.invalidateQueries({
+            queryKey: ["notifications-unread-count"],
+          });
+        });
 
-      const responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log("[Notifications] User tapped notification response:", response.notification.request.content.data);
-      });
+      const responseListener =
+        Notifications.addNotificationResponseReceivedListener((response) => {
+          console.log(
+            "[Notifications] User tapped notification response:",
+            response.notification.request.content.data,
+          );
+        });
 
       return () => {
         notificationListener.remove();
@@ -189,7 +215,8 @@ export function useNotifications() {
 
   return {
     notifications: notificationsQuery.data?.notifications || [],
-    unreadCount: unreadCountQuery.data ?? notificationsQuery.data?.unreadCount ?? 0,
+    unreadCount:
+      unreadCountQuery.data ?? notificationsQuery.data?.unreadCount ?? 0,
     isLoading: notificationsQuery.isLoading,
     isRefetching: notificationsQuery.isRefetching,
     refetch: notificationsQuery.refetch,
@@ -199,7 +226,9 @@ export function useNotifications() {
   };
 }
 
-export async function registerForPushNotificationsAsync(): Promise<string | null> {
+export async function registerForPushNotificationsAsync(): Promise<
+  string | null
+> {
   const token = await registerExpoPushToken();
 
   if (token) {

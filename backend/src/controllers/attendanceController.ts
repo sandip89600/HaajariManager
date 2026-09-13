@@ -1,5 +1,5 @@
 import { Response } from "express";
-import { Attendance, AuditLog, User, Worker, Tenant, AppConfig } from "../models";
+import { Attendance, AuditLog, User, Worker, Tenant, AppConfig, Payment } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { broadcastAdminActivity, getIO } from "../utils/socket";
 import { logActivity } from "../services/activityLogger";
@@ -401,6 +401,32 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
     let advancePaid = 0;
 
     for (const rec of records) {
+      const rate =
+        rec.dailyRate !== undefined && rec.dailyRate !== null
+          ? rec.dailyRate
+          : worker.dailyRate || 0;
+      const adv =
+        rec.customWage !== undefined && rec.customWage !== null
+          ? rec.customWage
+          : 0;
+      const ot =
+        rec.overtimeWage !== undefined && rec.overtimeWage !== null
+          ? rec.overtimeWage
+          : 0;
+
+      let pay = 0;
+      if (rec.finalPay !== undefined && rec.finalPay !== null) {
+        pay = rec.finalPay;
+      } else {
+        if (rec.value === "P" || rec.value === "OT") {
+          pay = rate + adv + ot;
+        } else if (rec.value === "H") {
+          pay = rate / 2 + adv + ot;
+        } else if (typeof rec.value === "number") {
+          pay = rec.value;
+        }
+      }
+
       if (rec.value === "P") presentDays++;
       else if (rec.value === "A") absentDays++;
       else if (rec.value === "H") halfDays += 0.5;
@@ -408,10 +434,15 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
         presentDays++;
         overtimeHours += rec.overtimeHours || 0;
       }
-      totalEarned += rec.finalPay || 0;
+      totalEarned += pay;
       if (rec.customWage && rec.customWage > 0) {
         advancePaid += rec.customWage;
       }
+    }
+
+    const paymentRecords = await Payment.find(query).lean();
+    for (const p of paymentRecords) {
+      advancePaid += p.amount || 0;
     }
 
     return res.json({

@@ -42,8 +42,12 @@ export default function SubscriptionScreen() {
 
   const [activeTab, setActiveTab] = useState<"plans" | "history">("plans");
   const [loading, setLoading] = useState(true);
-  const [subStatus, setSubStatus] = useState<SubscriptionStatusResponse | null>(null);
-  const [transactions, setTransactions] = useState<SubscriptionTransactionItem[]>([]);
+  const [subStatus, setSubStatus] = useState<SubscriptionStatusResponse | null>(
+    null,
+  );
+  const [transactions, setTransactions] = useState<
+    SubscriptionTransactionItem[]
+  >([]);
 
   // Selected Plan & Billing Option State
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
@@ -82,10 +86,15 @@ export default function SubscriptionScreen() {
     }
   };
 
-  const triggerHaptic = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const triggerHaptic = () =>
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-  const currentPlan = subStatus?.availablePlans?.find((p) => p.planId === selectedPlanId);
-  const currentOption = currentPlan?.billingOptions?.find((o) => o.optionId === selectedOptionId);
+  const currentPlan = subStatus?.availablePlans?.find(
+    (p) => p.planId === selectedPlanId,
+  );
+  const currentOption = currentPlan?.billingOptions?.find(
+    (o) => o.optionId === selectedOptionId,
+  );
 
   const handleSelectPlan = (planId: string) => {
     triggerHaptic();
@@ -107,7 +116,10 @@ export default function SubscriptionScreen() {
     triggerHaptic();
 
     try {
-      const checkoutData = await SubscriptionApi.createCheckout(currentPlan.planId, currentOption.optionId);
+      const checkoutData = await SubscriptionApi.createCheckout(
+        currentPlan.planId,
+        currentOption.optionId,
+      );
       setActiveTxnId(checkoutData.transactionId);
 
       // Simple simulated Razorpay HTML checkout trigger
@@ -136,7 +148,10 @@ export default function SubscriptionScreen() {
       setWebViewHtml(htmlContent);
       setWebViewModalVisible(true);
     } catch (err: any) {
-      Alert.alert("Checkout Notice", err.message || "Unable to initiate payment.");
+      Alert.alert(
+        "Checkout Notice",
+        err.message || "Unable to initiate payment.",
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -149,8 +164,14 @@ export default function SubscriptionScreen() {
         setWebViewModalVisible(false);
         setIsProcessing(true);
 
-        await SubscriptionApi.activateSubscription(activeTxnId, `PAY_${Date.now()}`);
-        Alert.alert("Success!", "Your subscription has been activated successfully!");
+        await SubscriptionApi.activateSubscription(
+          activeTxnId,
+          `PAY_${Date.now()}`,
+        );
+        Alert.alert(
+          "Success!",
+          "Your subscription has been activated successfully!",
+        );
         loadData();
       }
     } catch (err) {
@@ -177,16 +198,38 @@ export default function SubscriptionScreen() {
             <Feather name="arrow-left" size={20} color={theme.text} />
           </Pressable>
 
-          <ThemedText type="h2" style={{ fontWeight: "700" }}>Subscription</ThemedText>
+          <ThemedText type="h2" style={{ fontWeight: "700" }}>
+            Subscription
+          </ThemedText>
         </View>
 
         <ScrollView contentContainerStyle={styles.freeModeContainer}>
-          <View style={[styles.freeModeCard, { backgroundColor: theme.primary + "12", borderColor: theme.primary + "30" }]}>
-            <View style={[styles.freeBadgeCircle, { backgroundColor: theme.primary }]}>
+          <View
+            style={[
+              styles.freeModeCard,
+              {
+                backgroundColor: theme.primary + "12",
+                borderColor: theme.primary + "30",
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.freeBadgeCircle,
+                { backgroundColor: theme.primary },
+              ]}
+            >
               <Feather name="gift" size={36} color="#FFFFFF" />
             </View>
 
-            <ThemedText type="h2" style={{ fontWeight: "700", marginTop: Spacing.lg, textAlign: "center" }}>
+            <ThemedText
+              type="h2"
+              style={{
+                fontWeight: "700",
+                marginTop: Spacing.lg,
+                textAlign: "center",
+              }}
+            >
               Currently in Free Mode
             </ThemedText>
 
@@ -200,7 +243,9 @@ export default function SubscriptionScreen() {
                 maxWidth: 300,
               }}
             >
-              Haajari Manager is currently free for all construction managers. All site limits, worker capacity, supervisor accounts, and PDF exports are 100% unlocked!
+              Haajari Manager is currently free for all construction managers.
+              All site limits, worker capacity, supervisor accounts, and PDF
+              exports are 100% unlocked!
             </ThemedText>
           </View>
         </ScrollView>
@@ -216,7 +261,9 @@ export default function SubscriptionScreen() {
           <Feather name="arrow-left" size={20} color={theme.text} />
         </Pressable>
 
-        <ThemedText type="h2" style={{ fontWeight: "700" }}>Subscriptions</ThemedText>
+        <ThemedText type="h2" style={{ fontWeight: "700" }}>
+          Subscriptions
+        </ThemedText>
       </View>
 
       {/* Tab Selector */}
@@ -225,7 +272,10 @@ export default function SubscriptionScreen() {
           onPress={() => setActiveTab("plans")}
           style={[
             styles.tabBtn,
-            activeTab === "plans" && { backgroundColor: theme.primary, borderColor: theme.primary },
+            activeTab === "plans" && {
+              backgroundColor: theme.primary,
+              borderColor: theme.primary,
+            },
           ]}
         >
           <ThemedText
@@ -243,7 +293,10 @@ export default function SubscriptionScreen() {
           onPress={() => setActiveTab("history")}
           style={[
             styles.tabBtn,
-            activeTab === "history" && { backgroundColor: theme.primary, borderColor: theme.primary },
+            activeTab === "history" && {
+              backgroundColor: theme.primary,
+              borderColor: theme.primary,
+            },
           ]}
         >
           <ThemedText
@@ -259,25 +312,49 @@ export default function SubscriptionScreen() {
       </View>
 
       {activeTab === "plans" ? (
-        <ScrollView contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 100 }}>
+        <ScrollView
+          contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 100 }}
+        >
           {/* Active Subscription Banner if user has active plan */}
-          {subStatus.userSubscription && subStatus.userSubscription.status === "active" && (
-            <View style={[styles.activeSubBanner, { backgroundColor: "#E6F4EA", borderColor: "#34A853" }]}>
-              <Feather name="check-circle" size={20} color="#137333" />
-              <View style={{ marginLeft: 10 }}>
-                <ThemedText type="body" style={{ color: "#137333", fontWeight: "700" }}>
-                  Active Subscription: {subStatus.userSubscription.planId.toUpperCase()}
-                </ThemedText>
-                <ThemedText type="small" style={{ color: "#137333", marginTop: 2 }}>
-                  Valid until {new Date(subStatus.userSubscription.expiresAt).toLocaleDateString()}
-                </ThemedText>
+          {subStatus.userSubscription &&
+            subStatus.userSubscription.status === "active" && (
+              <View
+                style={[
+                  styles.activeSubBanner,
+                  { backgroundColor: "#E6F4EA", borderColor: "#34A853" },
+                ]}
+              >
+                <Feather name="check-circle" size={20} color="#137333" />
+                <View style={{ marginLeft: 10 }}>
+                  <ThemedText
+                    type="body"
+                    style={{ color: "#137333", fontWeight: "700" }}
+                  >
+                    Active Subscription:{" "}
+                    {subStatus.userSubscription.planId.toUpperCase()}
+                  </ThemedText>
+                  <ThemedText
+                    type="small"
+                    style={{ color: "#137333", marginTop: 2 }}
+                  >
+                    Valid until{" "}
+                    {new Date(
+                      subStatus.userSubscription.expiresAt,
+                    ).toLocaleDateString()}
+                  </ThemedText>
+                </View>
               </View>
-            </View>
-          )}
+            )}
 
           {/* Plan Tabs */}
-          <ThemedText type="small" style={styles.sectionHeader}>SELECT A PLAN</ThemedText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.planChipsRow}>
+          <ThemedText type="small" style={styles.sectionHeader}>
+            SELECT A PLAN
+          </ThemedText>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.planChipsRow}
+          >
             {subStatus.availablePlans.map((plan) => {
               const isSelected = plan.planId === selectedPlanId;
               return (
@@ -287,7 +364,9 @@ export default function SubscriptionScreen() {
                   style={[
                     styles.planChip,
                     {
-                      backgroundColor: isSelected ? theme.primary : theme.backgroundDefault,
+                      backgroundColor: isSelected
+                        ? theme.primary
+                        : theme.backgroundDefault,
                       borderColor: isSelected ? theme.primary : theme.border,
                     },
                   ]}
@@ -308,22 +387,42 @@ export default function SubscriptionScreen() {
 
           {/* Plan Description & Features Card */}
           {currentPlan && (
-            <View style={[styles.planCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-              <ThemedText type="h3" style={{ fontWeight: "700" }}>{currentPlan.name} Plan</ThemedText>
-              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 4 }}>
+            <View
+              style={[
+                styles.planCard,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <ThemedText type="h3" style={{ fontWeight: "700" }}>
+                {currentPlan.name} Plan
+              </ThemedText>
+              <ThemedText
+                type="small"
+                style={{ color: theme.textSecondary, marginTop: 4 }}
+              >
                 {currentPlan.description}
               </ThemedText>
 
               {/* Billing Options Selector */}
-              <ThemedText type="small" style={[styles.sectionHeader, { marginTop: Spacing.md }]}>
+              <ThemedText
+                type="small"
+                style={[styles.sectionHeader, { marginTop: Spacing.md }]}
+              >
                 SELECT BILLING DURATION
               </ThemedText>
 
               <View style={styles.billingGrid}>
                 {currentPlan.billingOptions.map((opt) => {
                   const isSelected = opt.optionId === selectedOptionId;
-                  const showPromo = opt.promotionEnabled && typeof opt.promotionalPrice === "number";
-                  const effectivePrice = showPromo ? opt.promotionalPrice : opt.price;
+                  const showPromo =
+                    opt.promotionEnabled &&
+                    typeof opt.promotionalPrice === "number";
+                  const effectivePrice = showPromo
+                    ? opt.promotionalPrice
+                    : opt.price;
 
                   return (
                     <Pressable
@@ -332,14 +431,25 @@ export default function SubscriptionScreen() {
                       style={[
                         styles.billingOptionBox,
                         {
-                          backgroundColor: isSelected ? theme.primary + "12" : theme.backgroundRoot,
-                          borderColor: isSelected ? theme.primary : theme.border,
+                          backgroundColor: isSelected
+                            ? theme.primary + "12"
+                            : theme.backgroundRoot,
+                          borderColor: isSelected
+                            ? theme.primary
+                            : theme.border,
                         },
                       ]}
                     >
                       {showPromo && (
                         <View style={styles.promoBadge}>
-                          <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 10 }}>
+                          <ThemedText
+                            type="small"
+                            style={{
+                              color: "#FFFFFF",
+                              fontWeight: "700",
+                              fontSize: 10,
+                            }}
+                          >
                             PROMO OFFER
                           </ThemedText>
                         </View>
@@ -350,14 +460,22 @@ export default function SubscriptionScreen() {
                       </ThemedText>
 
                       <View style={styles.priceRow}>
-                        <ThemedText type="h2" style={{ color: theme.primary, fontWeight: "800" }}>
+                        <ThemedText
+                          type="h2"
+                          style={{ color: theme.primary, fontWeight: "800" }}
+                        >
                           ₹{effectivePrice}
                         </ThemedText>
-                        {showPromo && effectivePrice !== undefined && opt.price > effectivePrice && (
-                          <ThemedText type="small" style={styles.strikethroughPrice}>
-                            ₹{opt.price}
-                          </ThemedText>
-                        )}
+                        {showPromo &&
+                          effectivePrice !== undefined &&
+                          opt.price > effectivePrice && (
+                            <ThemedText
+                              type="small"
+                              style={styles.strikethroughPrice}
+                            >
+                              ₹{opt.price}
+                            </ThemedText>
+                          )}
                       </View>
                     </Pressable>
                   );
@@ -366,23 +484,34 @@ export default function SubscriptionScreen() {
 
               {/* Features List */}
               <View style={styles.featuresList}>
-                <ThemedText type="small" style={styles.sectionHeader}>INCLUDED FEATURES</ThemedText>
+                <ThemedText type="small" style={styles.sectionHeader}>
+                  INCLUDED FEATURES
+                </ThemedText>
                 <View style={styles.featureItem}>
                   <Feather name="check" size={16} color={theme.primary} />
                   <ThemedText type="body" style={styles.featureText}>
-                    Worker Capacity: {currentPlan.features.maxWorkers === -1 ? "Unlimited" : currentPlan.features.maxWorkers}
+                    Worker Capacity:{" "}
+                    {currentPlan.features.maxWorkers === -1
+                      ? "Unlimited"
+                      : currentPlan.features.maxWorkers}
                   </ThemedText>
                 </View>
                 <View style={styles.featureItem}>
                   <Feather name="check" size={16} color={theme.primary} />
                   <ThemedText type="body" style={styles.featureText}>
-                    Construction Sites: {currentPlan.features.maxProjects === -1 ? "Unlimited" : currentPlan.features.maxProjects}
+                    Construction Sites:{" "}
+                    {currentPlan.features.maxProjects === -1
+                      ? "Unlimited"
+                      : currentPlan.features.maxProjects}
                   </ThemedText>
                 </View>
                 <View style={styles.featureItem}>
                   <Feather name="check" size={16} color={theme.primary} />
                   <ThemedText type="body" style={styles.featureText}>
-                    Supervisors: {currentPlan.features.maxSupervisors === -1 ? "Unlimited" : currentPlan.features.maxSupervisors}
+                    Supervisors:{" "}
+                    {currentPlan.features.maxSupervisors === -1
+                      ? "Unlimited"
+                      : currentPlan.features.maxSupervisors}
                   </ThemedText>
                 </View>
               </View>
@@ -392,13 +521,30 @@ export default function SubscriptionScreen() {
                 <Pressable
                   onPress={handleCheckout}
                   disabled={isProcessing}
-                  style={[styles.checkoutBtn, { backgroundColor: theme.primary, opacity: isProcessing ? 0.7 : 1 }]}
+                  style={[
+                    styles.checkoutBtn,
+                    {
+                      backgroundColor: theme.primary,
+                      opacity: isProcessing ? 0.7 : 1,
+                    },
+                  ]}
                 >
                   {isProcessing ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 16 }}>
-                      Subscribe Now • ₹{currentOption.promotionEnabled && typeof currentOption.promotionalPrice === "number" ? currentOption.promotionalPrice : currentOption.price}
+                    <ThemedText
+                      type="body"
+                      style={{
+                        color: "#FFFFFF",
+                        fontWeight: "700",
+                        fontSize: 16,
+                      }}
+                    >
+                      Subscribe Now • ₹
+                      {currentOption.promotionEnabled &&
+                      typeof currentOption.promotionalPrice === "number"
+                        ? currentOption.promotionalPrice
+                        : currentOption.price}
                     </ThemedText>
                   )}
                 </Pressable>
@@ -415,24 +561,46 @@ export default function SubscriptionScreen() {
           ListEmptyComponent={
             <View style={styles.centeredContainer}>
               <Feather name="file-text" size={42} color={theme.textSecondary} />
-              <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+              <ThemedText
+                type="body"
+                style={{ color: theme.textSecondary, marginTop: Spacing.md }}
+              >
                 No subscription transactions found.
               </ThemedText>
             </View>
           }
           renderItem={({ item }) => (
-            <View style={[styles.txnCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+            <View
+              style={[
+                styles.txnCard,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
               <View style={styles.txnHeader}>
                 <View>
                   <ThemedText type="body" style={{ fontWeight: "700" }}>
                     {item.planNameSnapshot || item.planId}
                   </ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
+                  <ThemedText
+                    type="small"
+                    style={{ color: theme.textSecondary, marginTop: 2 }}
+                  >
                     Txn ID: {item.transactionId}
                   </ThemedText>
                 </View>
 
-                <View style={[styles.statusBadge, { backgroundColor: item.status === "paid" ? "#E6F4EA" : "#F1F3F4" }]}>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    {
+                      backgroundColor:
+                        item.status === "paid" ? "#E6F4EA" : "#F1F3F4",
+                    },
+                  ]}
+                >
                   <ThemedText
                     type="small"
                     style={{
@@ -446,13 +614,18 @@ export default function SubscriptionScreen() {
                 </View>
               </View>
 
-              <View style={[styles.divider, { backgroundColor: theme.border }]} />
+              <View
+                style={[styles.divider, { backgroundColor: theme.border }]}
+              />
 
               <View style={styles.txnFooter}>
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>
                   {new Date(item.createdAt).toLocaleDateString()}
                 </ThemedText>
-                <ThemedText type="body" style={{ fontWeight: "700", color: theme.primary }}>
+                <ThemedText
+                  type="body"
+                  style={{ fontWeight: "700", color: theme.primary }}
+                >
                   ₹{item.amount}
                 </ThemedText>
               </View>
@@ -462,15 +635,26 @@ export default function SubscriptionScreen() {
       )}
 
       {/* Razorpay Web Checkout Modal */}
-      <Modal visible={webViewModalVisible} transparent animationType="slide" onRequestClose={() => setWebViewModalVisible(false)}>
+      <Modal
+        visible={webViewModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setWebViewModalVisible(false)}
+      >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <ThemedText type="h3" style={{ fontWeight: "700" }}>Razorpay Checkout</ThemedText>
+            <ThemedText type="h3" style={{ fontWeight: "700" }}>
+              Razorpay Checkout
+            </ThemedText>
             <Pressable onPress={() => setWebViewModalVisible(false)}>
               <Feather name="x" size={20} color={theme.text} />
             </Pressable>
           </View>
-          <WebView source={{ html: webViewHtml }} onMessage={handleWebViewMessage} style={{ flex: 1 }} />
+          <WebView
+            source={{ html: webViewHtml }}
+            onMessage={handleWebViewMessage}
+            style={{ flex: 1 }}
+          />
         </View>
       </Modal>
     </ThemedView>
@@ -479,33 +663,134 @@ export default function SubscriptionScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  centeredContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: Spacing.xl },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
+  centeredContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.xl,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
   backBtn: { marginRight: Spacing.md, padding: 4 },
-  freeModeContainer: { padding: Spacing.xl, alignItems: "center", justifyContent: "center", minHeight: 400 },
-  freeModeCard: { width: "100%", padding: Spacing.xl, borderRadius: 20, borderWidth: 1, alignItems: "center" },
-  freeBadgeCircle: { width: 72, height: 72, borderRadius: 36, justifyContent: "center", alignItems: "center" },
-  tabSelectorRow: { flexDirection: "row", paddingHorizontal: Spacing.lg, marginBottom: Spacing.md, gap: Spacing.sm },
-  tabBtn: { flex: 1, height: 42, borderRadius: 10, borderWidth: 1, borderColor: "#EEEEEE", justifyContent: "center", alignItems: "center" },
-  activeSubBanner: { flexDirection: "row", alignItems: "center", padding: Spacing.md, borderRadius: 12, borderWidth: 1, marginBottom: Spacing.lg },
-  sectionHeader: { fontWeight: "700", letterSpacing: 0.5, marginBottom: Spacing.xs, color: "#888888" },
+  freeModeContainer: {
+    padding: Spacing.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 400,
+  },
+  freeModeCard: {
+    width: "100%",
+    padding: Spacing.xl,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  freeBadgeCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  tabSelectorRow: {
+    flexDirection: "row",
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  tabBtn: {
+    flex: 1,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#EEEEEE",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  activeSubBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: Spacing.lg,
+  },
+  sectionHeader: {
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    marginBottom: Spacing.xs,
+    color: "#888888",
+  },
   planChipsRow: { gap: Spacing.sm, marginBottom: Spacing.lg },
-  planChip: { paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md, borderRadius: 12, borderWidth: 1 },
+  planChip: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
   planCard: { padding: Spacing.xl, borderRadius: 16, borderWidth: 1 },
   billingGrid: { gap: Spacing.sm, marginVertical: Spacing.sm },
-  billingOptionBox: { padding: Spacing.md, borderRadius: 12, borderWidth: 1, position: "relative" },
-  promoBadge: { position: "absolute", top: -8, right: 12, backgroundColor: "#E65100", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  priceRow: { flexDirection: "row", alignItems: "baseline", gap: 8, marginTop: 4 },
+  billingOptionBox: {
+    padding: Spacing.md,
+    borderRadius: 12,
+    borderWidth: 1,
+    position: "relative",
+  },
+  promoBadge: {
+    position: "absolute",
+    top: -8,
+    right: 12,
+    backgroundColor: "#E65100",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 8,
+    marginTop: 4,
+  },
   strikethroughPrice: { textDecorationLine: "line-through", color: "#888888" },
   featuresList: { marginTop: Spacing.lg },
   featureItem: { flexDirection: "row", alignItems: "center", marginTop: 8 },
   featureText: { marginLeft: 8, fontWeight: "500" },
-  checkoutBtn: { height: 50, borderRadius: 12, justifyContent: "center", alignItems: "center", marginTop: Spacing.xl },
-  txnCard: { padding: Spacing.lg, borderRadius: 14, borderWidth: 1, marginBottom: Spacing.md },
-  txnHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  checkoutBtn: {
+    height: 50,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: Spacing.xl,
+  },
+  txnCard: {
+    padding: Spacing.lg,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: Spacing.md,
+  },
+  txnHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   divider: { height: 1, marginVertical: Spacing.md },
-  txnFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  txnFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   modalContainer: { flex: 1, backgroundColor: "#FFFFFF", marginTop: 40 },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: "#EEEEEE" },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEEEEE",
+  },
 });

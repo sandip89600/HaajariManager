@@ -1,13 +1,33 @@
-import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { 
-  Bell, Plus, Send, Search, RefreshCw, CheckCircle2, 
-  AlertTriangle, ShieldAlert, Megaphone, Info, Radio, 
-  Users, User, ExternalLink, X, Loader2, Mail, Eye, 
-  Save, Smartphone, Monitor, Check, FileText, Sparkles
-} from 'lucide-react';
-import toast from 'react-hot-toast';
-import { api } from '../utils/api';
+import React, { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Bell,
+  Plus,
+  Send,
+  Search,
+  RefreshCw,
+  CheckCircle2,
+  AlertTriangle,
+  ShieldAlert,
+  Megaphone,
+  Info,
+  Radio,
+  Users,
+  User,
+  ExternalLink,
+  X,
+  Loader2,
+  Mail,
+  Eye,
+  Save,
+  Smartphone,
+  Monitor,
+  Check,
+  FileText,
+  Sparkles,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import { api } from "../utils/api";
 
 interface NotificationHistoryItem {
   _id: string;
@@ -62,85 +82,95 @@ interface UserOption {
 
 export default function NotificationsPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'inapp' | 'email'>('email');
+  const [activeTab, setActiveTab] = useState<"inapp" | "email">("email");
 
   // Common Search & Filters
-  const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState('All');
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState("All");
 
   // In-App Notification States
   const [showInAppModal, setShowInAppModal] = useState(false);
   const [showInAppConfirm, setShowInAppConfirm] = useState(false);
   const [inAppSending, setInAppSending] = useState(false);
 
-  const [inAppTitle, setInAppTitle] = useState('');
-  const [inAppMessage, setInAppMessage] = useState('');
-  const [inAppType, setInAppType] = useState('general');
-  const [inAppRecipientType, setInAppRecipientType] = useState('all');
-  const [inAppSelectedUserIds, setInAppSelectedUserIds] = useState<string[]>([]);
-  const [inAppActionTarget, setInAppActionTarget] = useState('none');
-  const [inAppUserSearch, setInAppUserSearch] = useState('');
+  const [inAppTitle, setInAppTitle] = useState("");
+  const [inAppMessage, setInAppMessage] = useState("");
+  const [inAppType, setInAppType] = useState("general");
+  const [inAppRecipientType, setInAppRecipientType] = useState("all");
+  const [inAppSelectedUserIds, setInAppSelectedUserIds] = useState<string[]>(
+    [],
+  );
+  const [inAppActionTarget, setInAppActionTarget] = useState("none");
+  const [inAppUserSearch, setInAppUserSearch] = useState("");
 
   // Email Notification States
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
   const [showEmailConfirmModal, setShowEmailConfirmModal] = useState(false);
-  const [previewViewport, setPreviewViewport] = useState<'desktop' | 'mobile'>('desktop');
+  const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">(
+    "desktop",
+  );
 
   const [emailSending, setEmailSending] = useState(false);
   const [testSending, setTestSending] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
-  const [testEmailAddress, setTestEmailAddress] = useState('');
+  const [testEmailAddress, setTestEmailAddress] = useState("");
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
 
   // Email Form Fields
-  const [emailSubject, setEmailSubject] = useState('');
-  const [emailType, setEmailType] = useState('Announcement');
-  const [emailCategory, setEmailCategory] = useState('General');
-  const [emailPriority, setEmailPriority] = useState<'Normal' | 'Important' | 'Urgent'>('Normal');
-  const [selectedRecipientRoles, setSelectedRecipientRoles] = useState<string[]>(['All Users']);
-  const [emailSpecificUserIds, setEmailSpecificUserIds] = useState<string[]>([]);
-  const [userSearchText, setUserSearchText] = useState('');
-  
-  const [emailHeading, setEmailHeading] = useState('');
-  const [emailMessage, setEmailMessage] = useState('');
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailType, setEmailType] = useState("Announcement");
+  const [emailCategory, setEmailCategory] = useState("General");
+  const [emailPriority, setEmailPriority] = useState<
+    "Normal" | "Important" | "Urgent"
+  >("Normal");
+  const [selectedRecipientRoles, setSelectedRecipientRoles] = useState<
+    string[]
+  >(["All Users"]);
+  const [emailSpecificUserIds, setEmailSpecificUserIds] = useState<string[]>(
+    [],
+  );
+  const [userSearchText, setUserSearchText] = useState("");
+
+  const [emailHeading, setEmailHeading] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
 
   // CTA Fields
   const [ctaEnabled, setCtaEnabled] = useState(false);
-  const [ctaButtonText, setCtaButtonText] = useState('Open Haajari Manager');
-  const [ctaActionTarget, setCtaActionTarget] = useState('Open Dashboard');
-  const [ctaCustomUrl, setCtaCustomUrl] = useState('');
+  const [ctaButtonText, setCtaButtonText] = useState("Open Haajari Manager");
+  const [ctaActionTarget, setCtaActionTarget] = useState("Open Dashboard");
+  const [ctaCustomUrl, setCtaCustomUrl] = useState("");
 
   // 1. Fetch In-App Notification History
   const { data: inAppHistoryData, isLoading: inAppLoading } = useQuery<{
     notifications: NotificationHistoryItem[];
   }>({
-    queryKey: ['adminNotificationHistory'],
+    queryKey: ["adminNotificationHistory"],
     queryFn: async () => {
-      const res = await api.get('/admin/notifications/history');
+      const res = await api.get("/admin/notifications/history");
       return res.data;
     },
-    enabled: activeTab === 'inapp',
+    enabled: activeTab === "inapp",
   });
 
   // 2. Fetch Email Notification History
   const { data: emailHistoryData, isLoading: emailLoading } = useQuery<{
     notifications: EmailHistoryItem[];
   }>({
-    queryKey: ['adminEmailHistory'],
+    queryKey: ["adminEmailHistory"],
     queryFn: async () => {
-      const res = await api.get('/admin/notifications/email/history');
+      const res = await api.get("/admin/notifications/email/history");
       return res.data;
     },
-    enabled: activeTab === 'email',
+    enabled: activeTab === "email",
   });
 
   // 3. Fetch Recipients User List
   const { data: recipientsData } = useQuery<{ users: UserOption[] }>({
-    queryKey: ['adminRecipientUsers'],
+    queryKey: ["adminRecipientUsers"],
     queryFn: async () => {
-      const res = await api.get('/admin/notifications/recipients');
+      const res = await api.get("/admin/notifications/recipients");
       return res.data;
     },
     enabled: showInAppModal || showEmailModal,
@@ -152,82 +182,110 @@ export default function NotificationsPage() {
 
   const filteredRecipientUsers = recipientUsers.filter(
     (u) =>
-      u.name.toLowerCase().includes((activeTab === 'email' ? userSearchText : inAppUserSearch).toLowerCase()) ||
-      u.email.toLowerCase().includes((activeTab === 'email' ? userSearchText : inAppUserSearch).toLowerCase()) ||
-      u.role.toLowerCase().includes((activeTab === 'email' ? userSearchText : inAppUserSearch).toLowerCase())
+      u.name
+        .toLowerCase()
+        .includes(
+          (activeTab === "email"
+            ? userSearchText
+            : inAppUserSearch
+          ).toLowerCase(),
+        ) ||
+      u.email
+        .toLowerCase()
+        .includes(
+          (activeTab === "email"
+            ? userSearchText
+            : inAppUserSearch
+          ).toLowerCase(),
+        ) ||
+      u.role
+        .toLowerCase()
+        .includes(
+          (activeTab === "email"
+            ? userSearchText
+            : inAppUserSearch
+          ).toLowerCase(),
+        ),
   );
 
   // Load Sample Notification Preset
   const handleLoadSampleNotification = () => {
-    setEmailSubject('Haajari Manager — New Update Available 🚀');
-    setEmailType('Announcement');
-    setEmailCategory('Update');
-    setEmailPriority('Important');
-    setSelectedRecipientRoles(['All Users']);
-    setEmailHeading('Haajari Manager is getting better! 🚀');
+    setEmailSubject("Haajari Manager — New Update Available 🚀");
+    setEmailType("Announcement");
+    setEmailCategory("Update");
+    setEmailPriority("Important");
+    setSelectedRecipientRoles(["All Users"]);
+    setEmailHeading("Haajari Manager is getting better! 🚀");
     setEmailMessage(
       "We're excited to share a new update from Haajari Manager.\n\n" +
-      "We've improved the app experience to make workforce management simpler, faster and more efficient.\n\n" +
-      "You can manage your workforce, attendance, payments, reports and site activities from one place.\n\n" +
-      "Thank you for being part of the Haajari Manager journey. ❤️"
+        "We've improved the app experience to make workforce management simpler, faster and more efficient.\n\n" +
+        "You can manage your workforce, attendance, payments, reports and site activities from one place.\n\n" +
+        "Thank you for being part of the Haajari Manager journey. ❤️",
     );
     setCtaEnabled(true);
-    setCtaButtonText('Open Haajari Manager');
-    setCtaActionTarget('Open Dashboard');
-    toast.success('Loaded sample update email notification');
+    setCtaButtonText("Open Haajari Manager");
+    setCtaActionTarget("Open Dashboard");
+    toast.success("Loaded sample update email notification");
   };
 
   // Toggle recipient roles for email
   const handleToggleRecipientRole = (role: string) => {
-    if (role === 'All Users') {
-      setSelectedRecipientRoles(['All Users']);
+    if (role === "All Users") {
+      setSelectedRecipientRoles(["All Users"]);
       setEmailSpecificUserIds([]);
     } else {
-      let updated = selectedRecipientRoles.filter((r) => r !== 'All Users');
+      let updated = selectedRecipientRoles.filter((r) => r !== "All Users");
       if (updated.includes(role)) {
         updated = updated.filter((r) => r !== role);
       } else {
         updated.push(role);
       }
-      if (updated.length === 0) updated = ['All Users'];
+      if (updated.length === 0) updated = ["All Users"];
       setSelectedRecipientRoles(updated);
     }
   };
 
   const formatUserErrorMessage = (err: any): string => {
     if (!err.response) {
-      return 'Unable to connect to the server. Please check your internet connection and try again.';
+      return "Unable to connect to the server. Please check your internet connection and try again.";
     }
     if (err.response.status === 401) {
-      return 'Your admin session has expired. Please sign in again.';
+      return "Your admin session has expired. Please sign in again.";
     }
     if (err.response.status === 403) {
-      return 'Unauthorized access. Only authorized Admin users can perform this action.';
+      return "Unauthorized access. Only authorized Admin users can perform this action.";
     }
-    return err.response?.data?.message || 'Unable to process request. Please try again.';
+    return (
+      err.response?.data?.message ||
+      "Unable to process request. Please try again."
+    );
   };
 
   // Submit In-App Broadcast
   const handleConfirmInAppSend = async () => {
     setInAppSending(true);
     try {
-      const res = await api.post('/admin/notifications/send', {
+      const res = await api.post("/admin/notifications/send", {
         title: inAppTitle.trim(),
         message: inAppMessage.trim(),
         type: inAppType,
         recipientType: inAppRecipientType,
         recipientIds: inAppSelectedUserIds,
-        actionType: inAppActionTarget === 'none' ? 'none' : 'screen',
+        actionType: inAppActionTarget === "none" ? "none" : "screen",
         actionTarget: inAppActionTarget,
       });
 
       if (res.data.success) {
-        toast.success(`In-App broadcast sent to ${res.data.deliveryStats?.total || 1} recipients`);
+        toast.success(
+          `In-App broadcast sent to ${res.data.deliveryStats?.total || 1} recipients`,
+        );
         setShowInAppConfirm(false);
         setShowInAppModal(false);
-        setInAppTitle('');
-        setInAppMessage('');
-        queryClient.invalidateQueries({ queryKey: ['adminNotificationHistory'] });
+        setInAppTitle("");
+        setInAppMessage("");
+        queryClient.invalidateQueries({
+          queryKey: ["adminNotificationHistory"],
+        });
       }
     } catch (err: any) {
       toast.error(formatUserErrorMessage(err));
@@ -238,20 +296,20 @@ export default function NotificationsPage() {
 
   // Submit Test Email
   const handleSendTestEmail = async () => {
-    if (!testEmailAddress || !testEmailAddress.includes('@')) {
-      toast.error('Please enter a valid test email address');
+    if (!testEmailAddress || !testEmailAddress.includes("@")) {
+      toast.error("Please enter a valid test email address");
       return;
     }
     if (!emailSubject.trim()) {
-      toast.error('Email Subject is required for test email');
+      toast.error("Email Subject is required for test email");
       return;
     }
     if (!emailHeading.trim()) {
-      toast.error('Email Heading is required for test email');
+      toast.error("Email Heading is required for test email");
       return;
     }
 
-    console.log('[AdminEmailUI] Initiating Test Email send:', {
+    console.log("[AdminEmailUI] Initiating Test Email send:", {
       testEmail: testEmailAddress.trim(),
       subject: emailSubject.trim(),
       heading: emailHeading.trim(),
@@ -259,7 +317,7 @@ export default function NotificationsPage() {
 
     setTestSending(true);
     try {
-      const res = await api.post('/admin/notifications/email/test', {
+      const res = await api.post("/admin/notifications/email/test", {
         testEmail: testEmailAddress.trim(),
         subject: emailSubject.trim(),
         heading: emailHeading.trim(),
@@ -272,16 +330,21 @@ export default function NotificationsPage() {
         },
       });
 
-      console.log('[AdminEmailUI] Test Email API Response:', res.data);
+      console.log("[AdminEmailUI] Test Email API Response:", res.data);
 
       if (res.data.success) {
-        toast.success(res.data.message || `Test email sent to ${testEmailAddress.trim()}`);
+        toast.success(
+          res.data.message || `Test email sent to ${testEmailAddress.trim()}`,
+        );
         setShowTestModal(false);
       } else {
-        toast.error(res.data.message || 'Failed to send test email');
+        toast.error(res.data.message || "Failed to send test email");
       }
     } catch (err: any) {
-      console.error('[AdminEmailUI] Error sending test email:', err.response?.data || err.message || err);
+      console.error(
+        "[AdminEmailUI] Error sending test email:",
+        err.response?.data || err.message || err,
+      );
       toast.error(formatUserErrorMessage(err));
     } finally {
       setTestSending(false);
@@ -290,15 +353,15 @@ export default function NotificationsPage() {
 
   // Save Email Draft
   const handleSaveDraft = async () => {
-    console.log('[AdminEmailUI] Saving Email Draft:', {
+    console.log("[AdminEmailUI] Saving Email Draft:", {
       draftId: currentDraftId,
-      subject: emailSubject.trim() || 'Untitled Draft',
+      subject: emailSubject.trim() || "Untitled Draft",
     });
     setDraftSaving(true);
     try {
-      const res = await api.post('/admin/notifications/email/draft', {
+      const res = await api.post("/admin/notifications/email/draft", {
         draftId: currentDraftId,
-        subject: emailSubject.trim() || 'Untitled Draft',
+        subject: emailSubject.trim() || "Untitled Draft",
         type: emailType,
         category: emailCategory,
         priority: emailPriority,
@@ -314,17 +377,20 @@ export default function NotificationsPage() {
         },
       });
 
-      console.log('[AdminEmailUI] Save Draft API Response:', res.data);
+      console.log("[AdminEmailUI] Save Draft API Response:", res.data);
 
       if (res.data.success) {
-        toast.success('Email draft saved successfully');
+        toast.success("Email draft saved successfully");
         if (res.data.notification?._id) {
           setCurrentDraftId(res.data.notification._id);
         }
-        queryClient.invalidateQueries({ queryKey: ['adminEmailHistory'] });
+        queryClient.invalidateQueries({ queryKey: ["adminEmailHistory"] });
       }
     } catch (err: any) {
-      console.error('[AdminEmailUI] Error saving draft:', err.response?.data || err.message || err);
+      console.error(
+        "[AdminEmailUI] Error saving draft:",
+        err.response?.data || err.message || err,
+      );
       toast.error(formatUserErrorMessage(err));
     } finally {
       setDraftSaving(false);
@@ -333,7 +399,7 @@ export default function NotificationsPage() {
 
   // Submit Final Email Broadcast Send
   const handleConfirmEmailSend = async () => {
-    console.log('[AdminEmailUI] Initiating Final Email Broadcast Send:', {
+    console.log("[AdminEmailUI] Initiating Final Email Broadcast Send:", {
       draftId: currentDraftId,
       subject: emailSubject.trim(),
       heading: emailHeading.trim(),
@@ -342,7 +408,7 @@ export default function NotificationsPage() {
     });
     setEmailSending(true);
     try {
-      const res = await api.post('/admin/notifications/email/send', {
+      const res = await api.post("/admin/notifications/email/send", {
         draftId: currentDraftId,
         subject: emailSubject.trim(),
         type: emailType,
@@ -360,24 +426,29 @@ export default function NotificationsPage() {
         },
       });
 
-      console.log('[AdminEmailUI] Email Broadcast API Response:', res.data);
+      console.log("[AdminEmailUI] Email Broadcast API Response:", res.data);
 
       if (res.data.success) {
-        toast.success(res.data.message || 'Email notification sent successfully');
+        toast.success(
+          res.data.message || "Email notification sent successfully",
+        );
         setShowEmailConfirmModal(false);
         setShowEmailModal(false);
         // Reset Email Form
-        setEmailSubject('');
-        setEmailHeading('');
-        setEmailMessage('');
+        setEmailSubject("");
+        setEmailHeading("");
+        setEmailMessage("");
         setCtaEnabled(false);
         setCurrentDraftId(null);
-        queryClient.invalidateQueries({ queryKey: ['adminEmailHistory'] });
+        queryClient.invalidateQueries({ queryKey: ["adminEmailHistory"] });
       } else {
-        toast.error(res.data.message || 'Failed to send email notification');
+        toast.error(res.data.message || "Failed to send email notification");
       }
     } catch (err: any) {
-      console.error('[AdminEmailUI] Error in handleConfirmEmailSend:', err.response?.data || err.message || err);
+      console.error(
+        "[AdminEmailUI] Error in handleConfirmEmailSend:",
+        err.response?.data || err.message || err,
+      );
       toast.error(formatUserErrorMessage(err));
     } finally {
       setEmailSending(false);
@@ -390,11 +461,16 @@ export default function NotificationsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-white flex items-center gap-3">
-            {activeTab === 'email' ? <Mail className="w-8 h-8 text-orange-500" /> : <Bell className="w-8 h-8 text-orange-500" />}
+            {activeTab === "email" ? (
+              <Mail className="w-8 h-8 text-orange-500" />
+            ) : (
+              <Bell className="w-8 h-8 text-orange-500" />
+            )}
             Notification Center
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            Send real-time mobile push notifications and branded HTML email broadcasts to workforce users.
+            Send real-time mobile push notifications and branded HTML email
+            broadcasts to workforce users.
           </p>
         </div>
 
@@ -402,11 +478,11 @@ export default function NotificationsPage() {
         <div className="flex items-center gap-3">
           <div className="bg-slate-900/80 p-1.5 rounded-2xl border border-slate-850 flex items-center gap-1">
             <button
-              onClick={() => setActiveTab('email')}
+              onClick={() => setActiveTab("email")}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                activeTab === 'email'
-                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
-                  : 'text-slate-400 hover:text-white'
+                activeTab === "email"
+                  ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+                  : "text-slate-400 hover:text-white"
               }`}
             >
               <Mail className="w-3.5 h-3.5" />
@@ -414,11 +490,11 @@ export default function NotificationsPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('inapp')}
+              onClick={() => setActiveTab("inapp")}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                activeTab === 'inapp'
-                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
-                  : 'text-slate-400 hover:text-white'
+                activeTab === "inapp"
+                  ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+                  : "text-slate-400 hover:text-white"
               }`}
             >
               <Bell className="w-3.5 h-3.5" />
@@ -426,7 +502,7 @@ export default function NotificationsPage() {
             </button>
           </div>
 
-          {activeTab === 'email' ? (
+          {activeTab === "email" ? (
             <button
               onClick={() => {
                 setCurrentDraftId(null);
@@ -455,7 +531,11 @@ export default function NotificationsPage() {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500" />
           <input
             type="text"
-            placeholder={activeTab === 'email' ? "Search email subject or content..." : "Search in-app alerts..."}
+            placeholder={
+              activeTab === "email"
+                ? "Search email subject or content..."
+                : "Search in-app alerts..."
+            }
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="premium-input pl-11 py-2.5 text-sm"
@@ -465,9 +545,15 @@ export default function NotificationsPage() {
         <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
           <button
             onClick={() => {
-              if (activeTab === 'email') queryClient.invalidateQueries({ queryKey: ['adminEmailHistory'] });
-              else queryClient.invalidateQueries({ queryKey: ['adminNotificationHistory'] });
-              toast.success('History refreshed');
+              if (activeTab === "email")
+                queryClient.invalidateQueries({
+                  queryKey: ["adminEmailHistory"],
+                });
+              else
+                queryClient.invalidateQueries({
+                  queryKey: ["adminNotificationHistory"],
+                });
+              toast.success("History refreshed");
             }}
             className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm mr-2"
           >
@@ -478,11 +564,15 @@ export default function NotificationsPage() {
       </div>
 
       {/* ── TAB 1: EMAIL NOTIFICATIONS TABLE ───────────────────────────── */}
-      {activeTab === 'email' && (
+      {activeTab === "email" && (
         <div className="glass-card rounded-2xl border border-slate-850 p-6 space-y-4">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-extrabold text-white">Email Notification History & Drafts</h2>
-            <span className="text-xs text-slate-400 font-semibold">{emailHistoryList.length} Total Records</span>
+            <h2 className="text-lg font-extrabold text-white">
+              Email Notification History & Drafts
+            </h2>
+            <span className="text-xs text-slate-400 font-semibold">
+              {emailHistoryList.length} Total Records
+            </span>
           </div>
 
           {emailLoading ? (
@@ -505,59 +595,86 @@ export default function NotificationsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-850/60 text-slate-300 font-medium">
                   {emailHistoryList.map((item) => (
-                    <tr key={item._id} className="hover:bg-slate-900/40 transition-colors">
+                    <tr
+                      key={item._id}
+                      className="hover:bg-slate-900/40 transition-colors"
+                    >
                       <td className="py-4 px-4 max-w-md">
-                        <span className="font-extrabold text-white text-sm block">{item.subject}</span>
-                        <span className="text-slate-400 text-xs mt-0.5 block line-clamp-1">{item.heading}</span>
+                        <span className="font-extrabold text-white text-sm block">
+                          {item.subject}
+                        </span>
+                        <span className="text-slate-400 text-xs mt-0.5 block line-clamp-1">
+                          {item.heading}
+                        </span>
                       </td>
                       <td className="py-4 px-4 whitespace-nowrap">
                         <div className="space-y-1">
                           <span className="bg-slate-900 border border-slate-800 text-orange-400 text-[10px] font-extrabold px-2 py-0.5 rounded uppercase block w-fit">
                             {item.type}
                           </span>
-                          <span className="text-slate-400 text-[10px] block">{item.category}</span>
+                          <span className="text-slate-400 text-[10px] block">
+                            {item.category}
+                          </span>
                         </div>
                       </td>
                       <td className="py-4 px-4 whitespace-nowrap">
                         <span
                           className={`text-[10px] font-extrabold px-2 py-0.5 rounded uppercase ${
-                            item.priority === 'Urgent'
-                              ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                              : item.priority === 'Important'
-                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                              : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                            item.priority === "Urgent"
+                              ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                              : item.priority === "Important"
+                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                                : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
                           }`}
                         >
                           {item.priority}
                         </span>
                       </td>
-                      <td className="py-4 px-4 whitespace-nowrap text-slate-300 font-semibold">{item.recipients}</td>
+                      <td className="py-4 px-4 whitespace-nowrap text-slate-300 font-semibold">
+                        {item.recipients}
+                      </td>
                       <td className="py-4 px-4 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
-                            item.status === 'Sent'
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                              : item.status === 'Draft'
-                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                              : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                            item.status === "Sent"
+                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                              : item.status === "Draft"
+                                ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                                : "bg-rose-500/10 text-rose-400 border-rose-500/20"
                           }`}
                         >
-                          {item.status === 'Sent' && <CheckCircle2 className="w-3 h-3" />}
-                          {item.status === 'Draft' && <FileText className="w-3 h-3" />}
+                          {item.status === "Sent" && (
+                            <CheckCircle2 className="w-3 h-3" />
+                          )}
+                          {item.status === "Draft" && (
+                            <FileText className="w-3 h-3" />
+                          )}
                           {item.status}
                         </span>
                       </td>
                       <td className="py-4 px-4 whitespace-nowrap text-slate-400 text-xs">
-                        {new Date(item.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {new Date(item.createdAt).toLocaleDateString([], {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
                       </td>
                       <td className="py-4 px-4 text-right whitespace-nowrap">
-                        {item.status === 'Draft' ? (
-                          <span className="text-slate-500 text-[11px]">Not Sent Yet</span>
+                        {item.status === "Draft" ? (
+                          <span className="text-slate-500 text-[11px]">
+                            Not Sent Yet
+                          </span>
                         ) : (
                           <div className="text-[11px] font-bold text-slate-400">
-                            <span className="text-orange-400 font-extrabold">{item.deliveryStats?.totalRecipients || 1}</span> recipients
+                            <span className="text-orange-400 font-extrabold">
+                              {item.deliveryStats?.totalRecipients || 1}
+                            </span>{" "}
+                            recipients
                             <span className="text-slate-600 mx-1.5">•</span>
-                            <span className="text-emerald-400">{item.deliveryStats?.successfulSends || 1}</span> sent
+                            <span className="text-emerald-400">
+                              {item.deliveryStats?.successfulSends || 1}
+                            </span>{" "}
+                            sent
                           </div>
                         )}
                       </td>
@@ -568,16 +685,19 @@ export default function NotificationsPage() {
             </div>
           ) : (
             <div className="text-center py-12 text-slate-500 font-medium">
-              No email notifications found in history. Click <strong>Create Email Notification</strong> to start!
+              No email notifications found in history. Click{" "}
+              <strong>Create Email Notification</strong> to start!
             </div>
           )}
         </div>
       )}
 
       {/* ── TAB 2: IN-APP BROADCAST HISTORY ────────────────────────────── */}
-      {activeTab === 'inapp' && (
+      {activeTab === "inapp" && (
         <div className="glass-card rounded-2xl border border-slate-850 p-6 space-y-4">
-          <h2 className="text-lg font-extrabold text-white mb-2">In-App Broadcast History</h2>
+          <h2 className="text-lg font-extrabold text-white mb-2">
+            In-App Broadcast History
+          </h2>
           {inAppLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
@@ -585,15 +705,22 @@ export default function NotificationsPage() {
           ) : inAppHistoryList.length > 0 ? (
             <div className="divide-y divide-slate-850/40">
               {inAppHistoryList.map((item) => (
-                <div key={item._id} className="py-4 flex items-start justify-between gap-4">
+                <div
+                  key={item._id}
+                  className="py-4 flex items-start justify-between gap-4"
+                >
                   <div>
                     <div className="flex items-center gap-2.5">
-                      <span className="font-extrabold text-white text-sm">{item.title}</span>
+                      <span className="font-extrabold text-white text-sm">
+                        {item.title}
+                      </span>
                       <span className="text-[10px] bg-slate-900 border border-slate-800 text-orange-400 font-bold uppercase px-2 py-0.5 rounded">
                         {item.type}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1.5 max-w-2xl">{item.message}</p>
+                    <p className="text-xs text-slate-400 mt-1.5 max-w-2xl">
+                      {item.message}
+                    </p>
                   </div>
                   <span className="text-xs text-slate-500 whitespace-nowrap">
                     {new Date(item.createdAt).toLocaleDateString()}
@@ -602,7 +729,9 @@ export default function NotificationsPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 text-slate-500">No in-app broadcasts found.</div>
+            <div className="text-center py-12 text-slate-500">
+              No in-app broadcasts found.
+            </div>
           )}
         </div>
       )}
@@ -618,8 +747,13 @@ export default function NotificationsPage() {
                   <Mail className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-extrabold text-white">Create Email Notification</h2>
-                  <p className="text-xs text-slate-400">Configure and send branded email broadcasts to workforce recipients</p>
+                  <h2 className="text-xl font-extrabold text-white">
+                    Create Email Notification
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Configure and send branded email broadcasts to workforce
+                    recipients
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -649,7 +783,9 @@ export default function NotificationsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2 space-y-1.5">
-                    <label className="font-bold text-xs text-slate-300">Email Subject *</label>
+                    <label className="font-bold text-xs text-slate-300">
+                      Email Subject *
+                    </label>
                     <input
                       type="text"
                       required
@@ -661,7 +797,9 @@ export default function NotificationsPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="font-bold text-xs text-slate-300">Notification Type</label>
+                    <label className="font-bold text-xs text-slate-300">
+                      Notification Type
+                    </label>
                     <select
                       value={emailType}
                       onChange={(e) => setEmailType(e.target.value)}
@@ -678,7 +816,9 @@ export default function NotificationsPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="font-bold text-xs text-slate-300">Category</label>
+                    <label className="font-bold text-xs text-slate-300">
+                      Category
+                    </label>
                     <select
                       value={emailCategory}
                       onChange={(e) => setEmailCategory(e.target.value)}
@@ -696,10 +836,15 @@ export default function NotificationsPage() {
                   </div>
 
                   <div className="sm:col-span-2 space-y-1.5">
-                    <label className="font-bold text-xs text-slate-300">Priority Level</label>
+                    <label className="font-bold text-xs text-slate-300">
+                      Priority Level
+                    </label>
                     <div className="flex items-center gap-4 pt-1">
-                      {['Normal', 'Important', 'Urgent'].map((p) => (
-                        <label key={p} className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300">
+                      {["Normal", "Important", "Urgent"].map((p) => (
+                        <label
+                          key={p}
+                          className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300"
+                        >
                           <input
                             type="radio"
                             name="priority"
@@ -722,9 +867,17 @@ export default function NotificationsPage() {
                 </h3>
 
                 <div className="space-y-2">
-                  <label className="font-bold text-xs text-slate-300 block">Select Recipient Group(s) *</label>
+                  <label className="font-bold text-xs text-slate-300 block">
+                    Select Recipient Group(s) *
+                  </label>
                   <div className="flex flex-wrap gap-3">
-                    {['All Users', 'Contractor', 'Supervisor', 'Worker', 'User'].map((role) => {
+                    {[
+                      "All Users",
+                      "Contractor",
+                      "Supervisor",
+                      "Worker",
+                      "User",
+                    ].map((role) => {
                       const isChecked = selectedRecipientRoles.includes(role);
                       return (
                         <label
@@ -732,12 +885,16 @@ export default function NotificationsPage() {
                           onClick={() => handleToggleRecipientRole(role)}
                           className={`px-3.5 py-2 rounded-xl text-xs font-bold border cursor-pointer transition-all flex items-center gap-2 ${
                             isChecked
-                              ? 'bg-orange-500/10 text-orange-400 border-orange-500/40 shadow-sm'
-                              : 'bg-slate-900/60 text-slate-400 border-slate-850 hover:border-slate-700'
+                              ? "bg-orange-500/10 text-orange-400 border-orange-500/40 shadow-sm"
+                              : "bg-slate-900/60 text-slate-400 border-slate-850 hover:border-slate-700"
                           }`}
                         >
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center ${isChecked ? 'bg-orange-500 border-orange-500 text-white' : 'border-slate-700'}`}>
-                            {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                          <div
+                            className={`w-4 h-4 rounded border flex items-center justify-center ${isChecked ? "bg-orange-500 border-orange-500 text-white" : "border-slate-700"}`}
+                          >
+                            {isChecked && (
+                              <Check className="w-3 h-3 stroke-[3]" />
+                            )}
                           </div>
                           <span>{role}</span>
                         </label>
@@ -755,7 +912,9 @@ export default function NotificationsPage() {
 
                 <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <label className="font-bold text-xs text-slate-300">Email Heading *</label>
+                    <label className="font-bold text-xs text-slate-300">
+                      Email Heading *
+                    </label>
                     <input
                       type="text"
                       required
@@ -767,7 +926,9 @@ export default function NotificationsPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="font-bold text-xs text-slate-300">Message Body Content *</label>
+                    <label className="font-bold text-xs text-slate-300">
+                      Message Body Content *
+                    </label>
                     <textarea
                       required
                       rows={5}
@@ -793,11 +954,11 @@ export default function NotificationsPage() {
                       onClick={() => setCtaEnabled(!ctaEnabled)}
                       className={`px-3 py-1 rounded-full text-[11px] font-extrabold transition-all border ${
                         ctaEnabled
-                          ? 'bg-emerald-500 text-white border-emerald-500'
-                          : 'bg-slate-900 text-slate-400 border-slate-800'
+                          ? "bg-emerald-500 text-white border-emerald-500"
+                          : "bg-slate-900 text-slate-400 border-slate-800"
                       }`}
                     >
-                      {ctaEnabled ? 'ON' : 'OFF'}
+                      {ctaEnabled ? "ON" : "OFF"}
                     </button>
                   </label>
                 </div>
@@ -805,7 +966,9 @@ export default function NotificationsPage() {
                 {ctaEnabled && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-900/40 p-4 rounded-xl border border-slate-850">
                     <div className="space-y-1.5">
-                      <label className="font-bold text-xs text-slate-300">Button Text</label>
+                      <label className="font-bold text-xs text-slate-300">
+                        Button Text
+                      </label>
                       <input
                         type="text"
                         placeholder="Open Haajari Manager"
@@ -816,7 +979,9 @@ export default function NotificationsPage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="font-bold text-xs text-slate-300">Action Link Target</label>
+                      <label className="font-bold text-xs text-slate-300">
+                        Action Link Target
+                      </label>
                       <select
                         value={ctaActionTarget}
                         onChange={(e) => setCtaActionTarget(e.target.value)}
@@ -827,14 +992,18 @@ export default function NotificationsPage() {
                         <option value="Open Workers">Open Workers</option>
                         <option value="Open Reports">Open Reports</option>
                         <option value="Open Profile">Open Profile</option>
-                        <option value="Open Site Management">Open Site Management</option>
+                        <option value="Open Site Management">
+                          Open Site Management
+                        </option>
                         <option value="Custom Link">Custom Link</option>
                       </select>
                     </div>
 
-                    {ctaActionTarget === 'Custom Link' && (
+                    {ctaActionTarget === "Custom Link" && (
                       <div className="sm:col-span-2 space-y-1.5">
-                        <label className="font-bold text-xs text-slate-300">Custom Deep Link / URL *</label>
+                        <label className="font-bold text-xs text-slate-300">
+                          Custom Deep Link / URL *
+                        </label>
                         <input
                           type="url"
                           placeholder="https://haajarimanager.onrender.com"
@@ -867,7 +1036,11 @@ export default function NotificationsPage() {
                   onClick={handleSaveDraft}
                   className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-slate-900 border border-slate-800 hover:bg-slate-850 transition-all flex items-center gap-2"
                 >
-                  {draftSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  {draftSaving ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
                   <span>Save Draft</span>
                 </button>
 
@@ -883,9 +1056,12 @@ export default function NotificationsPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (!emailSubject.trim()) return toast.error('Subject is required');
-                    if (!emailHeading.trim()) return toast.error('Heading is required');
-                    if (!emailMessage.trim()) return toast.error('Message content is required');
+                    if (!emailSubject.trim())
+                      return toast.error("Subject is required");
+                    if (!emailHeading.trim())
+                      return toast.error("Heading is required");
+                    if (!emailMessage.trim())
+                      return toast.error("Message content is required");
                     setShowEmailConfirmModal(true);
                   }}
                   className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-orange-500/20 flex items-center gap-2"
@@ -906,28 +1082,37 @@ export default function NotificationsPage() {
             <div className="flex items-center justify-between border-b border-slate-850 pb-3">
               <div className="flex items-center gap-3">
                 <Eye className="w-5 h-5 text-orange-500" />
-                <h3 className="text-lg font-extrabold text-white">Live Email Preview</h3>
+                <h3 className="text-lg font-extrabold text-white">
+                  Live Email Preview
+                </h3>
               </div>
               <div className="flex items-center gap-3">
                 <div className="bg-slate-900 p-1 rounded-xl border border-slate-850 flex items-center gap-1">
                   <button
-                    onClick={() => setPreviewViewport('desktop')}
+                    onClick={() => setPreviewViewport("desktop")}
                     className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 ${
-                      previewViewport === 'desktop' ? 'bg-orange-500 text-white' : 'text-slate-400'
+                      previewViewport === "desktop"
+                        ? "bg-orange-500 text-white"
+                        : "text-slate-400"
                     }`}
                   >
                     <Monitor className="w-3.5 h-3.5" /> Desktop
                   </button>
                   <button
-                    onClick={() => setPreviewViewport('mobile')}
+                    onClick={() => setPreviewViewport("mobile")}
                     className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 ${
-                      previewViewport === 'mobile' ? 'bg-orange-500 text-white' : 'text-slate-400'
+                      previewViewport === "mobile"
+                        ? "bg-orange-500 text-white"
+                        : "text-slate-400"
                     }`}
                   >
                     <Smartphone className="w-3.5 h-3.5" /> Mobile
                   </button>
                 </div>
-                <button onClick={() => setShowPreviewModal(false)} className="p-1 text-slate-400 hover:text-white">
+                <button
+                  onClick={() => setShowPreviewModal(false)}
+                  className="p-1 text-slate-400 hover:text-white"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -937,20 +1122,28 @@ export default function NotificationsPage() {
             <div className="flex justify-center bg-slate-950 p-4 rounded-xl border border-slate-850">
               <div
                 className={`bg-[#0F172A] border border-slate-800 rounded-2xl overflow-hidden shadow-2xl transition-all duration-300 ${
-                  previewViewport === 'mobile' ? 'w-[360px]' : 'w-full max-w-2xl'
+                  previewViewport === "mobile"
+                    ? "w-[360px]"
+                    : "w-full max-w-2xl"
                 }`}
               >
                 {/* Header Banner */}
                 <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-6 text-white text-center">
-                  <h1 className="text-2xl font-black font-display tracking-tight">HAAJARI MANAGER</h1>
-                  <p className="text-xs font-semibold opacity-90 mt-1 uppercase tracking-widest">Enterprise Workforce Platform</p>
+                  <h1 className="text-2xl font-black font-display tracking-tight">
+                    HAAJARI MANAGER
+                  </h1>
+                  <p className="text-xs font-semibold opacity-90 mt-1 uppercase tracking-widest">
+                    Enterprise Workforce Platform
+                  </p>
                 </div>
 
                 {/* Email Content Body */}
                 <div className="p-6 space-y-4">
-                  <h2 className="text-xl font-extrabold text-white tracking-tight">{emailHeading || 'Email Heading Title'}</h2>
+                  <h2 className="text-xl font-extrabold text-white tracking-tight">
+                    {emailHeading || "Email Heading Title"}
+                  </h2>
                   <div className="text-sm text-slate-300 leading-relaxed space-y-3 whitespace-pre-line">
-                    {emailMessage || 'Message content body will render here...'}
+                    {emailMessage || "Message content body will render here..."}
                   </div>
 
                   {ctaEnabled && (
@@ -960,7 +1153,7 @@ export default function NotificationsPage() {
                         onClick={(e) => e.preventDefault()}
                         className="inline-block bg-gradient-to-r from-orange-500 to-amber-500 text-white font-extrabold text-sm px-7 py-3 rounded-xl shadow-lg shadow-orange-500/20"
                       >
-                        {ctaButtonText || 'Open Haajari Manager'}
+                        {ctaButtonText || "Open Haajari Manager"}
                       </a>
                     </div>
                   )}
@@ -969,7 +1162,9 @@ export default function NotificationsPage() {
                 {/* Footer */}
                 <div className="bg-slate-900/80 border-t border-slate-800 p-4 text-center text-xs text-slate-400 space-y-1">
                   <p className="font-bold text-slate-300">Haajari Manager</p>
-                  <p className="text-[11px] text-slate-500">Manage Workforce. Empower Growth.</p>
+                  <p className="text-[11px] text-slate-500">
+                    Manage Workforce. Empower Growth.
+                  </p>
                 </div>
               </div>
             </div>
@@ -984,20 +1179,28 @@ export default function NotificationsPage() {
             <div className="flex items-center justify-between border-b border-slate-850 pb-3">
               <div className="flex items-center gap-3">
                 <Send className="w-5 h-5 text-amber-400" />
-                <h3 className="text-lg font-extrabold text-white">Send Test Email</h3>
+                <h3 className="text-lg font-extrabold text-white">
+                  Send Test Email
+                </h3>
               </div>
-              <button onClick={() => setShowTestModal(false)} className="p-1 text-slate-400 hover:text-white">
+              <button
+                onClick={() => setShowTestModal(false)}
+                className="p-1 text-slate-400 hover:text-white"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3">
               <p className="text-xs text-slate-400 leading-relaxed">
-                Enter your email address to receive a live test preview of this email notification.
+                Enter your email address to receive a live test preview of this
+                email notification.
               </p>
 
               <div className="space-y-1.5">
-                <label className="font-bold text-xs text-slate-300">Test Email Address *</label>
+                <label className="font-bold text-xs text-slate-300">
+                  Test Email Address *
+                </label>
                 <input
                   type="email"
                   required
@@ -1024,7 +1227,11 @@ export default function NotificationsPage() {
                 onClick={handleSendTestEmail}
                 className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold px-5 py-2 rounded-xl text-xs transition-all flex items-center gap-2 disabled:opacity-50"
               >
-                {testSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                {testSending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Send className="w-3.5 h-3.5" />
+                )}
                 <span>Send Test Email</span>
               </button>
             </div>
@@ -1041,19 +1248,27 @@ export default function NotificationsPage() {
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-lg font-extrabold text-white">Confirm Email Broadcast</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Are you sure you want to send this email notification?</p>
+                <h3 className="text-lg font-extrabold text-white">
+                  Confirm Email Broadcast
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Are you sure you want to send this email notification?
+                </p>
               </div>
             </div>
 
             <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-850 space-y-2 text-xs">
               <div>
                 <span className="text-slate-400 font-medium">Subject:</span>
-                <span className="text-white font-extrabold block mt-0.5">{emailSubject}</span>
+                <span className="text-white font-extrabold block mt-0.5">
+                  {emailSubject}
+                </span>
               </div>
               <div>
                 <span className="text-slate-400 font-medium">Recipients:</span>
-                <span className="text-orange-400 font-bold block">{selectedRecipientRoles.join(', ')}</span>
+                <span className="text-orange-400 font-bold block">
+                  {selectedRecipientRoles.join(", ")}
+                </span>
               </div>
             </div>
 
@@ -1094,16 +1309,23 @@ export default function NotificationsPage() {
             <div className="flex items-center justify-between border-b border-slate-850 pb-3">
               <div className="flex items-center gap-3">
                 <Bell className="w-5 h-5 text-orange-500" />
-                <h3 className="text-lg font-extrabold text-white">Create In-App Alert</h3>
+                <h3 className="text-lg font-extrabold text-white">
+                  Create In-App Alert
+                </h3>
               </div>
-              <button onClick={() => setShowInAppModal(false)} className="p-1 text-slate-400 hover:text-white">
+              <button
+                onClick={() => setShowInAppModal(false)}
+                className="p-1 text-slate-400 hover:text-white"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="font-bold text-slate-300 block mb-1">Title *</label>
+                <label className="font-bold text-slate-300 block mb-1">
+                  Title *
+                </label>
                 <input
                   type="text"
                   placeholder="In-app notification title"
@@ -1114,7 +1336,9 @@ export default function NotificationsPage() {
               </div>
 
               <div>
-                <label className="font-bold text-slate-300 block mb-1">Recipients *</label>
+                <label className="font-bold text-slate-300 block mb-1">
+                  Recipients *
+                </label>
                 <select
                   value={inAppRecipientType}
                   onChange={(e) => setInAppRecipientType(e.target.value)}
@@ -1128,7 +1352,9 @@ export default function NotificationsPage() {
               </div>
 
               <div>
-                <label className="font-bold text-slate-300 block mb-1">Message Content *</label>
+                <label className="font-bold text-slate-300 block mb-1">
+                  Message Content *
+                </label>
                 <textarea
                   rows={4}
                   placeholder="In-app notification message text..."
@@ -1160,10 +1386,17 @@ export default function NotificationsPage() {
       {showInAppConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
           <div className="glass-card w-full max-w-md rounded-2xl border border-slate-800 p-6 space-y-4 shadow-2xl">
-            <h3 className="text-lg font-extrabold text-white">Confirm In-App Send</h3>
-            <p className="text-xs text-slate-300">Are you sure you want to broadcast this in-app alert?</p>
+            <h3 className="text-lg font-extrabold text-white">
+              Confirm In-App Send
+            </h3>
+            <p className="text-xs text-slate-300">
+              Are you sure you want to broadcast this in-app alert?
+            </p>
             <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => setShowInAppConfirm(false)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400">
+              <button
+                onClick={() => setShowInAppConfirm(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400"
+              >
                 Cancel
               </button>
               <button
@@ -1171,7 +1404,7 @@ export default function NotificationsPage() {
                 onClick={handleConfirmInAppSend}
                 className="bg-orange-500 text-white font-bold px-5 py-2 rounded-xl text-xs"
               >
-                {inAppSending ? 'Sending...' : 'Confirm & Send'}
+                {inAppSending ? "Sending..." : "Confirm & Send"}
               </button>
             </div>
           </div>

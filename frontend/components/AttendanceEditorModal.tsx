@@ -53,7 +53,9 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
   const { t } = useLanguage();
 
   // Form states
-  const [modalStatus, setModalStatus] = useState<"P" | "A" | "H" | "OT" | "">("");
+  const [modalStatus, setModalStatus] = useState<"P" | "A" | "H" | "OT" | "">(
+    "",
+  );
   const [modalAdvance, setModalAdvance] = useState("");
   const [modalOvertimeHours, setModalOvertimeHours] = useState("");
   const [modalOvertimeWage, setModalOvertimeWage] = useState("");
@@ -78,20 +80,30 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
       };
     }
     const val = initialRecord.value;
-    const status = typeof val === "number" ? "" : ((val as "P" | "A" | "H" | "OT") || "");
+    const status =
+      typeof val === "number" ? "" : (val as "P" | "A" | "H" | "OT") || "";
     const advance =
-      initialRecord.customWage !== undefined && initialRecord.customWage !== null
+      initialRecord.customWage !== undefined &&
+      initialRecord.customWage !== null
         ? String(initialRecord.customWage)
         : "";
     const otHours =
-      initialRecord.overtimeHours !== undefined && initialRecord.overtimeHours !== null
+      initialRecord.overtimeHours !== undefined &&
+      initialRecord.overtimeHours !== null
         ? String(initialRecord.overtimeHours)
         : "";
     const otWage =
-      initialRecord.overtimeWage !== undefined && initialRecord.overtimeWage !== null
+      initialRecord.overtimeWage !== undefined &&
+      initialRecord.overtimeWage !== null
         ? String(initialRecord.overtimeWage)
         : "";
-    return { status, advance, otHours, otWage, location: initialRecord.location || null };
+    return {
+      status,
+      advance,
+      otHours,
+      otWage,
+      location: initialRecord.location || null,
+    };
   };
 
   // Initialize values when modal opens
@@ -117,8 +129,15 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
           .then((res) => {
             if (res && res.length > 0) {
               const item = res[0];
-              const parts = [item.name, item.street, item.city || item.subregion, item.region].filter(Boolean);
-              setLocation((prev) => (prev ? { ...prev, address: parts.join(", ") } : null));
+              const parts = [
+                item.name,
+                item.street,
+                item.city || item.subregion,
+                item.region,
+              ].filter(Boolean);
+              setLocation((prev) =>
+                prev ? { ...prev, address: parts.join(", ") } : null,
+              );
             }
           })
           .catch(() => {});
@@ -136,38 +155,43 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
     const advanceChanged = modalAdvance !== initials.advance;
     const otHoursChanged = modalOvertimeHours !== initials.otHours;
     const otWageChanged = modalOvertimeWage !== initials.otWage;
-    
+
     // Check if location was captured newly
     const hasInitialLoc = !!initials.location?.latitude;
     const hasCurrentLoc = !!location?.latitude;
     const locationChanged = hasCurrentLoc && !hasInitialLoc;
 
-    return statusChanged || advanceChanged || otHoursChanged || overtimeHoursChanged() || locationChanged;
+    return (
+      statusChanged ||
+      advanceChanged ||
+      otHoursChanged ||
+      overtimeHoursChanged() ||
+      locationChanged
+    );
   };
 
   // Helper check for overtime change
   const overtimeHoursChanged = () => {
     const initials = getInitialStates();
     if (modalStatus === "OT") {
-      return modalOvertimeHours !== initials.otHours || modalOvertimeWage !== initials.otWage;
+      return (
+        modalOvertimeHours !== initials.otHours ||
+        modalOvertimeWage !== initials.otWage
+      );
     }
     return false;
   };
 
   const handleDismiss = () => {
     if (checkIsModified()) {
-      Alert.alert(
-        "Discard Changes",
-        "Discard unsaved changes?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Discard",
-            style: "destructive",
-            onPress: () => onClose(),
-          },
-        ]
-      );
+      Alert.alert("Discard Changes", "Discard unsaved changes?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => onClose(),
+        },
+      ]);
     } else {
       onClose();
     }
@@ -183,9 +207,19 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
       return false;
     };
 
-    const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      onBackPress,
+    );
     return () => subscription.remove();
-  }, [visible, modalStatus, modalAdvance, modalOvertimeHours, modalOvertimeWage, location]);
+  }, [
+    visible,
+    modalStatus,
+    modalAdvance,
+    modalOvertimeHours,
+    modalOvertimeWage,
+    location,
+  ]);
 
   const handleCaptureLocation = async () => {
     setLocationLoading(true);
@@ -193,7 +227,9 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
     try {
       const permission = await requestLocationPermission();
       if (permission !== "granted") {
-        setLocationError("Location permission is required to capture attendance location.");
+        setLocationError(
+          "Location permission is required to capture attendance location.",
+        );
         setLocationLoading(false);
         return;
       }
@@ -220,16 +256,24 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
               item.city || item.subregion,
               item.region,
             ].filter(Boolean);
-            setLocation((prev) => (prev ? { ...prev, address: parts.join(", ") } : null));
+            setLocation((prev) =>
+              prev ? { ...prev, address: parts.join(", ") } : null,
+            );
           } else {
-            setLocation((prev) => (prev ? { ...prev, address: "Coordinates captured" } : null));
+            setLocation((prev) =>
+              prev ? { ...prev, address: "Coordinates captured" } : null,
+            );
           }
         } catch {
-          setLocation((prev) => (prev ? { ...prev, address: "Coordinates captured" } : null));
+          setLocation((prev) =>
+            prev ? { ...prev, address: "Coordinates captured" } : null,
+          );
         }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        setLocationError("Unable to capture location coordinates. Please verify GPS is enabled.");
+        setLocationError(
+          "Unable to capture location coordinates. Please verify GPS is enabled.",
+        );
       }
     } catch (e: any) {
       setLocationError(e.message || "Failed to capture location.");
@@ -241,7 +285,10 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
   const handleClear = () => {
     Alert.alert(
       t("attendance.clearAttendance", "Clear Attendance"),
-      t("attendance.clearAttendanceConfirm", "Clear attendance for this worker on this date?"),
+      t(
+        "attendance.clearAttendanceConfirm",
+        "Clear attendance for this worker on this date?",
+      ),
       [
         { text: t("common.cancel", "Cancel"), style: "cancel" },
         {
@@ -252,7 +299,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
             onClear();
           },
         },
-      ]
+      ],
     );
   };
 
@@ -261,11 +308,18 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
 
     const dailyRate = worker.dailyRate ?? 0;
     const advanceNum = modalAdvance ? parseFloat(modalAdvance) : undefined;
-    const otHoursNum = modalOvertimeHours ? parseFloat(modalOvertimeHours) : undefined;
-    const otWageNum = modalOvertimeWage ? parseFloat(modalOvertimeWage) : undefined;
+    const otHoursNum = modalOvertimeHours
+      ? parseFloat(modalOvertimeHours)
+      : undefined;
+    const otWageNum = modalOvertimeWage
+      ? parseFloat(modalOvertimeWage)
+      : undefined;
 
     if (!modalStatus) {
-      Alert.alert(t("attendance.statusRequired", "Status Required"), t("attendance.selectStatusDesc", "Please select an attendance status."));
+      Alert.alert(
+        t("attendance.statusRequired", "Status Required"),
+        t("attendance.selectStatusDesc", "Please select an attendance status."),
+      );
       return;
     }
 
@@ -277,7 +331,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
     if (finalValue === "P" || finalValue === "OT") {
       finalPay = dailyRate + advanceAmount + otAmount;
     } else if (finalValue === "H") {
-      finalPay = (dailyRate / 2) + advanceAmount + otAmount;
+      finalPay = dailyRate / 2 + advanceAmount + otAmount;
     } else if (finalValue === "A") {
       finalPay = 0;
     }
@@ -294,11 +348,13 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
       customWage: advanceNum,
       overtimeHours: otHoursNum,
       overtimeWage: otWageNum,
-      location: location ? {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        accuracy: location.accuracy,
-      } : undefined,
+      location: location
+        ? {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
+          }
+        : undefined,
       timestamp: Date.now(),
     };
 
@@ -322,7 +378,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
       finalPay = 0;
     } else if (modalStatus === "H") {
       statusText = t.translateAttendanceStatus("HALF_DAY");
-      finalPay = (dailyRate / 2) + advanceNum + otWageNum;
+      finalPay = dailyRate / 2 + advanceNum + otWageNum;
     } else if (modalStatus === "OT") {
       statusText = t.translateAttendanceStatus("OVERTIME");
       finalPay = dailyRate + advanceNum + otWageNum;
@@ -359,34 +415,67 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
         style={styles.modalOverlay}
       >
         <Pressable style={styles.modalBgPress} onPress={handleDismiss} />
-        
-        <View style={[styles.detailsModalCard, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
+
+        <View
+          style={[
+            styles.detailsModalCard,
+            { backgroundColor: isDark ? "#0F172A" : "#FFFFFF" },
+          ]}
+        >
           {/* Drag Handle */}
           <View style={styles.dragHandleContainer}>
-            <View style={[styles.dragHandle, { backgroundColor: isDark ? "#334155" : "#CBD5E1" }]} />
+            <View
+              style={[
+                styles.dragHandle,
+                { backgroundColor: isDark ? "#334155" : "#CBD5E1" },
+              ]}
+            />
           </View>
 
           {/* Sticky Header Section */}
-          <View style={[styles.detailsModalHeader, { borderBottomColor: borderCol }]}>
+          <View
+            style={[
+              styles.detailsModalHeader,
+              { borderBottomColor: borderCol },
+            ]}
+          >
             <View style={{ flex: 1 }}>
-              <Text style={[styles.tapCellLabel, { color: colors.textSecondary }]}>
+              <Text
+                style={[styles.tapCellLabel, { color: colors.textSecondary }]}
+              >
                 {t("attendance.tapCellDesc", "Tap cell to mark attendance")}
               </Text>
               <ThemedText style={styles.detailsModalTitle} numberOfLines={1}>
                 {worker?.name}
               </ThemedText>
-              <Text style={[styles.detailsModalSub, { color: colors.textSecondary }]}>
-                {t("workers.dailyWage", "Daily Rate")}: ₹{worker?.dailyRate ?? 0}  •  {formattedDate}
+              <Text
+                style={[
+                  styles.detailsModalSub,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                {t("workers.dailyWage", "Daily Rate")}: ₹
+                {worker?.dailyRate ?? 0} • {formattedDate}
               </Text>
             </View>
-            <Pressable onPress={handleDismiss} style={[styles.detailsCloseBtn, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
-              <Feather name="x" size={20} color={isDark ? "#FFFFFF" : "#1E293B"} />
+            <Pressable
+              onPress={handleDismiss}
+              style={[
+                styles.detailsCloseBtn,
+                { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" },
+              ]}
+            >
+              <Feather
+                name="x"
+                size={20}
+                color={isDark ? "#FFFFFF" : "#1E293B"}
+              />
             </Pressable>
           </View>
 
           {/* Scrollable Form Body */}
-          <ScrollView 
-            showsVerticalScrollIndicator={false} 
+          <ScrollView
+            showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
@@ -406,9 +495,14 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                   {
                     backgroundColor:
                       modalStatus === "P"
-                        ? isDark ? "rgba(34, 197, 94, 0.15)" : "#F0FDF4"
-                        : isDark ? "#1E293B" : "#F8FAFC",
-                    borderColor: modalStatus === "P" ? colors.presentGreen : borderCol,
+                        ? isDark
+                          ? "rgba(34, 197, 94, 0.15)"
+                          : "#F0FDF4"
+                        : isDark
+                          ? "#1E293B"
+                          : "#F8FAFC",
+                    borderColor:
+                      modalStatus === "P" ? colors.presentGreen : borderCol,
                     borderWidth: modalStatus === "P" ? 2 : 1,
                   },
                 ]}
@@ -420,13 +514,20 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                       color:
                         modalStatus === "P"
                           ? colors.presentGreen
-                          : isDark ? "#FFFFFF" : "#1E293B",
+                          : isDark
+                            ? "#FFFFFF"
+                            : "#1E293B",
                     },
                   ]}
                 >
                   P
                 </Text>
-                <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.statusCellLabel,
+                    { color: colors.textSecondary },
+                  ]}
+                >
                   {t.translateAttendanceStatus("PRESENT")}
                 </Text>
               </Pressable>
@@ -442,9 +543,14 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                   {
                     backgroundColor:
                       modalStatus === "A"
-                        ? isDark ? "rgba(239, 68, 68, 0.15)" : "#FEF2F2"
-                        : isDark ? "#1E293B" : "#F8FAFC",
-                    borderColor: modalStatus === "A" ? colors.absentRed : borderCol,
+                        ? isDark
+                          ? "rgba(239, 68, 68, 0.15)"
+                          : "#FEF2F2"
+                        : isDark
+                          ? "#1E293B"
+                          : "#F8FAFC",
+                    borderColor:
+                      modalStatus === "A" ? colors.absentRed : borderCol,
                     borderWidth: modalStatus === "A" ? 2 : 1,
                   },
                 ]}
@@ -456,13 +562,20 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                       color:
                         modalStatus === "A"
                           ? colors.absentRed
-                          : isDark ? "#FFFFFF" : "#1E293B",
+                          : isDark
+                            ? "#FFFFFF"
+                            : "#1E293B",
                     },
                   ]}
                 >
                   A
                 </Text>
-                <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.statusCellLabel,
+                    { color: colors.textSecondary },
+                  ]}
+                >
                   {t.translateAttendanceStatus("ABSENT")}
                 </Text>
               </Pressable>
@@ -478,9 +591,14 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                   {
                     backgroundColor:
                       modalStatus === "H"
-                        ? isDark ? "rgba(245, 158, 11, 0.15)" : "#FFFBEB"
-                        : isDark ? "#1E293B" : "#F8FAFC",
-                    borderColor: modalStatus === "H" ? colors.halfDayYellow : borderCol,
+                        ? isDark
+                          ? "rgba(245, 158, 11, 0.15)"
+                          : "#FFFBEB"
+                        : isDark
+                          ? "#1E293B"
+                          : "#F8FAFC",
+                    borderColor:
+                      modalStatus === "H" ? colors.halfDayYellow : borderCol,
                     borderWidth: modalStatus === "H" ? 2 : 1,
                   },
                 ]}
@@ -492,13 +610,20 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                       color:
                         modalStatus === "H"
                           ? colors.halfDayYellow
-                          : isDark ? "#FFFFFF" : "#1E293B",
+                          : isDark
+                            ? "#FFFFFF"
+                            : "#1E293B",
                     },
                   ]}
                 >
                   1/2
                 </Text>
-                <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.statusCellLabel,
+                    { color: colors.textSecondary },
+                  ]}
+                >
                   {t.translateAttendanceStatus("HALF_DAY")}
                 </Text>
               </Pressable>
@@ -514,9 +639,14 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                   {
                     backgroundColor:
                       modalStatus === "OT"
-                        ? isDark ? "rgba(168, 85, 247, 0.15)" : "#FAF5FF"
-                        : isDark ? "#1E293B" : "#F8FAFC",
-                    borderColor: modalStatus === "OT" ? colors.overtimePurple : borderCol,
+                        ? isDark
+                          ? "rgba(168, 85, 247, 0.15)"
+                          : "#FAF5FF"
+                        : isDark
+                          ? "#1E293B"
+                          : "#F8FAFC",
+                    borderColor:
+                      modalStatus === "OT" ? colors.overtimePurple : borderCol,
                     borderWidth: modalStatus === "OT" ? 2 : 1,
                   },
                 ]}
@@ -528,13 +658,20 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                       color:
                         modalStatus === "OT"
                           ? colors.overtimePurple
-                          : isDark ? "#FFFFFF" : "#1E293B",
+                          : isDark
+                            ? "#FFFFFF"
+                            : "#1E293B",
                     },
                   ]}
                 >
                   OT
                 </Text>
-                <Text style={[styles.statusCellLabel, { color: colors.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.statusCellLabel,
+                    { color: colors.textSecondary },
+                  ]}
+                >
                   {t.translateAttendanceStatus("OVERTIME")}
                 </Text>
               </Pressable>
@@ -545,13 +682,31 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
               {(t.payment?.advance || "ADVANCE PAYMENT").toUpperCase()}
             </Text>
             <View style={styles.inputWrapper}>
-              <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: bgInput }]}>
-                <Text style={[styles.currencyPrefix, { color: colors.textSecondary }]}>₹</Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  { borderColor: borderCol, backgroundColor: bgInput },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.currencyPrefix,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  ₹
+                </Text>
                 <TextInput
                   keyboardType="numeric"
-                  placeholder={t("payment.advancePlaceholder", "Advance amount (e.g. 500)")}
+                  placeholder={t(
+                    "payment.advancePlaceholder",
+                    "Advance amount (e.g. 500)",
+                  )}
                   placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
-                  style={[styles.modalInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
+                  style={[
+                    styles.modalInput,
+                    { color: isDark ? "#FFFFFF" : "#1E293B" },
+                  ]}
                   value={modalAdvance}
                   onChangeText={setModalAdvance}
                 />
@@ -561,19 +716,41 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
             {/* Overtime Sub-Section (OT Status selected only) */}
             {modalStatus === "OT" && (
               <View style={styles.overtimeSection}>
-                <Text style={[styles.fieldLabel, { color: colors.overtimePurple }]}>
-                  {(t.attendance?.overtime || "OVERTIME CONFIGURATION").toUpperCase()}
+                <Text
+                  style={[styles.fieldLabel, { color: colors.overtimePurple }]}
+                >
+                  {(
+                    t.attendance?.overtime || "OVERTIME CONFIGURATION"
+                  ).toUpperCase()}
                 </Text>
                 <View style={styles.wagesRow}>
                   {/* OT Hours */}
                   <View style={styles.inputWrapper}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t("attendance.otHours", "OT Hours")}</Text>
-                    <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: bgInput }]}>
+                    <Text
+                      style={[
+                        styles.inputLabel,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {t("attendance.otHours", "OT Hours")}
+                    </Text>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        { borderColor: borderCol, backgroundColor: bgInput },
+                      ]}
+                    >
                       <TextInput
                         keyboardType="numeric"
                         placeholder="e.g. 2"
                         placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
-                        style={[styles.modalInput, { color: isDark ? "#FFFFFF" : "#1E293B", paddingLeft: 12 }]}
+                        style={[
+                          styles.modalInput,
+                          {
+                            color: isDark ? "#FFFFFF" : "#1E293B",
+                            paddingLeft: 12,
+                          },
+                        ]}
                         value={modalOvertimeHours}
                         onChangeText={setModalOvertimeHours}
                       />
@@ -582,14 +759,36 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
 
                   {/* OT Wage */}
                   <View style={styles.inputWrapper}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t("attendance.otWage", "OT Wage / Rate")}</Text>
-                    <View style={[styles.inputContainer, { borderColor: borderCol, backgroundColor: bgInput }]}>
-                      <Text style={[styles.currencyPrefix, { color: colors.textSecondary }]}>₹</Text>
+                    <Text
+                      style={[
+                        styles.inputLabel,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {t("attendance.otWage", "OT Wage / Rate")}
+                    </Text>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        { borderColor: borderCol, backgroundColor: bgInput },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.currencyPrefix,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        ₹
+                      </Text>
                       <TextInput
                         keyboardType="numeric"
                         placeholder="e.g. 200"
                         placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
-                        style={[styles.modalInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
+                        style={[
+                          styles.modalInput,
+                          { color: isDark ? "#FFFFFF" : "#1E293B" },
+                        ]}
                         value={modalOvertimeWage}
                         onChangeText={setModalOvertimeWage}
                       />
@@ -599,16 +798,49 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
 
                 {/* Multiplier configuration */}
                 <View style={{ marginTop: 12 }}>
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t("attendance.otMultiplier", "OT Multiplier")}</Text>
+                  <Text
+                    style={[styles.inputLabel, { color: colors.textSecondary }]}
+                  >
+                    {t("attendance.otMultiplier", "OT Multiplier")}
+                  </Text>
                   <View style={styles.multiplierRow}>
-                    <View style={[styles.multiplierBtn, styles.disabledBtn, { borderColor: borderCol }]}>
-                      <Text style={[styles.multiplierText, { color: colors.textSecondary }]}>1X</Text>
+                    <View
+                      style={[
+                        styles.multiplierBtn,
+                        styles.disabledBtn,
+                        { borderColor: borderCol },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.multiplierText,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        1X
+                      </Text>
                     </View>
-                    <View style={[styles.multiplierBtn, styles.disabledBtn, { borderColor: borderCol }]}>
-                      <Text style={[styles.multiplierText, { color: colors.textSecondary }]}>2X</Text>
+                    <View
+                      style={[
+                        styles.multiplierBtn,
+                        styles.disabledBtn,
+                        { borderColor: borderCol },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.multiplierText,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        2X
+                      </Text>
                     </View>
                     <Text style={styles.multiplierNotice}>
-                      {t("attendance.multiplierNotice", "Standard rate multiplier")}
+                      {t(
+                        "attendance.multiplierNotice",
+                        "Standard rate multiplier",
+                      )}
                     </Text>
                   </View>
                 </View>
@@ -619,33 +851,98 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
             <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
               {(t.summary?.title || "TODAY'S SUMMARY").toUpperCase()}
             </Text>
-            <View style={[styles.summaryCard, { borderColor: borderCol, backgroundColor: isDark ? "#1E293B" : "#F8FAFC" }]}>
+            <View
+              style={[
+                styles.summaryCard,
+                {
+                  borderColor: borderCol,
+                  backgroundColor: isDark ? "#1E293B" : "#F8FAFC",
+                },
+              ]}
+            >
               <View style={styles.summaryItemRow}>
-                <Text style={[styles.summaryItemKey, { color: colors.textSecondary }]}>{t.attendance?.status || "Status"}:</Text>
-                <Text style={[styles.summaryItemVal, { color: isDark ? "#FFFFFF" : "#1E293B", fontWeight: "700" }]}>
+                <Text
+                  style={[
+                    styles.summaryItemKey,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  {t.attendance?.status || "Status"}:
+                </Text>
+                <Text
+                  style={[
+                    styles.summaryItemVal,
+                    {
+                      color: isDark ? "#FFFFFF" : "#1E293B",
+                      fontWeight: "700",
+                    },
+                  ]}
+                >
                   {summary.status}
                 </Text>
               </View>
 
               <View style={styles.summaryItemRow}>
-                <Text style={[styles.summaryItemKey, { color: colors.textSecondary }]}>{t.workers?.dailyWage || "Daily Rate"}:</Text>
-                <Text style={[styles.summaryItemVal, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>
+                <Text
+                  style={[
+                    styles.summaryItemKey,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  {t.workers?.dailyWage || "Daily Rate"}:
+                </Text>
+                <Text
+                  style={[
+                    styles.summaryItemVal,
+                    { color: isDark ? "#FFFFFF" : "#1E293B" },
+                  ]}
+                >
                   ₹{summary.dailyRate}
                 </Text>
               </View>
 
               <View style={styles.summaryItemRow}>
-                <Text style={[styles.summaryItemKey, { color: colors.textSecondary }]}>{t.payment?.advance || "Advance"}:</Text>
-                <Text style={[styles.summaryItemVal, { color: summary.advance > 0 ? colors.amountBlue : colors.textSecondary }]}>
-                  {summary.advance > 0 ? `₹${summary.advance}` : t("common.notApplied", "Not Applied")}
+                <Text
+                  style={[
+                    styles.summaryItemKey,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  {t.payment?.advance || "Advance"}:
+                </Text>
+                <Text
+                  style={[
+                    styles.summaryItemVal,
+                    {
+                      color:
+                        summary.advance > 0
+                          ? colors.amountBlue
+                          : colors.textSecondary,
+                    },
+                  ]}
+                >
+                  {summary.advance > 0
+                    ? `₹${summary.advance}`
+                    : t("common.notApplied", "Not Applied")}
                 </Text>
               </View>
 
-              <View style={[styles.summaryDivider, { backgroundColor: borderCol }]} />
+              <View
+                style={[styles.summaryDivider, { backgroundColor: borderCol }]}
+              />
 
               <View style={styles.summaryItemRow}>
-                <Text style={[styles.finalPayKey, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>{t("attendance.finalPay", "Final Today's Pay")}:</Text>
-                <Text style={[styles.finalPayVal, { color: colors.presentGreen }]}>
+                <Text
+                  style={[
+                    styles.finalPayKey,
+                    { color: isDark ? "#FFFFFF" : "#1E293B" },
+                  ]}
+                >
+                  {t("attendance.finalPay", "Final Today's Pay")}:
+                </Text>
+                <Text
+                  style={[styles.finalPayVal, { color: colors.presentGreen }]}
+                >
                   ₹{summary.finalPay}
                 </Text>
               </View>
@@ -655,10 +952,23 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
             <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
               {(t.sites?.captureLocation || "GPS LOCATION").toUpperCase()}
             </Text>
-            <View style={[styles.locationCard, { borderColor: borderCol, backgroundColor: isDark ? "#1E293B" : "#F8FAFC" }]}>
+            <View
+              style={[
+                styles.locationCard,
+                {
+                  borderColor: borderCol,
+                  backgroundColor: isDark ? "#1E293B" : "#F8FAFC",
+                },
+              ]}
+            >
               <View style={styles.locationHeaderRow}>
                 <Ionicons name="location" size={18} color="#F97316" />
-                <Text style={[styles.locationTitle, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>
+                <Text
+                  style={[
+                    styles.locationTitle,
+                    { color: isDark ? "#FFFFFF" : "#1E293B" },
+                  ]}
+                >
                   📍 {t("sites.captureLocation", "Capture Location")}
                 </Text>
               </View>
@@ -666,24 +976,52 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
               {locationLoading ? (
                 <View style={styles.loadingWrapper}>
                   <ActivityIndicator size="small" color="#F97316" />
-                  <Text style={[styles.locationDesc, { marginLeft: 8, color: colors.textSecondary }]}>
-                    {t("sites.gettingLocation", "Getting location coordinates...")}
+                  <Text
+                    style={[
+                      styles.locationDesc,
+                      { marginLeft: 8, color: colors.textSecondary },
+                    ]}
+                  >
+                    {t(
+                      "sites.gettingLocation",
+                      "Getting location coordinates...",
+                    )}
                   </Text>
                 </View>
               ) : (
                 <View>
                   {location ? (
                     <View style={styles.locationDetails}>
-                      <Text style={[styles.locationAddress, { color: isDark ? "#E2E8F0" : "#1E293B" }]} numberOfLines={2}>
+                      <Text
+                        style={[
+                          styles.locationAddress,
+                          { color: isDark ? "#E2E8F0" : "#1E293B" },
+                        ]}
+                        numberOfLines={2}
+                      >
                         {location.address}
                       </Text>
-                      <Text style={[styles.locationCoordinates, { color: colors.textSecondary }]}>
-                        Lat: {location.latitude.toFixed(6)} | Lon: {location.longitude.toFixed(6)}
+                      <Text
+                        style={[
+                          styles.locationCoordinates,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        Lat: {location.latitude.toFixed(6)} | Lon:{" "}
+                        {location.longitude.toFixed(6)}
                       </Text>
                     </View>
                   ) : (
-                    <Text style={[styles.locationDesc, { color: colors.textSecondary }]}>
-                      {t("sites.noLocationData", "No location data captured yet.")}
+                    <Text
+                      style={[
+                        styles.locationDesc,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {t(
+                        "sites.noLocationData",
+                        "No location data captured yet.",
+                      )}
                     </Text>
                   )}
                 </View>
@@ -702,14 +1040,21 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                 ]}
               >
                 <Text style={styles.captureBtnText}>
-                  {location ? t("sites.refreshLocation", "Refresh Location") : t("sites.captureLocation", "Capture Location")}
+                  {location
+                    ? t("sites.refreshLocation", "Refresh Location")
+                    : t("sites.captureLocation", "Capture Location")}
                 </Text>
               </Pressable>
             </View>
           </ScrollView>
 
           {/* Sticky Bottom Actions Container */}
-          <View style={[styles.stickyBottomContainer, { borderTopColor: borderCol }]}>
+          <View
+            style={[
+              styles.stickyBottomContainer,
+              { borderTopColor: borderCol },
+            ]}
+          >
             {initialRecord && (
               <Pressable
                 onPress={handleClear}
@@ -718,7 +1063,9 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                   { opacity: pressed ? 0.8 : 1 },
                 ]}
               >
-                <Text style={styles.clearBtnText}>{t("attendance.clearAttendance", "Clear Attendance")}</Text>
+                <Text style={styles.clearBtnText}>
+                  {t("attendance.clearAttendance", "Clear Attendance")}
+                </Text>
               </Pressable>
             )}
 
@@ -735,7 +1082,9 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={styles.saveBtnText}>✓ {t("attendance.confirmSave", "Confirm / Save Attendance")}</Text>
+                <Text style={styles.saveBtnText}>
+                  ✓ {t("attendance.confirmSave", "Confirm / Save Attendance")}
+                </Text>
               </LinearGradient>
             </Pressable>
           </View>
@@ -772,7 +1121,7 @@ const styles = StyleSheet.create({
     width: "100%",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: SCREEN_HEIGHT * 0.90,
+    maxHeight: SCREEN_HEIGHT * 0.9,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -6 },
     shadowOpacity: 0.25,

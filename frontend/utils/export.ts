@@ -418,11 +418,18 @@ export async function shareCSV(
 // Helper for 15-second request timeout guard
 const WITH_TIMEOUT_MS = 15000;
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs = WITH_TIMEOUT_MS): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs = WITH_TIMEOUT_MS,
+): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error("Report generation timed out. Please try again.")), timeoutMs)
+      setTimeout(
+        () =>
+          reject(new Error("Report generation timed out. Please try again.")),
+        timeoutMs,
+      ),
     ),
   ]);
 }
@@ -462,10 +469,14 @@ export async function downloadAndSharePDF(
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const safeFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
+    const safeFilename = filename.endsWith(".pdf")
+      ? filename
+      : `${filename}.pdf`;
     const fileUri = `${FileSystem.documentDirectory}${safeFilename}`;
 
-    const result = await withTimeout(FileSystem.downloadAsync(url, fileUri, { headers }));
+    const result = await withTimeout(
+      FileSystem.downloadAsync(url, fileUri, { headers }),
+    );
 
     if (result.status >= 400) {
       let errorMessage = `PDF API failed (HTTP ${result.status})`;
@@ -496,7 +507,10 @@ export async function downloadAndSharePDF(
       });
       return true;
     } else {
-      Alert.alert("Sharing not available", "Cannot share files on this device.");
+      Alert.alert(
+        "Sharing not available",
+        "Cannot share files on this device.",
+      );
       return false;
     }
   } catch (error: any) {
@@ -544,10 +558,14 @@ export async function downloadAndShareCSV(
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const safeFilename = filename.endsWith(".csv") ? filename : `${filename}.csv`;
+    const safeFilename = filename.endsWith(".csv")
+      ? filename
+      : `${filename}.csv`;
     const fileUri = `${FileSystem.documentDirectory}${safeFilename}`;
 
-    const result = await withTimeout(FileSystem.downloadAsync(url, fileUri, { headers }));
+    const result = await withTimeout(
+      FileSystem.downloadAsync(url, fileUri, { headers }),
+    );
 
     if (result.status >= 400) {
       let errorMessage = `CSV API failed (HTTP ${result.status})`;
@@ -577,7 +595,10 @@ export async function downloadAndShareCSV(
       });
       return true;
     } else {
-      Alert.alert("Sharing not available", "Cannot share files on this device.");
+      Alert.alert(
+        "Sharing not available",
+        "Cannot share files on this device.",
+      );
       return false;
     }
   } catch (error: any) {
@@ -679,30 +700,46 @@ export async function generateAndSharePaymentReceipt(
           <span class="label">Payment Method:</span>
           <span class="value">${payment.method || "Cash"}</span>
         </div>
-        ${payment.transactionId ? `
+        ${
+          payment.transactionId
+            ? `
         <div class="row">
           <span class="label">Transaction ID:</span>
           <span class="value">${payment.transactionId}</span>
         </div>
-        ` : ""}
-        ${payment.referenceNumber ? `
+        `
+            : ""
+        }
+        ${
+          payment.referenceNumber
+            ? `
         <div class="row">
           <span class="label">Ref Number:</span>
           <span class="value">${payment.referenceNumber}</span>
         </div>
-        ` : ""}
-        ${payment.paidByName ? `
+        `
+            : ""
+        }
+        ${
+          payment.paidByName
+            ? `
         <div class="row">
           <span class="label">Paid By:</span>
           <span class="value">${payment.paidByName}</span>
         </div>
-        ` : ""}
-        ${payment.receivedByName ? `
+        `
+            : ""
+        }
+        ${
+          payment.receivedByName
+            ? `
         <div class="row">
           <span class="label">Received By:</span>
           <span class="value">${payment.receivedByName}</span>
         </div>
-        ` : ""}
+        `
+            : ""
+        }
         <div class="row">
           <span class="label">Status:</span>
           <span class="value" style="color: ${payment.status === "Failed" ? "#EF4444" : payment.status === "Pending" ? "#F59E0B" : "#10B981"}">${payment.status || "Completed"}</span>
@@ -713,11 +750,15 @@ export async function generateAndSharePaymentReceipt(
           <div class="amount-val">₹ ${payment.amount}</div>
         </div>
 
-        ${payment.note ? `
+        ${
+          payment.note
+            ? `
         <div style="font-size: 13px; color: #475569; background: #F8FAFC; padding: 12px; border-radius: 8px; margin-top: 16px; border: 1px solid #E2E8F0; line-height: 18px;">
           <strong>Notes:</strong> ${payment.note}
         </div>
-        ` : ""}
+        `
+            : ""
+        }
 
         <div class="footer">
           Generated via Haajari Manager — AI-Powered Construction Site Assistant.

@@ -84,7 +84,8 @@ export function GlobalErrorFeedbackModal({
   const { t } = useLanguage();
 
   const [step, setStep] = useState<"alert" | "form" | "submitted">("alert");
-  const [selectedCategory, setSelectedCategory] = useState<FeedbackCategory>("Other");
+  const [selectedCategory, setSelectedCategory] =
+    useState<FeedbackCategory>("Other");
   const [userMessage, setUserMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
@@ -175,7 +176,12 @@ export function GlobalErrorFeedbackModal({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={[styles.container, { backgroundColor: theme.backgroundDefault || "#0F172A" }]}>
+        <View
+          style={[
+            styles.container,
+            { backgroundColor: theme.backgroundDefault || "#0F172A" },
+          ]}
+        >
           {/* Top Bar Indicator */}
           <View style={styles.handleIndicator} />
 
@@ -189,8 +195,14 @@ export function GlobalErrorFeedbackModal({
                 {config.title || `${config.feature} Failed`}
               </Text>
 
-              <Text style={[styles.subtitle, { color: theme.textSecondary || "#94A3B8" }]}>
-                {config.message || "Unable to complete this action right now. Tell us what went wrong so we can improve Haajari Manager."}
+              <Text
+                style={[
+                  styles.subtitle,
+                  { color: theme.textSecondary || "#94A3B8" },
+                ]}
+              >
+                {config.message ||
+                  "Unable to complete this action right now. Tell us what went wrong so we can improve Haajari Manager."}
               </Text>
 
               <View style={styles.buttonRow}>
@@ -203,7 +215,9 @@ export function GlobalErrorFeedbackModal({
                     ]}
                   >
                     <Feather name="rotate-cw" size={16} color="#FFFFFF" />
-                    <Text style={styles.retryButtonText}>{t.feedback?.tryAgain || "Try Again"}</Text>
+                    <Text style={styles.retryButtonText}>
+                      {t.feedback?.tryAgain || "Try Again"}
+                    </Text>
                   </Pressable>
                 )}
 
@@ -215,42 +229,64 @@ export function GlobalErrorFeedbackModal({
                   ]}
                 >
                   <Feather name="message-square" size={16} color="#F97316" />
-                  <Text style={styles.reportButtonText}>{t.feedback?.reportProblem || "Report a Problem"}</Text>
+                  <Text style={styles.reportButtonText}>
+                    {t.feedback?.reportProblem || "Report a Problem"}
+                  </Text>
                 </Pressable>
               </View>
 
               <Pressable onPress={onClose} style={styles.dismissButton}>
-                <Text style={styles.dismissText}>{t.common?.cancel || "Dismiss"}</Text>
+                <Text style={styles.dismissText}>
+                  {t.common?.cancel || "Dismiss"}
+                </Text>
               </Pressable>
             </View>
           )}
 
           {step === "form" && (
-            <ScrollView style={styles.scrollForm} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.scrollForm}
+              showsVerticalScrollIndicator={false}
+            >
               <View style={styles.formHeader}>
-                <Text style={[styles.title, { color: theme.text }]}>{t.feedback?.title || "Report a Problem"}</Text>
+                <Text style={[styles.title, { color: theme.text }]}>
+                  {t.feedback?.title || "Report a Problem"}
+                </Text>
                 <Pressable onPress={onClose} style={styles.closeIconBtn}>
-                  <Feather name="x" size={22} color={theme.textSecondary || "#94A3B8"} />
+                  <Feather
+                    name="x"
+                    size={22}
+                    color={theme.textSecondary || "#94A3B8"}
+                  />
                 </Pressable>
               </View>
 
-              <Text style={[styles.subtitle, { color: theme.textSecondary || "#94A3B8", marginBottom: 16 }]}>
-                {t.feedback?.subtitle || "Tell us what went wrong. Your feedback helps us improve Haajari Manager."}
+              <Text
+                style={[
+                  styles.subtitle,
+                  { color: theme.textSecondary || "#94A3B8", marginBottom: 16 },
+                ]}
+              >
+                {t.feedback?.subtitle ||
+                  "Tell us what went wrong. Your feedback helps us improve Haajari Manager."}
               </Text>
 
               {/* Pre-filled Category Chips */}
-              <Text style={styles.inputLabel}>{t.feedback?.category || "Category"}</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsContainer}>
+              <Text style={styles.inputLabel}>
+                {t.feedback?.category || "Category"}
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.chipsContainer}
+              >
                 {CATEGORIES.map((cat) => {
                   const isSelected = selectedCategory === cat;
                   return (
                     <Pressable
                       key={cat}
                       onPress={() => setSelectedCategory(cat)}
-                      style={[
-                        styles.chip,
-                        isSelected && styles.chipSelected,
-                      ]}
+                      style={[styles.chip, isSelected && styles.chipSelected]}
                     >
                       <Text
                         style={[
@@ -266,7 +302,9 @@ export function GlobalErrorFeedbackModal({
               </ScrollView>
 
               {/* Problem Message Input */}
-              <Text style={[styles.inputLabel, { marginTop: 16 }]}>{t.feedback?.description || "Problem Description"}</Text>
+              <Text style={[styles.inputLabel, { marginTop: 16 }]}>
+                {t.feedback?.description || "Problem Description"}
+              </Text>
               <TextInput
                 style={styles.textArea}
                 multiline
@@ -283,11 +321,24 @@ export function GlobalErrorFeedbackModal({
 
               {/* Diagnostics Summary Box */}
               <View style={styles.diagnosticsBox}>
-                <Text style={styles.diagTitle}>{t.feedback?.attachedDiagnostics || "Attached Diagnostics Context"}</Text>
+                <Text style={styles.diagTitle}>
+                  {t.feedback?.attachedDiagnostics ||
+                    "Attached Diagnostics Context"}
+                </Text>
                 <Text style={styles.diagText}>Feature: {config.feature}</Text>
-                <Text style={styles.diagText}>Category: {selectedCategory}</Text>
-                {config.httpStatus ? <Text style={styles.diagText}>HTTP Status: {config.httpStatus}</Text> : null}
-                {config.durationMs ? <Text style={styles.diagText}>Duration: {(config.durationMs / 1000).toFixed(1)}s</Text> : null}
+                <Text style={styles.diagText}>
+                  Category: {selectedCategory}
+                </Text>
+                {config.httpStatus ? (
+                  <Text style={styles.diagText}>
+                    HTTP Status: {config.httpStatus}
+                  </Text>
+                ) : null}
+                {config.durationMs ? (
+                  <Text style={styles.diagText}>
+                    Duration: {(config.durationMs / 1000).toFixed(1)}s
+                  </Text>
+                ) : null}
               </View>
 
               {/* Submit Button */}
@@ -304,7 +355,9 @@ export function GlobalErrorFeedbackModal({
                 ) : (
                   <>
                     <Feather name="send" size={16} color="#FFFFFF" />
-                    <Text style={styles.submitBtnText}>{t.feedback?.submitFeedback || "Submit Feedback"}</Text>
+                    <Text style={styles.submitBtnText}>
+                      {t.feedback?.submitFeedback || "Submit Feedback"}
+                    </Text>
                   </>
                 )}
               </Pressable>
@@ -313,17 +366,38 @@ export function GlobalErrorFeedbackModal({
 
           {step === "submitted" && (
             <View style={styles.stepContent}>
-              <View style={[styles.iconCircle, { backgroundColor: "rgba(16, 185, 129, 0.1)" }]}>
+              <View
+                style={[
+                  styles.iconCircle,
+                  { backgroundColor: "rgba(16, 185, 129, 0.1)" },
+                ]}
+              >
                 <Feather name="check-circle" size={32} color="#10B981" />
               </View>
 
-              <Text style={[styles.title, { color: theme.text }]}>{t.feedback?.feedbackReceived || "Feedback Received"}</Text>
-              <Text style={[styles.subtitle, { color: theme.textSecondary || "#94A3B8" }]}>
-                {t.feedback?.thanksMessage || "Thanks for your feedback! We've received your report."}
+              <Text style={[styles.title, { color: theme.text }]}>
+                {t.feedback?.feedbackReceived || "Feedback Received"}
+              </Text>
+              <Text
+                style={[
+                  styles.subtitle,
+                  { color: theme.textSecondary || "#94A3B8" },
+                ]}
+              >
+                {t.feedback?.thanksMessage ||
+                  "Thanks for your feedback! We've received your report."}
               </Text>
 
-              <Pressable onPress={onClose} style={[styles.retryButton, { backgroundColor: "#10B981", marginTop: 20 }]}>
-                <Text style={styles.retryButtonText}>{t.common?.ok || "Done"}</Text>
+              <Pressable
+                onPress={onClose}
+                style={[
+                  styles.retryButton,
+                  { backgroundColor: "#10B981", marginTop: 20 },
+                ]}
+              >
+                <Text style={styles.retryButtonText}>
+                  {t.common?.ok || "Done"}
+                </Text>
               </Pressable>
             </View>
           )}

@@ -55,7 +55,9 @@ export default function SupervisorManagementScreen() {
 
   // Modal State
   const [modalVisible, setModalVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<"create" | "search_existing">("create");
+  const [activeTab, setActiveTab] = useState<"create" | "search_existing">(
+    "create",
+  );
 
   // Create Form Fields
   const [name, setName] = useState("");
@@ -65,7 +67,8 @@ export default function SupervisorManagementScreen() {
   const [notes, setNotes] = useState("");
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(false);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
-  const [editingSupervisor, setEditingSupervisor] = useState<SupervisorUser | null>(null);
+  const [editingSupervisor, setEditingSupervisor] =
+    useState<SupervisorUser | null>(null);
 
   // Search Existing Supervisor Fields
   const [existingSearchInput, setExistingSearchInput] = useState("");
@@ -118,7 +121,10 @@ export default function SupervisorManagementScreen() {
         }
       }
     } catch {
-      Alert.alert(t.common.error || "Error", t.supervisor.errorFetch || "Failed to load supervisors");
+      Alert.alert(
+        t.common.error || "Error",
+        t.supervisor.errorFetch || "Failed to load supervisors",
+      );
     } finally {
       setIsLoading(false);
       setIsDataLoaded(true);
@@ -151,7 +157,7 @@ export default function SupervisorManagementScreen() {
     setNotes(supervisor.notes || "");
     setShowAdditionalInfo(!!supervisor.notes);
     setSelectedProjectIds(
-      (supervisor.assignedProjects || []).map((p) => (p as any)._id || p.id)
+      (supervisor.assignedProjects || []).map((p) => (p as any)._id || p.id),
     );
     setModalVisible(true);
   };
@@ -159,14 +165,19 @@ export default function SupervisorManagementScreen() {
   const handleSearchExistingSupervisor = async () => {
     const q = existingSearchInput.trim();
     if (!q) {
-      Alert.alert("Required", "Please enter a username, mobile number, or email to search.");
+      Alert.alert(
+        "Required",
+        "Please enter a username, mobile number, or email to search.",
+      );
       return;
     }
 
     setIsSearchingExisting(true);
     setSearchHasExecuted(true);
     try {
-      const res = await authenticatedFetch(`${API_URL}/supervisors/search?query=${encodeURIComponent(q)}`);
+      const res = await authenticatedFetch(
+        `${API_URL}/supervisors/search?query=${encodeURIComponent(q)}`,
+      );
       if (res.ok) {
         const data = await res.json();
         setExistingSearchResults(data.supervisors || []);
@@ -183,17 +194,26 @@ export default function SupervisorManagementScreen() {
   const handleSendConnectionRequest = async (supervisorId: string) => {
     setIsLoading(true);
     try {
-      const res = await authenticatedFetch(`${API_URL}/supervisors/connection-request`, {
-        method: "POST",
-        body: JSON.stringify({ supervisorId }),
-      });
+      const res = await authenticatedFetch(
+        `${API_URL}/supervisors/connection-request`,
+        {
+          method: "POST",
+          body: JSON.stringify({ supervisorId }),
+        },
+      );
       const data = await res.json();
       if (res.ok) {
-        Alert.alert("Request Sent", "Connection request sent to supervisor. They will be connected once they accept.");
+        Alert.alert(
+          "Request Sent",
+          "Connection request sent to supervisor. They will be connected once they accept.",
+        );
         setModalVisible(false);
         loadData();
       } else {
-        Alert.alert("Connection Error", data.message || "Failed to send connection request.");
+        Alert.alert(
+          "Connection Error",
+          data.message || "Failed to send connection request.",
+        );
       }
     } catch {
       Alert.alert("Error", "Network connection error.");
@@ -211,7 +231,10 @@ export default function SupervisorManagementScreen() {
       return;
     }
     if (!cleanPhone || !/^\d{10}$/.test(cleanPhone)) {
-      Alert.alert("Invalid Phone", "Please enter a valid 10-digit mobile number.");
+      Alert.alert(
+        "Invalid Phone",
+        "Please enter a valid 10-digit mobile number.",
+      );
       return;
     }
 
@@ -232,13 +255,13 @@ export default function SupervisorManagementScreen() {
               notes: notes.trim() || undefined,
               assignedProjects: selectedProjectIds,
             }),
-          }
+          },
         );
 
         if (res.ok) {
           const updated = await res.json();
           setSupervisors((prev) =>
-            prev.map((s) => (s._id === editingSupervisor._id ? updated : s))
+            prev.map((s) => (s._id === editingSupervisor._id ? updated : s)),
           );
           setModalVisible(false);
         } else {
@@ -287,11 +310,11 @@ export default function SupervisorManagementScreen() {
             try {
               const res = await authenticatedFetch(
                 `${API_URL}/supervisors/${supervisorId}`,
-                { method: "DELETE" }
+                { method: "DELETE" },
               );
               if (res.ok) {
                 setSupervisors((prev) =>
-                  prev.filter((s) => s._id !== supervisorId)
+                  prev.filter((s) => s._id !== supervisorId),
                 );
               } else {
                 Alert.alert("Error", "Failed to delete supervisor.");
@@ -301,7 +324,7 @@ export default function SupervisorManagementScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -317,7 +340,8 @@ export default function SupervisorManagementScreen() {
     const query = searchQuery.toLowerCase().trim();
     if (!query) return true;
     return (
-      s.name.toLowerCase().includes(query) || s.phone.toLowerCase().includes(query)
+      s.name.toLowerCase().includes(query) ||
+      s.phone.toLowerCase().includes(query)
     );
   });
 
@@ -336,13 +360,22 @@ export default function SupervisorManagementScreen() {
       <View
         style={[
           styles.headerRow,
-          { paddingTop: (headerHeight > 0 ? headerHeight : insets.top) + Spacing.sm },
+          {
+            paddingTop:
+              (headerHeight > 0 ? headerHeight : insets.top) + Spacing.sm,
+          },
         ]}
       >
         <View>
-          <ThemedText type="h2" style={{ fontWeight: "700" }}>Supervisors</ThemedText>
-          <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
-            {supervisors.length} Connected Supervisor{supervisors.length !== 1 ? "s" : ""}
+          <ThemedText type="h2" style={{ fontWeight: "700" }}>
+            Supervisors
+          </ThemedText>
+          <ThemedText
+            type="small"
+            style={{ color: theme.textSecondary, marginTop: 2 }}
+          >
+            {supervisors.length} Connected Supervisor
+            {supervisors.length !== 1 ? "s" : ""}
           </ThemedText>
         </View>
 
@@ -375,19 +408,26 @@ export default function SupervisorManagementScreen() {
               key={req.requestId}
               style={[
                 styles.pendingCard,
-                { backgroundColor: isDark ? "#1E293B" : "#FFF7ED", borderColor: "#FDBA74" },
+                {
+                  backgroundColor: isDark ? "#1E293B" : "#FFF7ED",
+                  borderColor: "#FDBA74",
+                },
               ]}
             >
               <View style={{ flex: 1 }}>
                 <ThemedText style={{ fontWeight: "700", fontSize: 14 }}>
                   {req.supervisor?.name || "Supervisor"}
                 </ThemedText>
-                <ThemedText style={{ color: theme.textSecondary, fontSize: 12 }}>
+                <ThemedText
+                  style={{ color: theme.textSecondary, fontSize: 12 }}
+                >
                   {req.supervisor?.phone || req.supervisor?.email}
                 </ThemedText>
               </View>
               <View style={styles.pendingBadge}>
-                <ThemedText style={styles.pendingBadgeText}>Pending Connection</ThemedText>
+                <ThemedText style={styles.pendingBadgeText}>
+                  Pending Connection
+                </ThemedText>
               </View>
             </View>
           ))}
@@ -400,7 +440,10 @@ export default function SupervisorManagementScreen() {
           <View
             style={[
               styles.searchInputWrapper,
-              { backgroundColor: theme.backgroundDefault, borderColor: theme.border },
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
             ]}
           >
             <Feather name="search" size={18} color={theme.textSecondary} />
@@ -427,12 +470,18 @@ export default function SupervisorManagementScreen() {
         </View>
       ) : supervisors.length === 0 ? (
         <View style={styles.centered}>
-          <View style={[styles.emptyIconContainer, { backgroundColor: "#FFF7ED" }]}>
+          <View
+            style={[styles.emptyIconContainer, { backgroundColor: "#FFF7ED" }]}
+          >
             <Feather name="users" size={42} color="#F97316" />
           </View>
           <ThemedText
             type="h3"
-            style={{ fontWeight: "700", marginTop: Spacing.lg, textAlign: "center" }}
+            style={{
+              fontWeight: "700",
+              marginTop: Spacing.lg,
+              textAlign: "center",
+            }}
           >
             No Connected Supervisors
           </ThemedText>
@@ -446,7 +495,8 @@ export default function SupervisorManagementScreen() {
               lineHeight: 20,
             }}
           >
-            Create a new supervisor or add an existing supervisor account to manage your sites.
+            Create a new supervisor or add an existing supervisor account to
+            manage your sites.
           </ThemedText>
 
           <Pressable
@@ -454,7 +504,14 @@ export default function SupervisorManagementScreen() {
             style={[styles.emptyActionBtn, { backgroundColor: "#F97316" }]}
           >
             <Feather name="plus-circle" size={18} color="#FFFFFF" />
-            <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "700", marginLeft: Spacing.xs }}>
+            <ThemedText
+              type="body"
+              style={{
+                color: "#FFFFFF",
+                fontWeight: "700",
+                marginLeft: Spacing.xs,
+              }}
+            >
               + Add Supervisor
             </ThemedText>
           </Pressable>
@@ -481,19 +538,46 @@ export default function SupervisorManagementScreen() {
                 {/* Header Row */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardLeft}>
-                    <View style={[styles.avatarCircle, { backgroundColor: "#FFF7ED" }]}>
-                      <ThemedText type="body" style={{ color: "#F97316", fontWeight: "700", fontSize: 16 }}>
+                    <View
+                      style={[
+                        styles.avatarCircle,
+                        { backgroundColor: "#FFF7ED" },
+                      ]}
+                    >
+                      <ThemedText
+                        type="body"
+                        style={{
+                          color: "#F97316",
+                          fontWeight: "700",
+                          fontSize: 16,
+                        }}
+                      >
                         {initials}
                       </ThemedText>
                     </View>
 
                     <View style={styles.cardTitleInfo}>
                       <View style={styles.nameRoleRow}>
-                        <ThemedText type="h3" style={{ fontWeight: "700", fontSize: 16 }}>
+                        <ThemedText
+                          type="h3"
+                          style={{ fontWeight: "700", fontSize: 16 }}
+                        >
                           {item.name}
                         </ThemedText>
-                        <View style={[styles.roleTag, { backgroundColor: "#FFF7ED" }]}>
-                          <ThemedText type="small" style={{ color: "#F97316", fontWeight: "600", fontSize: 11 }}>
+                        <View
+                          style={[
+                            styles.roleTag,
+                            { backgroundColor: "#FFF7ED" },
+                          ]}
+                        >
+                          <ThemedText
+                            type="small"
+                            style={{
+                              color: "#F97316",
+                              fontWeight: "600",
+                              fontSize: 11,
+                            }}
+                          >
                             Supervisor
                           </ThemedText>
                         </View>
@@ -505,16 +589,34 @@ export default function SupervisorManagementScreen() {
                         style={styles.phoneRow}
                       >
                         <Feather name="phone-call" size={12} color="#F97316" />
-                        <ThemedText type="small" style={{ color: "#F97316", fontWeight: "600", marginLeft: 4 }}>
+                        <ThemedText
+                          type="small"
+                          style={{
+                            color: "#F97316",
+                            fontWeight: "600",
+                            marginLeft: 4,
+                          }}
+                        >
                           +91 {item.phone}
                         </ThemedText>
                       </TouchableOpacity>
                     </View>
                   </View>
 
-                  <View style={[styles.statusBadge, { backgroundColor: "#E6F4EA" }]}>
-                    <View style={[styles.statusDot, { backgroundColor: "#137333" }]} />
-                    <ThemedText type="small" style={{ color: "#137333", fontWeight: "700", fontSize: 11 }}>
+                  <View
+                    style={[styles.statusBadge, { backgroundColor: "#E6F4EA" }]}
+                  >
+                    <View
+                      style={[styles.statusDot, { backgroundColor: "#137333" }]}
+                    />
+                    <ThemedText
+                      type="small"
+                      style={{
+                        color: "#137333",
+                        fontWeight: "700",
+                        fontSize: 11,
+                      }}
+                    >
                       Connected
                     </ThemedText>
                   </View>
@@ -522,7 +624,10 @@ export default function SupervisorManagementScreen() {
 
                 {/* Assigned Site / Project Info */}
                 <View style={styles.assignedSection}>
-                  <ThemedText type="small" style={{ color: theme.textSecondary, fontWeight: "600" }}>
+                  <ThemedText
+                    type="small"
+                    style={{ color: theme.textSecondary, fontWeight: "600" }}
+                  >
                     Assigned Site:
                   </ThemedText>
                   <View style={styles.siteBadgeRow}>
@@ -530,18 +635,50 @@ export default function SupervisorManagementScreen() {
                       item.assignedProjects.map((p, idx) => (
                         <View
                           key={(p as any)._id || p.id || idx}
-                          style={[styles.siteChip, { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" }]}
+                          style={[
+                            styles.siteChip,
+                            {
+                              backgroundColor: "#FFF7ED",
+                              borderColor: "#FED7AA",
+                            },
+                          ]}
                         >
                           <Feather name="map-pin" size={12} color="#F97316" />
-                          <ThemedText type="small" style={{ color: "#F97316", fontWeight: "600", marginLeft: 4 }}>
+                          <ThemedText
+                            type="small"
+                            style={{
+                              color: "#F97316",
+                              fontWeight: "600",
+                              marginLeft: 4,
+                            }}
+                          >
                             {p.name}
                           </ThemedText>
                         </View>
                       ))
                     ) : (
-                      <View style={[styles.siteChip, { backgroundColor: "#FFF4E5", borderColor: "#FFE0B2" }]}>
-                        <Feather name="alert-circle" size={12} color="#E65100" />
-                        <ThemedText type="small" style={{ color: "#E65100", fontWeight: "600", marginLeft: 4 }}>
+                      <View
+                        style={[
+                          styles.siteChip,
+                          {
+                            backgroundColor: "#FFF4E5",
+                            borderColor: "#FFE0B2",
+                          },
+                        ]}
+                      >
+                        <Feather
+                          name="alert-circle"
+                          size={12}
+                          color="#E65100"
+                        />
+                        <ThemedText
+                          type="small"
+                          style={{
+                            color: "#E65100",
+                            fontWeight: "600",
+                            marginLeft: 4,
+                          }}
+                        >
                           No Site Assigned
                         </ThemedText>
                       </View>
@@ -549,7 +686,9 @@ export default function SupervisorManagementScreen() {
                   </View>
                 </View>
 
-                <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                <View
+                  style={[styles.divider, { backgroundColor: theme.border }]}
+                />
 
                 <View style={styles.cardActions}>
                   <Pressable
@@ -557,27 +696,58 @@ export default function SupervisorManagementScreen() {
                     style={[styles.actionBtn, { backgroundColor: "#FFF7ED" }]}
                   >
                     <Feather name="phone" size={14} color="#F97316" />
-                    <ThemedText type="small" style={{ color: "#F97316", marginLeft: 6, fontWeight: "600" }}>
+                    <ThemedText
+                      type="small"
+                      style={{
+                        color: "#F97316",
+                        marginLeft: 6,
+                        fontWeight: "600",
+                      }}
+                    >
                       Call
                     </ThemedText>
                   </Pressable>
 
                   <Pressable
                     onPress={() => handleOpenEditModal(item)}
-                    style={[styles.actionBtn, { backgroundColor: theme.border + "40" }]}
+                    style={[
+                      styles.actionBtn,
+                      { backgroundColor: theme.border + "40" },
+                    ]}
                   >
                     <Feather name="edit-2" size={14} color={theme.text} />
-                    <ThemedText type="small" style={{ color: theme.text, marginLeft: 6, fontWeight: "600" }}>
+                    <ThemedText
+                      type="small"
+                      style={{
+                        color: theme.text,
+                        marginLeft: 6,
+                        fontWeight: "600",
+                      }}
+                    >
                       Edit
                     </ThemedText>
                   </Pressable>
 
                   <Pressable
                     onPress={() => handleDeleteSupervisor(item._id)}
-                    style={[styles.actionBtn, { backgroundColor: Colors.light.error + "15" }]}
+                    style={[
+                      styles.actionBtn,
+                      { backgroundColor: Colors.light.error + "15" },
+                    ]}
                   >
-                    <Feather name="trash-2" size={14} color={Colors.light.error} />
-                    <ThemedText type="small" style={{ color: Colors.light.error, marginLeft: 6, fontWeight: "600" }}>
+                    <Feather
+                      name="trash-2"
+                      size={14}
+                      color={Colors.light.error}
+                    />
+                    <ThemedText
+                      type="small"
+                      style={{
+                        color: Colors.light.error,
+                        marginLeft: 6,
+                        fontWeight: "600",
+                      }}
+                    >
                       Delete
                     </ThemedText>
                   </Pressable>
@@ -596,14 +766,22 @@ export default function SupervisorManagementScreen() {
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalBackdrop}>
-          <ThemedView style={[styles.modalContent, { backgroundColor: theme.backgroundRoot }]}>
+          <ThemedView
+            style={[
+              styles.modalContent,
+              { backgroundColor: theme.backgroundRoot },
+            ]}
+          >
             <View style={styles.modalHeader}>
               <View>
                 <ThemedText type="h2" style={{ fontWeight: "700" }}>
                   {editingSupervisor ? "Edit Supervisor" : "Add Supervisor"}
                 </ThemedText>
               </View>
-              <Pressable onPress={() => setModalVisible(false)} style={styles.closeBtn}>
+              <Pressable
+                onPress={() => setModalVisible(false)}
+                style={styles.closeBtn}
+              >
                 <Feather name="x" size={20} color={theme.textSecondary} />
               </Pressable>
             </View>
@@ -615,13 +793,21 @@ export default function SupervisorManagementScreen() {
                   onPress={() => setActiveTab("create")}
                   style={[
                     styles.tabItem,
-                    activeTab === "create" && { borderBottomColor: "#F97316", borderBottomWidth: 2 },
+                    activeTab === "create" && {
+                      borderBottomColor: "#F97316",
+                      borderBottomWidth: 2,
+                    },
                   ]}
                 >
                   <ThemedText
                     style={[
                       styles.tabText,
-                      { color: activeTab === "create" ? "#F97316" : theme.textSecondary },
+                      {
+                        color:
+                          activeTab === "create"
+                            ? "#F97316"
+                            : theme.textSecondary,
+                      },
                     ]}
                   >
                     Create New Supervisor
@@ -632,13 +818,21 @@ export default function SupervisorManagementScreen() {
                   onPress={() => setActiveTab("search_existing")}
                   style={[
                     styles.tabItem,
-                    activeTab === "search_existing" && { borderBottomColor: "#F97316", borderBottomWidth: 2 },
+                    activeTab === "search_existing" && {
+                      borderBottomColor: "#F97316",
+                      borderBottomWidth: 2,
+                    },
                   ]}
                 >
                   <ThemedText
                     style={[
                       styles.tabText,
-                      { color: activeTab === "search_existing" ? "#F97316" : theme.textSecondary },
+                      {
+                        color:
+                          activeTab === "search_existing"
+                            ? "#F97316"
+                            : theme.textSecondary,
+                      },
                     ]}
                   >
                     Add Existing Supervisor
@@ -647,18 +841,28 @@ export default function SupervisorManagementScreen() {
               </View>
             )}
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Spacing.xl }}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: Spacing.xl }}
+            >
               {activeTab === "create" ? (
                 /* ── TAB A: CREATE NEW SUPERVISOR ── */
                 <>
                   <View style={styles.inputContainer}>
                     <ThemedText type="small" style={styles.label}>
-                      Full Name <ThemedText style={{ color: Colors.light.error }}>*</ThemedText>
+                      Full Name{" "}
+                      <ThemedText style={{ color: Colors.light.error }}>
+                        *
+                      </ThemedText>
                     </ThemedText>
                     <TextInput
                       style={[
                         styles.modalInput,
-                        { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault },
+                        {
+                          color: theme.text,
+                          borderColor: theme.border,
+                          backgroundColor: theme.backgroundDefault,
+                        },
                       ]}
                       value={name}
                       onChangeText={setName}
@@ -669,12 +873,19 @@ export default function SupervisorManagementScreen() {
 
                   <View style={styles.inputContainer}>
                     <ThemedText type="small" style={styles.label}>
-                      Mobile Number <ThemedText style={{ color: Colors.light.error }}>*</ThemedText>
+                      Mobile Number{" "}
+                      <ThemedText style={{ color: Colors.light.error }}>
+                        *
+                      </ThemedText>
                     </ThemedText>
                     <TextInput
                       style={[
                         styles.modalInput,
-                        { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault },
+                        {
+                          color: theme.text,
+                          borderColor: theme.border,
+                          backgroundColor: theme.backgroundDefault,
+                        },
                       ]}
                       value={phone}
                       onChangeText={setPhone}
@@ -686,11 +897,17 @@ export default function SupervisorManagementScreen() {
                   </View>
 
                   <View style={styles.inputContainer}>
-                    <ThemedText type="small" style={styles.label}>Email Address (Optional)</ThemedText>
+                    <ThemedText type="small" style={styles.label}>
+                      Email Address (Optional)
+                    </ThemedText>
                     <TextInput
                       style={[
                         styles.modalInput,
-                        { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault },
+                        {
+                          color: theme.text,
+                          borderColor: theme.border,
+                          backgroundColor: theme.backgroundDefault,
+                        },
                       ]}
                       value={email}
                       onChangeText={setEmail}
@@ -702,11 +919,17 @@ export default function SupervisorManagementScreen() {
                   </View>
 
                   <View style={styles.inputContainer}>
-                    <ThemedText type="small" style={styles.label}>Password (Optional)</ThemedText>
+                    <ThemedText type="small" style={styles.label}>
+                      Password (Optional)
+                    </ThemedText>
                     <TextInput
                       style={[
                         styles.modalInput,
-                        { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault },
+                        {
+                          color: theme.text,
+                          borderColor: theme.border,
+                          backgroundColor: theme.backgroundDefault,
+                        },
                       ]}
                       value={password}
                       onChangeText={setPassword}
@@ -719,13 +942,28 @@ export default function SupervisorManagementScreen() {
                   <Pressable
                     onPress={handleSaveSupervisor}
                     disabled={isLoading}
-                    style={[styles.saveBtn, { backgroundColor: "#F97316", opacity: isLoading ? 0.7 : 1 }]}
+                    style={[
+                      styles.saveBtn,
+                      {
+                        backgroundColor: "#F97316",
+                        opacity: isLoading ? 0.7 : 1,
+                      },
+                    ]}
                   >
                     {isLoading ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
-                      <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 16 }}>
-                        {editingSupervisor ? "Save Changes" : "Create Supervisor"}
+                      <ThemedText
+                        type="body"
+                        style={{
+                          color: "#FFFFFF",
+                          fontWeight: "700",
+                          fontSize: 16,
+                        }}
+                      >
+                        {editingSupervisor
+                          ? "Save Changes"
+                          : "Create Supervisor"}
                       </ThemedText>
                     )}
                   </Pressable>
@@ -733,15 +971,24 @@ export default function SupervisorManagementScreen() {
               ) : (
                 /* ── TAB B: ADD EXISTING SUPERVISOR ── */
                 <>
-                  <ThemedText type="small" style={{ color: theme.textSecondary, marginBottom: 12 }}>
-                    Search for an existing Supervisor account using their Username, Mobile Number, or Email.
+                  <ThemedText
+                    type="small"
+                    style={{ color: theme.textSecondary, marginBottom: 12 }}
+                  >
+                    Search for an existing Supervisor account using their
+                    Username, Mobile Number, or Email.
                   </ThemedText>
 
                   <View style={styles.searchExistingRow}>
                     <TextInput
                       style={[
                         styles.modalInput,
-                        { flex: 1, color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundDefault },
+                        {
+                          flex: 1,
+                          color: theme.text,
+                          borderColor: theme.border,
+                          backgroundColor: theme.backgroundDefault,
+                        },
                       ]}
                       value={existingSearchInput}
                       onChangeText={setExistingSearchInput}
@@ -756,7 +1003,11 @@ export default function SupervisorManagementScreen() {
                       {isSearchingExisting ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
-                        <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>Search</ThemedText>
+                        <ThemedText
+                          style={{ color: "#FFFFFF", fontWeight: "700" }}
+                        >
+                          Search
+                        </ThemedText>
                       )}
                     </Pressable>
                   </View>
@@ -766,8 +1017,14 @@ export default function SupervisorManagementScreen() {
                     <View style={{ marginTop: 16 }}>
                       {existingSearchResults.length === 0 ? (
                         <View style={{ alignItems: "center", padding: 24 }}>
-                          <Feather name="user-x" size={32} color={theme.textSecondary} />
-                          <ThemedText style={{ color: theme.textSecondary, marginTop: 8 }}>
+                          <Feather
+                            name="user-x"
+                            size={32}
+                            color={theme.textSecondary}
+                          />
+                          <ThemedText
+                            style={{ color: theme.textSecondary, marginTop: 8 }}
+                          >
                             No supervisor account found.
                           </ThemedText>
                         </View>
@@ -777,26 +1034,48 @@ export default function SupervisorManagementScreen() {
                             key={sup._id}
                             style={[
                               styles.resultCard,
-                              { backgroundColor: theme.backgroundDefault, borderColor: theme.border },
+                              {
+                                backgroundColor: theme.backgroundDefault,
+                                borderColor: theme.border,
+                              },
                             ]}
                           >
                             <View style={{ flex: 1 }}>
-                              <ThemedText style={{ fontWeight: "700", fontSize: 15 }}>{sup.name}</ThemedText>
-                              <ThemedText style={{ color: theme.textSecondary, fontSize: 12.5 }}>
+                              <ThemedText
+                                style={{ fontWeight: "700", fontSize: 15 }}
+                              >
+                                {sup.name}
+                              </ThemedText>
+                              <ThemedText
+                                style={{
+                                  color: theme.textSecondary,
+                                  fontSize: 12.5,
+                                }}
+                              >
                                 @{sup.username || "no-username"} • {sup.phone}
                               </ThemedText>
                               {sup.contractorCompany ? (
-                                <ThemedText style={{ color: "#F97316", fontSize: 12, marginTop: 2 }}>
+                                <ThemedText
+                                  style={{
+                                    color: "#F97316",
+                                    fontSize: 12,
+                                    marginTop: 2,
+                                  }}
+                                >
                                   Company: {sup.contractorCompany}
                                 </ThemedText>
                               ) : null}
                             </View>
 
                             <Pressable
-                              onPress={() => handleSendConnectionRequest(sup._id)}
+                              onPress={() =>
+                                handleSendConnectionRequest(sup._id)
+                              }
                               style={styles.sendReqBtn}
                             >
-                              <ThemedText style={styles.sendReqBtnText}>Send Request</ThemedText>
+                              <ThemedText style={styles.sendReqBtnText}>
+                                Send Request
+                              </ThemedText>
                             </Pressable>
                           </View>
                         ))

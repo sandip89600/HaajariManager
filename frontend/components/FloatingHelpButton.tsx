@@ -35,7 +35,11 @@ interface HelpSheetProps {
 const SUPPORT_PHONE = "+917057942248";
 const SUPPORT_EMAIL = "info.haajariapp@gmail.com";
 
-export default function HelpSheet({ visible, onClose, onTourStart }: HelpSheetProps) {
+export default function HelpSheet({
+  visible,
+  onClose,
+  onTourStart,
+}: HelpSheetProps) {
   const { theme, isDark } = useTheme();
   const tour = useTour();
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
@@ -85,25 +89,33 @@ export default function HelpSheet({ visible, onClose, onTourStart }: HelpSheetPr
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Alert.alert(
       "Contact Support",
-      "Haajari Manager support team se baat karein.\n\n📞 " + SUPPORT_PHONE + "\n📧 " + SUPPORT_EMAIL,
+      "Haajari Manager support team se baat karein.\n\n📞 " +
+        SUPPORT_PHONE +
+        "\n📧 " +
+        SUPPORT_EMAIL,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "📞 Call Now",
           onPress: () =>
             Linking.openURL(`tel:${SUPPORT_PHONE}`).catch(() =>
-              Alert.alert("Error", "Call nahi ho pa raha. Manually dial karein: " + SUPPORT_PHONE)
+              Alert.alert(
+                "Error",
+                "Call nahi ho pa raha. Manually dial karein: " + SUPPORT_PHONE,
+              ),
             ),
         },
         {
           text: "💬 WhatsApp",
           onPress: () =>
             Linking.openURL(
-              `https://wa.me/${SUPPORT_PHONE.replace("+", "")}?text=Hi, Haajari Manager me help chahiye.`
-            ).catch(() => Alert.alert("Error", "WhatsApp open nahi ho pa raha.")),
+              `https://wa.me/${SUPPORT_PHONE.replace("+", "")}?text=Hi, Haajari Manager me help chahiye.`,
+            ).catch(() =>
+              Alert.alert("Error", "WhatsApp open nahi ho pa raha."),
+            ),
         },
       ],
-      { cancelable: true }
+      { cancelable: true },
     );
   };
 
@@ -169,19 +181,33 @@ export default function HelpSheet({ visible, onClose, onTourStart }: HelpSheetPr
 
           {/* Header */}
           <View style={styles.headerRow}>
-            <View style={[styles.headerIconWrap, { backgroundColor: isDark ? "#1E3A5F" : "#EFF6FF" }]}>
+            <View
+              style={[
+                styles.headerIconWrap,
+                { backgroundColor: isDark ? "#1E3A5F" : "#EFF6FF" },
+              ]}
+            >
               <Feather name="life-buoy" size={22} color={theme.primary} />
             </View>
             <View>
-              <ThemedText style={[styles.title, { color: theme.text }]}>Help & Support</ThemedText>
-              <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
+              <ThemedText style={[styles.title, { color: theme.text }]}>
+                Help & Support
+              </ThemedText>
+              <ThemedText
+                style={[styles.subtitle, { color: theme.textSecondary }]}
+              >
                 App sikhein ya team se baat karein
               </ThemedText>
             </View>
           </View>
 
           {/* Divider */}
-          <View style={[styles.divider, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]} />
+          <View
+            style={[
+              styles.divider,
+              { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" },
+            ]}
+          />
 
           {/* Items */}
           <View style={styles.itemsWrap}>
@@ -193,15 +219,23 @@ export default function HelpSheet({ visible, onClose, onTourStart }: HelpSheetPr
                   styles.item,
                   {
                     backgroundColor: pressed
-                      ? isDark ? "#1E293B" : "#F8FAFC"
+                      ? isDark
+                        ? "#1E293B"
+                        : "#F8FAFC"
                       : "transparent",
                     borderColor: isDark ? "#1E293B" : "#E2E8F0",
                   },
                 ]}
               >
                 {/* Icon */}
-                <View style={[styles.iconWrap, { backgroundColor: item.iconBg }]}>
-                  <Feather name={item.icon as any} size={22} color={item.iconColor} />
+                <View
+                  style={[styles.iconWrap, { backgroundColor: item.iconBg }]}
+                >
+                  <Feather
+                    name={item.icon as any}
+                    size={22}
+                    color={item.iconColor}
+                  />
                 </View>
 
                 {/* Text */}
@@ -211,28 +245,48 @@ export default function HelpSheet({ visible, onClose, onTourStart }: HelpSheetPr
                       {item.label}
                     </ThemedText>
                     {item.badge && (
-                      <View style={[styles.badge, { backgroundColor: theme.primary + "20" }]}>
-                        <ThemedText style={[styles.badgeText, { color: theme.primary }]}>
+                      <View
+                        style={[
+                          styles.badge,
+                          { backgroundColor: theme.primary + "20" },
+                        ]}
+                      >
+                        <ThemedText
+                          style={[styles.badgeText, { color: theme.primary }]}
+                        >
                           {item.badge}
                         </ThemedText>
                       </View>
                     )}
                   </View>
-                  <ThemedText style={[styles.sublabel, { color: theme.textSecondary }]}>
+                  <ThemedText
+                    style={[styles.sublabel, { color: theme.textSecondary }]}
+                  >
                     {item.sublabel}
                   </ThemedText>
                 </View>
 
                 {/* Chevron */}
-                <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color={theme.textSecondary}
+                />
               </Pressable>
             ))}
           </View>
 
           {/* Footer note */}
-          <View style={[styles.footer, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC" }]}>
+          <View
+            style={[
+              styles.footer,
+              { backgroundColor: isDark ? "#1E293B" : "#F8FAFC" },
+            ]}
+          >
             <Feather name="info" size={13} color={theme.textSecondary} />
-            <ThemedText style={[styles.footerText, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.footerText, { color: theme.textSecondary }]}
+            >
               Support hours: Mon – Sat, 9 AM – 7 PM IST
             </ThemedText>
           </View>

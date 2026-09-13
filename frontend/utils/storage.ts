@@ -15,7 +15,11 @@ const getApiUrl = () => {
   }
 
   // 1. Web browser environment
-  if (Platform.OS === "web" && typeof window !== "undefined" && window.location) {
+  if (
+    Platform.OS === "web" &&
+    typeof window !== "undefined" &&
+    window.location
+  ) {
     const hostname = window.location.hostname;
     if (hostname === "localhost" || hostname === "127.0.0.1") {
       return "http://localhost:5000/api";
@@ -49,7 +53,10 @@ const inflightRequests = new Map<string, Promise<any>>();
 const memoryCache = new Map<string, { data: any; timestamp: number }>();
 const DEFAULT_STALE_TIME_MS = 15000; // 15 seconds memory cache stale time
 
-export function getMemoryCache<T>(key: string, maxAgeMs = DEFAULT_STALE_TIME_MS): T | null {
+export function getMemoryCache<T>(
+  key: string,
+  maxAgeMs = DEFAULT_STALE_TIME_MS,
+): T | null {
   const cached = memoryCache.get(key);
   if (cached && Date.now() - cached.timestamp < maxAgeMs) {
     return cached.data as T;
@@ -73,7 +80,10 @@ export function invalidateMemoryCache(keyPrefix?: string): void {
   }
 }
 
-export function dedupeRequest<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+export function dedupeRequest<T>(
+  key: string,
+  fetcher: () => Promise<T>,
+): Promise<T> {
   const existing = inflightRequests.get(key);
   if (existing) {
     return existing as Promise<T>;
@@ -230,7 +240,14 @@ export interface AuthData {
   isLoggedIn: boolean;
   userId: string;
   userType: "admin" | "user" | "guest";
-  role?: "contractor" | "builder" | "supervisor" | "labor" | "admin" | "guest" | "worker";
+  role?:
+    | "contractor"
+    | "builder"
+    | "supervisor"
+    | "labor"
+    | "admin"
+    | "guest"
+    | "worker";
   phone?: string;
   email?: string;
   username?: string;
@@ -239,7 +256,14 @@ export interface AuthData {
   token?: string;
   refreshToken?: string;
   tenantId?: string;
-  plan?: "free" | "starter" | "professional" | "business" | "basic" | "super" | "premium";
+  plan?:
+    | "free"
+    | "starter"
+    | "professional"
+    | "business"
+    | "basic"
+    | "super"
+    | "premium";
 }
 
 export interface ProfileData {
@@ -272,7 +296,14 @@ export interface User {
   loginHistory: number[];
   assignedProjects?: string[];
   companyName?: string;
-  plan?: "free" | "starter" | "professional" | "business" | "basic" | "super" | "premium";
+  plan?:
+    | "free"
+    | "starter"
+    | "professional"
+    | "business"
+    | "basic"
+    | "super"
+    | "premium";
   planExpiresAt?: string;
   username?: string;
 }
@@ -311,29 +342,40 @@ export interface Site {
   address: string;
   startDate: string;
   description?: string;
-  status: "Planning" | "Started" | "In Progress" | "On Hold" | "Delayed" | "Completed" | "Active";
-  supervisor?: {
-    _id: string;
-    name: string;
-    email?: string;
-    phone?: string;
-    role?: string;
-  } | string;
+  status:
+    | "Planning"
+    | "Started"
+    | "In Progress"
+    | "On Hold"
+    | "Delayed"
+    | "Completed"
+    | "Active";
+  supervisor?:
+    | {
+        _id: string;
+        name: string;
+        email?: string;
+        phone?: string;
+        role?: string;
+      }
+    | string;
   createdBy?: string;
   isArchived?: boolean;
   isDeleted?: boolean;
   createdAt?: string;
   updatedAt?: string;
-  
+
   // Cache fields
   currentWork?: string;
   currentProgress?: number;
   lastUpdateAt?: string;
-  lastUpdatedBy?: {
-    _id: string;
-    name: string;
-    role?: string;
-  } | string;
+  lastUpdatedBy?:
+    | {
+        _id: string;
+        name: string;
+        role?: string;
+      }
+    | string;
   lastUpdateType?: string;
 }
 
@@ -551,7 +593,9 @@ export const storage = {
 
   async isLanguageOnboardingCompleted(): Promise<boolean> {
     try {
-      const val = await AsyncStorage.getItem(STORAGE_KEYS.LANGUAGE_ONBOARDING_COMPLETED);
+      const val = await AsyncStorage.getItem(
+        STORAGE_KEYS.LANGUAGE_ONBOARDING_COMPLETED,
+      );
       return val === "true";
     } catch {
       return false;
@@ -562,7 +606,7 @@ export const storage = {
     try {
       await AsyncStorage.setItem(
         STORAGE_KEYS.LANGUAGE_ONBOARDING_COMPLETED,
-        completed ? "true" : "false"
+        completed ? "true" : "false",
       );
     } catch (error) {
       console.error("Error saving language onboarding status:", error);
@@ -616,7 +660,10 @@ export const storage = {
       if ((plan === "free" || plan === "basic") && projects.length >= 2) {
         throw new Error("LIMIT_EXCEEDED_PROJECTS");
       }
-      if ((plan === "professional" || plan === "super") && projects.length >= 10) {
+      if (
+        (plan === "professional" || plan === "super") &&
+        projects.length >= 10
+      ) {
         throw new Error("LIMIT_EXCEEDED_PROJECTS");
       }
     }
@@ -737,7 +784,9 @@ export const storage = {
     try {
       const auth = await this.getAuth();
       if (auth?.token) {
-        const res = await authenticatedFetch(`${API_URL}/sites/dashboard/stats`);
+        const res = await authenticatedFetch(
+          `${API_URL}/sites/dashboard/stats`,
+        );
         if (res.ok) {
           return await res.json();
         }
@@ -753,11 +802,17 @@ export const storage = {
       totalWorkers: 0,
       sitesInProgress: 0,
       delayedSites: 0,
-      completedSites: 0
+      completedSites: 0,
     };
   },
 
-  async getSites(params?: { search?: string; status?: string; sortBy?: string; page?: number; limit?: number }): Promise<{ sites: Site[]; pagination?: any }> {
+  async getSites(params?: {
+    search?: string;
+    status?: string;
+    sortBy?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ sites: Site[]; pagination?: any }> {
     const key = `sites_${JSON.stringify(params || {})}`;
     return dedupeRequest(key, async () => {
       try {
@@ -767,14 +822,17 @@ export const storage = {
             let url = `${API_URL}/sites?`;
             if (params) {
               const queryParams = [];
-              if (params.search) queryParams.push(`search=${encodeURIComponent(params.search)}`);
-              if (params.status) queryParams.push(`status=${encodeURIComponent(params.status)}`);
-              if (params.sortBy) queryParams.push(`sortBy=${encodeURIComponent(params.sortBy)}`);
+              if (params.search)
+                queryParams.push(`search=${encodeURIComponent(params.search)}`);
+              if (params.status)
+                queryParams.push(`status=${encodeURIComponent(params.status)}`);
+              if (params.sortBy)
+                queryParams.push(`sortBy=${encodeURIComponent(params.sortBy)}`);
               if (params.page) queryParams.push(`page=${params.page}`);
               if (params.limit) queryParams.push(`limit=${params.limit}`);
               url += queryParams.join("&");
             }
-            
+
             const res = await authenticatedFetch(url);
             if (res.ok) {
               const data = await res.json();
@@ -814,7 +872,9 @@ export const storage = {
 
   async getSiteUpdates(siteId: string): Promise<any[]> {
     try {
-      const res = await authenticatedFetch(`${API_URL}/sites/${siteId}/updates`);
+      const res = await authenticatedFetch(
+        `${API_URL}/sites/${siteId}/updates`,
+      );
       if (res.ok) {
         return await res.json();
       }
@@ -837,7 +897,10 @@ export const storage = {
       const key = `@haajari/site_updates_${siteId}`;
       const existing = await AsyncStorage.getItem(key);
       const updates = existing ? JSON.parse(existing) : [];
-      await AsyncStorage.setItem(key, JSON.stringify([localUpdate, ...updates]));
+      await AsyncStorage.setItem(
+        key,
+        JSON.stringify([localUpdate, ...updates]),
+      );
     } catch (err) {
       console.warn("Failed to save site update locally:", err);
     }
@@ -883,7 +946,11 @@ export const storage = {
     const idx = sites.findIndex((s) => s.id === siteId);
     let updatedSite = sites[idx];
     if (idx !== -1) {
-      updatedSite = { ...sites[idx], ...siteData, updatedAt: new Date().toISOString() };
+      updatedSite = {
+        ...sites[idx],
+        ...siteData,
+        updatedAt: new Date().toISOString(),
+      };
       sites[idx] = updatedSite;
       await AsyncStorage.setItem(STORAGE_KEYS.SITES, JSON.stringify(sites));
     }
@@ -901,9 +968,12 @@ export const storage = {
     try {
       const auth = await this.getAuth();
       if (auth?.token) {
-        const res = await authenticatedFetch(`${API_URL}/sites/${siteId}/archive`, {
-          method: "PUT",
-        });
+        const res = await authenticatedFetch(
+          `${API_URL}/sites/${siteId}/archive`,
+          {
+            method: "PUT",
+          },
+        );
         if (res.ok) {
           const site = mapSite(await res.json());
           DeviceEventEmitter.emit("refreshData");
@@ -990,14 +1060,20 @@ export const storage = {
       if ((plan === "free" || plan === "basic") && workers.length >= 20) {
         throw new Error("LIMIT_EXCEEDED_WORKERS");
       }
-      if ((plan === "professional" || plan === "super") && workers.length >= 100) {
+      if (
+        (plan === "professional" || plan === "super") &&
+        workers.length >= 100
+      ) {
         throw new Error("LIMIT_EXCEEDED_WORKERS");
       }
     }
 
     const updatedWorkers = [worker, ...workers];
     setMemoryCache("workers", updatedWorkers);
-    await AsyncStorage.setItem(STORAGE_KEYS.WORKERS, JSON.stringify(updatedWorkers)).catch(() => {});
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.WORKERS,
+      JSON.stringify(updatedWorkers),
+    ).catch(() => {});
 
     await syncManager.addToQueue({
       type: "CREATE_WORKER",
@@ -1124,7 +1200,10 @@ export const storage = {
     } else {
       records.push(record);
     }
-    await AsyncStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(records));
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.ATTENDANCE,
+      JSON.stringify(records),
+    );
 
     // 3. Queue for synchronization to backend
     await syncManager.addToQueue({
@@ -1196,12 +1275,13 @@ export const storage = {
         console.error(e);
       }
       const records = await this.getAttendance();
-      const filtered = records.filter((r) => r.year === year && r.month === month);
+      const filtered = records.filter(
+        (r) => r.year === year && r.month === month,
+      );
       setMemoryCache(key, filtered);
       return filtered;
     });
   },
-
 
   // Settings methods
   async getSettings(): Promise<Settings> {
@@ -1319,7 +1399,10 @@ export const storage = {
   },
 
   // Labour Dashboard Cache
-  async getLabourDashboardCache(year: number, month: number): Promise<any | null> {
+  async getLabourDashboardCache(
+    year: number,
+    month: number,
+  ): Promise<any | null> {
     try {
       const key = `${STORAGE_KEYS.LABOUR_DASHBOARD}_${year}_${month}`;
       const data = await AsyncStorage.getItem(key);
@@ -1329,7 +1412,11 @@ export const storage = {
     }
   },
 
-  async setLabourDashboardCache(year: number, month: number, data: any): Promise<void> {
+  async setLabourDashboardCache(
+    year: number,
+    month: number,
+    data: any,
+  ): Promise<void> {
     try {
       const key = `${STORAGE_KEYS.LABOUR_DASHBOARD}_${year}_${month}`;
       await AsyncStorage.setItem(key, JSON.stringify(data));
@@ -1365,7 +1452,10 @@ export const storage = {
               return serverPayments;
             }
           } catch (e) {
-            console.log("Failed to fetch payments from backend, using cache", e);
+            console.log(
+              "Failed to fetch payments from backend, using cache",
+              e,
+            );
           }
         }
       } catch (e) {
@@ -1404,7 +1494,9 @@ export const storage = {
   async getVoiceSettings(): Promise<VoiceSettings> {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS_EXT.VOICE_SETTINGS);
-      return data ? { ...DEFAULT_VOICE_SETTINGS, ...JSON.parse(data) } : DEFAULT_VOICE_SETTINGS;
+      return data
+        ? { ...DEFAULT_VOICE_SETTINGS, ...JSON.parse(data) }
+        : DEFAULT_VOICE_SETTINGS;
     } catch {
       return DEFAULT_VOICE_SETTINGS;
     }
@@ -1646,7 +1738,9 @@ export async function authenticatedFetch(
   }
 
   const auth = await storage.getAuth();
-  const deviceHeaders = await getDeviceHeaders().catch(() => ({} as Record<string, string>));
+  const deviceHeaders = await getDeviceHeaders().catch(
+    () => ({}) as Record<string, string>,
+  );
 
   const headers = {
     ...deviceHeaders,
@@ -1676,10 +1770,17 @@ export async function authenticatedFetch(
     networkManager.setOnline(false);
     if (netError.name === "AbortError") {
       console.warn(`Request to ${fullUrl} timed out after ${timeoutMs}ms`);
-      throw new Error("Request timed out. Please check network connection and try again.");
+      throw new Error(
+        "Request timed out. Please check network connection and try again.",
+      );
     }
-    console.warn(`[Network Warning] Could not reach backend server at ${fullUrl}:`, netError?.message || netError);
-    throw new Error("Unable to connect to Haajari server. Please check internet connection.");
+    console.warn(
+      `[Network Warning] Could not reach backend server at ${fullUrl}:`,
+      netError?.message || netError,
+    );
+    throw new Error(
+      "Unable to connect to Haajari server. Please check internet connection.",
+    );
   } finally {
     clearTimeout(timeoutId);
   }
@@ -1691,7 +1792,10 @@ export async function authenticatedFetch(
         return new Promise<Response>((resolve, reject) => {
           subscribeTokenRefresh((newToken) => {
             // Update auth token for request and retry
-            const updatedHeaders = (options.headers || {}) as Record<string, string>;
+            const updatedHeaders = (options.headers || {}) as Record<
+              string,
+              string
+            >;
             updatedHeaders["Authorization"] = `Bearer ${newToken}`;
             options.headers = updatedHeaders;
             options._retry = true; // Mark retry to avoid infinite loop
@@ -1728,21 +1832,34 @@ export async function authenticatedFetch(
           options.headers = headers;
           options._retry = true;
           return fetch(fullUrl, options);
-        } else if (refreshRes.status === 401 || refreshRes.status === 403 || refreshRes.status === 400) {
-          console.warn("Refresh token rejected by server: status", refreshRes.status);
+        } else if (
+          refreshRes.status === 401 ||
+          refreshRes.status === 403 ||
+          refreshRes.status === 400
+        ) {
+          console.warn(
+            "Refresh token rejected by server: status",
+            refreshRes.status,
+          );
           isRefreshing = false;
           // Notify queued subscribers with empty string so they don't hang indefinitely
           onRefreshed("");
           await storage.clearAuth();
           DeviceEventEmitter.emit("unauthorized");
         } else {
-          console.warn("Temporary server error during token refresh: status", refreshRes.status);
+          console.warn(
+            "Temporary server error during token refresh: status",
+            refreshRes.status,
+          );
           isRefreshing = false;
           // Resolve queued items with old token so they fail or recover
           onRefreshed(auth.token);
         }
       } catch (err) {
-        console.warn("Network error during token refresh, keeping credentials:", err);
+        console.warn(
+          "Network error during token refresh, keeping credentials:",
+          err,
+        );
         isRefreshing = false;
         onRefreshed(auth.token);
       }

@@ -27,19 +27,27 @@ interface TeamConnectionWidgetProps {
   onRefreshParent?: () => void;
 }
 
-export default function TeamConnectionWidget({ onRefreshParent }: TeamConnectionWidgetProps) {
+export default function TeamConnectionWidget({
+  onRefreshParent,
+}: TeamConnectionWidgetProps) {
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
   const { user, uniqueId, refreshUserProfile } = useAuth();
 
-  const isContractor = user?.role === "contractor" || user?.role === "builder" || user?.role === "admin";
+  const isContractor =
+    user?.role === "contractor" ||
+    user?.role === "builder" ||
+    user?.role === "admin";
   const isSupervisor = user?.role === "supervisor";
-  const isWorker = user?.role === "labor" || (user?.role as string) === "worker";
+  const isWorker =
+    user?.role === "labor" || (user?.role as string) === "worker";
 
   // State
   const [connectModalVisible, setConnectModalVisible] = useState(false);
   const [connectTab, setConnectTab] = useState<"mobile" | "id">("mobile");
-  const [targetRole, setTargetRole] = useState<"worker" | "supervisor">("worker");
+  const [targetRole, setTargetRole] = useState<"worker" | "supervisor">(
+    "worker",
+  );
 
   // Mobile connect state
   const [mobileNumber, setMobileNumber] = useState("");
@@ -58,7 +66,9 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [connectedSupervisors, setConnectedSupervisors] = useState<any[]>([]);
   const [connectedWorkers, setConnectedWorkers] = useState<any[]>([]);
-  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(
+    null,
+  );
 
   const cardBg = isDark ? "#1E293B" : "#FFFFFF";
   const borderCol = isDark ? "#334155" : "#E2E8F0";
@@ -73,7 +83,10 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
         return { success: false, message: text || `HTTP ${res.status} error` };
       }
     } catch (e: any) {
-      return { success: false, message: e.message || "Failed to read response" };
+      return {
+        success: false,
+        message: e.message || "Failed to read response",
+      };
     }
   };
 
@@ -81,22 +94,26 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
   const loadConnectionData = useCallback(async () => {
     try {
       // 1. Fetch pending requests for current user
-      const res = await authenticatedFetch(`${API_URL}/connections/user/pending-requests`);
+      const res = await authenticatedFetch(
+        `${API_URL}/connections/user/pending-requests`,
+      );
       if (res.ok) {
         const data = await safeParseResponse(res);
         if (data.success) {
           const reqs = Array.isArray(data.incoming)
             ? data.incoming
             : Array.isArray(data.requests)
-            ? data.requests
-            : [];
+              ? data.requests
+              : [];
           setPendingRequests(reqs);
         }
       }
 
       // 2. If contractor, fetch connected members
       if (isContractor) {
-        const teamRes = await authenticatedFetch(`${API_URL}/connections/contractor/connections`);
+        const teamRes = await authenticatedFetch(
+          `${API_URL}/connections/contractor/connections`,
+        );
         if (teamRes.ok) {
           const teamData = await safeParseResponse(teamRes);
           if (teamData.success) {
@@ -120,7 +137,10 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
     if (text) {
       await Clipboard.setStringAsync(text);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(t("common.copied", "Copied!"), `${text} copied to clipboard.`);
+      Alert.alert(
+        t("common.copied", "Copied!"),
+        `${text} copied to clipboard.`,
+      );
     }
   };
 
@@ -128,7 +148,11 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
   const handleShareId = async () => {
     if (uniqueId) {
       try {
-        const roleTitle = isContractor ? "Contractor" : isSupervisor ? "Supervisor" : "Worker";
+        const roleTitle = isContractor
+          ? "Contractor"
+          : isSupervisor
+            ? "Supervisor"
+            : "Worker";
         await Share.share({
           message: `Haajari Manager ${roleTitle} ID: ${uniqueId}\nName: ${user?.name || ""}\nConnect with me on Haajari Manager!`,
         });
@@ -142,11 +166,20 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
   const handleConnectByMobile = async () => {
     const cleanPhone = mobileNumber.replace(/\D/g, "");
     if (cleanPhone.length !== 10) {
-      Alert.alert(t("common.error", "Error"), t("connection.enter10DigitPhone", "Please enter a valid 10-digit mobile number."));
+      Alert.alert(
+        t("common.error", "Error"),
+        t(
+          "connection.enter10DigitPhone",
+          "Please enter a valid 10-digit mobile number.",
+        ),
+      );
       return;
     }
     if (!workerName.trim()) {
-      Alert.alert(t("common.error", "Error"), t("workers.enterName", "Please enter worker name."));
+      Alert.alert(
+        t("common.error", "Error"),
+        t("workers.enterName", "Please enter worker name."),
+      );
       return;
     }
 
@@ -169,8 +202,8 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
           t("common.success", "Worker Added & Linked!"),
           t(
             "connection.mobileConnectSuccess",
-            "Worker profile has been created. When the worker signs up with this phone number, their profile will be linked automatically!"
-          )
+            "Worker profile has been created. When the worker signs up with this phone number, their profile will be linked automatically!",
+          ),
         );
         setConnectModalVisible(false);
         setMobileNumber("");
@@ -179,10 +212,16 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
         onRefreshParent?.();
       } else {
         const errData = await safeParseResponse(res);
-        Alert.alert(t("common.error", "Error"), errData.error || errData.message || "Failed to add worker.");
+        Alert.alert(
+          t("common.error", "Error"),
+          errData.error || errData.message || "Failed to add worker.",
+        );
       }
     } catch (err: any) {
-      Alert.alert(t("common.error", "Error"), err.message || "Failed to connect worker.");
+      Alert.alert(
+        t("common.error", "Error"),
+        err.message || "Failed to connect worker.",
+      );
     } finally {
       setIsSubmittingMobile(false);
     }
@@ -192,14 +231,22 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
   const handleLookupId = async () => {
     const q = accountIdInput.trim();
     if (!q) {
-      Alert.alert(t("common.required", "Required"), t("connection.enterUniqueIdError", "Please enter Unique ID or Mobile Number."));
+      Alert.alert(
+        t("common.required", "Required"),
+        t(
+          "connection.enterUniqueIdError",
+          "Please enter Unique ID or Mobile Number.",
+        ),
+      );
       return;
     }
 
     setIsSearchingId(true);
     setFoundAccount(null);
     try {
-      const res = await authenticatedFetch(`${API_URL}/connections/lookup?uniqueId=${encodeURIComponent(q)}`);
+      const res = await authenticatedFetch(
+        `${API_URL}/connections/lookup?uniqueId=${encodeURIComponent(q)}`,
+      );
       const data = await safeParseResponse(res);
 
       if (res.ok && data.success) {
@@ -208,11 +255,19 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
       } else {
         Alert.alert(
           t("common.notFound", "Account Not Found"),
-          data.message || data.error || t("connection.userNotFound", "No account found with this ID or Mobile Number.")
+          data.message ||
+            data.error ||
+            t(
+              "connection.userNotFound",
+              "No account found with this ID or Mobile Number.",
+            ),
         );
       }
     } catch (err: any) {
-      Alert.alert(t("common.error", "Error"), err.message || "Failed to search account.");
+      Alert.alert(
+        t("common.error", "Error"),
+        err.message || "Failed to search account.",
+      );
     } finally {
       setIsSearchingId(false);
     }
@@ -237,17 +292,26 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           t("common.success", "Request Sent!"),
-          t("connection.requestSentMsg", "Connection request has been sent successfully.")
+          t(
+            "connection.requestSentMsg",
+            "Connection request has been sent successfully.",
+          ),
         );
         setConnectModalVisible(false);
         setAccountIdInput("");
         setFoundAccount(null);
         loadConnectionData();
       } else {
-        Alert.alert(t("common.error", "Error"), data.message || data.error || "Failed to send connection request.");
+        Alert.alert(
+          t("common.error", "Error"),
+          data.message || data.error || "Failed to send connection request.",
+        );
       }
     } catch (err: any) {
-      Alert.alert(t("common.error", "Error"), err.message || "Connection request failed.");
+      Alert.alert(
+        t("common.error", "Error"),
+        err.message || "Connection request failed.",
+      );
     } finally {
       setIsSendingIdRequest(false);
     }
@@ -267,16 +331,27 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
       if (res.ok && data.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         // Immediately remove request from pending list locally for instantaneous UI update
-        setPendingRequests((prev) => prev.filter((r) => (r.requestId || r._id || r.id) !== reqId));
-        Alert.alert(t("common.success", "Connected!"), t("connection.connectedSuccess", "Connection accepted successfully!"));
+        setPendingRequests((prev) =>
+          prev.filter((r) => (r.requestId || r._id || r.id) !== reqId),
+        );
+        Alert.alert(
+          t("common.success", "Connected!"),
+          t("connection.connectedSuccess", "Connection accepted successfully!"),
+        );
         await refreshUserProfile();
         loadConnectionData();
         onRefreshParent?.();
       } else {
-        Alert.alert(t("common.error", "Error"), data.message || data.error || "Failed to accept request.");
+        Alert.alert(
+          t("common.error", "Error"),
+          data.message || data.error || "Failed to accept request.",
+        );
       }
     } catch (err: any) {
-      Alert.alert(t("common.error", "Error"), err.message || "An unexpected error occurred while accepting request.");
+      Alert.alert(
+        t("common.error", "Error"),
+        err.message || "An unexpected error occurred while accepting request.",
+      );
     } finally {
       setProcessingRequestId(null);
     }
@@ -295,13 +370,21 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
       const data = await safeParseResponse(res);
       if (res.ok && data.success) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        setPendingRequests((prev) => prev.filter((r) => (r.requestId || r._id || r.id) !== reqId));
+        setPendingRequests((prev) =>
+          prev.filter((r) => (r.requestId || r._id || r.id) !== reqId),
+        );
         loadConnectionData();
       } else {
-        Alert.alert(t("common.error", "Error"), data.message || data.error || "Failed to reject request.");
+        Alert.alert(
+          t("common.error", "Error"),
+          data.message || data.error || "Failed to reject request.",
+        );
       }
     } catch (err: any) {
-      Alert.alert(t("common.error", "Error"), err.message || "An unexpected error occurred while rejecting request.");
+      Alert.alert(
+        t("common.error", "Error"),
+        err.message || "An unexpected error occurred while rejecting request.",
+      );
     } finally {
       setProcessingRequestId(null);
     }
@@ -316,20 +399,23 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
         <View style={styles.inlineRequestsHeader}>
           <View style={styles.pulsingDot} />
           <Text style={[styles.inlineRequestsTitle, { color: theme.text }]}>
-            {t("connection.incomingRequests", "Incoming Requests")} ({pendingRequests.length})
+            {t("connection.incomingRequests", "Incoming Requests")} (
+            {pendingRequests.length})
           </Text>
         </View>
 
         {pendingRequests.map((req, index) => {
           const reqId = req.requestId || req._id || req.id;
-          const senderName = req.senderName || req.contractorName || req.targetName || "User";
-          const senderIdDisplay = req.senderUniqueId || req.contractorUniqueId || req.code || "";
+          const senderName =
+            req.senderName || req.contractorName || req.targetName || "User";
+          const senderIdDisplay =
+            req.senderUniqueId || req.contractorUniqueId || req.code || "";
           const roleLabel =
             req.senderRole === "labor" || req.senderRole === "worker"
               ? t("roles.worker", "Worker")
               : req.senderRole === "supervisor"
-              ? t("roles.supervisor", "Supervisor")
-              : t("roles.contractor", "Contractor");
+                ? t("roles.supervisor", "Supervisor")
+                : t("roles.contractor", "Contractor");
           const isProcessing = processingRequestId === reqId;
 
           return (
@@ -352,7 +438,10 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
 
                 <View style={styles.requestInfo}>
                   <View style={styles.requestNameRow}>
-                    <Text style={[styles.requestSenderName, { color: theme.text }]} numberOfLines={1}>
+                    <Text
+                      style={[styles.requestSenderName, { color: theme.text }]}
+                      numberOfLines={1}
+                    >
                       {senderName}
                     </Text>
                     <View style={styles.roleTag}>
@@ -361,12 +450,19 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                   </View>
 
                   {senderIdDisplay ? (
-                    <Text style={[styles.requestSenderId, { color: "#EA580C" }]}>
+                    <Text
+                      style={[styles.requestSenderId, { color: "#EA580C" }]}
+                    >
                       {roleLabel} ID: {senderIdDisplay}
                     </Text>
                   ) : null}
 
-                  <Text style={[styles.requestPromptText, { color: theme.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.requestPromptText,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
                     {t("connection.wantsToJoin", "wants to join your team.")}
                   </Text>
                 </View>
@@ -379,10 +475,18 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                   disabled={isProcessing}
                   style={[
                     styles.requestRejectBtn,
-                    { borderColor: borderCol, backgroundColor: isDark ? "#334155" : "#FFFFFF" },
+                    {
+                      borderColor: borderCol,
+                      backgroundColor: isDark ? "#334155" : "#FFFFFF",
+                    },
                   ]}
                 >
-                  <Text style={[styles.requestRejectText, { color: theme.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.requestRejectText,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
                     {t("common.reject", "Reject")}
                   </Text>
                 </Pressable>
@@ -390,7 +494,10 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                 <Pressable
                   onPress={() => handleAcceptRequest(reqId)}
                   disabled={isProcessing}
-                  style={[styles.requestAcceptBtn, { backgroundColor: "#10B981" }]}
+                  style={[
+                    styles.requestAcceptBtn,
+                    { backgroundColor: "#10B981" },
+                  ]}
                 >
                   {isProcessing ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
@@ -415,26 +522,46 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
     <View style={styles.container}>
       {/* ── CONTRACTOR VIEW ────────────────────────────────────────── */}
       {isContractor && (
-        <View style={[styles.mainCard, { backgroundColor: cardBg, borderColor: borderCol }]}>
+        <View
+          style={[
+            styles.mainCard,
+            { backgroundColor: cardBg, borderColor: borderCol },
+          ]}
+        >
           {/* Card Header */}
           <View style={styles.cardHeader}>
             <View style={styles.headerLeft}>
               <View style={[styles.iconCircle, { backgroundColor: "#FFEDD5" }]}>
-                <MaterialCommunityIcons name="account-group" size={20} color="#EA580C" />
+                <MaterialCommunityIcons
+                  name="account-group"
+                  size={20}
+                  color="#EA580C"
+                />
               </View>
               <View style={{ marginLeft: 10 }}>
                 <Text style={[styles.title, { color: theme.text }]}>
                   {t("connection.teamConnections", "Team & Connections")}
                 </Text>
                 <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-                  {t("connection.manageTeamSubtitle", "Connect workers & supervisors seamlessly")}
+                  {t(
+                    "connection.manageTeamSubtitle",
+                    "Connect workers & supervisors seamlessly",
+                  )}
                 </Text>
               </View>
             </View>
           </View>
 
           {/* Contractor ID Section */}
-          <View style={[styles.idBanner, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: borderCol }]}>
+          <View
+            style={[
+              styles.idBanner,
+              {
+                backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
+                borderColor: borderCol,
+              },
+            ]}
+          >
             <View style={styles.idBannerLeft}>
               <Text style={[styles.idLabel, { color: theme.textSecondary }]}>
                 {t("connection.contractorId", "CONTRACTOR ID")}
@@ -444,10 +571,19 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
               </Text>
             </View>
             <View style={styles.idActions}>
-              <Pressable onPress={() => handleCopyId()} style={[styles.iconBtn, { borderColor: borderCol }]}>
+              <Pressable
+                onPress={() => handleCopyId()}
+                style={[styles.iconBtn, { borderColor: borderCol }]}
+              >
                 <Feather name="copy" size={15} color={theme.text} />
               </Pressable>
-              <Pressable onPress={handleShareId} style={[styles.iconBtn, { borderColor: borderCol, marginLeft: 6 }]}>
+              <Pressable
+                onPress={handleShareId}
+                style={[
+                  styles.iconBtn,
+                  { borderColor: borderCol, marginLeft: 6 },
+                ]}
+              >
                 <Feather name="share-2" size={15} color={theme.text} />
               </Pressable>
             </View>
@@ -475,10 +611,22 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                 setConnectTab("id");
                 setConnectModalVisible(true);
               }}
-              style={[styles.secondaryActionBtn, { borderColor: borderCol, backgroundColor: isDark ? "#334155" : "#F1F5F9" }]}
+              style={[
+                styles.secondaryActionBtn,
+                {
+                  borderColor: borderCol,
+                  backgroundColor: isDark ? "#334155" : "#F1F5F9",
+                },
+              ]}
             >
-              <MaterialCommunityIcons name="shield-account" size={16} color={theme.text} />
-              <Text style={[styles.secondaryActionBtnText, { color: theme.text }]}>
+              <MaterialCommunityIcons
+                name="shield-account"
+                size={16}
+                color={theme.text}
+              />
+              <Text
+                style={[styles.secondaryActionBtnText, { color: theme.text }]}
+              >
                 {t("connection.connectSupervisor", "+ Connect Supervisor")}
               </Text>
             </Pressable>
@@ -491,13 +639,29 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
 
       {/* ── WORKER / LABOUR VIEW ────────────────────────────────────── */}
       {isWorker && (
-        <View style={[styles.mainCard, { backgroundColor: cardBg, borderColor: borderCol }]}>
+        <View
+          style={[
+            styles.mainCard,
+            { backgroundColor: cardBg, borderColor: borderCol },
+          ]}
+        >
           {/* Card Header */}
           <View style={styles.cardHeader}>
             <View style={styles.headerLeft}>
-              <View style={[styles.iconCircle, { backgroundColor: user?.contractorName ? "#DCFCE7" : "#F1F5F9" }]}>
+              <View
+                style={[
+                  styles.iconCircle,
+                  {
+                    backgroundColor: user?.contractorName
+                      ? "#DCFCE7"
+                      : "#F1F5F9",
+                  },
+                ]}
+              >
                 <MaterialCommunityIcons
-                  name={user?.contractorName ? "shield-check" : "account-question"}
+                  name={
+                    user?.contractorName ? "shield-check" : "account-question"
+                  }
                   size={20}
                   color={user?.contractorName ? "#10B981" : "#64748B"}
                 />
@@ -516,7 +680,15 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
           </View>
 
           {/* Worker ID Section */}
-          <View style={[styles.idBanner, { backgroundColor: isDark ? "#064E3B" : "#ECFDF5", borderColor: "#10B981" }]}>
+          <View
+            style={[
+              styles.idBanner,
+              {
+                backgroundColor: isDark ? "#064E3B" : "#ECFDF5",
+                borderColor: "#10B981",
+              },
+            ]}
+          >
             <View style={styles.idBannerLeft}>
               <Text style={[styles.idLabel, { color: "#047857" }]}>
                 {t("worker.uniqueIdLabel", "WORKER ID")}
@@ -526,10 +698,19 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
               </Text>
             </View>
             <View style={styles.idActions}>
-              <Pressable onPress={() => handleCopyId()} style={[styles.iconBtn, { borderColor: "#10B981" }]}>
+              <Pressable
+                onPress={() => handleCopyId()}
+                style={[styles.iconBtn, { borderColor: "#10B981" }]}
+              >
                 <Feather name="copy" size={15} color="#059669" />
               </Pressable>
-              <Pressable onPress={handleShareId} style={[styles.iconBtn, { borderColor: "#10B981", marginLeft: 6 }]}>
+              <Pressable
+                onPress={handleShareId}
+                style={[
+                  styles.iconBtn,
+                  { borderColor: "#10B981", marginLeft: 6 },
+                ]}
+              >
                 <Feather name="share-2" size={15} color="#059669" />
               </Pressable>
             </View>
@@ -544,9 +725,16 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                   setConnectTab("id");
                   setConnectModalVisible(true);
                 }}
-                style={[styles.primaryActionBtn, { backgroundColor: "#10B981" }]}
+                style={[
+                  styles.primaryActionBtn,
+                  { backgroundColor: "#10B981" },
+                ]}
               >
-                <MaterialCommunityIcons name="link-variant" size={16} color="#FFFFFF" />
+                <MaterialCommunityIcons
+                  name="link-variant"
+                  size={16}
+                  color="#FFFFFF"
+                />
                 <Text style={styles.primaryActionBtnText}>
                   {t("connection.enterContractorIdBtn", "+ Connect Contractor")}
                 </Text>
@@ -561,12 +749,21 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
 
       {/* ── SUPERVISOR VIEW ─────────────────────────────────────────── */}
       {isSupervisor && (
-        <View style={[styles.mainCard, { backgroundColor: cardBg, borderColor: borderCol }]}>
+        <View
+          style={[
+            styles.mainCard,
+            { backgroundColor: cardBg, borderColor: borderCol },
+          ]}
+        >
           {/* Card Header */}
           <View style={styles.cardHeader}>
             <View style={styles.headerLeft}>
               <View style={[styles.iconCircle, { backgroundColor: "#DBEAFE" }]}>
-                <MaterialCommunityIcons name="shield-account" size={20} color="#2563EB" />
+                <MaterialCommunityIcons
+                  name="shield-account"
+                  size={20}
+                  color="#2563EB"
+                />
               </View>
               <View style={{ marginLeft: 10 }}>
                 <Text style={[styles.title, { color: theme.text }]}>
@@ -582,7 +779,15 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
           </View>
 
           {/* Supervisor ID Banner */}
-          <View style={[styles.idBanner, { backgroundColor: isDark ? "#1E1B4B" : "#EEF2FF", borderColor: "#6366F1" }]}>
+          <View
+            style={[
+              styles.idBanner,
+              {
+                backgroundColor: isDark ? "#1E1B4B" : "#EEF2FF",
+                borderColor: "#6366F1",
+              },
+            ]}
+          >
             <View style={styles.idBannerLeft}>
               <Text style={[styles.idLabel, { color: "#4F46E5" }]}>
                 {t("connection.supervisorId", "SUPERVISOR ID")}
@@ -592,10 +797,19 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
               </Text>
             </View>
             <View style={styles.idActions}>
-              <Pressable onPress={() => handleCopyId()} style={[styles.iconBtn, { borderColor: "#6366F1" }]}>
+              <Pressable
+                onPress={() => handleCopyId()}
+                style={[styles.iconBtn, { borderColor: "#6366F1" }]}
+              >
                 <Feather name="copy" size={15} color="#4F46E5" />
               </Pressable>
-              <Pressable onPress={handleShareId} style={[styles.iconBtn, { borderColor: "#6366F1", marginLeft: 6 }]}>
+              <Pressable
+                onPress={handleShareId}
+                style={[
+                  styles.iconBtn,
+                  { borderColor: "#6366F1", marginLeft: 6 },
+                ]}
+              >
                 <Feather name="share-2" size={15} color="#4F46E5" />
               </Pressable>
             </View>
@@ -610,9 +824,16 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                   setConnectTab("id");
                   setConnectModalVisible(true);
                 }}
-                style={[styles.primaryActionBtn, { backgroundColor: "#3B82F6" }]}
+                style={[
+                  styles.primaryActionBtn,
+                  { backgroundColor: "#3B82F6" },
+                ]}
               >
-                <MaterialCommunityIcons name="link-variant" size={16} color="#FFFFFF" />
+                <MaterialCommunityIcons
+                  name="link-variant"
+                  size={16}
+                  color="#FFFFFF"
+                />
                 <Text style={styles.primaryActionBtnText}>
                   {t("connection.connectContractor", "+ Connect Contractor")}
                 </Text>
@@ -627,11 +848,17 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
               }}
               style={[
                 styles.secondaryActionBtn,
-                { borderColor: borderCol, backgroundColor: isDark ? "#334155" : "#F1F5F9", flex: user?.contractorName ? 1 : undefined },
+                {
+                  borderColor: borderCol,
+                  backgroundColor: isDark ? "#334155" : "#F1F5F9",
+                  flex: user?.contractorName ? 1 : undefined,
+                },
               ]}
             >
               <Feather name="user-plus" size={16} color={theme.text} />
-              <Text style={[styles.secondaryActionBtnText, { color: theme.text }]}>
+              <Text
+                style={[styles.secondaryActionBtnText, { color: theme.text }]}
+              >
                 {t("connection.connectWorker", "+ Connect Worker")}
               </Text>
             </Pressable>
@@ -653,18 +880,33 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.modalOverlay}
         >
-          <View style={[styles.modalContainer, { backgroundColor: theme.backgroundRoot, borderColor: borderCol }]}>
+          <View
+            style={[
+              styles.modalContainer,
+              { backgroundColor: theme.backgroundRoot, borderColor: borderCol },
+            ]}
+          >
             {/* Modal Header */}
-            <View style={[styles.modalHeader, { borderBottomColor: borderCol }]}>
+            <View
+              style={[styles.modalHeader, { borderBottomColor: borderCol }]}
+            >
               <Text style={[styles.modalTitle, { color: theme.text }]}>
-                {isWorker ? t("connection.connectContractor", "Connect Contractor") : t("connection.connectTitle", "Add & Connect Team Member")}
+                {isWorker
+                  ? t("connection.connectContractor", "Connect Contractor")
+                  : t("connection.connectTitle", "Add & Connect Team Member")}
               </Text>
-              <Pressable onPress={() => setConnectModalVisible(false)} style={styles.closeBtn}>
+              <Pressable
+                onPress={() => setConnectModalVisible(false)}
+                style={styles.closeBtn}
+              >
                 <Feather name="x" size={20} color={theme.textSecondary} />
               </Pressable>
             </View>
 
-            <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              contentContainerStyle={styles.modalBody}
+              showsVerticalScrollIndicator={false}
+            >
               {/* Method Switch Tabs (Only for Contractor connecting workers) */}
               {!isWorker && targetRole === "worker" && (
                 <View style={styles.tabSwitchRow}>
@@ -672,7 +914,10 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                     onPress={() => setConnectTab("mobile")}
                     style={[
                       styles.tabBtn,
-                      connectTab === "mobile" && { backgroundColor: theme.primary, borderColor: theme.primary },
+                      connectTab === "mobile" && {
+                        backgroundColor: theme.primary,
+                        borderColor: theme.primary,
+                      },
                       { borderColor: borderCol },
                     ]}
                   >
@@ -684,7 +929,10 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                     <Text
                       style={[
                         styles.tabBtnText,
-                        { color: connectTab === "mobile" ? "#FFFFFF" : theme.text },
+                        {
+                          color:
+                            connectTab === "mobile" ? "#FFFFFF" : theme.text,
+                        },
                       ]}
                     >
                       {t("connection.tabMobile", "Mobile Number (Primary)")}
@@ -695,7 +943,10 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                     onPress={() => setConnectTab("id")}
                     style={[
                       styles.tabBtn,
-                      connectTab === "id" && { backgroundColor: theme.primary, borderColor: theme.primary },
+                      connectTab === "id" && {
+                        backgroundColor: theme.primary,
+                        borderColor: theme.primary,
+                      },
                       { borderColor: borderCol },
                     ]}
                   >
@@ -719,11 +970,22 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
               {/* ── TAB 1: CONNECT VIA MOBILE ──────────────────────── */}
               {connectTab === "mobile" && (
                 <View>
-                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                  <Text
+                    style={[styles.inputLabel, { color: theme.textSecondary }]}
+                  >
                     {t("workers.phone", "Worker Mobile Number *")}
                   </Text>
-                  <View style={[styles.inputBox, { borderColor: borderCol, backgroundColor: cardBg }]}>
-                    <Feather name="phone" size={18} color={theme.textSecondary} />
+                  <View
+                    style={[
+                      styles.inputBox,
+                      { borderColor: borderCol, backgroundColor: cardBg },
+                    ]}
+                  >
+                    <Feather
+                      name="phone"
+                      size={18}
+                      color={theme.textSecondary}
+                    />
                     <TextInput
                       style={[styles.inputField, { color: theme.text }]}
                       placeholder="10-digit mobile number"
@@ -735,11 +997,25 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                     />
                   </View>
 
-                  <Text style={[styles.inputLabel, { color: theme.textSecondary, marginTop: 12 }]}>
+                  <Text
+                    style={[
+                      styles.inputLabel,
+                      { color: theme.textSecondary, marginTop: 12 },
+                    ]}
+                  >
                     {t("workers.name", "Worker Full Name *")}
                   </Text>
-                  <View style={[styles.inputBox, { borderColor: borderCol, backgroundColor: cardBg }]}>
-                    <Feather name="user" size={18} color={theme.textSecondary} />
+                  <View
+                    style={[
+                      styles.inputBox,
+                      { borderColor: borderCol, backgroundColor: cardBg },
+                    ]}
+                  >
+                    <Feather
+                      name="user"
+                      size={18}
+                      color={theme.textSecondary}
+                    />
                     <TextInput
                       style={[styles.inputField, { color: theme.text }]}
                       placeholder="e.g. Ramesh Kumar"
@@ -749,11 +1025,29 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                     />
                   </View>
 
-                  <Text style={[styles.inputLabel, { color: theme.textSecondary, marginTop: 12 }]}>
+                  <Text
+                    style={[
+                      styles.inputLabel,
+                      { color: theme.textSecondary, marginTop: 12 },
+                    ]}
+                  >
                     {t("workers.dailyWage", "Daily Rate (₹)")}
                   </Text>
-                  <View style={[styles.inputBox, { borderColor: borderCol, backgroundColor: cardBg }]}>
-                    <Text style={{ fontSize: 16, fontWeight: "700", color: theme.textSecondary }}>₹</Text>
+                  <View
+                    style={[
+                      styles.inputBox,
+                      { borderColor: borderCol, backgroundColor: cardBg },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "700",
+                        color: theme.textSecondary,
+                      }}
+                    >
+                      ₹
+                    </Text>
                     <TextInput
                       style={[styles.inputField, { color: theme.text }]}
                       placeholder="500"
@@ -764,12 +1058,19 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                     />
                   </View>
 
-                  <View style={[styles.infoCallout, { backgroundColor: isDark ? "#064E3B" : "#ECFDF5" }]}>
+                  <View
+                    style={[
+                      styles.infoCallout,
+                      { backgroundColor: isDark ? "#064E3B" : "#ECFDF5" },
+                    ]}
+                  >
                     <Feather name="check-circle" size={16} color="#059669" />
-                    <Text style={[styles.infoCalloutText, { color: "#065F46" }]}>
+                    <Text
+                      style={[styles.infoCalloutText, { color: "#065F46" }]}
+                    >
                       {t(
                         "connection.seamlessClaimTip",
-                        "The worker profile will be linked automatically when the worker signs up with this phone number."
+                        "The worker profile will be linked automatically when the worker signs up with this phone number.",
                       )}
                     </Text>
                   </View>
@@ -777,7 +1078,10 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                   <Pressable
                     onPress={handleConnectByMobile}
                     disabled={isSubmittingMobile}
-                    style={[styles.submitBtn, { backgroundColor: theme.primary, marginTop: 16 }]}
+                    style={[
+                      styles.submitBtn,
+                      { backgroundColor: theme.primary, marginTop: 16 },
+                    ]}
                   >
                     {isSubmittingMobile ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
@@ -785,7 +1089,10 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                       <>
                         <Feather name="user-check" size={18} color="#FFFFFF" />
                         <Text style={styles.submitBtnText}>
-                          {t("connection.createAndConnect", "Create & Connect Worker")}
+                          {t(
+                            "connection.createAndConnect",
+                            "Create & Connect Worker",
+                          )}
                         </Text>
                       </>
                     )}
@@ -796,19 +1103,45 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
               {/* ── TAB 2: CONNECT VIA ACCOUNT ID ──────────────────── */}
               {connectTab === "id" && (
                 <View>
-                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                  <Text
+                    style={[styles.inputLabel, { color: theme.textSecondary }]}
+                  >
                     {isWorker
-                      ? t("connection.enterContractorIdPrompt", "Enter Contractor ID (e.g. HM-C-123456)")
+                      ? t(
+                          "connection.enterContractorIdPrompt",
+                          "Enter Contractor ID (e.g. HM-C-123456)",
+                        )
                       : targetRole === "supervisor"
-                      ? t("connection.enterSupervisorIdPrompt", "Enter Supervisor ID (e.g. HM-S-123456)")
-                      : t("connection.enterWorkerIdPrompt", "Enter Worker ID (e.g. HM-W-123456)")}
+                        ? t(
+                            "connection.enterSupervisorIdPrompt",
+                            "Enter Supervisor ID (e.g. HM-S-123456)",
+                          )
+                        : t(
+                            "connection.enterWorkerIdPrompt",
+                            "Enter Worker ID (e.g. HM-W-123456)",
+                          )}
                   </Text>
 
-                  <View style={[styles.inputBox, { borderColor: borderCol, backgroundColor: cardBg }]}>
-                    <Feather name="search" size={18} color={theme.textSecondary} />
+                  <View
+                    style={[
+                      styles.inputBox,
+                      { borderColor: borderCol, backgroundColor: cardBg },
+                    ]}
+                  >
+                    <Feather
+                      name="search"
+                      size={18}
+                      color={theme.textSecondary}
+                    />
                     <TextInput
                       style={[styles.inputField, { color: theme.text }]}
-                      placeholder={isWorker ? "HM-C-XXXXXX" : targetRole === "supervisor" ? "HM-S-XXXXXX" : "HM-W-XXXXXX"}
+                      placeholder={
+                        isWorker
+                          ? "HM-C-XXXXXX"
+                          : targetRole === "supervisor"
+                            ? "HM-S-XXXXXX"
+                            : "HM-W-XXXXXX"
+                      }
                       placeholderTextColor={theme.textSecondary}
                       autoCapitalize="characters"
                       value={accountIdInput}
@@ -818,19 +1151,33 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                     <Pressable
                       onPress={handleLookupId}
                       disabled={isSearchingId}
-                      style={[styles.searchInlineBtn, { backgroundColor: theme.primary }]}
+                      style={[
+                        styles.searchInlineBtn,
+                        { backgroundColor: theme.primary },
+                      ]}
                     >
                       {isSearchingId ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
-                        <Text style={styles.searchInlineBtnText}>{t("common.search", "Search")}</Text>
+                        <Text style={styles.searchInlineBtnText}>
+                          {t("common.search", "Search")}
+                        </Text>
                       )}
                     </Pressable>
                   </View>
 
                   {/* Found Account Preview Card */}
                   {foundAccount && (
-                    <View style={[styles.previewCard, { backgroundColor: cardBg, borderColor: borderCol, marginTop: 16 }]}>
+                    <View
+                      style={[
+                        styles.previewCard,
+                        {
+                          backgroundColor: cardBg,
+                          borderColor: borderCol,
+                          marginTop: 16,
+                        },
+                      ]}
+                    >
                       <View style={styles.previewAvatar}>
                         <Text style={styles.previewAvatarText}>
                           {(foundAccount.name || "U")[0].toUpperCase()}
@@ -840,17 +1187,33 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                         {foundAccount.name}
                       </Text>
                       <View style={styles.previewIdTag}>
-                        <Text style={styles.previewIdTagText}>{foundAccount.uniqueId}</Text>
+                        <Text style={styles.previewIdTagText}>
+                          {foundAccount.uniqueId}
+                        </Text>
                       </View>
 
-                      <Text style={[styles.previewRole, { color: theme.textSecondary }]}>
-                        {foundAccount.workerCategory || foundAccount.category || foundAccount.role}
+                      <Text
+                        style={[
+                          styles.previewRole,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        {foundAccount.workerCategory ||
+                          foundAccount.category ||
+                          foundAccount.role}
                       </Text>
 
                       <Pressable
                         onPress={handleSendIdRequest}
                         disabled={isSendingIdRequest}
-                        style={[styles.submitBtn, { backgroundColor: theme.primary, marginTop: 16, width: "100%" }]}
+                        style={[
+                          styles.submitBtn,
+                          {
+                            backgroundColor: theme.primary,
+                            marginTop: 16,
+                            width: "100%",
+                          },
+                        ]}
                       >
                         {isSendingIdRequest ? (
                           <ActivityIndicator size="small" color="#FFFFFF" />
@@ -858,7 +1221,10 @@ export default function TeamConnectionWidget({ onRefreshParent }: TeamConnection
                           <>
                             <Feather name="send" size={16} color="#FFFFFF" />
                             <Text style={styles.submitBtnText}>
-                              {t("connection.sendConnectionRequest", "Send Connection Request")}
+                              {t(
+                                "connection.sendConnectionRequest",
+                                "Send Connection Request",
+                              )}
                             </Text>
                           </>
                         )}

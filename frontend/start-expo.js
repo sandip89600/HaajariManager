@@ -43,7 +43,10 @@ try {
   console.log("[Expo Setup] Brute-forcing release of port 8081...");
   if (process.platform === "win32") {
     try {
-      execSync('powershell -Command "Stop-Process -Id (Get-NetTCPConnection -LocalPort 8081).OwningProcess -Force"', { stdio: "ignore" });
+      execSync(
+        'powershell -Command "Stop-Process -Id (Get-NetTCPConnection -LocalPort 8081).OwningProcess -Force"',
+        { stdio: "ignore" },
+      );
       console.log("[Expo Setup] Terminated existing process on port 8081.");
     } catch (e) {}
   } else {

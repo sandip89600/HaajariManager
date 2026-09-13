@@ -1,22 +1,45 @@
-import React, { useEffect, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { 
-  Building, Users, HardHat, UserCheck, UserX, Clock, 
-  MapPin, CheckCircle, CreditCard, DollarSign, Gem, Bell, RefreshCw
-} from 'lucide-react';
-import toast from 'react-hot-toast';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { api } from '../utils/api';
-import { useSocket } from '../hooks/useSocket';
+import React, { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Building,
+  Users,
+  HardHat,
+  UserCheck,
+  UserX,
+  Clock,
+  MapPin,
+  CheckCircle,
+  CreditCard,
+  DollarSign,
+  Gem,
+  Bell,
+  RefreshCw,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
+import { api } from "../utils/api";
+import { useSocket } from "../hooks/useSocket";
 
 interface ActivityItem {
   id: string;
   message: string;
   timestamp: string;
-  type?: 'info' | 'warning' | 'success' | 'error';
+  type?: "info" | "warning" | "success" | "error";
 }
 
-const COLORS = ['#64748B', '#3B82F6', '#F97316', '#8B5CF6']; // Free, Basic, Super, Premium
+const COLORS = ["#64748B", "#3B82F6", "#F97316", "#8B5CF6"]; // Free, Basic, Super, Premium
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
@@ -25,25 +48,25 @@ export default function DashboardPage() {
 
   // Query dashboard stats
   const { data: stats, isLoading } = useQuery({
-    queryKey: ['dashboardStatsExtended'],
+    queryKey: ["dashboardStatsExtended"],
     queryFn: async () => {
-      const res = await api.get('/admin/analytics');
+      const res = await api.get("/admin/analytics");
       return res.data;
     },
-    refetchInterval: 30000
+    refetchInterval: 30000,
   });
 
   useEffect(() => {
     if (!socket) return;
 
     const handleActivity = (activity: ActivityItem) => {
-      setLiveActivities(prev => [activity, ...prev].slice(0, 10));
+      setLiveActivities((prev) => [activity, ...prev].slice(0, 10));
     };
 
-    socket.on('admin_activity', handleActivity);
+    socket.on("admin_activity", handleActivity);
 
     return () => {
-      socket.off('admin_activity', handleActivity);
+      socket.off("admin_activity", handleActivity);
     };
   }, [socket]);
 
@@ -52,7 +75,10 @@ export default function DashboardPage() {
       <div className="animate-pulse space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="bg-slate-900 h-28 rounded-2xl border border-slate-850"></div>
+            <div
+              key={i}
+              className="bg-slate-900 h-28 rounded-2xl border border-slate-850"
+            ></div>
           ))}
         </div>
       </div>
@@ -65,7 +91,11 @@ export default function DashboardPage() {
   const userTrend = stats.userGrowthTrend || [];
   const serverFeed = stats.activityFeed || [];
 
-  const totalOrgs = (plans.free || 0) + (plans.basic || 0) + (plans.professional || 0) + (plans.business || 0);
+  const totalOrgs =
+    (plans.free || 0) +
+    (plans.basic || 0) +
+    (plans.professional || 0) +
+    (plans.business || 0);
   const totalUsers = metrics.totalUsers || 0;
   const totalWorkers = metrics.totalWorkers || 0;
   const presentToday = metrics.presentToday || 0;
@@ -79,51 +109,134 @@ export default function DashboardPage() {
   const activeSubs = metrics.premiumUsers || 0;
 
   const kpis = [
-    { name: 'Total Orgs', val: totalOrgs, sub: 'Client Tenants', icon: Building, color: 'text-orange-500 bg-orange-500/10 border-orange-500/20' },
-    { name: 'Total Users', val: totalUsers, sub: 'Supervisor Accounts', icon: Users, color: 'text-blue-500 bg-blue-500/10 border-blue-500/20' },
-    { name: 'Total Workers', val: totalWorkers, sub: 'Registered Labour', icon: HardHat, color: 'text-purple-500 bg-purple-500/10 border-purple-500/20' },
-    { name: 'Present Today', val: presentToday, sub: 'Marked Present', icon: UserCheck, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
-    { name: 'Absent Today', val: absentToday, sub: 'Marked Absent', icon: UserX, color: 'text-rose-500 bg-rose-500/10 border-rose-500/20' },
-    { name: 'Half Day Today', val: halfDayToday, sub: 'Short Shifts', icon: Clock, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20' },
-    { name: 'Running Sites', val: runningSites, sub: 'Active Projects', icon: MapPin, color: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/20' },
-    { name: 'Completed Sites', val: completedSites, sub: 'Handed Over', icon: CheckCircle, color: 'text-teal-500 bg-teal-500/10 border-teal-500/20' },
-    { name: 'Pending Payments', val: `₹${pendingPayments.toLocaleString()}`, sub: 'Unpaid wages', icon: CreditCard, color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20' },
-    { name: 'Monthly Revenue', val: `₹${monthlyRevenue.toLocaleString()}`, sub: 'Subscription MRR', icon: DollarSign, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
-    { name: 'Today\'s Revenue', val: `₹${todaysRevenue.toLocaleString()}`, sub: 'Daily Payouts', icon: DollarSign, color: 'text-orange-500 bg-orange-500/10 border-orange-500/20' },
-    { name: 'Active Subs', val: activeSubs, sub: 'Paid Subscriptions', icon: Gem, color: 'text-purple-500 bg-purple-500/10 border-purple-500/20' },
+    {
+      name: "Total Orgs",
+      val: totalOrgs,
+      sub: "Client Tenants",
+      icon: Building,
+      color: "text-orange-500 bg-orange-500/10 border-orange-500/20",
+    },
+    {
+      name: "Total Users",
+      val: totalUsers,
+      sub: "Supervisor Accounts",
+      icon: Users,
+      color: "text-blue-500 bg-blue-500/10 border-blue-500/20",
+    },
+    {
+      name: "Total Workers",
+      val: totalWorkers,
+      sub: "Registered Labour",
+      icon: HardHat,
+      color: "text-purple-500 bg-purple-500/10 border-purple-500/20",
+    },
+    {
+      name: "Present Today",
+      val: presentToday,
+      sub: "Marked Present",
+      icon: UserCheck,
+      color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
+    },
+    {
+      name: "Absent Today",
+      val: absentToday,
+      sub: "Marked Absent",
+      icon: UserX,
+      color: "text-rose-500 bg-rose-500/10 border-rose-500/20",
+    },
+    {
+      name: "Half Day Today",
+      val: halfDayToday,
+      sub: "Short Shifts",
+      icon: Clock,
+      color: "text-amber-500 bg-amber-500/10 border-amber-500/20",
+    },
+    {
+      name: "Running Sites",
+      val: runningSites,
+      sub: "Active Projects",
+      icon: MapPin,
+      color: "text-cyan-500 bg-cyan-500/10 border-cyan-500/20",
+    },
+    {
+      name: "Completed Sites",
+      val: completedSites,
+      sub: "Handed Over",
+      icon: CheckCircle,
+      color: "text-teal-500 bg-teal-500/10 border-teal-500/20",
+    },
+    {
+      name: "Pending Payments",
+      val: `₹${pendingPayments.toLocaleString()}`,
+      sub: "Unpaid wages",
+      icon: CreditCard,
+      color: "text-indigo-500 bg-indigo-500/10 border-indigo-500/20",
+    },
+    {
+      name: "Monthly Revenue",
+      val: `₹${monthlyRevenue.toLocaleString()}`,
+      sub: "Subscription MRR",
+      icon: DollarSign,
+      color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
+    },
+    {
+      name: "Today's Revenue",
+      val: `₹${todaysRevenue.toLocaleString()}`,
+      sub: "Daily Payouts",
+      icon: DollarSign,
+      color: "text-orange-500 bg-orange-500/10 border-orange-500/20",
+    },
+    {
+      name: "Active Subs",
+      val: activeSubs,
+      sub: "Paid Subscriptions",
+      icon: Gem,
+      color: "text-purple-500 bg-purple-500/10 border-purple-500/20",
+    },
   ];
 
   const planBreakdown = [
-    { name: 'Free', value: plans.free || 0 },
-    { name: 'Basic', value: plans.basic || 0 },
-    { name: 'Professional', value: plans.professional || 0 },
-    { name: 'Business', value: plans.business || 0 }
-  ].filter(p => p.value > 0).map((entry, index) => ({
-    ...entry,
-    color: COLORS[index % COLORS.length]
-  }));
+    { name: "Free", value: plans.free || 0 },
+    { name: "Basic", value: plans.basic || 0 },
+    { name: "Professional", value: plans.professional || 0 },
+    { name: "Business", value: plans.business || 0 },
+  ]
+    .filter((p) => p.value > 0)
+    .map((entry, index) => ({
+      ...entry,
+      color: COLORS[index % COLORS.length],
+    }));
 
   // Combine server activities and live socket updates
-  const displayActivities = liveActivities.length > 0 
-    ? [...liveActivities, ...serverFeed].slice(0, 10)
-    : serverFeed.slice(0, 10);
+  const displayActivities =
+    liveActivities.length > 0
+      ? [...liveActivities, ...serverFeed].slice(0, 10)
+      : serverFeed.slice(0, 10);
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-extrabold text-white">Dashboard Overview</h1>
-          <p className="text-slate-400 text-sm mt-1">Enterprise parameters for Haajari Manager Admin</p>
+          <h1 className="text-3xl font-extrabold text-white">
+            Dashboard Overview
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Enterprise parameters for Haajari Manager Admin
+          </p>
         </div>
         <button
           onClick={() => {
-            queryClient.invalidateQueries({ queryKey: ['dashboardStatsExtended'] });
-            toast.success('Dashboard metrics refreshed');
+            queryClient.invalidateQueries({
+              queryKey: ["dashboardStatsExtended"],
+            });
+            toast.success("Dashboard metrics refreshed");
           }}
           disabled={isLoading}
           className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-850 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm"
         >
-          <RefreshCw className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`w-3.5 h-3.5 text-orange-400 ${isLoading ? "animate-spin" : ""}`}
+          />
           <span>Refresh</span>
         </button>
       </div>
@@ -133,11 +246,18 @@ export default function DashboardPage() {
         {kpis.map((kpi, idx) => {
           const Icon = kpi.icon;
           return (
-            <div key={idx} className="glass-card p-5 rounded-2xl border border-slate-850 flex items-center justify-between shadow-lg">
+            <div
+              key={idx}
+              className="glass-card p-5 rounded-2xl border border-slate-850 flex items-center justify-between shadow-lg"
+            >
               <div className="space-y-1">
-                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">{kpi.name}</p>
+                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                  {kpi.name}
+                </p>
                 <h3 className="text-xl font-extrabold text-white">{kpi.val}</h3>
-                <p className="text-[10px] text-slate-400 font-semibold">{kpi.sub}</p>
+                <p className="text-[10px] text-slate-400 font-semibold">
+                  {kpi.sub}
+                </p>
               </div>
               <div className={`p-2.5 rounded-xl border ${kpi.color}`}>
                 <Icon className="w-5 h-5" />
@@ -151,21 +271,50 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* User Activity Area Chart */}
         <div className="lg:col-span-2 glass-card p-6 rounded-2xl border border-slate-850 space-y-4">
-          <h3 className="text-lg font-bold text-white">Daily User Activity Trend (Logins)</h3>
+          <h3 className="text-lg font-bold text-white">
+            Daily User Activity Trend (Logins)
+          </h3>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={userTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart
+                data={userTrend}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
                 <defs>
-                  <linearGradient id="colorLoginsGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.25}/>
-                    <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                  <linearGradient
+                    id="colorLoginsGrad"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="date" stroke="#64748b" style={{ fontSize: 11 }} />
+                <XAxis
+                  dataKey="date"
+                  stroke="#64748b"
+                  style={{ fontSize: 11 }}
+                />
                 <YAxis stroke="#64748b" style={{ fontSize: 11 }} />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f8fafc' }} />
-                <Area type="monotone" dataKey="logins" stroke="#f97316" fillOpacity={1} fill="url(#colorLoginsGrad)" strokeWidth={2.5} name="Logins" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    borderColor: "#334155",
+                    color: "#f8fafc",
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="logins"
+                  stroke="#f97316"
+                  fillOpacity={1}
+                  fill="url(#colorLoginsGrad)"
+                  strokeWidth={2.5}
+                  name="Logins"
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -173,7 +322,9 @@ export default function DashboardPage() {
 
         {/* Subscription Pie Chart */}
         <div className="glass-card p-6 rounded-2xl border border-slate-850 space-y-4">
-          <h3 className="text-lg font-bold text-white">Client Subscription Tiers</h3>
+          <h3 className="text-lg font-bold text-white">
+            Client Subscription Tiers
+          </h3>
           <div className="h-56 w-full flex items-center justify-center">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -190,8 +341,20 @@ export default function DashboardPage() {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f8fafc' }} />
-                <Legend layout="horizontal" verticalAlign="bottom" align="center" iconSize={8} wrapperStyle={{ fontSize: 11, color: '#94a3b8' }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    borderColor: "#334155",
+                    color: "#f8fafc",
+                  }}
+                />
+                <Legend
+                  layout="horizontal"
+                  verticalAlign="bottom"
+                  align="center"
+                  iconSize={8}
+                  wrapperStyle={{ fontSize: 11, color: "#94a3b8" }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -212,17 +375,33 @@ export default function DashboardPage() {
 
         <div className="divide-y divide-slate-850/40">
           {displayActivities.map((act: any) => (
-            <div key={act.id} className="py-3.5 flex items-start justify-between gap-4">
+            <div
+              key={act.id}
+              className="py-3.5 flex items-start justify-between gap-4"
+            >
               <div className="flex items-start gap-3">
-                <span className={`w-2 h-2 rounded-full mt-1.5 ${
-                  act.type === 'success' ? 'bg-emerald-500' :
-                  act.type === 'warning' ? 'bg-amber-500' :
-                  act.type === 'error' ? 'bg-rose-500' : 'bg-blue-500'
-                }`}></span>
-                <p className="text-sm font-medium text-slate-300 leading-normal">{act.message}</p>
+                <span
+                  className={`w-2 h-2 rounded-full mt-1.5 ${
+                    act.type === "success"
+                      ? "bg-emerald-500"
+                      : act.type === "warning"
+                        ? "bg-amber-500"
+                        : act.type === "error"
+                          ? "bg-rose-500"
+                          : "bg-blue-500"
+                  }`}
+                ></span>
+                <p className="text-sm font-medium text-slate-300 leading-normal">
+                  {act.message}
+                </p>
               </div>
               <span className="text-xs text-slate-500 font-semibold">
-                {act.timestamp ? new Date(act.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Just now'}
+                {act.timestamp
+                  ? new Date(act.timestamp).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "Just now"}
               </span>
             </div>
           ))}

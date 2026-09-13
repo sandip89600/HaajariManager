@@ -42,8 +42,7 @@ export default function NotificationScreen() {
   // Filter notifications according to active tab
   const filteredNotifications = notifications.filter((item) => {
     if (activeFilter === "unread") return !item.isRead;
-    if (activeFilter === "reminders")
-      return item.type.includes("reminder");
+    if (activeFilter === "reminders") return item.type.includes("reminder");
     if (activeFilter === "system")
       return item.type === "system" || item.type === "announcement";
     return true;
@@ -66,7 +65,13 @@ export default function NotificationScreen() {
       case "attendance_reminder":
         return <Feather name="calendar" size={18} color="#FF6B35" />;
       case "subscription_reminder":
-        return <MaterialCommunityIcons name="crown-outline" size={20} color="#F59E0B" />;
+        return (
+          <MaterialCommunityIcons
+            name="crown-outline"
+            size={20}
+            color="#F59E0B"
+          />
+        );
       case "payment_reminder":
         return <Feather name="dollar-sign" size={18} color="#10B981" />;
       case "worker_reminder":
@@ -144,7 +149,7 @@ export default function NotificationScreen() {
   const handleMarkAllRead = () => {
     if (unreadCount === 0) return;
     markAllAsRead().catch(() =>
-      Alert.alert("Error", "Failed to mark all notifications as read.")
+      Alert.alert("Error", "Failed to mark all notifications as read."),
     );
   };
 
@@ -160,13 +165,13 @@ export default function NotificationScreen() {
                 ? "rgba(255,255,255,0.03)"
                 : "rgba(255, 107, 53, 0.08)"
               : item.isRead
-              ? "#FFFFFF"
-              : "#FFF5F0",
+                ? "#FFFFFF"
+                : "#FFF5F0",
             borderColor: item.isRead
               ? theme.border
               : isDark
-              ? "rgba(255, 107, 53, 0.3)"
-              : "rgba(255, 107, 53, 0.2)",
+                ? "rgba(255, 107, 53, 0.3)"
+                : "rgba(255, 107, 53, 0.2)",
             opacity: pressed ? 0.9 : 1,
           },
         ]}
@@ -185,7 +190,13 @@ export default function NotificationScreen() {
             {getNotificationIcon(item.type)}
           </View>
           <View style={{ flex: 1, marginHorizontal: Spacing.sm }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
               <ThemedText
                 style={[
                   styles.titleText,
@@ -195,7 +206,10 @@ export default function NotificationScreen() {
               >
                 {item.title}
               </ThemedText>
-              <ThemedText type="small" style={{ color: theme.textSecondary, fontSize: 11 }}>
+              <ThemedText
+                type="small"
+                style={{ color: theme.textSecondary, fontSize: 11 }}
+              >
                 {formatTime(item.createdAt)}
               </ThemedText>
             </View>
@@ -236,7 +250,9 @@ export default function NotificationScreen() {
             style={styles.actionBtn}
           >
             <Feather name="trash-2" size={13} color={theme.textSecondary} />
-            <ThemedText style={[styles.actionText, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.actionText, { color: theme.textSecondary }]}
+            >
               {t("common.delete", "Delete")}
             </ThemedText>
           </Pressable>
@@ -261,13 +277,23 @@ export default function NotificationScreen() {
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Feather name="arrow-left" size={20} color={theme.text} />
         </Pressable>
-        <ThemedText type="h2" style={{ fontWeight: "800", flex: 1, marginLeft: 8 }}>
+        <ThemedText
+          type="h2"
+          style={{ fontWeight: "800", flex: 1, marginLeft: 8 }}
+        >
           {t("notifications.title", "Notifications")}
         </ThemedText>
         {unreadCount > 0 && (
           <Pressable onPress={handleMarkAllRead} style={styles.markAllBtn}>
             <Feather name="check-circle" size={14} color={theme.primary} />
-            <ThemedText style={{ color: theme.primary, fontSize: 13, fontWeight: "700", marginLeft: 4 }}>
+            <ThemedText
+              style={{
+                color: theme.primary,
+                fontSize: 13,
+                fontWeight: "700",
+                marginLeft: 4,
+              }}
+            >
               {t("notifications.markAllRead", "Mark All Read")}
             </ThemedText>
           </Pressable>
@@ -280,12 +306,12 @@ export default function NotificationScreen() {
           const isActive = activeFilter === filter;
           const label =
             filter === "all"
-              ? (t.common?.all || "All")
+              ? t.common?.all || "All"
               : filter === "unread"
-              ? `${t("notifications.unread", "Unread")} (${unreadCount})`
-              : filter === "reminders"
-              ? t("notifications.reminders", "Reminders")
-              : t("notifications.system", "System");
+                ? `${t("notifications.unread", "Unread")} (${unreadCount})`
+                : filter === "reminders"
+                  ? t("notifications.reminders", "Reminders")
+                  : t("notifications.system", "System");
 
           return (
             <Pressable
@@ -297,8 +323,8 @@ export default function NotificationScreen() {
                   backgroundColor: isActive
                     ? theme.primary
                     : isDark
-                    ? "rgba(255,255,255,0.06)"
-                    : "rgba(0,0,0,0.04)",
+                      ? "rgba(255,255,255,0.06)"
+                      : "rgba(0,0,0,0.04)",
                 },
               ]}
             >
@@ -323,14 +349,35 @@ export default function NotificationScreen() {
         </View>
       ) : filteredNotifications.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Feather name="bell-off" size={48} color={theme.textSecondary} style={{ marginBottom: 12 }} />
-          <ThemedText type="h3" style={{ fontWeight: "700", color: theme.text }}>
+          <Feather
+            name="bell-off"
+            size={48}
+            color={theme.textSecondary}
+            style={{ marginBottom: 12 }}
+          />
+          <ThemedText
+            type="h3"
+            style={{ fontWeight: "700", color: theme.text }}
+          >
             {t("notifications.empty", "No Notifications")}
           </ThemedText>
-          <ThemedText style={{ color: theme.textSecondary, textAlign: "center", marginTop: 4, fontSize: 13 }}>
+          <ThemedText
+            style={{
+              color: theme.textSecondary,
+              textAlign: "center",
+              marginTop: 4,
+              fontSize: 13,
+            }}
+          >
             {activeFilter === "unread"
-              ? t("notifications.allCaughtUp", "You're all caught up! No unread notifications.")
-              : t("notifications.emptyDesc", "Notifications and automated reminders will appear here.")}
+              ? t(
+                  "notifications.allCaughtUp",
+                  "You're all caught up! No unread notifications.",
+                )
+              : t(
+                  "notifications.emptyDesc",
+                  "Notifications and automated reminders will appear here.",
+                )}
           </ThemedText>
         </View>
       ) : (

@@ -8,7 +8,7 @@ import {
   Alert,
   TextInput,
   ActivityIndicator,
-  Modal
+  Modal,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -43,7 +43,9 @@ export default function PaymentHandoverMenuScreen() {
   const proofStatus = getFeatureStatus("paymentProof");
 
   // Active section inside the screen
-  const [activeView, setActiveView] = useState<"menu" | "handover_list" | "proof_list" | "generic_mock">("menu");
+  const [activeView, setActiveView] = useState<
+    "menu" | "handover_list" | "proof_list" | "generic_mock"
+  >("menu");
   const [mockTitle, setMockTitle] = useState("");
 
   // Records state
@@ -63,14 +65,19 @@ export default function PaymentHandoverMenuScreen() {
   const fetchHandovers = async () => {
     setIsLoading(true);
     try {
-      const res = await authenticatedFetch(`${API_URL}/payment-handover/handover`);
+      const res = await authenticatedFetch(
+        `${API_URL}/payment-handover/handover`,
+      );
       if (res.ok) {
         const data = await res.json();
         setHandovers(data);
       } else if (res.status === 403) {
         // Safe check if blocked by backend
         const errData = await res.json();
-        Alert.alert("Access Denied", errData.message || "This action is restricted.");
+        Alert.alert(
+          "Access Denied",
+          errData.message || "This action is restricted.",
+        );
         setActiveView("menu");
       }
     } catch (err) {
@@ -90,7 +97,10 @@ export default function PaymentHandoverMenuScreen() {
         setProofs(data);
       } else if (res.status === 403) {
         const errData = await res.json();
-        Alert.alert("Access Denied", errData.message || "This action is restricted.");
+        Alert.alert(
+          "Access Denied",
+          errData.message || "This action is restricted.",
+        );
         setActiveView("menu");
       }
     } catch (err) {
@@ -112,15 +122,18 @@ export default function PaymentHandoverMenuScreen() {
 
     setIsSubmitting(true);
     try {
-      const res = await authenticatedFetch(`${API_URL}/payment-handover/handover`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: Number(amount),
-          recipientName: recipient.trim(),
-          notes: notes.trim()
-        })
-      });
+      const res = await authenticatedFetch(
+        `${API_URL}/payment-handover/handover`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: Number(amount),
+            recipientName: recipient.trim(),
+            notes: notes.trim(),
+          }),
+        },
+      );
 
       if (res.ok) {
         Alert.alert("Success", "Payment handover logged successfully.");
@@ -142,20 +155,26 @@ export default function PaymentHandoverMenuScreen() {
 
   const handleAddProof = async () => {
     if (!proofUri.trim()) {
-      Alert.alert("Validation Error", "Please enter a proof reference or document URL.");
+      Alert.alert(
+        "Validation Error",
+        "Please enter a proof reference or document URL.",
+      );
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const res = await authenticatedFetch(`${API_URL}/payment-handover/proof`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          proofUri: proofUri.trim(),
-          notes: notes.trim()
-        })
-      });
+      const res = await authenticatedFetch(
+        `${API_URL}/payment-handover/proof`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            proofUri: proofUri.trim(),
+            notes: notes.trim(),
+          }),
+        },
+      );
 
       if (res.ok) {
         Alert.alert("Success", "Payment proof uploaded successfully.");
@@ -198,8 +217,11 @@ export default function PaymentHandoverMenuScreen() {
           `Payment Proof is available on the Haajari ${proofStatus.minPlan.toUpperCase()} plan.`,
           [
             { text: "Cancel", style: "cancel" },
-            { text: "View Plans", onPress: () => navigation.navigate("Subscription") }
-          ]
+            {
+              text: "View Plans",
+              onPress: () => navigation.navigate("Subscription"),
+            },
+          ],
         );
         return;
       }
@@ -211,7 +233,9 @@ export default function PaymentHandoverMenuScreen() {
   // 1. Lock screen if Parent Payment Handover is restricted
   if (handoverStatus.showUpgradeUI) {
     return (
-      <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+      <ThemedView
+        style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
+      >
         <View style={[styles.header, { borderBottomColor: theme.border }]}>
           <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Feather name="arrow-left" size={20} color={theme.text} />
@@ -222,16 +246,23 @@ export default function PaymentHandoverMenuScreen() {
 
         <View style={styles.upgradeContent}>
           <Feather name="lock" size={60} color={theme.primary} />
-          <ThemedText style={styles.upgradeTitle}>Unlock Payment Handover</ThemedText>
-          <ThemedText style={[styles.upgradeSub, { color: theme.textSecondary }]}>
-            Enforce digital handovers, signature verification, receipts, and proof tracking by upgrading to Haajari Premium.
+          <ThemedText style={styles.upgradeTitle}>
+            Unlock Payment Handover
+          </ThemedText>
+          <ThemedText
+            style={[styles.upgradeSub, { color: theme.textSecondary }]}
+          >
+            Enforce digital handovers, signature verification, receipts, and
+            proof tracking by upgrading to Haajari Premium.
           </ThemedText>
 
           <Pressable
             onPress={() => navigation.navigate("Subscription")}
             style={[styles.upgradeBtn, { backgroundColor: theme.primary }]}
           >
-            <ThemedText style={styles.upgradeBtnText}>View Premium Plans</ThemedText>
+            <ThemedText style={styles.upgradeBtnText}>
+              View Premium Plans
+            </ThemedText>
           </Pressable>
         </View>
       </ThemedView>
@@ -248,14 +279,22 @@ export default function PaymentHandoverMenuScreen() {
   };
 
   return (
-    <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+    <ThemedView
+      style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
+    >
       {/* HEADER */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <Pressable onPress={handleBack} style={styles.backBtn}>
           <Feather name="arrow-left" size={20} color={theme.text} />
         </Pressable>
         <ThemedText style={styles.headerTitle}>
-          {activeView === "menu" ? "Payment Handover" : activeView === "handover_list" ? "Handover Logs" : activeView === "proof_list" ? "Payment Proofs" : mockTitle}
+          {activeView === "menu"
+            ? "Payment Handover"
+            : activeView === "handover_list"
+              ? "Handover Logs"
+              : activeView === "proof_list"
+                ? "Payment Proofs"
+                : mockTitle}
         </ThemedText>
         <View style={{ width: 40 }} />
       </View>
@@ -263,20 +302,56 @@ export default function PaymentHandoverMenuScreen() {
       {/* CONTENT SWITCH */}
       {activeView === "menu" && (
         <ScrollView contentContainerStyle={styles.scrollBody}>
-          <View style={[styles.infoBanner, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+          <View
+            style={[
+              styles.infoBanner,
+              {
+                backgroundColor: theme.backgroundSecondary,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             <Feather name="info" size={16} color={theme.primary} />
-            <ThemedText style={[styles.infoText, { color: theme.textSecondary }]}>
-              Configure and record payments transferred to supervisors or site representatives.
+            <ThemedText
+              style={[styles.infoText, { color: theme.textSecondary }]}
+            >
+              Configure and record payments transferred to supervisors or site
+              representatives.
             </ThemedText>
           </View>
 
           <View style={styles.menuGroup}>
-            <MenuRow title="Payment Settings" desc="Setup payment methods and rules" onPress={() => handleMenuPress("Payment Settings")} theme={theme} />
-            <MenuRow title="Payment Handover" desc="Log transfers to representatives" onPress={() => handleMenuPress("Payment Handover")} theme={theme} />
-            <MenuRow title="Payment Receipt Settings" desc="Custom template configuration" onPress={() => handleMenuPress("Payment Receipt Settings")} theme={theme} />
-            <MenuRow title="Signature & Verification" desc="Supervisor digital validation" onPress={() => handleMenuPress("Signature & Verification")} theme={theme} />
-            <MenuRow title="Authorized Representative" desc="Manage representative rules" onPress={() => handleMenuPress("Authorized Representative")} theme={theme} />
-            
+            <MenuRow
+              title="Payment Settings"
+              desc="Setup payment methods and rules"
+              onPress={() => handleMenuPress("Payment Settings")}
+              theme={theme}
+            />
+            <MenuRow
+              title="Payment Handover"
+              desc="Log transfers to representatives"
+              onPress={() => handleMenuPress("Payment Handover")}
+              theme={theme}
+            />
+            <MenuRow
+              title="Payment Receipt Settings"
+              desc="Custom template configuration"
+              onPress={() => handleMenuPress("Payment Receipt Settings")}
+              theme={theme}
+            />
+            <MenuRow
+              title="Signature & Verification"
+              desc="Supervisor digital validation"
+              onPress={() => handleMenuPress("Signature & Verification")}
+              theme={theme}
+            />
+            <MenuRow
+              title="Authorized Representative"
+              desc="Manage representative rules"
+              onPress={() => handleMenuPress("Authorized Representative")}
+              theme={theme}
+            />
+
             {/* Show Payment Proof submenu conditionally based on getFeatureStatus */}
             {proofStatus.enabled && (
               <MenuRow
@@ -295,7 +370,11 @@ export default function PaymentHandoverMenuScreen() {
       {activeView === "handover_list" && (
         <View style={{ flex: 1 }}>
           {isLoading ? (
-            <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 40 }} />
+            <ActivityIndicator
+              size="large"
+              color={theme.primary}
+              style={{ marginTop: 40 }}
+            />
           ) : (
             <FlatList
               data={handovers}
@@ -303,27 +382,64 @@ export default function PaymentHandoverMenuScreen() {
               contentContainerStyle={styles.listPadding}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
-                  <Feather name="dollar-sign" size={32} color={theme.textSecondary} />
-                  <ThemedText style={{ color: theme.textSecondary, marginTop: 10 }}>No payment handovers logged yet.</ThemedText>
+                  <Feather
+                    name="dollar-sign"
+                    size={32}
+                    color={theme.textSecondary}
+                  />
+                  <ThemedText
+                    style={{ color: theme.textSecondary, marginTop: 10 }}
+                  >
+                    No payment handovers logged yet.
+                  </ThemedText>
                 </View>
               }
               renderItem={({ item }) => (
-                <View style={[styles.recordCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+                <View
+                  style={[
+                    styles.recordCard,
+                    {
+                      backgroundColor: theme.backgroundSecondary,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
                   <View style={styles.recordHeader}>
-                    <ThemedText style={styles.recordAmount}>₹{item.amount.toLocaleString()}</ThemedText>
-                    <ThemedText style={[styles.recordDate, { color: theme.textSecondary }]}>
+                    <ThemedText style={styles.recordAmount}>
+                      ₹{item.amount.toLocaleString()}
+                    </ThemedText>
+                    <ThemedText
+                      style={[
+                        styles.recordDate,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
                       {new Date(item.handoverDate).toLocaleDateString()}
                     </ThemedText>
                   </View>
-                  <ThemedText style={styles.recordLabel}>Recipient: {item.recipientName}</ThemedText>
-                  {item.notes ? <ThemedText style={[styles.recordNotes, { color: theme.textSecondary }]}>{item.notes}</ThemedText> : null}
+                  <ThemedText style={styles.recordLabel}>
+                    Recipient: {item.recipientName}
+                  </ThemedText>
+                  {item.notes ? (
+                    <ThemedText
+                      style={[
+                        styles.recordNotes,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      {item.notes}
+                    </ThemedText>
+                  ) : null}
                 </View>
               )}
             />
           )}
           <Pressable
             onPress={() => setShowAddModal(true)}
-            style={[styles.floatingActionBtn, { backgroundColor: theme.primary }]}
+            style={[
+              styles.floatingActionBtn,
+              { backgroundColor: theme.primary },
+            ]}
           >
             <Feather name="plus" size={24} color="#FFF" />
           </Pressable>
@@ -334,7 +450,11 @@ export default function PaymentHandoverMenuScreen() {
       {activeView === "proof_list" && (
         <View style={{ flex: 1 }}>
           {isLoading ? (
-            <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 40 }} />
+            <ActivityIndicator
+              size="large"
+              color={theme.primary}
+              style={{ marginTop: 40 }}
+            />
           ) : (
             <FlatList
               data={proofs}
@@ -342,26 +462,61 @@ export default function PaymentHandoverMenuScreen() {
               contentContainerStyle={styles.listPadding}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
-                  <Feather name="file-text" size={32} color={theme.textSecondary} />
-                  <ThemedText style={{ color: theme.textSecondary, marginTop: 10 }}>No payment proofs registered yet.</ThemedText>
+                  <Feather
+                    name="file-text"
+                    size={32}
+                    color={theme.textSecondary}
+                  />
+                  <ThemedText
+                    style={{ color: theme.textSecondary, marginTop: 10 }}
+                  >
+                    No payment proofs registered yet.
+                  </ThemedText>
                 </View>
               }
               renderItem={({ item }) => (
-                <View style={[styles.recordCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+                <View
+                  style={[
+                    styles.recordCard,
+                    {
+                      backgroundColor: theme.backgroundSecondary,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
                   <View style={styles.recordHeader}>
-                    <ThemedText style={styles.recordAmount} numberOfLines={1}>Doc Ref: {item.proofUri}</ThemedText>
-                    <ThemedText style={[styles.recordDate, { color: theme.textSecondary }]}>
+                    <ThemedText style={styles.recordAmount} numberOfLines={1}>
+                      Doc Ref: {item.proofUri}
+                    </ThemedText>
+                    <ThemedText
+                      style={[
+                        styles.recordDate,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
                       {new Date(item.uploadedAt).toLocaleDateString()}
                     </ThemedText>
                   </View>
-                  {item.notes ? <ThemedText style={[styles.recordNotes, { color: theme.textSecondary }]}>{item.notes}</ThemedText> : null}
+                  {item.notes ? (
+                    <ThemedText
+                      style={[
+                        styles.recordNotes,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      {item.notes}
+                    </ThemedText>
+                  ) : null}
                 </View>
               )}
             />
           )}
           <Pressable
             onPress={() => setShowAddModal(true)}
-            style={[styles.floatingActionBtn, { backgroundColor: theme.primary }]}
+            style={[
+              styles.floatingActionBtn,
+              { backgroundColor: theme.primary },
+            ]}
           >
             <Feather name="plus" size={24} color="#FFF" />
           </Pressable>
@@ -372,12 +527,20 @@ export default function PaymentHandoverMenuScreen() {
       {activeView === "generic_mock" && (
         <View style={styles.mockContent}>
           <Feather name="sliders" size={40} color={theme.primary} />
-          <ThemedText style={styles.mockTitleText}>{mockTitle} Configuration</ThemedText>
-          <ThemedText style={[styles.mockSub, { color: theme.textSecondary }]}>
-            This control parameters and rules panel is fully loaded. Configure limits and representatives updates.
+          <ThemedText style={styles.mockTitleText}>
+            {mockTitle} Configuration
           </ThemedText>
-          <Pressable onPress={() => setActiveView("menu")} style={[styles.mockBtn, { borderColor: theme.primary }]}>
-            <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>Back to Menu</ThemedText>
+          <ThemedText style={[styles.mockSub, { color: theme.textSecondary }]}>
+            This control parameters and rules panel is fully loaded. Configure
+            limits and representatives updates.
+          </ThemedText>
+          <Pressable
+            onPress={() => setActiveView("menu")}
+            style={[styles.mockBtn, { borderColor: theme.primary }]}
+          >
+            <ThemedText style={{ color: theme.primary, fontWeight: "700" }}>
+              Back to Menu
+            </ThemedText>
           </Pressable>
         </View>
       )}
@@ -385,9 +548,18 @@ export default function PaymentHandoverMenuScreen() {
       {/* ADD DIALOG MODAL */}
       <Modal visible={showAddModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.backgroundDefault }]}>
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
             <View style={styles.modalHeader}>
-              <ThemedText type="h2">{activeView === "handover_list" ? "Log Handover" : "Add Payment Proof"}</ThemedText>
+              <ThemedText type="h2">
+                {activeView === "handover_list"
+                  ? "Log Handover"
+                  : "Add Payment Proof"}
+              </ThemedText>
               <Pressable onPress={() => setShowAddModal(false)}>
                 <Feather name="x" size={20} color={theme.text} />
               </Pressable>
@@ -403,32 +575,47 @@ export default function PaymentHandoverMenuScreen() {
                     placeholder="Enter amount"
                     placeholderTextColor="#888"
                     keyboardType="numeric"
-                    style={[styles.inputField, { borderColor: theme.border, color: theme.text }]}
+                    style={[
+                      styles.inputField,
+                      { borderColor: theme.border, color: theme.text },
+                    ]}
                   />
 
-                  <ThemedText style={styles.inputLabel}>Recipient Name</ThemedText>
+                  <ThemedText style={styles.inputLabel}>
+                    Recipient Name
+                  </ThemedText>
                   <TextInput
                     value={recipient}
                     onChangeText={setRecipient}
                     placeholder="e.g. Supervisor Hari"
                     placeholderTextColor="#888"
-                    style={[styles.inputField, { borderColor: theme.border, color: theme.text }]}
+                    style={[
+                      styles.inputField,
+                      { borderColor: theme.border, color: theme.text },
+                    ]}
                   />
                 </>
               ) : (
                 <>
-                  <ThemedText style={styles.inputLabel}>Proof Reference / Image URI</ThemedText>
+                  <ThemedText style={styles.inputLabel}>
+                    Proof Reference / Image URI
+                  </ThemedText>
                   <TextInput
                     value={proofUri}
                     onChangeText={setProofUri}
                     placeholder="e.g. https://s3.aws.com/proof.jpg"
                     placeholderTextColor="#888"
-                    style={[styles.inputField, { borderColor: theme.border, color: theme.text }]}
+                    style={[
+                      styles.inputField,
+                      { borderColor: theme.border, color: theme.text },
+                    ]}
                   />
                 </>
               )}
 
-              <ThemedText style={styles.inputLabel}>Additional Notes</ThemedText>
+              <ThemedText style={styles.inputLabel}>
+                Additional Notes
+              </ThemedText>
               <TextInput
                 value={notes}
                 onChangeText={setNotes}
@@ -436,37 +623,57 @@ export default function PaymentHandoverMenuScreen() {
                 placeholderTextColor="#888"
                 multiline
                 numberOfLines={3}
-                style={[styles.textAreaField, { borderColor: theme.border, color: theme.text }]}
+                style={[
+                  styles.textAreaField,
+                  { borderColor: theme.border, color: theme.text },
+                ]}
               />
 
               <Pressable
-                onPress={activeView === "handover_list" ? handleAddHandover : handleAddProof}
+                onPress={
+                  activeView === "handover_list"
+                    ? handleAddHandover
+                    : handleAddProof
+                }
                 disabled={isSubmitting}
                 style={[styles.submitBtn, { backgroundColor: theme.primary }]}
               >
                 {isSubmitting ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
-                  <ThemedText style={styles.submitBtnText}>Save Record</ThemedText>
+                  <ThemedText style={styles.submitBtnText}>
+                    Save Record
+                  </ThemedText>
                 )}
               </Pressable>
             </ScrollView>
           </View>
         </View>
       </Modal>
-
     </ThemedView>
   );
 }
 
 // Submenu List Item Row Component
-function MenuRow({ title, desc, onPress, isLocked, theme }: { title: string; desc: string; onPress: () => void; isLocked?: boolean; theme: any }) {
+function MenuRow({
+  title,
+  desc,
+  onPress,
+  isLocked,
+  theme,
+}: {
+  title: string;
+  desc: string;
+  onPress: () => void;
+  isLocked?: boolean;
+  theme: any;
+}) {
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.menuRow,
-        { borderBottomColor: theme.border, opacity: pressed ? 0.7 : 1 }
+        { borderBottomColor: theme.border, opacity: pressed ? 0.7 : 1 },
       ]}
     >
       <View style={{ flex: 1 }}>
@@ -479,7 +686,11 @@ function MenuRow({ title, desc, onPress, isLocked, theme }: { title: string; des
             </View>
           )}
         </View>
-        <ThemedText style={[styles.menuRowDesc, { color: theme.textSecondary }]}>{desc}</ThemedText>
+        <ThemedText
+          style={[styles.menuRowDesc, { color: theme.textSecondary }]}
+        >
+          {desc}
+        </ThemedText>
       </View>
       <Feather name="chevron-right" size={18} color={theme.textSecondary} />
     </Pressable>
@@ -721,5 +932,5 @@ const styles = StyleSheet.create({
   submitBtnText: {
     color: "#FFF",
     fontWeight: "700",
-  }
+  },
 });

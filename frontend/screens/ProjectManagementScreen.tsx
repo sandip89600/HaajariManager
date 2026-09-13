@@ -434,7 +434,10 @@ export default function ProjectManagementScreen() {
             <Pressable
               onPress={() => {
                 setUpgradeModalVisible(false);
-                navigation.navigate("MainTabs" as any, { screen: "SettingsTab" } as any); // Redirect to Settings to trigger upgrade comparisons
+                navigation.navigate(
+                  "MainTabs" as any,
+                  { screen: "SettingsTab" } as any,
+                ); // Redirect to Settings to trigger upgrade comparisons
               }}
               style={[
                 styles.upgradeActionBtn,

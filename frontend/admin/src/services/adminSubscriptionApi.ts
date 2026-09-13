@@ -70,8 +70,12 @@ export class AdminSubscriptionApi {
     return res.data;
   }
 
-  static async updateConfig(globalEnabled: boolean): Promise<AdminSubscriptionConfig> {
-    const res = await api.put("/v2/admin/subscription/config", { globalEnabled });
+  static async updateConfig(
+    globalEnabled: boolean,
+  ): Promise<AdminSubscriptionConfig> {
+    const res = await api.put("/v2/admin/subscription/config", {
+      globalEnabled,
+    });
     return res.data;
   }
 
@@ -80,13 +84,21 @@ export class AdminSubscriptionApi {
     return res.data;
   }
 
-  static async createPlan(planData: Partial<AdminSubscriptionPlan>): Promise<AdminSubscriptionPlan> {
+  static async createPlan(
+    planData: Partial<AdminSubscriptionPlan>,
+  ): Promise<AdminSubscriptionPlan> {
     const res = await api.post("/v2/admin/subscription/plans", planData);
     return res.data;
   }
 
-  static async updatePlan(planId: string, planData: Partial<AdminSubscriptionPlan>): Promise<AdminSubscriptionPlan> {
-    const res = await api.put(`/v2/admin/subscription/plans/${planId}`, planData);
+  static async updatePlan(
+    planId: string,
+    planData: Partial<AdminSubscriptionPlan>,
+  ): Promise<AdminSubscriptionPlan> {
+    const res = await api.put(
+      `/v2/admin/subscription/plans/${planId}`,
+      planData,
+    );
     return res.data;
   }
 
@@ -95,19 +107,29 @@ export class AdminSubscriptionApi {
     return res.data;
   }
 
-  static async togglePlanStatus(planId: string, active: boolean): Promise<AdminSubscriptionPlan> {
-    const res = await api.put(`/v2/admin/subscription/plans/${planId}/status`, { active });
+  static async togglePlanStatus(
+    planId: string,
+    active: boolean,
+  ): Promise<AdminSubscriptionPlan> {
+    const res = await api.put(`/v2/admin/subscription/plans/${planId}/status`, {
+      active,
+    });
     return res.data;
   }
 
   static async toggleBillingOptionStatus(
     planId: string,
     optionId: string,
-    data: { active?: boolean; promotionEnabled?: boolean; price?: number; promotionalPrice?: number }
+    data: {
+      active?: boolean;
+      promotionEnabled?: boolean;
+      price?: number;
+      promotionalPrice?: number;
+    },
   ): Promise<AdminSubscriptionPlan> {
     const res = await api.put(
       `/v2/admin/subscription/plans/${planId}/billing-options/${optionId}/status`,
-      data
+      data,
     );
     return res.data;
   }

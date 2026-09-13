@@ -1,13 +1,34 @@
-import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { 
-  MessageSquare, Search, Filter, RefreshCw, AlertTriangle, 
-  CheckCircle2, Clock, ShieldAlert, FileText, ChevronRight, 
-  User, Phone, Mail, Smartphone, Layers, Tag, X, Send, Eye,
-  Building2, HardHat, FileSpreadsheet, Check, Sparkles, TrendingUp
-} from 'lucide-react';
-import toast from 'react-hot-toast';
-import { api } from '../utils/api';
+import React, { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  MessageSquare,
+  Search,
+  Filter,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  ShieldAlert,
+  FileText,
+  ChevronRight,
+  User,
+  Phone,
+  Mail,
+  Smartphone,
+  Layers,
+  Tag,
+  X,
+  Send,
+  Eye,
+  Building2,
+  HardHat,
+  FileSpreadsheet,
+  Check,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import { api } from "../utils/api";
 
 interface InternalNote {
   _id?: string;
@@ -32,8 +53,8 @@ interface IssueFeedbackItem {
   durationMs?: number;
   platform?: string;
   appVersion?: string;
-  status: 'New' | 'In Review' | 'Investigating' | 'Resolved' | 'Closed';
-  priority: 'Low' | 'Medium' | 'High' | 'Critical';
+  status: "New" | "In Review" | "Investigating" | "Resolved" | "Closed";
+  priority: "Low" | "Medium" | "High" | "Critical";
   internalNotes: InternalNote[];
   createdAt: string;
   updatedAt: string;
@@ -51,30 +72,44 @@ interface FeedbackResponse {
     closed: number;
   };
   topCategories: { category: string; count: number }[];
-  systemicIssues: { category: string; feature: string; reportCount: number; latestReportAt: string }[];
+  systemicIssues: {
+    category: string;
+    feature: string;
+    reportCount: number;
+    latestReportAt: string;
+  }[];
 }
 
 export default function FeedbackPage() {
   const queryClient = useQueryClient();
 
   // Filters & State
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [roleFilter, setRoleFilter] = useState('All');
-  const [priorityFilter, setPriorityFilter] = useState('All');
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [roleFilter, setRoleFilter] = useState("All");
+  const [priorityFilter, setPriorityFilter] = useState("All");
 
   // Detail Modal State
-  const [selectedIssue, setSelectedIssue] = useState<IssueFeedbackItem | null>(null);
-  const [newNoteText, setNewNoteText] = useState('');
+  const [selectedIssue, setSelectedIssue] = useState<IssueFeedbackItem | null>(
+    null,
+  );
+  const [newNoteText, setNewNoteText] = useState("");
   const [addingNote, setAddingNote] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // Fetch Feedback Data
   const { data, isLoading, refetch } = useQuery<FeedbackResponse>({
-    queryKey: ['adminFeedbacks', search, categoryFilter, statusFilter, roleFilter, priorityFilter],
+    queryKey: [
+      "adminFeedbacks",
+      search,
+      categoryFilter,
+      statusFilter,
+      roleFilter,
+      priorityFilter,
+    ],
     queryFn: async () => {
-      const res = await api.get('/admin/feedback', {
+      const res = await api.get("/admin/feedback", {
         params: {
           search,
           category: categoryFilter,
@@ -88,12 +123,23 @@ export default function FeedbackPage() {
   });
 
   const feedbacks = data?.feedbacks || [];
-  const summary = data?.summary || { total: 0, new: 0, inReview: 0, investigating: 0, resolved: 0, closed: 0 };
+  const summary = data?.summary || {
+    total: 0,
+    new: 0,
+    inReview: 0,
+    investigating: 0,
+    resolved: 0,
+    closed: 0,
+  };
   const topCategories = data?.topCategories || [];
   const systemicIssues = data?.systemicIssues || [];
 
   // Update Status / Priority
-  const handleUpdateStatus = async (id: string, newStatus: string, newPriority?: string) => {
+  const handleUpdateStatus = async (
+    id: string,
+    newStatus: string,
+    newPriority?: string,
+  ) => {
     setUpdatingStatus(true);
     try {
       const res = await api.patch(`/admin/feedback/${id}/status`, {
@@ -102,14 +148,16 @@ export default function FeedbackPage() {
       });
 
       if (res.data.success) {
-        toast.success('Issue updated successfully');
+        toast.success("Issue updated successfully");
         if (selectedIssue && selectedIssue._id === id) {
           setSelectedIssue(res.data.feedback);
         }
-        queryClient.invalidateQueries({ queryKey: ['adminFeedbacks'] });
+        queryClient.invalidateQueries({ queryKey: ["adminFeedbacks"] });
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to update issue status');
+      toast.error(
+        err.response?.data?.message || "Failed to update issue status",
+      );
     } finally {
       setUpdatingStatus(false);
     }
@@ -125,15 +173,15 @@ export default function FeedbackPage() {
       });
 
       if (res.data.success) {
-        toast.success('Internal note added');
-        setNewNoteText('');
+        toast.success("Internal note added");
+        setNewNoteText("");
         if (selectedIssue && selectedIssue._id === id) {
           setSelectedIssue(res.data.feedback);
         }
-        queryClient.invalidateQueries({ queryKey: ['adminFeedbacks'] });
+        queryClient.invalidateQueries({ queryKey: ["adminFeedbacks"] });
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to add internal note');
+      toast.error(err.response?.data?.message || "Failed to add internal note");
     } finally {
       setAddingNote(false);
     }
@@ -141,31 +189,31 @@ export default function FeedbackPage() {
 
   const getPriorityBadgeClass = (priority: string) => {
     switch (priority) {
-      case 'Critical':
-        return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
-      case 'High':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-      case 'Medium':
-        return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+      case "Critical":
+        return "bg-rose-500/10 text-rose-400 border-rose-500/20";
+      case "High":
+        return "bg-amber-500/10 text-amber-400 border-amber-500/20";
+      case "Medium":
+        return "bg-blue-500/10 text-blue-400 border-blue-500/20";
       default:
-        return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+        return "bg-slate-500/10 text-slate-400 border-slate-500/20";
     }
   };
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
-      case 'New':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-      case 'In Review':
-        return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-      case 'Investigating':
-        return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
-      case 'Resolved':
-        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-      case 'Closed':
-        return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+      case "New":
+        return "bg-amber-500/10 text-amber-400 border-amber-500/20";
+      case "In Review":
+        return "bg-purple-500/10 text-purple-400 border-purple-500/20";
+      case "Investigating":
+        return "bg-orange-500/10 text-orange-400 border-orange-500/20";
+      case "Resolved":
+        return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+      case "Closed":
+        return "bg-slate-500/10 text-slate-400 border-slate-500/20";
       default:
-        return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+        return "bg-slate-500/10 text-slate-400 border-slate-500/20";
     }
   };
 
@@ -179,18 +227,21 @@ export default function FeedbackPage() {
             User Feedback & Issues
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            Real-time audit log of mobile app failures, performance bottlenecks, and user problem reports
+            Real-time audit log of mobile app failures, performance bottlenecks,
+            and user problem reports
           </p>
         </div>
         <button
           onClick={() => {
             refetch();
-            toast.success('Feedback reports refreshed');
+            toast.success("Feedback reports refreshed");
           }}
           disabled={isLoading}
           className="bg-slate-900 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-850 text-slate-300 hover:text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 shadow-sm self-start md:self-auto"
         >
-          <RefreshCw className={`w-4 h-4 text-orange-400 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`w-4 h-4 text-orange-400 ${isLoading ? "animate-spin" : ""}`}
+          />
           <span>Refresh Reports</span>
         </button>
       </div>
@@ -198,24 +249,44 @@ export default function FeedbackPage() {
       {/* Metric Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="glass-card p-4 rounded-2xl border border-slate-850">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Total Issues</span>
-          <span className="text-2xl font-extrabold text-white mt-1 block">{summary.total}</span>
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
+            Total Issues
+          </span>
+          <span className="text-2xl font-extrabold text-white mt-1 block">
+            {summary.total}
+          </span>
         </div>
         <div className="glass-card p-4 rounded-2xl border border-amber-500/20 bg-amber-500/5">
-          <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider block">New</span>
-          <span className="text-2xl font-extrabold text-amber-300 mt-1 block">{summary.new}</span>
+          <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider block">
+            New
+          </span>
+          <span className="text-2xl font-extrabold text-amber-300 mt-1 block">
+            {summary.new}
+          </span>
         </div>
         <div className="glass-card p-4 rounded-2xl border border-purple-500/20 bg-purple-500/5">
-          <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider block">In Review</span>
-          <span className="text-2xl font-extrabold text-purple-300 mt-1 block">{summary.inReview}</span>
+          <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider block">
+            In Review
+          </span>
+          <span className="text-2xl font-extrabold text-purple-300 mt-1 block">
+            {summary.inReview}
+          </span>
         </div>
         <div className="glass-card p-4 rounded-2xl border border-orange-500/20 bg-orange-500/5">
-          <span className="text-xs font-semibold text-orange-400 uppercase tracking-wider block">Investigating</span>
-          <span className="text-2xl font-extrabold text-orange-300 mt-1 block">{summary.investigating}</span>
+          <span className="text-xs font-semibold text-orange-400 uppercase tracking-wider block">
+            Investigating
+          </span>
+          <span className="text-2xl font-extrabold text-orange-300 mt-1 block">
+            {summary.investigating}
+          </span>
         </div>
         <div className="glass-card p-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5">
-          <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider block">Resolved</span>
-          <span className="text-2xl font-extrabold text-emerald-300 mt-1 block">{summary.resolved}</span>
+          <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider block">
+            Resolved
+          </span>
+          <span className="text-2xl font-extrabold text-emerald-300 mt-1 block">
+            {summary.resolved}
+          </span>
         </div>
       </div>
 
@@ -224,9 +295,12 @@ export default function FeedbackPage() {
         <div className="glass-card p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h4 className="text-sm font-bold text-amber-200">Systemic Problem Pattern Detected</h4>
+            <h4 className="text-sm font-bold text-amber-200">
+              Systemic Problem Pattern Detected
+            </h4>
             <p className="text-xs text-amber-300/80 mt-0.5">
-              Multiple users have reported recurring failures in the following features:
+              Multiple users have reported recurring failures in the following
+              features:
             </p>
             <div className="flex flex-wrap gap-2 mt-2">
               {systemicIssues.map((si, idx) => (
@@ -257,11 +331,15 @@ export default function FeedbackPage() {
           {topCategories.map((c) => (
             <button
               key={c.category}
-              onClick={() => setCategoryFilter(categoryFilter === c.category ? 'All' : c.category)}
+              onClick={() =>
+                setCategoryFilter(
+                  categoryFilter === c.category ? "All" : c.category,
+                )
+              }
               className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border shrink-0 ${
                 categoryFilter === c.category
-                  ? 'bg-orange-500 text-white border-orange-500'
-                  : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                  ? "bg-orange-500 text-white border-orange-500"
+                  : "bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700"
               }`}
             >
               {c.category} ({c.count})
@@ -303,9 +381,13 @@ export default function FeedbackPage() {
               <option value="Print">Print</option>
               <option value="GPS / Location">GPS / Location</option>
               <option value="Notifications">Notifications</option>
-              <option value="Login / Authentication">Login / Authentication</option>
+              <option value="Login / Authentication">
+                Login / Authentication
+              </option>
               <option value="Payments">Payments</option>
-              <option value="Performance / Slow App">Performance / Slow App</option>
+              <option value="Performance / Slow App">
+                Performance / Slow App
+              </option>
               <option value="UI / Design">UI / Design</option>
               <option value="Network / Server">Network / Server</option>
               <option value="Other">Other</option>
@@ -392,13 +474,16 @@ export default function FeedbackPage() {
                 </tr>
               ) : (
                 feedbacks.map((f) => (
-                  <tr key={f._id} className="hover:bg-slate-900/40 transition-colors">
+                  <tr
+                    key={f._id}
+                    className="hover:bg-slate-900/40 transition-colors"
+                  >
                     <td className="px-4 py-3.5 text-slate-400 whitespace-nowrap">
-                      {new Date(f.createdAt).toLocaleString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
+                      {new Date(f.createdAt).toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
                       })}
                     </td>
                     <td className="px-4 py-3.5">
@@ -411,8 +496,12 @@ export default function FeedbackPage() {
                     </td>
                     <td className="px-4 py-3.5">
                       <div>
-                        <span className="font-bold text-white block">{f.userName}</span>
-                        <span className="text-[10px] text-slate-400 capitalize">{f.userRole} {f.userPhone ? `• ${f.userPhone}` : ''}</span>
+                        <span className="font-bold text-white block">
+                          {f.userName}
+                        </span>
+                        <span className="text-[10px] text-slate-400 capitalize">
+                          {f.userRole} {f.userPhone ? `• ${f.userPhone}` : ""}
+                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-3.5 max-w-[280px]">
@@ -424,12 +513,16 @@ export default function FeedbackPage() {
                       )}
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">
-                      <span className={`border px-2 py-0.5 rounded text-[10px] font-bold ${getPriorityBadgeClass(f.priority)}`}>
+                      <span
+                        className={`border px-2 py-0.5 rounded text-[10px] font-bold ${getPriorityBadgeClass(f.priority)}`}
+                      >
                         {f.priority}
                       </span>
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">
-                      <span className={`border px-2.5 py-0.5 rounded-lg text-[10px] font-bold ${getStatusBadgeClass(f.status)}`}>
+                      <span
+                        className={`border px-2.5 py-0.5 rounded-lg text-[10px] font-bold ${getStatusBadgeClass(f.status)}`}
+                      >
                         {f.status}
                       </span>
                     </td>
@@ -461,7 +554,9 @@ export default function FeedbackPage() {
                   <span className="bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2.5 py-0.5 rounded-lg text-xs font-bold">
                     {selectedIssue.category}
                   </span>
-                  <span className={`border px-2.5 py-0.5 rounded-lg text-xs font-bold ${getPriorityBadgeClass(selectedIssue.priority)}`}>
+                  <span
+                    className={`border px-2.5 py-0.5 rounded-lg text-xs font-bold ${getPriorityBadgeClass(selectedIssue.priority)}`}
+                  >
                     {selectedIssue.priority} Priority
                   </span>
                 </div>
@@ -469,7 +564,8 @@ export default function FeedbackPage() {
                   {selectedIssue.feature}
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Reported on {new Date(selectedIssue.createdAt).toLocaleString()}
+                  Reported on{" "}
+                  {new Date(selectedIssue.createdAt).toLocaleString()}
                 </p>
               </div>
               <button
@@ -483,25 +579,76 @@ export default function FeedbackPage() {
             {/* User Details & Technical Diagnostics */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-950/50 p-4 rounded-2xl border border-slate-850">
               <div className="space-y-1.5 text-xs">
-                <span className="font-bold text-slate-400 uppercase tracking-wider block text-[10px]">User Info</span>
-                <div className="text-white font-bold">{selectedIssue.userName}</div>
-                <div className="text-slate-400 capitalize">Role: <span className="text-slate-200">{selectedIssue.userRole}</span></div>
-                {selectedIssue.userPhone && <div className="text-slate-400">Phone: <span className="text-slate-200">{selectedIssue.userPhone}</span></div>}
-                {selectedIssue.userEmail && <div className="text-slate-400">Email: <span className="text-slate-200">{selectedIssue.userEmail}</span></div>}
+                <span className="font-bold text-slate-400 uppercase tracking-wider block text-[10px]">
+                  User Info
+                </span>
+                <div className="text-white font-bold">
+                  {selectedIssue.userName}
+                </div>
+                <div className="text-slate-400 capitalize">
+                  Role:{" "}
+                  <span className="text-slate-200">
+                    {selectedIssue.userRole}
+                  </span>
+                </div>
+                {selectedIssue.userPhone && (
+                  <div className="text-slate-400">
+                    Phone:{" "}
+                    <span className="text-slate-200">
+                      {selectedIssue.userPhone}
+                    </span>
+                  </div>
+                )}
+                {selectedIssue.userEmail && (
+                  <div className="text-slate-400">
+                    Email:{" "}
+                    <span className="text-slate-200">
+                      {selectedIssue.userEmail}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5 text-xs">
-                <span className="font-bold text-slate-400 uppercase tracking-wider block text-[10px]">Technical Context</span>
-                <div className="text-slate-400">Platform: <span className="text-slate-200">{selectedIssue.platform || 'mobile'}</span></div>
-                <div className="text-slate-400">App Version: <span className="text-slate-200">{selectedIssue.appVersion || '1.0.0'}</span></div>
-                {selectedIssue.httpStatus && <div className="text-slate-400">HTTP Status: <span className="text-amber-400 font-bold">{selectedIssue.httpStatus}</span></div>}
-                {selectedIssue.durationMs && <div className="text-slate-400">Operation Duration: <span className="text-amber-400 font-bold">{(selectedIssue.durationMs / 1000).toFixed(1)}s</span></div>}
+                <span className="font-bold text-slate-400 uppercase tracking-wider block text-[10px]">
+                  Technical Context
+                </span>
+                <div className="text-slate-400">
+                  Platform:{" "}
+                  <span className="text-slate-200">
+                    {selectedIssue.platform || "mobile"}
+                  </span>
+                </div>
+                <div className="text-slate-400">
+                  App Version:{" "}
+                  <span className="text-slate-200">
+                    {selectedIssue.appVersion || "1.0.0"}
+                  </span>
+                </div>
+                {selectedIssue.httpStatus && (
+                  <div className="text-slate-400">
+                    HTTP Status:{" "}
+                    <span className="text-amber-400 font-bold">
+                      {selectedIssue.httpStatus}
+                    </span>
+                  </div>
+                )}
+                {selectedIssue.durationMs && (
+                  <div className="text-slate-400">
+                    Operation Duration:{" "}
+                    <span className="text-amber-400 font-bold">
+                      {(selectedIssue.durationMs / 1000).toFixed(1)}s
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Problem Description */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">User Description</label>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                User Description
+              </label>
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-850 text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">
                 {selectedIssue.message}
               </div>
@@ -510,7 +657,9 @@ export default function FeedbackPage() {
             {/* Error Message if captured */}
             {selectedIssue.errorMessage && (
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-rose-400 uppercase tracking-wider block">Captured Error Stack / Notice</label>
+                <label className="text-xs font-bold text-rose-400 uppercase tracking-wider block">
+                  Captured Error Stack / Notice
+                </label>
                 <div className="bg-rose-950/30 border border-rose-500/20 p-3 rounded-xl text-xs font-mono text-rose-300 break-all">
                   {selectedIssue.errorMessage}
                 </div>
@@ -520,10 +669,18 @@ export default function FeedbackPage() {
             {/* Status & Priority Controls */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-950/50 p-4 rounded-2xl border border-slate-850">
               <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Change Status</label>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Change Status
+                </label>
                 <select
                   value={selectedIssue.status}
-                  onChange={(e) => handleUpdateStatus(selectedIssue._id, e.target.value, selectedIssue.priority)}
+                  onChange={(e) =>
+                    handleUpdateStatus(
+                      selectedIssue._id,
+                      e.target.value,
+                      selectedIssue.priority,
+                    )
+                  }
                   disabled={updatingStatus}
                   className="premium-input text-xs py-2"
                 >
@@ -536,10 +693,18 @@ export default function FeedbackPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Change Priority</label>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Change Priority
+                </label>
                 <select
                   value={selectedIssue.priority}
-                  onChange={(e) => handleUpdateStatus(selectedIssue._id, selectedIssue.status, e.target.value)}
+                  onChange={(e) =>
+                    handleUpdateStatus(
+                      selectedIssue._id,
+                      selectedIssue.status,
+                      e.target.value,
+                    )
+                  }
                   disabled={updatingStatus}
                   className="premium-input text-xs py-2"
                 >
@@ -553,21 +718,33 @@ export default function FeedbackPage() {
 
             {/* Internal Admin Notes */}
             <div className="space-y-3">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Internal Admin Notes (Invisible to Users)</label>
-              
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                Internal Admin Notes (Invisible to Users)
+              </label>
+
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                {selectedIssue.internalNotes && selectedIssue.internalNotes.length > 0 ? (
+                {selectedIssue.internalNotes &&
+                selectedIssue.internalNotes.length > 0 ? (
                   selectedIssue.internalNotes.map((n, idx) => (
-                    <div key={idx} className="bg-slate-950 border border-slate-800 p-3 rounded-xl text-xs space-y-1">
+                    <div
+                      key={idx}
+                      className="bg-slate-950 border border-slate-800 p-3 rounded-xl text-xs space-y-1"
+                    >
                       <div className="flex justify-between items-center text-slate-400">
-                        <span className="font-bold text-orange-400">{n.adminName}</span>
-                        <span className="text-[10px]">{new Date(n.createdAt).toLocaleString()}</span>
+                        <span className="font-bold text-orange-400">
+                          {n.adminName}
+                        </span>
+                        <span className="text-[10px]">
+                          {new Date(n.createdAt).toLocaleString()}
+                        </span>
                       </div>
                       <p className="text-slate-300">{n.note}</p>
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-slate-500 italic">No internal notes added yet.</p>
+                  <p className="text-xs text-slate-500 italic">
+                    No internal notes added yet.
+                  </p>
                 )}
               </div>
 

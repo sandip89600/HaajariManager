@@ -1,12 +1,19 @@
 import React from "react";
-import { View, Text, StyleSheet, ActivityIndicator, Pressable } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  Pressable,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useLanguage } from "@/hooks/useLanguage";
 
 export default function OfflineBanner() {
-  const { isOnline, isSyncing, pendingCount, showSyncedBanner, triggerSync } = useNetworkStatus();
+  const { isOnline, isSyncing, pendingCount, showSyncedBanner, triggerSync } =
+    useNetworkStatus();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
 
@@ -18,7 +25,10 @@ export default function OfflineBanner() {
   let bannerBg = "#F59E0B"; // Amber for offline
   let textColor = "#78350F";
   let iconName: any = "cloud-off";
-  let message = t("common.offlineNotice", "Offline — Changes will sync when online");
+  let message = t(
+    "common.offlineNotice",
+    "Offline — Changes will sync when online",
+  );
 
   if (showSyncedBanner && isOnline && !isSyncing) {
     bannerBg = "#10B981"; // Green for synced
@@ -35,12 +45,29 @@ export default function OfflineBanner() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: bannerBg, paddingTop: Math.max(insets.top, 6) }]}>
-      <Pressable onPress={() => isOnline && triggerSync()} style={styles.contentRow}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: bannerBg, paddingTop: Math.max(insets.top, 6) },
+      ]}
+    >
+      <Pressable
+        onPress={() => isOnline && triggerSync()}
+        style={styles.contentRow}
+      >
         {isSyncing ? (
-          <ActivityIndicator size="small" color={textColor} style={{ marginRight: 8 }} />
+          <ActivityIndicator
+            size="small"
+            color={textColor}
+            style={{ marginRight: 8 }}
+          />
         ) : (
-          <Feather name={iconName} size={15} color={textColor} style={{ marginRight: 8 }} />
+          <Feather
+            name={iconName}
+            size={15}
+            color={textColor}
+            style={{ marginRight: 8 }}
+          />
         )}
         <Text style={[styles.messageText, { color: textColor }]}>
           {message}

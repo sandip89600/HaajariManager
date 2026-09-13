@@ -66,14 +66,20 @@ export class SubscriptionApi {
   /**
    * Fetch global subscription mode status (unauthenticated or authenticated)
    */
-  static async getConfig(): Promise<{ subscriptionEnabled: boolean; mode: "free" | "subscription" }> {
+  static async getConfig(): Promise<{
+    subscriptionEnabled: boolean;
+    mode: "free" | "subscription";
+  }> {
     try {
       const res = await fetch(`${API_URL}/v2/subscription/config`);
       if (res.ok) {
         return await res.json();
       }
     } catch (err) {
-      console.warn("[SubscriptionApi] Config fetch failed, defaulting to free mode:", err);
+      console.warn(
+        "[SubscriptionApi] Config fetch failed, defaulting to free mode:",
+        err,
+      );
     }
     return { subscriptionEnabled: false, mode: "free" };
   }
@@ -103,7 +109,10 @@ export class SubscriptionApi {
         return await res.json();
       }
     } catch (err) {
-      console.warn("[SubscriptionApi] Status fetch failed, defaulting to free mode:", err);
+      console.warn(
+        "[SubscriptionApi] Status fetch failed, defaulting to free mode:",
+        err,
+      );
     }
     return {
       subscriptionEnabled: false,
@@ -117,10 +126,13 @@ export class SubscriptionApi {
    * Create Checkout Order for plan & billing option
    */
   static async createCheckout(planId: string, billingOptionId: string) {
-    const res = await authenticatedFetch(`${API_URL}/v2/subscription/checkout`, {
-      method: "POST",
-      body: JSON.stringify({ planId, billingOptionId }),
-    });
+    const res = await authenticatedFetch(
+      `${API_URL}/v2/subscription/checkout`,
+      {
+        method: "POST",
+        body: JSON.stringify({ planId, billingOptionId }),
+      },
+    );
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
       throw new Error(errorData.message || "Failed to create checkout order.");
@@ -131,11 +143,17 @@ export class SubscriptionApi {
   /**
    * Activate Subscription after payment
    */
-  static async activateSubscription(transactionId: string, paymentReference?: string) {
-    const res = await authenticatedFetch(`${API_URL}/v2/subscription/activate`, {
-      method: "POST",
-      body: JSON.stringify({ transactionId, paymentReference }),
-    });
+  static async activateSubscription(
+    transactionId: string,
+    paymentReference?: string,
+  ) {
+    const res = await authenticatedFetch(
+      `${API_URL}/v2/subscription/activate`,
+      {
+        method: "POST",
+        body: JSON.stringify({ transactionId, paymentReference }),
+      },
+    );
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
       throw new Error(errorData.message || "Failed to activate subscription.");
@@ -148,7 +166,9 @@ export class SubscriptionApi {
    */
   static async getUserTransactions(): Promise<SubscriptionTransactionItem[]> {
     try {
-      const res = await authenticatedFetch(`${API_URL}/v2/subscription/transactions`);
+      const res = await authenticatedFetch(
+        `${API_URL}/v2/subscription/transactions`,
+      );
       if (res.ok) {
         return await res.json();
       }

@@ -44,23 +44,103 @@ type Step = 1 | 2;
 type UserRole = "contractor" | "labor" | "supervisor";
 
 const WORKER_CATEGORIES = [
-  { id: "Plaster Mistri", label: "Plaster Mistri", hiLabel: "प्लास्टर मिस्त्री", icon: "🪜" },
-  { id: "Bandhkam Mistri", label: "Bandhkam Mistri", hiLabel: "बांधकाम मिस्त्री (Brick & Block Masonry)", icon: "🧱" },
-  { id: "Rajmistri", label: "Rajmistri / Mason", hiLabel: "राजमिस्त्री (General Mason)", icon: "🏗️" },
-  { id: "Tile & Marble Mistri", label: "Tile & Marble Mistri", hiLabel: "टाइल / मार्बल मिस्त्री", icon: "🔲" },
-  { id: "Centering / Shuttering", label: "Centering / Shuttering", hiLabel: "सेंटरिंग / शटरिंग मिस्त्री", icon: "🪵" },
-  { id: "Bar Bender", label: "Bar Bender / Steel Fitter", hiLabel: "सरिया कारीगर / लोहार", icon: "🔩" },
-  { id: "Electrician", label: "Electrician", hiLabel: "इलेक्ट्रीशियन", icon: "⚡" },
+  {
+    id: "Plaster Mistri",
+    label: "Plaster Mistri",
+    hiLabel: "प्लास्टर मिस्त्री",
+    icon: "🪜",
+  },
+  {
+    id: "Bandhkam Mistri",
+    label: "Bandhkam Mistri",
+    hiLabel: "बांधकाम मिस्त्री (Brick & Block Masonry)",
+    icon: "🧱",
+  },
+  {
+    id: "Rajmistri",
+    label: "Rajmistri / Mason",
+    hiLabel: "राजमिस्त्री (General Mason)",
+    icon: "🏗️",
+  },
+  {
+    id: "Tile & Marble Mistri",
+    label: "Tile & Marble Mistri",
+    hiLabel: "टाइल / मार्बल मिस्त्री",
+    icon: "🔲",
+  },
+  {
+    id: "Centering / Shuttering",
+    label: "Centering / Shuttering",
+    hiLabel: "सेंटरिंग / शटरिंग मिस्त्री",
+    icon: "🪵",
+  },
+  {
+    id: "Bar Bender",
+    label: "Bar Bender / Steel Fitter",
+    hiLabel: "सरिया कारीगर / लोहार",
+    icon: "🔩",
+  },
+  {
+    id: "Electrician",
+    label: "Electrician",
+    hiLabel: "इलेक्ट्रीशियन",
+    icon: "⚡",
+  },
   { id: "Plumber", label: "Plumber", hiLabel: "प्लम्बर", icon: "🔧" },
-  { id: "Painter", label: "Painter / Polisher", hiLabel: "पेंटर / रंगाई कारीगर", icon: "🎨" },
-  { id: "Carpenter", label: "Carpenter / Woodwork", hiLabel: "बढ़ई / कारपेंटर", icon: "🪚" },
-  { id: "Welder", label: "Welder / Fabricator", hiLabel: "वेल्डर / फैब्रिकेटर", icon: "🔥" },
-  { id: "POP / False Ceiling", label: "POP / False Ceiling", hiLabel: "पीओपी / फॉल्स सीलिंग", icon: "🏛️" },
-  { id: "Flooring / Granite", label: "Flooring & Granite", hiLabel: "फ्लोरिंग / ग्रेनाइट कारीगर", icon: "📐" },
-  { id: "Helper", label: "Helper / Beldar", hiLabel: "हेल्पर / बेलदार", icon: "👷" },
-  { id: "Labour", label: "General Labour", hiLabel: "साधारण मजदूर", icon: "⛏️" },
-  { id: "Driver / Operator", label: "JCB / Crane / Driver", hiLabel: "ड्राइवर / ऑपरेटर", icon: "🚜" },
-  { id: "Other", label: "Other Trade", hiLabel: "अन्य कार्य (Custom Trade)", icon: "✨" },
+  {
+    id: "Painter",
+    label: "Painter / Polisher",
+    hiLabel: "पेंटर / रंगाई कारीगर",
+    icon: "🎨",
+  },
+  {
+    id: "Carpenter",
+    label: "Carpenter / Woodwork",
+    hiLabel: "बढ़ई / कारपेंटर",
+    icon: "🪚",
+  },
+  {
+    id: "Welder",
+    label: "Welder / Fabricator",
+    hiLabel: "वेल्डर / फैब्रिकेटर",
+    icon: "🔥",
+  },
+  {
+    id: "POP / False Ceiling",
+    label: "POP / False Ceiling",
+    hiLabel: "पीओपी / फॉल्स सीलिंग",
+    icon: "🏛️",
+  },
+  {
+    id: "Flooring / Granite",
+    label: "Flooring & Granite",
+    hiLabel: "फ्लोरिंग / ग्रेनाइट कारीगर",
+    icon: "📐",
+  },
+  {
+    id: "Helper",
+    label: "Helper / Beldar",
+    hiLabel: "हेल्पर / बेलदार",
+    icon: "👷",
+  },
+  {
+    id: "Labour",
+    label: "General Labour",
+    hiLabel: "साधारण मजदूर",
+    icon: "⛏️",
+  },
+  {
+    id: "Driver / Operator",
+    label: "JCB / Crane / Driver",
+    hiLabel: "ड्राइवर / ऑपरेटर",
+    icon: "🚜",
+  },
+  {
+    id: "Other",
+    label: "Other Trade",
+    hiLabel: "अन्य कार्य (Custom Trade)",
+    icon: "✨",
+  },
 ];
 
 export default function SignupScreen() {
@@ -93,21 +173,24 @@ export default function SignupScreen() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // Google completion modal state
-  const [showMobileCompletionModal, setShowMobileCompletionModal] = useState(false);
+  const [showMobileCompletionModal, setShowMobileCompletionModal] =
+    useState(false);
   const [pendingGoogleProfile, setPendingGoogleProfile] = useState<any>(null);
 
   // Password validation criteria
   const isMinLength = password.length >= 6;
-  const isPasswordMatching = password.length > 0 && password === confirmPassword;
+  const isPasswordMatching =
+    password.length > 0 && password === confirmPassword;
 
   // Worker category selection helpers
-  const selectedCategoryObj =
-    WORKER_CATEGORIES.find((c) => c.id === workerCategory) || {
-      id: workerCategory,
-      label: workerCategory,
-      hiLabel: workerCategory,
-      icon: "👷",
-    };
+  const selectedCategoryObj = WORKER_CATEGORIES.find(
+    (c) => c.id === workerCategory,
+  ) || {
+    id: workerCategory,
+    label: workerCategory,
+    hiLabel: workerCategory,
+    icon: "👷",
+  };
 
   const filteredCategories = WORKER_CATEGORIES.filter((cat) => {
     if (!categorySearch.trim()) return true;
@@ -120,13 +203,19 @@ export default function SignupScreen() {
   });
 
   // Validation States
-  const [usernameState, setUsernameState] = useState<"idle" | "checking" | "available" | "error">("idle");
+  const [usernameState, setUsernameState] = useState<
+    "idle" | "checking" | "available" | "error"
+  >("idle");
   const [usernameMsg, setUsernameMsg] = useState("");
 
-  const [emailState, setEmailState] = useState<"idle" | "checking" | "available" | "error">("idle");
+  const [emailState, setEmailState] = useState<
+    "idle" | "checking" | "available" | "error"
+  >("idle");
   const [emailMsg, setEmailMsg] = useState("");
 
-  const [phoneState, setPhoneState] = useState<"idle" | "checking" | "available" | "error">("idle");
+  const [phoneState, setPhoneState] = useState<
+    "idle" | "checking" | "available" | "error"
+  >("idle");
   const [phoneMsg, setPhoneMsg] = useState("");
 
   const usernameTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -153,12 +242,24 @@ export default function SignupScreen() {
     transform: [{ scale: buttonScale.value }],
   }));
 
-  const runFieldValidation = async (field: "username" | "email" | "phone", val: string) => {
+  const runFieldValidation = async (
+    field: "username" | "email" | "phone",
+    val: string,
+  ) => {
     const trimmed = val.trim();
     if (!trimmed) {
-      if (field === "username") { setUsernameState("idle"); setUsernameMsg(""); }
-      if (field === "email") { setEmailState("idle"); setEmailMsg(""); }
-      if (field === "phone") { setPhoneState("idle"); setPhoneMsg(""); }
+      if (field === "username") {
+        setUsernameState("idle");
+        setUsernameMsg("");
+      }
+      if (field === "email") {
+        setEmailState("idle");
+        setEmailMsg("");
+      }
+      if (field === "phone") {
+        setPhoneState("idle");
+        setPhoneMsg("");
+      }
       return;
     }
 
@@ -170,7 +271,9 @@ export default function SignupScreen() {
       }
       if (!/^[a-zA-Z0-9_.-]+$/.test(trimmed)) {
         setUsernameState("error");
-        setUsernameMsg("Only letters, numbers, underscores, hyphens, and dots allowed.");
+        setUsernameMsg(
+          "Only letters, numbers, underscores, hyphens, and dots allowed.",
+        );
         return;
       }
       setUsernameState("checking");
@@ -224,30 +327,51 @@ export default function SignupScreen() {
         }
       }
     } catch (err) {
-      if (field === "username") { setUsernameState("idle"); setUsernameMsg(""); }
-      if (field === "email") { setEmailState("idle"); setEmailMsg(""); }
-      if (field === "phone") { setPhoneState("idle"); setPhoneMsg(""); }
+      if (field === "username") {
+        setUsernameState("idle");
+        setUsernameMsg("");
+      }
+      if (field === "email") {
+        setEmailState("idle");
+        setEmailMsg("");
+      }
+      if (field === "phone") {
+        setPhoneState("idle");
+        setPhoneMsg("");
+      }
     }
   };
 
   const handleUsernameChange = (val: string) => {
     setUsername(val);
     const cleaned = val.trim();
-    if (!cleaned) { setUsernameState("idle"); setUsernameMsg(""); return; }
+    if (!cleaned) {
+      setUsernameState("idle");
+      setUsernameMsg("");
+      return;
+    }
     setUsernameState("checking");
     setUsernameMsg("Typing...");
     if (usernameTimer.current) clearTimeout(usernameTimer.current);
-    usernameTimer.current = setTimeout(() => { runFieldValidation("username", cleaned); }, 500);
+    usernameTimer.current = setTimeout(() => {
+      runFieldValidation("username", cleaned);
+    }, 500);
   };
 
   const handleEmailChange = (val: string) => {
     setEmail(val);
     const cleaned = val.trim();
-    if (!cleaned) { setEmailState("idle"); setEmailMsg(""); return; }
+    if (!cleaned) {
+      setEmailState("idle");
+      setEmailMsg("");
+      return;
+    }
     setEmailState("checking");
     setEmailMsg("Typing...");
     if (emailTimer.current) clearTimeout(emailTimer.current);
-    emailTimer.current = setTimeout(() => { runFieldValidation("email", cleaned); }, 500);
+    emailTimer.current = setTimeout(() => {
+      runFieldValidation("email", cleaned);
+    }, 500);
   };
 
   const handlePhoneChange = (val: string) => {
@@ -255,16 +379,25 @@ export default function SignupScreen() {
     setOtpSent(false);
     setOtpVerified(false);
     const cleaned = val.trim();
-    if (!cleaned) { setPhoneState("idle"); setPhoneMsg(""); return; }
+    if (!cleaned) {
+      setPhoneState("idle");
+      setPhoneMsg("");
+      return;
+    }
     setPhoneState("checking");
     setPhoneMsg("Typing...");
     if (phoneTimer.current) clearTimeout(phoneTimer.current);
-    phoneTimer.current = setTimeout(() => { runFieldValidation("phone", cleaned); }, 500);
+    phoneTimer.current = setTimeout(() => {
+      runFieldValidation("phone", cleaned);
+    }, 500);
   };
 
   const handleSendOTP = () => {
     if (phoneState !== "available" || phone.trim().length !== 10) {
-      Alert.alert("Error", phoneMsg || "Please enter a valid, unregistered 10-digit mobile number");
+      Alert.alert(
+        "Error",
+        phoneMsg || "Please enter a valid, unregistered 10-digit mobile number",
+      );
       return;
     }
 
@@ -328,7 +461,10 @@ export default function SignupScreen() {
       return;
     }
     if (selectedRole === "contractor" && !companyName.trim()) {
-      Alert.alert("Error", "Company Name is required for Contractor registration.");
+      Alert.alert(
+        "Error",
+        "Company Name is required for Contractor registration.",
+      );
       return;
     }
     if (!isMinLength) {
@@ -358,7 +494,7 @@ export default function SignupScreen() {
         contractorName.trim(),
         contractorCompany.trim(),
         selectedRole === "labor" ? finalWorkerCategory : undefined,
-        undefined
+        undefined,
       );
 
       if (result.success) {
@@ -367,8 +503,8 @@ export default function SignupScreen() {
           selectedRole === "contractor"
             ? "Contractor"
             : selectedRole === "supervisor"
-            ? "Supervisor"
-            : "Labour";
+              ? "Supervisor"
+              : "Labour";
 
         Alert.alert(
           "Success",
@@ -382,11 +518,13 @@ export default function SignupScreen() {
                 } catch (e) {}
               },
             },
-          ]
+          ],
         );
         if (Platform.OS === "web") {
           setTimeout(() => {
-            try { navigation.navigate("Main"); } catch (e) {}
+            try {
+              navigation.navigate("Main");
+            } catch (e) {}
           }, 500);
         }
       } else {
@@ -400,21 +538,28 @@ export default function SignupScreen() {
           setPhoneState("error");
           setPhoneMsg(`❌ ${result.message}`);
         }
-        Alert.alert("Registration Error", result.message || "Failed to create account.");
+        Alert.alert(
+          "Registration Error",
+          result.message || "Failed to create account.",
+        );
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getValidationColor = (state: "idle" | "checking" | "available" | "error") => {
+  const getValidationColor = (
+    state: "idle" | "checking" | "available" | "error",
+  ) => {
     if (state === "error") return "#EF4444";
     if (state === "available") return "#22C55E";
     if (state === "checking") return "#F59E0B";
     return theme.textSecondary;
   };
 
-  const getValidationBorderColor = (state: "idle" | "checking" | "available" | "error") => {
+  const getValidationBorderColor = (
+    state: "idle" | "checking" | "available" | "error",
+  ) => {
     if (state === "error") return "#EF4444";
     if (state === "available") return "#22C55E";
     if (state === "checking") return "#F59E0B";
@@ -469,16 +614,22 @@ export default function SignupScreen() {
             {step === 1
               ? t("auth.createAccount", "Create Your Account")
               : selectedRole === "contractor"
-              ? t("auth.createContractorAccount", "Create Contractor Account")
-              : selectedRole === "supervisor"
-              ? t("auth.createSupervisorAccount", "Create Supervisor Account")
-              : t("auth.createLabourAccount", "Create Labour Account")}
+                ? t("auth.createContractorAccount", "Create Contractor Account")
+                : selectedRole === "supervisor"
+                  ? t(
+                      "auth.createSupervisorAccount",
+                      "Create Supervisor Account",
+                    )
+                  : t("auth.createLabourAccount", "Create Labour Account")}
           </ThemedText>
 
           <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
             {step === 1
               ? t("auth.selectRoleSubtitle", "Choose your account type:")
-              : t("auth.fillDetailsSubtitle", "Fill in your details below to set up your profile")}
+              : t(
+                  "auth.fillDetailsSubtitle",
+                  "Fill in your details below to set up your profile",
+                )}
           </ThemedText>
         </View>
 
@@ -498,13 +649,25 @@ export default function SignupScreen() {
               ]}
             >
               <View style={styles.roleCardHeader}>
-                <View style={[styles.roleIconBadge, { backgroundColor: "#FFF7ED" }]}>
+                <View
+                  style={[styles.roleIconBadge, { backgroundColor: "#FFF7ED" }]}
+                >
                   <ThemedText style={styles.roleEmoji}>👷</ThemedText>
                 </View>
                 <View style={styles.roleCardInfo}>
-                  <ThemedText style={styles.roleTitle}>{t("auth.contractorRole", "Contractor")}</ThemedText>
-                  <ThemedText style={[styles.roleSubtitle, { color: theme.textSecondary }]}>
-                    {t("auth.contractorDesc", "Manage workers, sites and supervisors")}
+                  <ThemedText style={styles.roleTitle}>
+                    {t("auth.contractorRole", "Contractor")}
+                  </ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.roleSubtitle,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    {t(
+                      "auth.contractorDesc",
+                      "Manage workers, sites and supervisors",
+                    )}
                   </ThemedText>
                 </View>
                 <Feather name="chevron-right" size={22} color="#F97316" />
@@ -524,13 +687,25 @@ export default function SignupScreen() {
               ]}
             >
               <View style={styles.roleCardHeader}>
-                <View style={[styles.roleIconBadge, { backgroundColor: "#F0FDF4" }]}>
+                <View
+                  style={[styles.roleIconBadge, { backgroundColor: "#F0FDF4" }]}
+                >
                   <ThemedText style={styles.roleEmoji}>🧑‍🔧</ThemedText>
                 </View>
                 <View style={styles.roleCardInfo}>
-                  <ThemedText style={styles.roleTitle}>{t("auth.workerRole", "Labour / Worker")}</ThemedText>
-                  <ThemedText style={[styles.roleSubtitle, { color: theme.textSecondary }]}>
-                    {t("auth.workerDesc", "Track attendance, wages & daily work")}
+                  <ThemedText style={styles.roleTitle}>
+                    {t("auth.workerRole", "Labour / Worker")}
+                  </ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.roleSubtitle,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    {t(
+                      "auth.workerDesc",
+                      "Track attendance, wages & daily work",
+                    )}
                   </ThemedText>
                 </View>
                 <Feather name="chevron-right" size={22} color="#10B981" />
@@ -550,12 +725,21 @@ export default function SignupScreen() {
               ]}
             >
               <View style={styles.roleCardHeader}>
-                <View style={[styles.roleIconBadge, { backgroundColor: "#EFF6FF" }]}>
+                <View
+                  style={[styles.roleIconBadge, { backgroundColor: "#EFF6FF" }]}
+                >
                   <ThemedText style={styles.roleEmoji}>👨‍💼</ThemedText>
                 </View>
                 <View style={styles.roleCardInfo}>
-                  <ThemedText style={styles.roleTitle}>{t("auth.supervisorRole", "Supervisor")}</ThemedText>
-                  <ThemedText style={[styles.roleSubtitle, { color: theme.textSecondary }]}>
+                  <ThemedText style={styles.roleTitle}>
+                    {t("auth.supervisorRole", "Supervisor")}
+                  </ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.roleSubtitle,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
                     {t("auth.supervisorDesc", "Manage assigned site work")}
                   </ThemedText>
                 </View>
@@ -569,7 +753,9 @@ export default function SignupScreen() {
                 {t("auth.alreadyHaveAccount", "Already have an account?")}{" "}
               </ThemedText>
               <Pressable onPress={() => navigation.navigate("Login")}>
-                <ThemedText style={{ color: "#F97316", fontWeight: "700", fontSize: 14 }}>
+                <ThemedText
+                  style={{ color: "#F97316", fontWeight: "700", fontSize: 14 }}
+                >
                   {t("auth.login", "Log In")}
                 </ThemedText>
               </Pressable>
@@ -579,12 +765,15 @@ export default function SignupScreen() {
           /* ── STEP 2: ROLE-SPECIFIC REGISTRATION FORM ── */
           <View style={styles.stepContent}>
             {/* Section Header: PERSONAL INFORMATION */}
-            <ThemedText style={styles.sectionHeaderTitle}>{t("auth.personalInfo", "PERSONAL INFORMATION")}</ThemedText>
+            <ThemedText style={styles.sectionHeaderTitle}>
+              {t("auth.personalInfo", "PERSONAL INFORMATION")}
+            </ThemedText>
 
             {/* Full Name */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                {t("auth.fullName", "Full Name")} <Text style={{ color: "red" }}>*</Text>
+                {t("auth.fullName", "Full Name")}{" "}
+                <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View
                 style={[
@@ -595,7 +784,12 @@ export default function SignupScreen() {
                   },
                 ]}
               >
-                <Feather name="user" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                <Feather
+                  name="user"
+                  size={18}
+                  color={theme.textSecondary}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   placeholder={t("auth.enterFullName", "Enter full name")}
@@ -610,7 +804,8 @@ export default function SignupScreen() {
             {/* Username */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                {t("auth.username", "Username")} <Text style={{ color: "red" }}>*</Text>
+                {t("auth.username", "Username")}{" "}
+                <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View
                 style={[
@@ -621,7 +816,12 @@ export default function SignupScreen() {
                   },
                 ]}
               >
-                <Feather name="at-sign" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                <Feather
+                  name="at-sign"
+                  size={18}
+                  color={theme.textSecondary}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   placeholder={t("auth.chooseUsername", "Choose username")}
@@ -631,10 +831,17 @@ export default function SignupScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                {usernameState === "checking" && <ActivityIndicator size="small" color="#F97316" />}
+                {usernameState === "checking" && (
+                  <ActivityIndicator size="small" color="#F97316" />
+                )}
               </View>
               {usernameMsg !== "" && (
-                <Text style={[styles.validationMsg, { color: getValidationColor(usernameState) }]}>
+                <Text
+                  style={[
+                    styles.validationMsg,
+                    { color: getValidationColor(usernameState) },
+                  ]}
+                >
                   {usernameMsg}
                 </Text>
               )}
@@ -642,7 +849,9 @@ export default function SignupScreen() {
 
             {/* Email */}
             <View style={styles.inputContainer}>
-              <ThemedText style={styles.inputLabel}>{t("auth.email", "Email")}</ThemedText>
+              <ThemedText style={styles.inputLabel}>
+                {t("auth.email", "Email")}
+              </ThemedText>
               <View
                 style={[
                   styles.inputWrapper,
@@ -652,7 +861,12 @@ export default function SignupScreen() {
                   },
                 ]}
               >
-                <Feather name="mail" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                <Feather
+                  name="mail"
+                  size={18}
+                  color={theme.textSecondary}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   placeholder={t("auth.enterEmail", "Enter email")}
@@ -663,10 +877,17 @@ export default function SignupScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                {emailState === "checking" && <ActivityIndicator size="small" color="#F97316" />}
+                {emailState === "checking" && (
+                  <ActivityIndicator size="small" color="#F97316" />
+                )}
               </View>
               {emailMsg !== "" && (
-                <Text style={[styles.validationMsg, { color: getValidationColor(emailState) }]}>
+                <Text
+                  style={[
+                    styles.validationMsg,
+                    { color: getValidationColor(emailState) },
+                  ]}
+                >
                   {emailMsg}
                 </Text>
               )}
@@ -675,7 +896,8 @@ export default function SignupScreen() {
             {/* Mobile Number & Optional OTP Verification */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                {t("auth.mobileNumber", "Mobile Number")} <Text style={{ color: "red" }}>*</Text>
+                {t("auth.mobileNumber", "Mobile Number")}{" "}
+                <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View style={styles.phoneInputRow}>
                 <View
@@ -688,17 +910,27 @@ export default function SignupScreen() {
                     },
                   ]}
                 >
-                  <Feather name="phone" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                  <Feather
+                    name="phone"
+                    size={18}
+                    color={theme.textSecondary}
+                    style={styles.inputIcon}
+                  />
                   <TextInput
                     style={[styles.input, { color: theme.text }]}
-                    placeholder={t("auth.enterMobileNumber", "Enter mobile number")}
+                    placeholder={t(
+                      "auth.enterMobileNumber",
+                      "Enter mobile number",
+                    )}
                     placeholderTextColor={theme.textSecondary}
                     value={phone}
                     onChangeText={handlePhoneChange}
                     keyboardType="phone-pad"
                     maxLength={10}
                   />
-                  {phoneState === "checking" && <ActivityIndicator size="small" color="#F97316" />}
+                  {phoneState === "checking" && (
+                    <ActivityIndicator size="small" color="#F97316" />
+                  )}
                 </View>
 
                 <Pressable
@@ -715,12 +947,19 @@ export default function SignupScreen() {
                   disabled={phone.trim().length !== 10 || otpVerified}
                 >
                   <ThemedText style={styles.otpButtonText}>
-                    {otpSent ? t("auth.resendOtp", "Resend") : t("auth.sendOtp", "Send OTP")}
+                    {otpSent
+                      ? t("auth.resendOtp", "Resend")
+                      : t("auth.sendOtp", "Send OTP")}
                   </ThemedText>
                 </Pressable>
               </View>
               {phoneMsg !== "" && (
-                <Text style={[styles.validationMsg, { color: getValidationColor(phoneState) }]}>
+                <Text
+                  style={[
+                    styles.validationMsg,
+                    { color: getValidationColor(phoneState) },
+                  ]}
+                >
                   {phoneMsg}
                 </Text>
               )}
@@ -729,7 +968,9 @@ export default function SignupScreen() {
             {/* OTP Code Box */}
             {otpSent && !otpVerified && (
               <View style={styles.inputContainer}>
-                <ThemedText style={styles.inputLabel}>{t("auth.enterOtp", "OTP Code")}</ThemedText>
+                <ThemedText style={styles.inputLabel}>
+                  {t("auth.enterOtp", "OTP Code")}
+                </ThemedText>
                 <View style={styles.phoneInputRow}>
                   <View
                     style={[
@@ -741,7 +982,12 @@ export default function SignupScreen() {
                       },
                     ]}
                   >
-                    <Feather name="shield" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                    <Feather
+                      name="shield"
+                      size={18}
+                      color={theme.textSecondary}
+                      style={styles.inputIcon}
+                    />
                     <TextInput
                       style={[styles.input, { color: theme.text }]}
                       placeholder={t("auth.enterOtpPlaceholder", "Enter OTP")}
@@ -756,7 +1002,9 @@ export default function SignupScreen() {
                     onPress={handleVerifyOTP}
                     style={[styles.otpButton, { backgroundColor: "#10B981" }]}
                   >
-                    <ThemedText style={styles.otpButtonText}>{t("auth.verifyOtp", "Verify")}</ThemedText>
+                    <ThemedText style={styles.otpButtonText}>
+                      {t("auth.verifyOtp", "Verify")}
+                    </ThemedText>
                   </Pressable>
                 </View>
               </View>
@@ -777,12 +1025,15 @@ export default function SignupScreen() {
             {/* CONTRACTOR SPECIFIC: COMPANY INFORMATION */}
             {selectedRole === "contractor" && (
               <>
-                <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>
+                <ThemedText
+                  style={[styles.sectionHeaderTitle, { marginTop: 12 }]}
+                >
                   {t("auth.companyDetails", "COMPANY INFORMATION")}
                 </ThemedText>
                 <View style={styles.inputContainer}>
                   <ThemedText style={styles.inputLabel}>
-                    {t("auth.companyName", "Company Name")} <Text style={{ color: "red" }}>*</Text>
+                    {t("auth.companyName", "Company Name")}{" "}
+                    <Text style={{ color: "red" }}>*</Text>
                   </ThemedText>
                   <View
                     style={[
@@ -793,10 +1044,18 @@ export default function SignupScreen() {
                       },
                     ]}
                   >
-                    <Feather name="briefcase" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                    <Feather
+                      name="briefcase"
+                      size={18}
+                      color={theme.textSecondary}
+                      style={styles.inputIcon}
+                    />
                     <TextInput
                       style={[styles.input, { color: theme.text }]}
-                      placeholder={t("auth.enterCompanyName", "Enter company name")}
+                      placeholder={t(
+                        "auth.enterCompanyName",
+                        "Enter company name",
+                      )}
                       placeholderTextColor={theme.textSecondary}
                       value={companyName}
                       onChangeText={setCompanyName}
@@ -810,12 +1069,16 @@ export default function SignupScreen() {
             {/* SUPERVISOR SPECIFIC: CONTRACTOR INFORMATION */}
             {selectedRole === "supervisor" && (
               <>
-                <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>
+                <ThemedText
+                  style={[styles.sectionHeaderTitle, { marginTop: 12 }]}
+                >
                   {t("auth.contractorDetails", "CONTRACTOR INFORMATION")}
                 </ThemedText>
 
                 <View style={styles.inputContainer}>
-                  <ThemedText style={styles.inputLabel}>{t("auth.contractorName", "Contractor Name")}</ThemedText>
+                  <ThemedText style={styles.inputLabel}>
+                    {t("auth.contractorName", "Contractor Name")}
+                  </ThemedText>
                   <View
                     style={[
                       styles.inputWrapper,
@@ -825,10 +1088,18 @@ export default function SignupScreen() {
                       },
                     ]}
                   >
-                    <Feather name="user-check" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                    <Feather
+                      name="user-check"
+                      size={18}
+                      color={theme.textSecondary}
+                      style={styles.inputIcon}
+                    />
                     <TextInput
                       style={[styles.input, { color: theme.text }]}
-                      placeholder={t("auth.enterContractorName", "Enter contractor name (optional)")}
+                      placeholder={t(
+                        "auth.enterContractorName",
+                        "Enter contractor name (optional)",
+                      )}
                       placeholderTextColor={theme.textSecondary}
                       value={contractorName}
                       onChangeText={setContractorName}
@@ -838,7 +1109,9 @@ export default function SignupScreen() {
                 </View>
 
                 <View style={styles.inputContainer}>
-                  <ThemedText style={styles.inputLabel}>{t("auth.contractorCompany", "Contractor Company")}</ThemedText>
+                  <ThemedText style={styles.inputLabel}>
+                    {t("auth.contractorCompany", "Contractor Company")}
+                  </ThemedText>
                   <View
                     style={[
                       styles.inputWrapper,
@@ -848,10 +1121,18 @@ export default function SignupScreen() {
                       },
                     ]}
                   >
-                    <Feather name="briefcase" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                    <Feather
+                      name="briefcase"
+                      size={18}
+                      color={theme.textSecondary}
+                      style={styles.inputIcon}
+                    />
                     <TextInput
                       style={[styles.input, { color: theme.text }]}
-                      placeholder={t("auth.enterContractorCompany", "Enter contractor company (optional)")}
+                      placeholder={t(
+                        "auth.enterContractorCompany",
+                        "Enter contractor company (optional)",
+                      )}
                       placeholderTextColor={theme.textSecondary}
                       value={contractorCompany}
                       onChangeText={setContractorCompany}
@@ -865,14 +1146,23 @@ export default function SignupScreen() {
             {/* WORKER / LABOUR SPECIFIC FIELDS */}
             {selectedRole === "labor" && (
               <>
-                <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>
-                  {t("auth.workerTradeDetails", "WORKER DETAILS & TRADE (काम का प्रकार)")}
+                <ThemedText
+                  style={[styles.sectionHeaderTitle, { marginTop: 12 }]}
+                >
+                  {t(
+                    "auth.workerTradeDetails",
+                    "WORKER DETAILS & TRADE (काम का प्रकार)",
+                  )}
                 </ThemedText>
 
                 {/* Worker Category / Trade Dropdown Trigger */}
                 <View style={styles.inputContainer}>
                   <ThemedText style={styles.inputLabel}>
-                    {t("auth.selectTrade", "Select Trade / Category (कारीगरी / काम का प्रकार)")} <Text style={{ color: "red" }}>*</Text>
+                    {t(
+                      "auth.selectTrade",
+                      "Select Trade / Category (कारीगरी / काम का प्रकार)",
+                    )}{" "}
+                    <Text style={{ color: "red" }}>*</Text>
                   </ThemedText>
 
                   <Pressable
@@ -884,7 +1174,9 @@ export default function SignupScreen() {
                       styles.categoryDropdownTrigger,
                       {
                         backgroundColor: theme.backgroundDefault,
-                        borderColor: showCategoryModal ? "#10B981" : theme.border,
+                        borderColor: showCategoryModal
+                          ? "#10B981"
+                          : theme.border,
                       },
                     ]}
                   >
@@ -895,7 +1187,9 @@ export default function SignupScreen() {
                           { backgroundColor: isDark ? "#064E3B" : "#ECFDF5" },
                         ]}
                       >
-                        <Text style={{ fontSize: 20 }}>{selectedCategoryObj.icon}</Text>
+                        <Text style={{ fontSize: 20 }}>
+                          {selectedCategoryObj.icon}
+                        </Text>
                       </View>
                       <View style={{ flex: 1 }}>
                         <ThemedText style={styles.categoryDropdownTitle}>
@@ -911,7 +1205,11 @@ export default function SignupScreen() {
                         </ThemedText>
                       </View>
                     </View>
-                    <Feather name="chevron-down" size={20} color={theme.textSecondary} />
+                    <Feather
+                      name="chevron-down"
+                      size={20}
+                      color={theme.textSecondary}
+                    />
                   </Pressable>
                 </View>
 
@@ -985,8 +1283,14 @@ export default function SignupScreen() {
                           style={{ marginRight: 8 }}
                         />
                         <TextInput
-                          style={[styles.categorySearchInput, { color: theme.text }]}
-                          placeholder={t("auth.searchTradePlaceholder", "Search trade / कारीगरी खोजें...")}
+                          style={[
+                            styles.categorySearchInput,
+                            { color: theme.text },
+                          ]}
+                          placeholder={t(
+                            "auth.searchTradePlaceholder",
+                            "Search trade / कारीगरी खोजें...",
+                          )}
                           placeholderTextColor={theme.textSecondary}
                           value={categorySearch}
                           onChangeText={setCategorySearch}
@@ -995,7 +1299,11 @@ export default function SignupScreen() {
                         />
                         {categorySearch.length > 0 && (
                           <Pressable onPress={() => setCategorySearch("")}>
-                            <Feather name="x-circle" size={18} color={theme.textSecondary} />
+                            <Feather
+                              name="x-circle"
+                              size={18}
+                              color={theme.textSecondary}
+                            />
                           </Pressable>
                         )}
                       </View>
@@ -1015,7 +1323,9 @@ export default function SignupScreen() {
                                 setWorkerCategory(cat.id);
                                 setShowCategoryModal(false);
                                 setCategorySearch("");
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                Haptics.impactAsync(
+                                  Haptics.ImpactFeedbackStyle.Light,
+                                );
                               }}
                               style={[
                                 styles.categoryOptionItem,
@@ -1025,11 +1335,15 @@ export default function SignupScreen() {
                                       ? "#064E3B"
                                       : "#ECFDF5"
                                     : "transparent",
-                                  borderColor: isSelected ? "#10B981" : "transparent",
+                                  borderColor: isSelected
+                                    ? "#10B981"
+                                    : "transparent",
                                 },
                               ]}
                             >
-                              <Text style={{ fontSize: 24, marginRight: 12 }}>{cat.icon}</Text>
+                              <Text style={{ fontSize: 24, marginRight: 12 }}>
+                                {cat.icon}
+                              </Text>
                               <View style={{ flex: 1 }}>
                                 <ThemedText
                                   style={{
@@ -1043,7 +1357,9 @@ export default function SignupScreen() {
                                 <ThemedText
                                   style={{
                                     fontSize: 12.5,
-                                    color: isSelected ? "#10B981" : theme.textSecondary,
+                                    color: isSelected
+                                      ? "#10B981"
+                                      : theme.textSecondary,
                                     marginTop: 2,
                                   }}
                                 >
@@ -1051,14 +1367,28 @@ export default function SignupScreen() {
                                 </ThemedText>
                               </View>
                               {isSelected && (
-                                <Ionicons name="checkmark-circle" size={22} color="#10B981" />
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={22}
+                                  color="#10B981"
+                                />
                               )}
                             </Pressable>
                           );
                         })}
                         {filteredCategories.length === 0 && (
-                          <View style={{ paddingVertical: 24, alignItems: "center" }}>
-                            <ThemedText style={{ color: theme.textSecondary, fontSize: 14 }}>
+                          <View
+                            style={{
+                              paddingVertical: 24,
+                              alignItems: "center",
+                            }}
+                          >
+                            <ThemedText
+                              style={{
+                                color: theme.textSecondary,
+                                fontSize: 14,
+                              }}
+                            >
                               No category matching "{categorySearch}" found.
                             </ThemedText>
                           </View>
@@ -1072,7 +1402,11 @@ export default function SignupScreen() {
                 {workerCategory === "Other" && (
                   <View style={styles.inputContainer}>
                     <ThemedText style={styles.inputLabel}>
-                      {t("auth.customTradePrompt", "Specify Custom Trade / Skill (काम का नाम लिखें)")} <Text style={{ color: "red" }}>*</Text>
+                      {t(
+                        "auth.customTradePrompt",
+                        "Specify Custom Trade / Skill (काम का नाम लिखें)",
+                      )}{" "}
+                      <Text style={{ color: "red" }}>*</Text>
                     </ThemedText>
                     <View
                       style={[
@@ -1083,7 +1417,12 @@ export default function SignupScreen() {
                         },
                       ]}
                     >
-                      <Feather name="edit-3" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                      <Feather
+                        name="edit-3"
+                        size={18}
+                        color={theme.textSecondary}
+                        style={styles.inputIcon}
+                      />
                       <TextInput
                         style={[styles.input, { color: theme.text }]}
                         placeholder="उदा. बोरवेल ऑपरेटर, ग्लास फिटर, आदि"
@@ -1098,20 +1437,33 @@ export default function SignupScreen() {
 
                 <View style={styles.laborInfoCard}>
                   <Feather name="info" size={16} color="#10B981" />
-                  <ThemedText style={{ color: theme.textSecondary, fontSize: 12.5, flex: 1, marginLeft: 8 }}>
-                    {t("auth.uniqueIdInfo", "A permanent Unique ID (HM-W-XXXXXX) will be generated for your worker account.")}
+                  <ThemedText
+                    style={{
+                      color: theme.textSecondary,
+                      fontSize: 12.5,
+                      flex: 1,
+                      marginLeft: 8,
+                    }}
+                  >
+                    {t(
+                      "auth.uniqueIdInfo",
+                      "A permanent Unique ID (HM-W-XXXXXX) will be generated for your worker account.",
+                    )}
                   </ThemedText>
                 </View>
               </>
             )}
 
             {/* ── PASSWORD SECTION ── */}
-            <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>{t("auth.password", "PASSWORD")}</ThemedText>
+            <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 12 }]}>
+              {t("auth.password", "PASSWORD")}
+            </ThemedText>
 
             {/* Password */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                {t("auth.password", "Password")} <Text style={{ color: "red" }}>*</Text>
+                {t("auth.password", "Password")}{" "}
+                <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View
                 style={[
@@ -1122,10 +1474,18 @@ export default function SignupScreen() {
                   },
                 ]}
               >
-                <Feather name="lock" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                <Feather
+                  name="lock"
+                  size={18}
+                  color={theme.textSecondary}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder={t("auth.newPasswordPlaceholder", "Create password")}
+                  placeholder={t(
+                    "auth.newPasswordPlaceholder",
+                    "Create password",
+                  )}
                   placeholderTextColor={theme.textSecondary}
                   value={password}
                   onChangeText={setPassword}
@@ -1138,7 +1498,11 @@ export default function SignupScreen() {
                   style={styles.eyeButton}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Feather name={showPassword ? "eye-off" : "eye"} size={18} color={theme.textSecondary} />
+                  <Feather
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={18}
+                    color={theme.textSecondary}
+                  />
                 </Pressable>
               </View>
             </View>
@@ -1146,7 +1510,8 @@ export default function SignupScreen() {
             {/* Confirm Password */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                {t("auth.confirmPassword", "Confirm Password")} <Text style={{ color: "red" }}>*</Text>
+                {t("auth.confirmPassword", "Confirm Password")}{" "}
+                <Text style={{ color: "red" }}>*</Text>
               </ThemedText>
               <View
                 style={[
@@ -1162,10 +1527,18 @@ export default function SignupScreen() {
                   },
                 ]}
               >
-                <Feather name="lock" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+                <Feather
+                  name="lock"
+                  size={18}
+                  color={theme.textSecondary}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
-                  placeholder={t("auth.confirmPasswordPlaceholder", "Confirm password")}
+                  placeholder={t(
+                    "auth.confirmPasswordPlaceholder",
+                    "Confirm password",
+                  )}
                   placeholderTextColor={theme.textSecondary}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
@@ -1178,7 +1551,11 @@ export default function SignupScreen() {
                   style={styles.eyeButton}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Feather name={showConfirmPassword ? "eye-off" : "eye"} size={18} color={theme.textSecondary} />
+                  <Feather
+                    name={showConfirmPassword ? "eye-off" : "eye"}
+                    size={18}
+                    color={theme.textSecondary}
+                  />
                 </Pressable>
               </View>
               {confirmPassword.length > 0 && !isPasswordMatching && (
@@ -1196,7 +1573,9 @@ export default function SignupScreen() {
               disabled={isSubmitDisabled}
               style={[
                 styles.signupButton,
-                { backgroundColor: isSubmitDisabled ? theme.border : "#F97316" },
+                {
+                  backgroundColor: isSubmitDisabled ? theme.border : "#F97316",
+                },
                 animatedButtonStyle,
               ]}
             >
@@ -1204,10 +1583,16 @@ export default function SignupScreen() {
                 {isLoading
                   ? t("auth.creatingAccount", "Creating Account...")
                   : selectedRole === "contractor"
-                  ? t("auth.createContractorAccount", "Create Contractor Account")
-                  : selectedRole === "supervisor"
-                  ? t("auth.createSupervisorAccount", "Create Supervisor Account")
-                  : t("auth.createLabourAccount", "Create Labour Account")}
+                    ? t(
+                        "auth.createContractorAccount",
+                        "Create Contractor Account",
+                      )
+                    : selectedRole === "supervisor"
+                      ? t(
+                          "auth.createSupervisorAccount",
+                          "Create Supervisor Account",
+                        )
+                      : t("auth.createLabourAccount", "Create Labour Account")}
               </ThemedText>
             </AnimatedPressable>
           </View>

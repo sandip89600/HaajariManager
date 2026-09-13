@@ -1,4 +1,10 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from "react";
 import {
   View,
   ScrollView,
@@ -13,7 +19,11 @@ import {
   Text,
   DeviceEventEmitter,
 } from "react-native";
-import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -54,7 +64,7 @@ export default function AttendanceScreen() {
   // Refs for Scroll Sync
   const leftScrollRef = useRef<ScrollView>(null);
   const rightScrollRef = useRef<ScrollView>(null);
-  const isScrollingRef = useRef<'left' | 'right' | null>(null);
+  const isScrollingRef = useRef<"left" | "right" | null>(null);
 
   // States
   const [loading, setLoading] = useState(true);
@@ -90,7 +100,7 @@ export default function AttendanceScreen() {
     t.months?.september || "September",
     t.months?.october || "October",
     t.months?.november || "November",
-    t.months?.december || "December"
+    t.months?.december || "December",
   ];
 
   const daysInMonth = useMemo(() => {
@@ -101,7 +111,7 @@ export default function AttendanceScreen() {
   const loadData = async (silent = false) => {
     try {
       if (!silent && workers.length === 0) setLoading(true);
-      
+
       // Parallel fetch of independent requests instead of sequential waterfall
       const [sitesResult, loadedWorkers, monthAttendance] = await Promise.all([
         storage.getSites(),
@@ -114,24 +124,31 @@ export default function AttendanceScreen() {
         id: s.id,
         name: s.name,
         location: s.address || s.location,
-        status: (s.status === "Completed" || s.status === "On Hold") ? "inactive" : "active",
+        status:
+          s.status === "Completed" || s.status === "On Hold"
+            ? "inactive"
+            : "active",
         startDate: s.startDate,
         endDate: s.endDate,
         clientName: s.clientName,
       })) as any[];
 
-      const activeProj = passedSiteId 
-        ? (projects.find((p) => p.id === passedSiteId) || null)
-        : (selectedSiteFilter && selectedSiteFilter !== "ALL")
-        ? (projects.find((p) => p.id === selectedSiteFilter) || null)
-        : null;
-      
+      const activeProj = passedSiteId
+        ? projects.find((p) => p.id === passedSiteId) || null
+        : selectedSiteFilter && selectedSiteFilter !== "ALL"
+          ? projects.find((p) => p.id === selectedSiteFilter) || null
+          : null;
+
       setActiveSite(activeProj);
 
       // Filter workers assigned to the active site/project (or show all workers if "All Sites" / null)
-      const siteWorkers = (passedSiteId || (selectedSiteFilter && selectedSiteFilter !== "ALL" && activeProj))
-        ? loadedWorkers.filter((w) => w.projectId === (passedSiteId || activeProj?.id))
-        : loadedWorkers;
+      const siteWorkers =
+        passedSiteId ||
+        (selectedSiteFilter && selectedSiteFilter !== "ALL" && activeProj)
+          ? loadedWorkers.filter(
+              (w) => w.projectId === (passedSiteId || activeProj?.id),
+            )
+          : loadedWorkers;
 
       setWorkers(siteWorkers);
       setAttendance(monthAttendance);
@@ -145,14 +162,16 @@ export default function AttendanceScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [selectedDate, passedSiteId, user?.id])
+    }, [selectedDate, passedSiteId, user?.id]),
   );
 
   useEffect(() => {
     connectSocket();
     const handleUpdate = () => loadData(true);
     socket.on("admin_dashboard_update", handleUpdate);
-    const sub = DeviceEventEmitter.addListener("refreshData", () => loadData(true));
+    const sub = DeviceEventEmitter.addListener("refreshData", () =>
+      loadData(true),
+    );
     return () => {
       socket.off("admin_dashboard_update", handleUpdate);
       sub.remove();
@@ -161,39 +180,65 @@ export default function AttendanceScreen() {
 
   // Bidirectional scroll sync
   const handleRightScroll = (event: any) => {
-    if (isScrollingRef.current === 'left') return;
-    isScrollingRef.current = 'right';
+    if (isScrollingRef.current === "left") return;
+    isScrollingRef.current = "right";
     const y = event.nativeEvent.contentOffset.y;
     leftScrollRef.current?.scrollTo({ y, animated: false });
     // Reset after frame
-    requestAnimationFrame(() => { isScrollingRef.current = null; });
+    requestAnimationFrame(() => {
+      isScrollingRef.current = null;
+    });
   };
 
   const handleLeftScroll = (event: any) => {
-    if (isScrollingRef.current === 'right') return;
-    isScrollingRef.current = 'left';
+    if (isScrollingRef.current === "right") return;
+    isScrollingRef.current = "left";
     const y = event.nativeEvent.contentOffset.y;
     rightScrollRef.current?.scrollTo({ y, animated: false });
-    requestAnimationFrame(() => { isScrollingRef.current = null; });
+    requestAnimationFrame(() => {
+      isScrollingRef.current = null;
+    });
   };
 
-  const getAttendanceValueForDay = (workerId: string, dayNum: number): AttendanceValue | null => {
+  const getAttendanceValueForDay = (
+    workerId: string,
+    dayNum: number,
+  ): AttendanceValue | null => {
     const rec = attendance.find(
-      (r) => r.workerId === workerId && r.year === year && r.month === month && r.day === dayNum
+      (r) =>
+        r.workerId === workerId &&
+        r.year === year &&
+        r.month === month &&
+        r.day === dayNum,
     );
     return rec?.value ?? null;
   };
 
-  const deleteAttendanceLocally = async (workerId: string, yr: number, mo: number, dy: number) => {
+  const deleteAttendanceLocally = async (
+    workerId: string,
+    yr: number,
+    mo: number,
+    dy: number,
+  ) => {
     const allRecords = await storage.getAttendance();
     const filtered = allRecords.filter(
-      (r) => !(r.workerId === workerId && r.year === yr && r.month === mo && r.day === dy)
+      (r) =>
+        !(
+          r.workerId === workerId &&
+          r.year === yr &&
+          r.month === mo &&
+          r.day === dy
+        ),
     );
     await storage.setAttendance(filtered);
   };
 
   // Cycle status: Unmarked -> P -> A -> H -> OT -> Unmarked
-  const cycleAttendance = async (workerId: string, dayNum: number, currentVal: AttendanceValue | null) => {
+  const cycleAttendance = async (
+    workerId: string,
+    dayNum: number,
+    currentVal: AttendanceValue | null,
+  ) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     let nextVal: AttendanceValue | null = null;
@@ -214,8 +259,14 @@ export default function AttendanceScreen() {
         await deleteAttendanceLocally(workerId, year, month, dayNum);
         setAttendance((prev) =>
           prev.filter(
-            (r) => !(r.workerId === workerId && r.year === year && r.month === month && r.day === dayNum)
-          )
+            (r) =>
+              !(
+                r.workerId === workerId &&
+                r.year === year &&
+                r.month === month &&
+                r.day === dayNum
+              ),
+          ),
         );
       } else {
         const newRecord: AttendanceRecord = {
@@ -233,7 +284,11 @@ export default function AttendanceScreen() {
 
         setAttendance((prev) => {
           const idx = prev.findIndex(
-            (r) => r.workerId === workerId && r.year === year && r.month === month && r.day === dayNum
+            (r) =>
+              r.workerId === workerId &&
+              r.year === year &&
+              r.month === month &&
+              r.day === dayNum,
           );
           const updated = [...prev];
           if (idx !== -1) {
@@ -249,10 +304,12 @@ export default function AttendanceScreen() {
     }
   };
 
-
-
   // Open detailed popup modal
-  const openDetailedModal = (worker: Worker, dayNum: number, currentVal: AttendanceValue | null) => {
+  const openDetailedModal = (
+    worker: Worker,
+    dayNum: number,
+    currentVal: AttendanceValue | null,
+  ) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedWorker(worker);
     setSelectedDayNum(dayNum);
@@ -264,7 +321,11 @@ export default function AttendanceScreen() {
       await storage.setAttendanceRecord(record);
       setAttendance((prev) => {
         const idx = prev.findIndex(
-          (r) => r.workerId === record.workerId && r.year === record.year && r.month === record.month && r.day === record.day
+          (r) =>
+            r.workerId === record.workerId &&
+            r.year === record.year &&
+            r.month === record.month &&
+            r.day === record.day,
         );
         const updated = [...prev];
         if (idx !== -1) {
@@ -284,11 +345,22 @@ export default function AttendanceScreen() {
   const handleClearDetailedRecord = async () => {
     if (!selectedWorker) return;
     try {
-      await deleteAttendanceLocally(selectedWorker.id, year, month, selectedDayNum);
+      await deleteAttendanceLocally(
+        selectedWorker.id,
+        year,
+        month,
+        selectedDayNum,
+      );
       setAttendance((prev) =>
         prev.filter(
-          (r) => !(r.workerId === selectedWorker.id && r.year === year && r.month === month && r.day === selectedDayNum)
-        )
+          (r) =>
+            !(
+              r.workerId === selectedWorker.id &&
+              r.year === year &&
+              r.month === month &&
+              r.day === selectedDayNum
+            ),
+        ),
       );
       setCellModalVisible(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -300,7 +372,9 @@ export default function AttendanceScreen() {
   // Filter workers by search query
   const filteredWorkers = useMemo(() => {
     if (!searchQuery) return workers;
-    return workers.filter((w) => w.name?.toLowerCase().includes(searchQuery.toLowerCase()));
+    return workers.filter((w) =>
+      w.name?.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
   }, [workers, searchQuery]);
 
   // Colors
@@ -311,16 +385,40 @@ export default function AttendanceScreen() {
   return (
     <View style={[styles.root, { backgroundColor: bgRoot }]}>
       {/* 1. Header (Matches design rules: back icon left, title center, action right) */}
-      <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: isDark ? "#0F172A" : "#F97316" }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: insets.top + 10,
+            backgroundColor: isDark ? "#0F172A" : "#F97316",
+          },
+        ]}
+      >
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.headerBackBtn}
+        >
           <Feather name="arrow-left" size={22} color="#FFFFFF" />
         </Pressable>
         <ThemedText style={styles.headerTitle}>{t.attendance.title}</ThemedText>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Pressable onPress={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(''); }} style={styles.headerAddBtn}>
-            <Feather name={showSearch ? "x" : "search"} size={20} color="#FFFFFF" />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <Pressable
+            onPress={() => {
+              setShowSearch(!showSearch);
+              if (showSearch) setSearchQuery("");
+            }}
+            style={styles.headerAddBtn}
+          >
+            <Feather
+              name={showSearch ? "x" : "search"}
+              size={20}
+              color="#FFFFFF"
+            />
           </Pressable>
-          <Pressable onPress={() => navigation.navigate("Workers")} style={styles.headerAddBtn}>
+          <Pressable
+            onPress={() => navigation.navigate("Workers")}
+            style={styles.headerAddBtn}
+          >
             <Feather name="user-plus" size={20} color="#FFFFFF" />
           </Pressable>
         </View>
@@ -333,32 +431,67 @@ export default function AttendanceScreen() {
             setPickerYear(year);
             setShowMonthPicker(true);
           }}
-          style={[styles.monthSelectorBtn, { backgroundColor: bgCard, borderColor: borderCol }]}
+          style={[
+            styles.monthSelectorBtn,
+            { backgroundColor: bgCard, borderColor: borderCol },
+          ]}
         >
-          <Feather name="calendar" size={16} color="#F97316" style={{ marginRight: 8 }} />
-          <Text style={[styles.monthText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>
+          <Feather
+            name="calendar"
+            size={16}
+            color="#F97316"
+            style={{ marginRight: 8 }}
+          />
+          <Text
+            style={[
+              styles.monthText,
+              { color: isDark ? "#FFFFFF" : "#1E293B" },
+            ]}
+          >
             {MONTHS[month].substring(0, 3).toUpperCase()} {year}
           </Text>
-          <Feather name="chevron-down" size={14} color={isDark ? "#94A3B8" : "#64748B"} style={{ marginLeft: 6 }} />
+          <Feather
+            name="chevron-down"
+            size={14}
+            color={isDark ? "#94A3B8" : "#64748B"}
+            style={{ marginLeft: 6 }}
+          />
         </Pressable>
       </View>
 
       {/* 3. Inline Search (toggle from header) */}
       {showSearch && (
         <View style={styles.searchBarContainer}>
-          <View style={[styles.searchBarWrap, { backgroundColor: bgCard, borderColor: borderCol }]}>
-            <Feather name="search" size={15} color={isDark ? "#94A3B8" : "#64748B"} style={{ marginRight: 8 }} />
+          <View
+            style={[
+              styles.searchBarWrap,
+              { backgroundColor: bgCard, borderColor: borderCol },
+            ]}
+          >
+            <Feather
+              name="search"
+              size={15}
+              color={isDark ? "#94A3B8" : "#64748B"}
+              style={{ marginRight: 8 }}
+            />
             <TextInput
               placeholder={t.workers.searchPlaceholder}
               placeholderTextColor={isDark ? "#64748B" : "#94A3B8"}
-              style={[styles.searchInput, { color: isDark ? "#FFFFFF" : "#1E293B" }]}
+              style={[
+                styles.searchInput,
+                { color: isDark ? "#FFFFFF" : "#1E293B" },
+              ]}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoFocus
             />
             {searchQuery ? (
               <Pressable onPress={() => setSearchQuery("")}>
-                <Feather name="x" size={14} color={isDark ? "#94A3B8" : "#64748B"} />
+                <Feather
+                  name="x"
+                  size={14}
+                  color={isDark ? "#94A3B8" : "#64748B"}
+                />
               </Pressable>
             ) : null}
           </View>
@@ -371,12 +504,35 @@ export default function AttendanceScreen() {
         </View>
       ) : (
         /* 4. Grid register sheet */
-        <View style={[styles.gridContainer, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
+        <View
+          style={[
+            styles.gridContainer,
+            { backgroundColor: isDark ? "#0F172A" : "#FFFFFF" },
+          ]}
+        >
           {/* Left frozen column (Worker Names) */}
-          <View style={[styles.frozenColumn, { borderRightColor: isDark ? "rgba(255,255,255,0.08)" : borderCol }]}>
+          <View
+            style={[
+              styles.frozenColumn,
+              {
+                borderRightColor: isDark ? "rgba(255,255,255,0.08)" : borderCol,
+              },
+            ]}
+          >
             {/* Frozen Orange Column Header */}
-            <View style={[styles.columnHeader, { backgroundColor: "#EA580C", borderRightWidth: 1, borderRightColor: "rgba(255,255,255,0.15)" }]}>
-              <Text style={styles.columnHeaderText}>{(t.workers.title || "WORKERS").toUpperCase()}</Text>
+            <View
+              style={[
+                styles.columnHeader,
+                {
+                  backgroundColor: "#EA580C",
+                  borderRightWidth: 1,
+                  borderRightColor: "rgba(255,255,255,0.15)",
+                },
+              ]}
+            >
+              <Text style={styles.columnHeaderText}>
+                {(t.workers.title || "WORKERS").toUpperCase()}
+              </Text>
             </View>
 
             <ScrollView
@@ -394,22 +550,37 @@ export default function AttendanceScreen() {
                   .slice(0, 2)
                   .join("")
                   .toUpperCase();
-                const avatarBg = ["#F97316", "#EA580C", "#F59E0B", "#F97316"][idx % 4];
+                const avatarBg = ["#F97316", "#EA580C", "#F59E0B", "#F97316"][
+                  idx % 4
+                ];
                 return (
                   <View
                     key={worker.id}
                     style={[
                       styles.frozenRow,
                       {
-                        borderBottomColor: isDark ? "rgba(255,255,255,0.06)" : borderCol,
+                        borderBottomColor: isDark
+                          ? "rgba(255,255,255,0.06)"
+                          : borderCol,
                         backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
                       },
                     ]}
                   >
-                    <View style={[styles.avatarCircle, { backgroundColor: avatarBg }]}>
+                    <View
+                      style={[
+                        styles.avatarCircle,
+                        { backgroundColor: avatarBg },
+                      ]}
+                    >
                       <Text style={styles.avatarText}>{initials}</Text>
                     </View>
-                    <ThemedText numberOfLines={1} style={[styles.workerNameText, { color: isDark ? "#FFFFFF" : "#1E293B" }]}>
+                    <ThemedText
+                      numberOfLines={1}
+                      style={[
+                        styles.workerNameText,
+                        { color: isDark ? "#FFFFFF" : "#1E293B" },
+                      ]}
+                    >
                       {worker.name}
                     </ThemedText>
                   </View>
@@ -419,12 +590,28 @@ export default function AttendanceScreen() {
           </View>
 
           {/* Right scrollable grid cells (Date cells horizontally + vertically scrollable) */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={true} bounces={false}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={true}
+            bounces={false}
+          >
             <View>
               {/* Days Header Orange Row */}
-              <View style={{ flexDirection: "row", height: 44, backgroundColor: "#EA580C" }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  height: 44,
+                  backgroundColor: "#EA580C",
+                }}
+              >
                 {Array.from({ length: daysInMonth }, (_, i) => (
-                  <View key={i} style={[styles.dayHeaderCell, { borderRightColor: "rgba(255,255,255,0.15)" }]}>
+                  <View
+                    key={i}
+                    style={[
+                      styles.dayHeaderCell,
+                      { borderRightColor: "rgba(255,255,255,0.15)" },
+                    ]}
+                  >
                     <Text style={styles.dayHeaderText}>{i + 1}</Text>
                   </View>
                 ))}
@@ -439,38 +626,71 @@ export default function AttendanceScreen() {
                 contentContainerStyle={{ paddingBottom: 100 }}
               >
                 {filteredWorkers.map((worker) => (
-                  <View key={worker.id} style={{ flexDirection: "row", height: 56 }}>
+                  <View
+                    key={worker.id}
+                    style={{ flexDirection: "row", height: 56 }}
+                  >
                     {Array.from({ length: daysInMonth }, (_, i) => {
                       const dayNum = i + 1;
                       const value = getAttendanceValueForDay(worker.id, dayNum);
 
                       let bg = isDark ? "#131F37" : "#F1F5F9";
                       let textLabel = "";
-                      let boxBorder = isDark ? "rgba(255,255,255,0.06)" : "#E2E8F0";
+                      let boxBorder = isDark
+                        ? "rgba(255,255,255,0.06)"
+                        : "#E2E8F0";
 
-                      if (value === "P") { bg = "#22C55E"; textLabel = "P"; boxBorder = "#22C55E"; }
-                      else if (value === "A") { bg = "#EF4444"; textLabel = "A"; boxBorder = "#EF4444"; }
-                      else if (value === "H") { bg = "#F59E0B"; textLabel = "1/2"; boxBorder = "#F59E0B"; }
-                      else if (value === "OT") { bg = "#A855F7"; textLabel = "OT"; boxBorder = "#A855F7"; }
+                      if (value === "P") {
+                        bg = "#22C55E";
+                        textLabel = "P";
+                        boxBorder = "#22C55E";
+                      } else if (value === "A") {
+                        bg = "#EF4444";
+                        textLabel = "A";
+                        boxBorder = "#EF4444";
+                      } else if (value === "H") {
+                        bg = "#F59E0B";
+                        textLabel = "1/2";
+                        boxBorder = "#F59E0B";
+                      } else if (value === "OT") {
+                        bg = "#A855F7";
+                        textLabel = "OT";
+                        boxBorder = "#A855F7";
+                      }
 
                       return (
                         <Pressable
                           key={i}
-                          onPress={() => openDetailedModal(worker, dayNum, value)}
+                          onPress={() =>
+                            openDetailedModal(worker, dayNum, value)
+                          }
                           style={[
                             styles.gridCell,
                             {
-                              borderRightColor: isDark ? "rgba(255,255,255,0.06)" : borderCol,
-                              borderBottomColor: isDark ? "rgba(255,255,255,0.06)" : borderCol,
+                              borderRightColor: isDark
+                                ? "rgba(255,255,255,0.06)"
+                                : borderCol,
+                              borderBottomColor: isDark
+                                ? "rgba(255,255,255,0.06)"
+                                : borderCol,
                             },
                           ]}
                         >
-                          <View style={[styles.statusBox, { backgroundColor: bg, borderColor: boxBorder }]}>
+                          <View
+                            style={[
+                              styles.statusBox,
+                              { backgroundColor: bg, borderColor: boxBorder },
+                            ]}
+                          >
                             <Text
                               style={[
                                 styles.statusBoxText,
                                 {
-                                  color: value ? "#FFFFFF" : (isDark ? "#64748B" : "#94A3B8"),
+                                  color: value
+                                    ? "#FFFFFF"
+                                    : isDark
+                                      ? "#64748B"
+                                      : "#94A3B8",
                                   fontSize: value ? 13 : 11,
                                 },
                               ]}
@@ -489,10 +709,6 @@ export default function AttendanceScreen() {
         </View>
       )}
 
-
-
-
-
       {/* ── Month Selector Modal ────────────────────────────────────── */}
       <Modal
         visible={showMonthPicker}
@@ -501,21 +717,47 @@ export default function AttendanceScreen() {
         onRequestClose={() => setShowMonthPicker(false)}
       >
         <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBgPress} onPress={() => setShowMonthPicker(false)} />
-          <View style={[styles.monthPickerCard, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]}>
+          <Pressable
+            style={styles.modalBgPress}
+            onPress={() => setShowMonthPicker(false)}
+          />
+          <View
+            style={[
+              styles.monthPickerCard,
+              { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" },
+            ]}
+          >
             <View style={styles.pickerHeader}>
-              <Pressable onPress={() => setPickerYear(pickerYear - 1)} style={styles.pickerYearArrow}>
-                <Feather name="chevron-left" size={20} color={isDark ? "#FFFFFF" : "#1E293B"} />
+              <Pressable
+                onPress={() => setPickerYear(pickerYear - 1)}
+                style={styles.pickerYearArrow}
+              >
+                <Feather
+                  name="chevron-left"
+                  size={20}
+                  color={isDark ? "#FFFFFF" : "#1E293B"}
+                />
               </Pressable>
-              <ThemedText style={styles.pickerYearText}>{pickerYear}</ThemedText>
-              <Pressable onPress={() => setPickerYear(pickerYear + 1)} style={styles.pickerYearArrow}>
-                <Feather name="chevron-right" size={20} color={isDark ? "#FFFFFF" : "#1E293B"} />
+              <ThemedText style={styles.pickerYearText}>
+                {pickerYear}
+              </ThemedText>
+              <Pressable
+                onPress={() => setPickerYear(pickerYear + 1)}
+                style={styles.pickerYearArrow}
+              >
+                <Feather
+                  name="chevron-right"
+                  size={20}
+                  color={isDark ? "#FFFFFF" : "#1E293B"}
+                />
               </Pressable>
             </View>
 
             <View style={styles.monthsGrid}>
               {MONTHS.map((m, idx) => {
-                const isSelected = selectedDate.getMonth() === idx && selectedDate.getFullYear() === pickerYear;
+                const isSelected =
+                  selectedDate.getMonth() === idx &&
+                  selectedDate.getFullYear() === pickerYear;
                 return (
                   <Pressable
                     key={m}
@@ -527,10 +769,21 @@ export default function AttendanceScreen() {
                     style={[
                       styles.monthGridBtn,
                       { borderColor: borderCol },
-                      isSelected && { backgroundColor: "#F97316" }
+                      isSelected && { backgroundColor: "#F97316" },
                     ]}
                   >
-                    <Text style={[styles.monthGridText, { color: isSelected ? "#FFFFFF" : (isDark ? "#FFFFFF" : "#1E293B") }]}>
+                    <Text
+                      style={[
+                        styles.monthGridText,
+                        {
+                          color: isSelected
+                            ? "#FFFFFF"
+                            : isDark
+                              ? "#FFFFFF"
+                              : "#1E293B",
+                        },
+                      ]}
+                    >
                       {m.substring(0, 3)}
                     </Text>
                   </Pressable>
@@ -554,7 +807,7 @@ export default function AttendanceScreen() {
                   r.workerId === selectedWorker.id &&
                   r.year === year &&
                   r.month === month &&
-                  r.day === selectedDayNum
+                  r.day === selectedDayNum,
               ) || null
             : null
         }

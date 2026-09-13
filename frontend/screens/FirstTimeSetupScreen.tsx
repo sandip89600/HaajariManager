@@ -27,15 +27,18 @@ interface FirstTimeSetupScreenProps {
 const LOCALIZED_TEXT: Record<string, any> = {
   en: {
     welcomeTitle: "Welcome to Haajari Manager 👋",
-    welcomeSubtitle: "Manage your construction business smarter, faster and more efficiently.",
-    welcomeDesc: "Haajari Manager helps builders, contractors and supervisors track attendance, manage sites, and handle payments in one app.",
+    welcomeSubtitle:
+      "Manage your construction business smarter, faster and more efficiently.",
+    welcomeDesc:
+      "Haajari Manager helps builders, contractors and supervisors track attendance, manage sites, and handle payments in one app.",
     readAndAgree: "I have read and agree to the ",
     privacyPolicy: "Privacy Policy",
     termsConditions: "Terms & Conditions",
     and: " and ",
     continue: "Continue",
     stayUpdated: "Stay Updated 🔔",
-    stayUpdatedDesc: "Enable notifications to receive important reminders and updates:",
+    stayUpdatedDesc:
+      "Enable notifications to receive important reminders and updates:",
     reminderAttendance: "Attendance reminders to mark daily reports",
     reminderPayment: "Payment and ledger status alerts",
     reminderSite: "Site allocations and progress updates",
@@ -43,22 +46,26 @@ const LOCALIZED_TEXT: Record<string, any> = {
     enableNotifications: "Enable Notifications",
     maybeLater: "Maybe Later",
     helpImprove: "Help Us Improve",
-    helpImproveDesc: "Help us improve your experience by allowing anonymous usage analytics. We do NOT collect personal messages, passwords or private information. Your privacy always comes first.",
+    helpImproveDesc:
+      "Help us improve your experience by allowing anonymous usage analytics. We do NOT collect personal messages, passwords or private information. Your privacy always comes first.",
     allow: "Allow",
     notNow: "Not Now",
     loadingText: "Setting up your workspace...",
   },
   hi: {
     welcomeTitle: "हाजिरी मैनेजर में आपका स्वागत है 👋",
-    welcomeSubtitle: "अपने निर्माण व्यवसाय को अधिक समझदारी, तेज़ और कुशलता से प्रबंधित करें।",
-    welcomeDesc: "हाजिरी मैनेजर बिल्डरों, ठेकेदारों और सुपरवाइजरों को हाजिरी लगाने, साइट प्रबंधित करने और भुगतान संभालने में मदद करता है।",
+    welcomeSubtitle:
+      "अपने निर्माण व्यवसाय को अधिक समझदारी, तेज़ और कुशलता से प्रबंधित करें।",
+    welcomeDesc:
+      "हाजिरी मैनेजर बिल्डरों, ठेकेदारों और सुपरवाइजरों को हाजिरी लगाने, साइट प्रबंधित करने और भुगतान संभालने में मदद करता है।",
     readAndAgree: "मैंने ",
     privacyPolicy: "गोपनीयता नीति",
     termsConditions: "नियम एवं शर्तें",
     and: " और ",
     continue: "आगे बढ़ें",
     stayUpdated: "अपडेट रहें 🔔",
-    stayUpdatedDesc: "महत्वपूर्ण रिमाइंडर और अपडेट प्राप्त करने के लिए नोटिफिकेशन सक्षम करें:",
+    stayUpdatedDesc:
+      "महत्वपूर्ण रिमाइंडर और अपडेट प्राप्त करने के लिए नोटिफिकेशन सक्षम करें:",
     reminderAttendance: "दैनिक रिपोर्ट के लिए हाजिरी रिमाइंडर",
     reminderPayment: "भुगतान और खाता स्थिति अलर्ट",
     reminderSite: "साइट आवंटन और प्रगति अपडेट",
@@ -66,11 +73,12 @@ const LOCALIZED_TEXT: Record<string, any> = {
     enableNotifications: "नोटिफिकेशन सक्षम करें",
     maybeLater: "बाद में करें",
     helpImprove: "अनुभव सुधारने में मदद करें",
-    helpImproveDesc: "अनाम उपयोग विश्लेषिकी साझा करके अपने अनुभव को बेहतर बनाने में हमारी सहायता करें। हम आपका कोई भी निजी संदेश, पासवर्ड या गोपनीय जानकारी एकत्र नहीं करते हैं। आपकी गोपनीयता हमारी प्राथमिकता है।",
+    helpImproveDesc:
+      "अनाम उपयोग विश्लेषिकी साझा करके अपने अनुभव को बेहतर बनाने में हमारी सहायता करें। हम आपका कोई भी निजी संदेश, पासवर्ड या गोपनीय जानकारी एकत्र नहीं करते हैं। आपकी गोपनीयता हमारी प्राथमिकता है।",
     allow: "अनुमति दें",
     notNow: "अभी नहीं",
     loadingText: "आपका कार्यस्थान सेट अप किया जा रहा है...",
-  }
+  },
 };
 
 export default function FirstTimeSetupScreen({
@@ -90,7 +98,8 @@ export default function FirstTimeSetupScreen({
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const spinValue = useRef(new Animated.Value(0)).current;
 
-  const currentTexts = LOCALIZED_TEXT[language] || LOCALIZED_TEXT.hi || LOCALIZED_TEXT.en;
+  const currentTexts =
+    LOCALIZED_TEXT[language] || LOCALIZED_TEXT.hi || LOCALIZED_TEXT.en;
 
   const runSlideTransition = (nextStep: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -132,7 +141,7 @@ export default function FirstTimeSetupScreen({
           toValue: 1,
           duration: 1000,
           useNativeDriver: true,
-        })
+        }),
       ).start();
 
       // Finish after 1 second
@@ -160,7 +169,7 @@ export default function FirstTimeSetupScreen({
     try {
       await AsyncStorage.setItem(
         "@haajari/analytics_allowed",
-        optIn ? "true" : "false"
+        optIn ? "true" : "false",
       );
     } catch (e) {
       console.warn(e);
@@ -174,17 +183,30 @@ export default function FirstTimeSetupScreen({
         return (
           <View style={styles.stepContainer}>
             <View style={styles.iconContainer}>
-              <View style={[styles.logoCircle, { backgroundColor: theme.primary + "15" }]}>
-                <MaterialCommunityIcons name="hard-hat" size={72} color={theme.primary} />
+              <View
+                style={[
+                  styles.logoCircle,
+                  { backgroundColor: theme.primary + "15" },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="hard-hat"
+                  size={72}
+                  color={theme.primary}
+                />
               </View>
             </View>
             <ThemedText style={[styles.title, { color: theme.text }]}>
               {currentTexts.welcomeTitle}
             </ThemedText>
-            <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.subtitle, { color: theme.textSecondary }]}
+            >
               {currentTexts.welcomeSubtitle}
             </ThemedText>
-            <ThemedText style={[styles.description, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.description, { color: theme.textSecondary }]}
+            >
               {currentTexts.welcomeDesc}
             </ThemedText>
 
@@ -204,7 +226,9 @@ export default function FirstTimeSetupScreen({
                   style={styles.checkbox}
                 />
                 <View style={styles.consentTextWrap}>
-                  <ThemedText style={[styles.consentText, { color: theme.text }]}>
+                  <ThemedText
+                    style={[styles.consentText, { color: theme.text }]}
+                  >
                     {currentTexts.readAndAgree}
                     <ThemedText
                       style={[styles.linkText, { color: theme.primary }]}
@@ -235,11 +259,18 @@ export default function FirstTimeSetupScreen({
                     ? pressed
                       ? theme.primary + "CC"
                       : theme.primary
-                    : isDark ? "#334155" : "#E2E8F0",
+                    : isDark
+                      ? "#334155"
+                      : "#E2E8F0",
                 },
               ]}
             >
-              <ThemedText style={[styles.buttonText, { color: agreed ? "#FFFFFF" : theme.textSecondary }]}>
+              <ThemedText
+                style={[
+                  styles.buttonText,
+                  { color: agreed ? "#FFFFFF" : theme.textSecondary },
+                ]}
+              >
                 {currentTexts.continue}
               </ThemedText>
             </Pressable>
@@ -251,26 +282,45 @@ export default function FirstTimeSetupScreen({
           <View style={styles.stepContainer}>
             <View style={styles.iconContainer}>
               <View style={[styles.logoCircle, { backgroundColor: "#EFF6FF" }]}>
-                <Ionicons name="notifications-outline" size={72} color="#2563EB" />
+                <Ionicons
+                  name="notifications-outline"
+                  size={72}
+                  color="#2563EB"
+                />
               </View>
             </View>
             <ThemedText style={[styles.title, { color: theme.text }]}>
               {currentTexts.stayUpdated}
             </ThemedText>
-            <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.subtitle, { color: theme.textSecondary }]}
+            >
               {currentTexts.stayUpdatedDesc}
             </ThemedText>
 
             <View style={styles.listContainer}>
               {[
-                { icon: "calendar-outline", text: currentTexts.reminderAttendance },
+                {
+                  icon: "calendar-outline",
+                  text: currentTexts.reminderAttendance,
+                },
                 { icon: "cash-outline", text: currentTexts.reminderPayment },
                 { icon: "construct-outline", text: currentTexts.reminderSite },
-                { icon: "megaphone-outline", text: currentTexts.reminderAnnounce },
+                {
+                  icon: "megaphone-outline",
+                  text: currentTexts.reminderAnnounce,
+                },
               ].map((item, idx) => (
                 <View key={idx} style={styles.listItem}>
-                  <Ionicons name={item.icon as any} size={20} color={theme.primary} style={styles.listIcon} />
-                  <ThemedText style={[styles.listItemText, { color: theme.text }]}>
+                  <Ionicons
+                    name={item.icon as any}
+                    size={20}
+                    color={theme.primary}
+                    style={styles.listIcon}
+                  />
+                  <ThemedText
+                    style={[styles.listItemText, { color: theme.text }]}
+                  >
                     {item.text}
                   </ThemedText>
                 </View>
@@ -295,7 +345,12 @@ export default function FirstTimeSetupScreen({
               onPress={() => handleNotificationOptIn(false)}
               style={styles.buttonSecondary}
             >
-              <ThemedText style={[styles.buttonTextSecondary, { color: theme.textSecondary }]}>
+              <ThemedText
+                style={[
+                  styles.buttonTextSecondary,
+                  { color: theme.textSecondary },
+                ]}
+              >
                 {currentTexts.maybeLater}
               </ThemedText>
             </Pressable>
@@ -313,7 +368,9 @@ export default function FirstTimeSetupScreen({
             <ThemedText style={[styles.title, { color: theme.text }]}>
               {currentTexts.helpImprove}
             </ThemedText>
-            <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
+            <ThemedText
+              style={[styles.subtitle, { color: theme.textSecondary }]}
+            >
               {currentTexts.helpImproveDesc}
             </ThemedText>
 
@@ -335,7 +392,12 @@ export default function FirstTimeSetupScreen({
               onPress={() => handleAnalyticsOptIn(false)}
               style={styles.buttonSecondary}
             >
-              <ThemedText style={[styles.buttonTextSecondary, { color: theme.textSecondary }]}>
+              <ThemedText
+                style={[
+                  styles.buttonTextSecondary,
+                  { color: theme.textSecondary },
+                ]}
+              >
                 {currentTexts.notNow}
               </ThemedText>
             </Pressable>
@@ -351,19 +413,36 @@ export default function FirstTimeSetupScreen({
         return (
           <View style={[styles.stepContainer, styles.center]}>
             <Animated.View style={{ transform: [{ rotate: spin }] }}>
-              <MaterialCommunityIcons name="cog-outline" size={80} color={theme.primary} />
+              <MaterialCommunityIcons
+                name="cog-outline"
+                size={80}
+                color={theme.primary}
+              />
             </Animated.View>
             <ThemedText style={[styles.loadingTitle, { color: theme.text }]}>
               {currentTexts.loadingText}
             </ThemedText>
-            <ActivityIndicator size="small" color={theme.primary} style={{ marginTop: 24 }} />
+            <ActivityIndicator
+              size="small"
+              color={theme.primary}
+              style={{ marginTop: 24 }}
+            />
           </View>
         );
     }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundDefault, paddingTop: insets.top, paddingBottom: insets.bottom + 16 }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.backgroundDefault,
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom + 16,
+        },
+      ]}
+    >
       <Animated.View
         style={[
           styles.animatedContent,
