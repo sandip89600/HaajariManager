@@ -230,10 +230,8 @@ function MainTabs() {
         name="ReportsTab"
         component={SummaryScreen}
         options={{
-          title: isWorker
-            ? t("attendance.title", "हाजिरी / वेतन")
-            : t.tabs?.reports || t.summary.title || "Reports",
-          headerTitle: t.summary.title,
+          title: t.tabs?.summary || t("tabs.summary", "Summary"),
+          headerTitle: t.tabs?.summary || t("tabs.summary", "Summary"),
           tabBarItemStyle: isReportsVisible ? undefined : { display: "none" },
           tabBarIcon: ({ color, size }) => (
             <Feather name="bar-chart-2" size={size} color={color} />

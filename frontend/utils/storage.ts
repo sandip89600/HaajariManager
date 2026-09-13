@@ -114,6 +114,7 @@ async function getHeaders(): Promise<HeadersInit> {
 function mapWorker(doc: any): Worker {
   return {
     id: doc._id || doc.id,
+    uniqueId: doc.uniqueId || undefined,
     projectId: doc.projectId || undefined,
     name: doc.name,
     category: doc.category as WorkerCategory,
@@ -130,19 +131,23 @@ function mapWorker(doc: any): Worker {
   };
 }
 
-function mapAttendance(doc: any): AttendanceRecord {
+export function mapAttendance(doc: any): AttendanceRecord {
+  const wId =
+    doc.workerId && typeof doc.workerId === "object"
+      ? doc.workerId._id || doc.workerId.id || doc.workerId
+      : doc.workerId;
   return {
-    workerId: doc.workerId,
+    workerId: String(wId || ""),
     projectId: doc.projectId || undefined,
     year: doc.year,
     month: doc.month,
     day: doc.day,
     value: doc.value,
-    dailyRate: doc.dailyRate || undefined,
-    customWage: doc.customWage || undefined,
-    finalPay: doc.finalPay || undefined,
-    overtimeHours: doc.overtimeHours || undefined,
-    overtimeWage: doc.overtimeWage || undefined,
+    dailyRate: doc.dailyRate !== undefined ? doc.dailyRate : undefined,
+    customWage: doc.customWage !== undefined ? doc.customWage : undefined,
+    finalPay: doc.finalPay !== undefined ? doc.finalPay : undefined,
+    overtimeHours: doc.overtimeHours !== undefined ? doc.overtimeHours : undefined,
+    overtimeWage: doc.overtimeWage !== undefined ? doc.overtimeWage : undefined,
     location: doc.location || undefined,
     timestamp: doc.timestamp ? new Date(doc.timestamp).getTime() : undefined,
   };
@@ -381,6 +386,7 @@ export interface Site {
 
 export interface Worker {
   id: string;
+  uniqueId?: string;
   projectId?: string;
   name: string;
   category: WorkerCategory;
@@ -1254,7 +1260,13 @@ export const storage = {
               (async () => {
                 const localRecords = await this.getAttendance();
                 const filteredLocal = localRecords.filter(
-                  (r) => !(r.year === year && r.month === month),
+                  (r) =>
+                    !(
+                      r.year === year &&
+                      (r.month === month ||
+                        r.month === month + 1 ||
+                        (month > 0 && r.month === month - 1))
+                    ),
                 );
                 const merged = [...filteredLocal, ...serverAttendance];
                 await AsyncStorage.setItem(
@@ -1276,7 +1288,11 @@ export const storage = {
       }
       const records = await this.getAttendance();
       const filtered = records.filter(
-        (r) => r.year === year && r.month === month,
+        (r) =>
+          r.year === year &&
+          (r.month === month ||
+            r.month === month + 1 ||
+            (month > 0 && r.month === month - 1)),
       );
       setMemoryCache(key, filtered);
       return filtered;
@@ -1440,15 +1456,23 @@ export const storage = {
             if (res.ok) {
               const data = await res.json();
               const serverPayments = data.map(mapPayment);
-              const localPayments = await this.getPayments();
-              const filteredLocal = localPayments.filter(
-                (p) => !(p.year === year && p.month === month),
-              );
-              const merged = [...filteredLocal, ...serverPayments];
-              await AsyncStorage.setItem(
-                STORAGE_KEYS_EXT.PAYMENTS,
-                JSON.stringify(merged),
-              );
+              (async () => {
+                const localPayments = await this.getPayments();
+                const filteredLocal = localPayments.filter(
+                  (p) =>
+                    !(
+                      p.year === year &&
+                      (p.month === month ||
+                        p.month === month + 1 ||
+                        (month > 0 && p.month === month - 1))
+                    ),
+                );
+                const merged = [...filteredLocal, ...serverPayments];
+                await AsyncStorage.setItem(
+                  STORAGE_KEYS_EXT.PAYMENTS,
+                  JSON.stringify(merged),
+                );
+              })().catch(() => {});
               return serverPayments;
             }
           } catch (e) {
@@ -1462,7 +1486,13 @@ export const storage = {
         console.error(e);
       }
       const payments = await this.getPayments();
-      return payments.filter((p) => p.year === year && p.month === month);
+      return payments.filter(
+        (p) =>
+          p.year === year &&
+          (p.month === month ||
+            p.month === month + 1 ||
+            (month > 0 && p.month === month - 1)),
+      );
     });
   },
 
@@ -1612,91 +1642,13 @@ export const storage = {
   },
 
   async syncWithBackend(): Promise<void> {
-    const auth = await this.getAuth();
-    if (!auth?.token) return;
-
     try {
-      // 1. Sync workers
-      const localWorkers = await AsyncStorage.getItem(STORAGE_KEYS.WORKERS);
-      if (localWorkers) {
-        const workers: Worker[] = JSON.parse(localWorkers);
-        for (let i = 0; i < workers.length; i++) {
-          const w = workers[i];
-          if (w.id.length < 24) {
-            const res = await authenticatedFetch(`${API_URL}/workers`, {
-              method: "POST",
-              body: JSON.stringify({
-                name: w.name,
-                category: w.category,
-                dailyRate: w.dailyRate,
-                phone: w.phone,
-                address: w.address,
-                notes: w.notes,
-                photoUri: w.photoUri,
-              }),
-            });
-            if (res.ok) {
-              const saved: any = await res.json();
-              const serverId = saved._id || saved.id;
-              await this.updateWorkerIdReferences(w.id, serverId);
-              w.id = serverId;
-            }
-          }
-        }
-        await AsyncStorage.setItem(
-          STORAGE_KEYS.WORKERS,
-          JSON.stringify(workers),
-        );
+      const auth = await this.getAuth();
+      if (!auth?.token) return;
+      if (auth.role === "labor" || auth.role === "worker") {
+        return;
       }
-
-      // 2. Sync attendance
-      const localAttendance = await AsyncStorage.getItem(
-        STORAGE_KEYS.ATTENDANCE,
-      );
-      if (localAttendance) {
-        const attendance: AttendanceRecord[] = JSON.parse(localAttendance);
-        const validRecords = attendance.filter((r) => r.workerId.length >= 24);
-        if (validRecords.length > 0) {
-          const res = await authenticatedFetch(`${API_URL}/attendance/sync`, {
-            method: "POST",
-            body: JSON.stringify({ records: validRecords }),
-          });
-          if (res.ok) {
-            console.log("Successfully bulk synced attendance records");
-          }
-        }
-      }
-
-      // 3. Sync payments
-      const localPayments = await AsyncStorage.getItem(
-        STORAGE_KEYS_EXT.PAYMENTS,
-      );
-      if (localPayments) {
-        const payments: PaymentRecord[] = JSON.parse(localPayments);
-        for (let i = 0; i < payments.length; i++) {
-          const p = payments[i];
-          if (p.id.length < 24 && p.workerId.length >= 24) {
-            const res = await authenticatedFetch(`${API_URL}/payments`, {
-              method: "POST",
-              body: JSON.stringify({
-                workerId: p.workerId,
-                year: p.year,
-                month: p.month,
-                amount: p.amount,
-                note: p.note,
-              }),
-            });
-            if (res.ok) {
-              const saved: any = await res.json();
-              p.id = saved._id || saved.id;
-            }
-          }
-        }
-        await AsyncStorage.setItem(
-          STORAGE_KEYS_EXT.PAYMENTS,
-          JSON.stringify(payments),
-        );
-      }
+      await syncManager.processSyncQueue();
     } catch (error) {
       console.log("Error during syncWithBackend:", error);
     }
@@ -1881,6 +1833,7 @@ export function calculateWorkerSummary(
   workerId: string,
   attendance: AttendanceRecord[],
   dailyRate: number,
+  workerAltId?: string,
 ): {
   presentDays: number;
   halfDays: number;
@@ -1892,7 +1845,16 @@ export function calculateWorkerSummary(
   totalAdvanceAmount: number;
   totalOvertimeAmount: number;
 } {
-  const workerAttendance = attendance.filter((a) => a.workerId === workerId);
+  const targetId = String(workerId || "");
+  const targetAlt = workerAltId ? String(workerAltId) : "";
+  const workerAttendance = attendance.filter((a) => {
+    const aId = String(a.workerId || "");
+    return (
+      aId === targetId ||
+      (targetAlt && aId === targetAlt) ||
+      (targetId && targetId === aId)
+    );
+  });
 
   let presentDays = 0;
   let halfDays = 0;

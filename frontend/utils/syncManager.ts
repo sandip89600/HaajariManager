@@ -25,6 +25,7 @@ export interface SyncQueueItem {
 
 const SYNC_QUEUE_KEY = "@haajari/sync_queue";
 let isProcessing = false;
+let hasQueuedRun = false;
 let lastSyncedTime: number | null = null;
 
 export const syncManager = {
@@ -116,11 +117,17 @@ export const syncManager = {
     failed: number;
   }> {
     if (isProcessing) {
+      hasQueuedRun = true;
       return { processed: 0, succeeded: 0, failed: 0 };
     }
 
     const auth = await storage.getAuth();
     if (!auth?.token) {
+      return { processed: 0, succeeded: 0, failed: 0 };
+    }
+
+    if (auth.role === "labor" || auth.role === "worker") {
+      // Worker accounts only read data; prevent 403 on contractor sync endpoints
       return { processed: 0, succeeded: 0, failed: 0 };
     }
 
@@ -202,6 +209,13 @@ export const syncManager = {
       lastSyncTime: lastSyncedTime,
       justFinished: succeeded > 0 && remainingQueue.length === 0,
     });
+
+    if (hasQueuedRun) {
+      hasQueuedRun = false;
+      setTimeout(() => {
+        this.processSyncQueue().catch(() => {});
+      }, 500);
+    }
 
     return {
       processed: succeeded + failed,

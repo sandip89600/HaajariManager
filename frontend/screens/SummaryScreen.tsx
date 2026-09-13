@@ -26,6 +26,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useAuth } from "@/hooks/useAuth";
 import { translateWorkerName } from "@/utils/transliteration";
 import {
   storage,
@@ -35,6 +36,8 @@ import {
   calculateWorkerSummary,
   generateId,
   API_URL,
+  authenticatedFetch,
+  mapAttendance,
 } from "@/utils/storage";
 import { appContextTracker } from "@/utils/appContextTracker";
 import { DeviceEventEmitter } from "react-native";
@@ -1066,6 +1069,7 @@ import { useErrorFeedback } from "@/context/ErrorFeedbackContext";
 export default function SummaryScreen() {
   const { theme, isDark } = useTheme();
   const { t, language } = useLanguage();
+  const { user, isWorker } = useAuth();
   const { reportError } = useErrorFeedback();
   const insets = useSafeAreaInsets();
   const rawHeaderHeight = useHeaderHeight();
@@ -1147,65 +1151,163 @@ export default function SummaryScreen() {
     t.months.december,
   ];
 
+  const isFetchingSummariesRef = useRef(false);
+
   const loadSummaries = useCallback(
     async (silent = false) => {
+      if (isFetchingSummariesRef.current) return;
+      isFetchingSummariesRef.current = true;
       if (!silent) setIsLoading(true);
       try {
-        const [loadedWorkers, loadedAttendance, loadedPayments] =
-          await Promise.all([
-            storage.getWorkers(),
-            storage.getAttendanceForMonth(selectedYear, selectedMonth),
-            storage.getPaymentsForMonth(selectedYear, selectedMonth),
-          ]);
+        if (isWorker && user) {
+          // Worker-specific personal summary
+          const currentWorker: Worker = {
+            id: user.id,
+            uniqueId: user.uniqueId,
+            name: user.name || "Worker",
+            category: (user.workerCategory as any) || "labour",
+            dailyRate: user.dailyWage || 0,
+            createdAt: user.createdAt || Date.now(),
+          };
 
-        setWorkers(loadedWorkers);
-        setAttendance(loadedAttendance);
-
-        const workerSummaries: WorkerSummary[] = loadedWorkers.map((worker) => {
-          const summary = calculateWorkerSummary(
-            worker.id,
-            loadedAttendance,
-            worker.dailyRate,
+          // 1. Get cached/offline records first
+          const localAttendance = await storage.getAttendance();
+          let workerAttendance = localAttendance.filter(
+            (r) =>
+              r.year === selectedYear &&
+              (r.month === selectedMonth ||
+                r.month === selectedMonth + 1 ||
+                (selectedMonth > 0 && r.month === selectedMonth - 1)),
           );
+
+          // 2. Fetch fresh attendance from backend
+          try {
+            const attRes = await authenticatedFetch(
+              `${API_URL}/attendance/my-attendance?year=${selectedYear}&month=${selectedMonth + 1}`,
+            );
+            if (attRes.ok) {
+              const data = await attRes.json();
+              if (data.records && Array.isArray(data.records)) {
+                workerAttendance = data.records.map(mapAttendance);
+              }
+              if (data.worker) {
+                currentWorker.name = data.worker.name || currentWorker.name;
+                currentWorker.dailyRate =
+                  data.worker.dailyRate ?? currentWorker.dailyRate;
+                currentWorker.category =
+                  data.worker.category || currentWorker.category;
+              }
+            }
+          } catch (e) {
+            console.log(
+              "Worker Summary using offline/cached data:",
+              (e as any)?.message || e,
+            );
+          }
+
+          const loadedPayments = await storage.getPaymentsForMonth(
+            selectedYear,
+            selectedMonth,
+          );
+
+          const summary = calculateWorkerSummary(
+            currentWorker.id,
+            workerAttendance,
+            currentWorker.dailyRate,
+            currentWorker.uniqueId,
+          );
+
           const workerPayments = loadedPayments.filter(
-            (p) => p.workerId === worker.id,
+            (p) =>
+              p.workerId === currentWorker.id ||
+              (currentWorker.uniqueId && p.workerId === currentWorker.uniqueId),
           );
           const totalPaid = workerPayments.reduce(
             (sum, p) => sum + p.amount,
             0,
           );
-          const workerRecords = loadedAttendance.filter(
-            (a) => a.workerId === worker.id,
-          );
-          return {
-            worker,
+
+          const singleSummary: WorkerSummary = {
+            worker: currentWorker,
             ...summary,
             totalPaid,
             balance: Math.max(0, summary.totalAmount - totalPaid),
             payments: workerPayments,
-            records: workerRecords,
+            records: workerAttendance,
             totalAdvanceAmount: summary.totalAdvanceAmount || 0,
             totalOvertimeAmount: summary.totalOvertimeAmount || 0,
           };
-        });
 
-        setSummaries(workerSummaries);
-        setGrandTotal(
-          workerSummaries.reduce((sum, s) => sum + s.totalAmount, 0),
-        );
-        setGrandTotalPaid(
-          workerSummaries.reduce((sum, s) => sum + s.totalPaid, 0),
-        );
-        setGrandTotalAdvance(
-          workerSummaries.reduce((sum, s) => sum + (s.customAmount || 0), 0),
-        );
+          setWorkers([currentWorker]);
+          setAttendance(workerAttendance);
+          setSummaries([singleSummary]);
+          setGrandTotal(singleSummary.totalAmount);
+          setGrandTotalPaid(singleSummary.totalPaid);
+          setGrandTotalAdvance(singleSummary.customAmount || 0);
+        } else {
+          // Contractor / Supervisor workflow
+          const [loadedWorkers, loadedAttendance, loadedPayments] =
+            await Promise.all([
+              storage.getWorkers(),
+              storage.getAttendanceForMonth(selectedYear, selectedMonth),
+              storage.getPaymentsForMonth(selectedYear, selectedMonth),
+            ]);
+
+          setWorkers(loadedWorkers);
+          setAttendance(loadedAttendance);
+
+          const workerSummaries: WorkerSummary[] = loadedWorkers.map((worker) => {
+            const summary = calculateWorkerSummary(
+              worker.id,
+              loadedAttendance,
+              worker.dailyRate,
+              worker.uniqueId,
+            );
+            const workerPayments = loadedPayments.filter(
+              (p) =>
+                p.workerId === worker.id ||
+                (worker.uniqueId && p.workerId === worker.uniqueId),
+            );
+            const totalPaid = workerPayments.reduce(
+              (sum, p) => sum + p.amount,
+              0,
+            );
+            const workerRecords = loadedAttendance.filter(
+              (a) =>
+                a.workerId === worker.id ||
+                (worker.uniqueId && a.workerId === worker.uniqueId),
+            );
+            return {
+              worker,
+              ...summary,
+              totalPaid,
+              balance: Math.max(0, summary.totalAmount - totalPaid),
+              payments: workerPayments,
+              records: workerRecords,
+              totalAdvanceAmount: summary.totalAdvanceAmount || 0,
+              totalOvertimeAmount: summary.totalOvertimeAmount || 0,
+            };
+          });
+
+          setSummaries(workerSummaries);
+          setGrandTotal(
+            workerSummaries.reduce((sum, s) => sum + s.totalAmount, 0),
+          );
+          setGrandTotalPaid(
+            workerSummaries.reduce((sum, s) => sum + s.totalPaid, 0),
+          );
+          setGrandTotalAdvance(
+            workerSummaries.reduce((sum, s) => sum + (s.customAmount || 0), 0),
+          );
+        }
       } catch (error) {
         console.error("Error loading summaries:", error);
       } finally {
+        isFetchingSummariesRef.current = false;
         if (!silent) setIsLoading(false);
       }
     },
-    [selectedMonth, selectedYear],
+    [selectedMonth, selectedYear, isWorker, user],
   );
 
   useFocusEffect(

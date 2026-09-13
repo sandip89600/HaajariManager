@@ -10,7 +10,7 @@ export const getAttendanceForMonth = async (req: AuthenticatedRequest, res: Resp
     const tenantId = req.user?.tenantId;
     const { year, month } = req.query;
 
-    if (!year || !month) {
+    if (!year || month === undefined || month === null || month === "") {
       return res.status(400).json({ error: "Missing year or month parameters" });
     }
 
@@ -18,12 +18,7 @@ export const getAttendanceForMonth = async (req: AuthenticatedRequest, res: Resp
     const m = parseInt(month as string);
 
     // Support flexible month matching (both 0-indexed and 1-indexed)
-    let monthFilter: any = m;
-    if (m >= 1 && m <= 12) {
-      monthFilter = { $in: [m, m - 1] };
-    } else if (m === 0) {
-      monthFilter = { $in: [0, 1] };
-    }
+    const monthFilter = { $in: [m, m + 1, ...(m > 0 ? [m - 1] : [])] };
 
     let query: any = {
       tenantId,
@@ -382,13 +377,7 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
     if (year) query.year = parseInt(year as string);
     if (month !== undefined && month !== null && month !== "") {
       const m = parseInt(month as string);
-      if (m >= 1 && m <= 12) {
-        query.month = { $in: [m, m - 1] };
-      } else if (m === 0) {
-        query.month = { $in: [0, 1] };
-      } else {
-        query.month = m;
-      }
+      query.month = { $in: [m, m + 1, ...(m > 0 ? [m - 1] : [])] };
     }
 
     const records = await Attendance.find(query).sort({ year: -1, month: -1, day: -1 }).lean();

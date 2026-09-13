@@ -9,14 +9,18 @@ export const getPaymentsForMonth = async (req: AuthenticatedRequest, res: Respon
     const tenantId = req.user?.tenantId;
     const { year, month } = req.query;
 
-    if (!year || !month) {
+    if (!year || month === undefined || month === null || month === "") {
       return res.status(400).json({ error: "Missing year or month parameters" });
     }
 
+    const y = parseInt(year as string);
+    const m = parseInt(month as string);
+    const monthFilter = { $in: [m, m + 1, ...(m > 0 ? [m - 1] : [])] };
+
     const payments = await Payment.find({
       tenantId,
-      year: parseInt(year as string),
-      month: parseInt(month as string),
+      year: y,
+      month: monthFilter,
     }).populate("createdBy", "name").lean();
     res.json(payments);
   } catch (error: any) {
