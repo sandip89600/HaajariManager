@@ -19,7 +19,7 @@ import * as Haptics from "expo-haptics";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
-import { authenticatedFetch, API_URL } from "@/utils/storage";
+import { authenticatedFetch, API_URL, storage, calculateWorkerSummary } from "@/utils/storage";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import TeamConnectionWidget from "@/components/TeamConnectionWidget";
 
@@ -68,34 +68,81 @@ export default function WorkerDashboardScreen() {
 
   const loadWorkerData = useCallback(async () => {
     try {
-      // 1. Fetch worker personal attendance & financial breakdown
-      const attRes = await authenticatedFetch(
-        `${API_URL}/attendance/my-attendance?year=${selectedYear}&month=${selectedMonth}`
-      );
-      if (attRes.ok) {
-        const data = await attRes.json();
-        if (data.worker) setWorkerInfo(data.worker);
-        if (data.records) setAttendanceRecords(data.records);
-        if (data.summary) setSummary(data.summary);
-      }
-
-      // 2. Fetch pending connection requests to display verification code if any
-      const pendingRes = await authenticatedFetch(`${API_URL}/connections/user/pending-requests`);
-      if (pendingRes.ok) {
-        const pData = await pendingRes.json();
-        if (pData.success && Array.isArray(pData.requests)) {
-          setPendingRequests(pData.requests);
+      // 1. Immediately load cached dashboard data if available
+      const cached = await storage.getLabourDashboardCache(selectedYear, selectedMonth);
+      if (cached) {
+        if (cached.worker) setWorkerInfo(cached.worker);
+        if (cached.records) setAttendanceRecords(cached.records);
+        if (cached.summary) setSummary(cached.summary);
+        setIsLoading(false);
+      } else {
+        // Fallback to local user profile and local attendance records
+        if (user) {
+          setWorkerInfo({
+            id: user.id,
+            uniqueId: user.uniqueId || uniqueId,
+            name: user.name,
+            category: user.workerCategory || "Labour",
+            dailyRate: user.dailyWage || 0,
+            contractorName: user.contractorName,
+            contractorCompany: user.contractorCompany,
+          });
+        }
+        const localAttendance = await storage.getAttendance();
+        const monthRecords = localAttendance.filter(
+          (r) => r.year === selectedYear && (r.month === selectedMonth || r.month === selectedMonth - 1)
+        );
+        if (monthRecords.length > 0) {
+          setAttendanceRecords(monthRecords);
+          const computed = calculateWorkerSummary(
+            user?.id || "",
+            localAttendance,
+            user?.dailyWage || 0
+          );
+          setSummary({
+            presentDays: computed.presentDays,
+            absentDays: computed.absentDays,
+            halfDays: computed.halfDays,
+            overtimeHours: 0,
+            totalEarned: computed.totalAmount,
+            advancePaid: computed.totalAdvanceAmount,
+            netPayable: Math.max(0, computed.totalAmount - computed.totalAdvanceAmount),
+          });
         }
       }
 
-      await refreshUserProfile();
+      // 2. Fetch fresh data from backend
+      try {
+        const attRes = await authenticatedFetch(
+          `${API_URL}/attendance/my-attendance?year=${selectedYear}&month=${selectedMonth}`
+        );
+        if (attRes.ok) {
+          const data = await attRes.json();
+          if (data.worker) setWorkerInfo(data.worker);
+          if (data.records) setAttendanceRecords(data.records);
+          if (data.summary) setSummary(data.summary);
+          await storage.setLabourDashboardCache(selectedYear, selectedMonth, data);
+        }
+
+        const pendingRes = await authenticatedFetch(`${API_URL}/connections/user/pending-requests`);
+        if (pendingRes.ok) {
+          const pData = await pendingRes.json();
+          if (pData.success && Array.isArray(pData.requests)) {
+            setPendingRequests(pData.requests);
+          }
+        }
+
+        await refreshUserProfile();
+      } catch (netErr) {
+        console.log("Worker dashboard using cached/offline data:", (netErr as any)?.message || netErr);
+      }
     } catch (error) {
       console.warn("Failed to load worker dashboard data:", error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [selectedYear, selectedMonth, refreshUserProfile]);
+  }, [selectedYear, selectedMonth, user, uniqueId, refreshUserProfile]);
 
   useEffect(() => {
     loadWorkerData();

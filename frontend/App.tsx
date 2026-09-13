@@ -86,11 +86,18 @@ const linking = {
 };
 
 import { ErrorFeedbackProvider } from "@/context/ErrorFeedbackContext";
+import OfflineBanner from "@/components/OfflineBanner";
+import { networkManager } from "@/utils/networkManager";
 
 function AppInner() {
   const languageContext = useLanguageProvider();
   const authContext = useAuthProvider();
   const { theme, isDark } = useTheme();
+
+  React.useEffect(() => {
+    const cleanup = networkManager.init();
+    return cleanup;
+  }, []);
 
   if (languageContext.isLoading) {
     return (
@@ -105,6 +112,7 @@ function AppInner() {
       <AuthContext.Provider value={authContext}>
         <ErrorFeedbackProvider>
           <FeatureAccessProvider>
+            <OfflineBanner />
             <NavigationContainer ref={navigationRef} linking={linking}>
               <RootNavigator />
             </NavigationContainer>
