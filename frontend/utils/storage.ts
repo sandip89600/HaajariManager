@@ -1052,6 +1052,9 @@ export const storage = {
         console.warn("Failed to update worker on backend, updated locally", e);
       }
     }
+
+    invalidateMemoryCache();
+    DeviceEventEmitter.emit("refreshData");
   },
 
   async deleteWorker(workerId: string): Promise<void> {

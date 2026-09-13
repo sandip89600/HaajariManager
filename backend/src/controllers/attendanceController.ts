@@ -280,13 +280,31 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
 
     const { year, month } = req.query;
 
-    // Find linked worker record in user's tenant
-    const worker = await Worker.findOne({
-      tenantId: user.tenantId,
-      $or: [{ phone: user.phone }, { name: user.name }],
-    });
+    // Find linked worker record in user's tenant or global fallback
+    let worker = null;
+    if (user.tenantId) {
+      worker = await Worker.findOne({
+        tenantId: user.tenantId,
+        $or: [
+          { userId: user._id },
+          ...(user.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
+          ...(user.phone ? [{ phone: user.phone }] : []),
+          ...(user.name ? [{ name: user.name }] : []),
+        ],
+      });
+    }
+    if (!worker) {
+      worker = await Worker.findOne({
+        $or: [
+          { userId: user._id },
+          ...(user.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
+          ...(user.phone ? [{ phone: user.phone }] : []),
+          ...(user.name ? [{ name: user.name }] : []),
+        ],
+      });
+    }
 
-    let query: any = { tenantId: user.tenantId };
+    let query: any = { tenantId: worker?.tenantId || user.tenantId };
     if (worker) {
       query.workerId = worker._id;
     } else {
@@ -334,9 +352,11 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
     return res.json({
       worker: {
         id: worker._id,
+        uniqueId: worker.uniqueId || user.uniqueId || "",
         name: worker.name,
         category: worker.category,
         dailyRate: worker.dailyRate,
+        dailyWage: worker.dailyRate,
         contractorName: user.contractorName || "Contractor",
         contractorCompany: user.contractorCompany || "Company",
       },

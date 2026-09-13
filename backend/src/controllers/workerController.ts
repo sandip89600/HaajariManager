@@ -1,7 +1,7 @@
 import { Response } from "express";
 import { Worker, WageHistory, AuditLog, User } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
-import { broadcastAdminActivity } from "../utils/socket";
+import { broadcastAdminActivity, getIO } from "../utils/socket";
 import { logActivity } from "../services/activityLogger";
 
 export const getWorkers = async (req: AuthenticatedRequest, res: Response) => {
@@ -17,7 +17,12 @@ export const getWorkers = async (req: AuthenticatedRequest, res: Response) => {
       const myWorker = await Worker.find({
         tenantId,
         isArchived: false,
-        $or: [{ phone: user?.phone }, { name: user?.name }],
+        $or: [
+          { userId: user?._id },
+          ...(user?.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
+          ...(user?.phone ? [{ phone: user.phone }] : []),
+          ...(user?.name ? [{ name: user.name }] : []),
+        ],
       }).lean();
       return res.json(myWorker);
     } else if (role === "supervisor") {
@@ -60,23 +65,27 @@ export const addWorker = async (req: AuthenticatedRequest, res: Response) => {
     let linkedUserId = undefined;
     let isClaimed = false;
     let claimedAt = undefined;
+    let matchedUser = null;
 
     if (cleanPhone && cleanPhone.length >= 10) {
-      const existingUser = await User.findOne({
+      matchedUser = await User.findOne({
         phone: new RegExp(cleanPhone + "$"),
         role: { $in: ["labor", "worker"] },
       });
-      if (existingUser) {
-        linkedUserId = existingUser._id;
+      if (matchedUser) {
+        linkedUserId = matchedUser._id;
         isClaimed = true;
         claimedAt = new Date();
 
-        if (existingUser.connectionStatus !== "connected") {
-          existingUser.contractorId = userId as any;
-          existingUser.tenantId = tenantId as any;
-          existingUser.connectionStatus = "connected";
-          await existingUser.save();
+        if (matchedUser.connectionStatus !== "connected") {
+          matchedUser.contractorId = userId as any;
+          matchedUser.tenantId = tenantId as any;
+          matchedUser.connectionStatus = "connected";
         }
+        if (name && matchedUser.name !== name.trim()) matchedUser.name = name.trim();
+        if (category) matchedUser.workerCategory = category.trim();
+        if (finalDailyRate) matchedUser.dailyWage = finalDailyRate;
+        await matchedUser.save();
       }
     }
 
@@ -96,6 +105,11 @@ export const addWorker = async (req: AuthenticatedRequest, res: Response) => {
     });
     await worker.save();
     const tWorker = Date.now() - startTime;
+
+    if (matchedUser && worker.uniqueId && matchedUser.uniqueId !== worker.uniqueId) {
+      matchedUser.uniqueId = worker.uniqueId;
+      await matchedUser.save();
+    }
 
     const wageHistory = new WageHistory({
       tenantId,
@@ -166,9 +180,12 @@ export const updateWorker = async (req: AuthenticatedRequest, res: Response) => 
       worker.dailyRate = dailyRate;
     }
 
-    if (name) worker.name = name;
-    if (category) worker.category = category;
-    if (phone !== undefined) worker.phone = phone;
+    if (name) worker.name = name.trim();
+    if (category) worker.category = category.trim();
+    if (phone !== undefined) {
+      const pDigits = phone ? String(phone).replace(/\D/g, "") : "";
+      worker.phone = pDigits.length >= 10 ? pDigits.slice(-10) : (phone ? String(phone).trim() : "");
+    }
     if (address !== undefined) worker.address = address;
     if (notes !== undefined) worker.notes = notes;
     if (photoUri !== undefined) worker.photoUri = photoUri;
@@ -176,7 +193,110 @@ export const updateWorker = async (req: AuthenticatedRequest, res: Response) => 
 
     await worker.save();
 
-    res.json(worker);
+    // ── Synchronize to Linked User Profile (Canonical Source of Truth) ──
+    let linkedUser = null;
+    if (worker.userId) {
+      linkedUser = await User.findById(worker.userId);
+    }
+    if (!linkedUser && (worker.uniqueId || worker.phone)) {
+      const phoneDigits = worker.phone ? String(worker.phone).replace(/\D/g, "") : "";
+      linkedUser = await User.findOne({
+        $or: [
+          ...(worker.uniqueId ? [{ uniqueId: worker.uniqueId }] : []),
+          ...(phoneDigits.length >= 10 ? [{ phone: new RegExp(phoneDigits.slice(-10) + "$"), role: { $in: ["labor", "worker"] } }] : []),
+        ],
+      });
+      if (linkedUser && !worker.userId) {
+        worker.userId = linkedUser._id as any;
+        worker.isClaimed = true;
+        worker.claimedAt = new Date();
+        await worker.save();
+      }
+    }
+
+    if (linkedUser) {
+      let userChanged = false;
+      if (worker.name && linkedUser.name !== worker.name) {
+        linkedUser.name = worker.name;
+        userChanged = true;
+      }
+      if (worker.category && linkedUser.workerCategory !== worker.category) {
+        linkedUser.workerCategory = worker.category;
+        userChanged = true;
+      }
+      if (worker.dailyRate !== undefined && linkedUser.dailyWage !== worker.dailyRate) {
+        linkedUser.dailyWage = worker.dailyRate;
+        userChanged = true;
+      }
+      if (worker.phone && worker.phone !== linkedUser.phone) {
+        const phoneConflict = await User.findOne({ phone: worker.phone, _id: { $ne: linkedUser._id } });
+        if (!phoneConflict) {
+          linkedUser.phone = worker.phone;
+          userChanged = true;
+        }
+      }
+      if (worker.address !== undefined && linkedUser.address !== worker.address) {
+        linkedUser.address = worker.address;
+        userChanged = true;
+      }
+      if (worker.photoUri !== undefined && linkedUser.profileImage !== worker.photoUri) {
+        linkedUser.profileImage = worker.photoUri;
+        userChanged = true;
+      }
+      if (worker.uniqueId && linkedUser.uniqueId !== worker.uniqueId) {
+        linkedUser.uniqueId = worker.uniqueId;
+        userChanged = true;
+      }
+      if (userChanged) {
+        await linkedUser.save();
+      }
+    }
+
+    // ── Real-time Socket Broadcast ──
+    try {
+      const io = getIO();
+      const payload = {
+        workerId: worker._id,
+        uniqueId: worker.uniqueId,
+        name: worker.name,
+        category: worker.category,
+        dailyRate: worker.dailyRate,
+        dailyWage: worker.dailyRate,
+        role: "LABOUR",
+        status: worker.isArchived ? "Inactive" : "Active",
+      };
+      if (worker.userId) {
+        io.to(`user_${worker.userId}`).emit("worker:updated", payload);
+        io.to(`user_${worker.userId}`).emit("profile:updated", payload);
+      }
+      if (tenantId) {
+        io.to(`tenant_${tenantId}`).emit("worker:updated", payload);
+      }
+      io.emit("admin_dashboard_update");
+    } catch (socketErr) {
+      console.warn("[Worker Controller] Socket emit non-fatal error:", socketErr);
+    }
+
+    res.json({
+      success: true,
+      worker: {
+        id: worker._id,
+        uniqueId: worker.uniqueId,
+        name: worker.name,
+        category: worker.category,
+        dailyRate: worker.dailyRate,
+        dailyWage: worker.dailyRate,
+        role: "LABOUR",
+        status: worker.isArchived ? "Inactive" : "Active",
+        phone: worker.phone,
+        address: worker.address,
+        notes: worker.notes,
+        photoUri: worker.photoUri,
+        projectId: worker.projectId,
+        createdAt: worker.createdAt,
+      },
+      ...worker.toObject(),
+    });
 
     // Non-blocking activity log
     logActivity({

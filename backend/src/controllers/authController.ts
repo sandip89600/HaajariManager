@@ -1634,6 +1634,61 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
+
+    // If user is worker / labor, dynamically sync and enrich with canonical Worker record
+    if (user.role === "labor" || (user.role as string) === "worker") {
+      let worker = null;
+      const tId = typeof user.tenantId === "object" && user.tenantId ? (user.tenantId as any)._id : user.tenantId;
+      if (tId) {
+        worker = await Worker.findOne({
+          tenantId: tId,
+          $or: [
+            { userId: user._id },
+            ...(user.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
+            ...(user.phone ? [{ phone: user.phone }] : []),
+          ],
+        });
+      }
+      if (!worker) {
+        worker = await Worker.findOne({
+          $or: [
+            { userId: user._id },
+            ...(user.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
+            ...(user.phone ? [{ phone: user.phone }] : []),
+          ],
+        });
+      }
+
+      if (worker) {
+        let updated = false;
+        if (worker.name && user.name !== worker.name) {
+          user.name = worker.name;
+          updated = true;
+        }
+        if (worker.category && user.workerCategory !== worker.category) {
+          user.workerCategory = worker.category;
+          updated = true;
+        }
+        if (worker.dailyRate !== undefined && user.dailyWage !== worker.dailyRate) {
+          user.dailyWage = worker.dailyRate;
+          updated = true;
+        }
+        if (worker.uniqueId && user.uniqueId !== worker.uniqueId) {
+          user.uniqueId = worker.uniqueId;
+          updated = true;
+        }
+        if (!worker.userId) {
+          worker.userId = user._id as any;
+          worker.isClaimed = true;
+          worker.claimedAt = new Date();
+          await worker.save();
+        }
+        if (updated) {
+          await user.save();
+        }
+      }
+    }
+
     const tenant: any = user.tenantId;
     const userObj = user.toObject();
     res.json({
@@ -1646,6 +1701,9 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
         email: user.email || "",
         phone: user.phone || "",
         name: user.name || "",
+        workerCategory: user.workerCategory || "",
+        dailyWage: user.dailyWage || 0,
+        uniqueId: user.uniqueId || "",
       },
     });
   } catch (error: any) {

@@ -8,10 +8,11 @@ import {
   RefreshControl,
   ActivityIndicator,
   Share,
+  DeviceEventEmitter,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 
@@ -36,6 +37,7 @@ export default function WorkerDashboardScreen() {
 
   const [workerInfo, setWorkerInfo] = useState<{
     id?: string;
+    uniqueId?: string;
     name?: string;
     category?: string;
     dailyRate?: number;
@@ -99,24 +101,41 @@ export default function WorkerDashboardScreen() {
     loadWorkerData();
   }, [loadWorkerData]);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadWorkerData();
+    }, [loadWorkerData])
+  );
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("refreshData", () => {
+      loadWorkerData();
+    });
+    return () => sub.remove();
+  }, [loadWorkerData]);
+
   const onRefresh = useCallback(() => {
     setIsRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     loadWorkerData();
   }, [loadWorkerData]);
 
+  const activeUniqueId = workerInfo?.uniqueId || uniqueId || user?.uniqueId || "HM-W-PENDING";
+  const activeName = workerInfo?.name || user?.name || "Worker";
+  const activeCategory = workerInfo?.category || user?.workerCategory || "Labour";
+
   const copyUniqueId = async () => {
-    if (uniqueId) {
-      await Clipboard.setStringAsync(uniqueId);
+    if (activeUniqueId && activeUniqueId !== "HM-W-PENDING") {
+      await Clipboard.setStringAsync(activeUniqueId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   };
 
   const shareUniqueId = async () => {
-    if (uniqueId) {
+    if (activeUniqueId && activeUniqueId !== "HM-W-PENDING") {
       try {
         await Share.share({
-          message: `Haajari Manager Worker ID: ${uniqueId}\nName: ${user?.name || "Worker"}\nTrade: ${user?.workerCategory || "Labour"}`,
+          message: `Haajari Manager Worker ID: ${activeUniqueId}\nName: ${activeName}\nTrade: ${activeCategory}`,
         });
       } catch (err) {
         console.warn("Share error:", err);
@@ -192,11 +211,11 @@ export default function WorkerDashboardScreen() {
           <View style={styles.headerUserInfo}>
             <View style={styles.categoryPill}>
               <Text style={styles.categoryPillText}>
-                {user?.workerCategory || "Labour / Mistri"}
+                {activeCategory}
               </Text>
             </View>
             <Text style={[styles.userNameText, { color: theme.text }]}>
-              {user?.name || "Worker"}
+              {activeName}
             </Text>
           </View>
           <Pressable
@@ -216,7 +235,7 @@ export default function WorkerDashboardScreen() {
                 {t("worker.uniqueIdLabel", "वर्कर यूनिक आईडी (Worker ID)")}
               </Text>
               <Text style={[styles.uniqueIdValue, { color: "#065F46" }]}>
-                {uniqueId || "HM-W-PENDING"}
+                {activeUniqueId}
               </Text>
             </View>
           </View>
@@ -338,7 +357,7 @@ export default function WorkerDashboardScreen() {
                 {t("workers.dailyWage", "दैनिक मजदूरी दर (Daily Rate)")}
               </Text>
               <Text style={[styles.wageRowValue, { color: theme.text }]}>
-                ₹{user?.dailyWage || workerInfo?.dailyRate || 0} / {t("common.day", "दिन")}
+                ₹{workerInfo?.dailyRate !== undefined ? workerInfo.dailyRate : (user?.dailyWage || 0)} / {t("common.day", "दिन")}
               </Text>
             </View>
             <View style={styles.wageDivider} />
