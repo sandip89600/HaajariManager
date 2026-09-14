@@ -54,7 +54,7 @@ export default function AttendanceScreen() {
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { user } = useAuth();
+  const { user, isWorker } = useAuth();
   const { socket, connectSocket } = useSocket();
   const insets = useSafeAreaInsets();
 
@@ -239,6 +239,17 @@ export default function AttendanceScreen() {
     dayNum: number,
     currentVal: AttendanceValue | null,
   ) => {
+    if (isWorker) {
+      Alert.alert(
+        t("common.notice", "सूचना (Notice)"),
+        t(
+          "worker.viewOnlyNotice",
+          "🔒 हाजिरी केवल साइट सुपरवाइजर या ठेकेदार द्वारा दर्ज की जाती है।",
+        ),
+      );
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     let nextVal: AttendanceValue | null = null;
@@ -310,6 +321,17 @@ export default function AttendanceScreen() {
     dayNum: number,
     currentVal: AttendanceValue | null,
   ) => {
+    if (isWorker) {
+      Alert.alert(
+        t("common.notice", "सूचना (Notice)"),
+        t(
+          "worker.viewOnlyNotice",
+          "🔒 हाजिरी केवल साइट सुपरवाइजर या ठेकेदार द्वारा दर्ज की जाती है।",
+        ),
+      );
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedWorker(worker);
     setSelectedDayNum(dayNum);

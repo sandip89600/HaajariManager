@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DeviceEventEmitter } from "react-native";
-import { API_URL, authenticatedFetch, storage } from "./storage";
+import { API_URL } from "./apiConfig";
+import { authenticatedFetch } from "./apiClient";
+import { storage } from "./storage";
 import { uploadImageToServer } from "./upload";
 
 export interface SyncQueueItem {
@@ -465,3 +467,9 @@ export const syncManager = {
     }
   },
 };
+
+DeviceEventEmitter.addListener("sync:processQueue", () => {
+  syncManager.processSyncQueue().catch((err) => {
+    console.log("Auto-sync event error:", err?.message || err);
+  });
+});

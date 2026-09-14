@@ -112,16 +112,16 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
     const otAmount = (overtimeWageResolved !== undefined && overtimeWageResolved !== null) ? overtimeWageResolved : 0;
 
     if (value === "P" || value === "OT") {
-      finalPayResolved = dailyRateResolved + advanceAmount + otAmount;
+      finalPayResolved = dailyRateResolved + otAmount;
     } else if (value === "H") {
-      finalPayResolved = (dailyRateResolved / 2) + advanceAmount + otAmount;
+      finalPayResolved = (dailyRateResolved / 2) + otAmount;
     } else if (value === "A") {
       finalPayResolved = 0;
       customWageResolved = undefined;
       overtimeWageResolved = undefined;
       overtimeHoursResolved = undefined;
     } else if (typeof value === "number") {
-      finalPayResolved = value;
+      finalPayResolved = value + otAmount;
     } else {
       finalPayResolved = 0;
     }
@@ -243,16 +243,16 @@ export const syncAttendance = async (req: AuthenticatedRequest, res: Response) =
       const otAmount = (overtimeWageResolved !== undefined && overtimeWageResolved !== null) ? overtimeWageResolved : 0;
 
       if (value === "P" || value === "OT") {
-        finalPayResolved = dailyRateResolved + advanceAmount + otAmount;
+        finalPayResolved = dailyRateResolved + otAmount;
       } else if (value === "H") {
-        finalPayResolved = (dailyRateResolved / 2) + advanceAmount + otAmount;
+        finalPayResolved = (dailyRateResolved / 2) + otAmount;
       } else if (value === "A") {
         finalPayResolved = 0;
         customWageResolved = undefined;
         overtimeWageResolved = undefined;
         overtimeHoursResolved = undefined;
       } else if (typeof value === "number") {
-        finalPayResolved = value;
+        finalPayResolved = value + otAmount;
       } else {
         finalPayResolved = 0;
       }
@@ -394,26 +394,20 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
         rec.dailyRate !== undefined && rec.dailyRate !== null
           ? rec.dailyRate
           : worker.dailyRate || 0;
-      const adv =
-        rec.customWage !== undefined && rec.customWage !== null
-          ? rec.customWage
-          : 0;
       const ot =
         rec.overtimeWage !== undefined && rec.overtimeWage !== null
           ? rec.overtimeWage
           : 0;
 
       let pay = 0;
-      if (rec.finalPay !== undefined && rec.finalPay !== null) {
-        pay = rec.finalPay;
-      } else {
-        if (rec.value === "P" || rec.value === "OT") {
-          pay = rate + adv + ot;
-        } else if (rec.value === "H") {
-          pay = rate / 2 + adv + ot;
-        } else if (typeof rec.value === "number") {
-          pay = rec.value;
-        }
+      if (rec.value === "P" || rec.value === "OT") {
+        pay = rate + ot;
+      } else if (rec.value === "H") {
+        pay = rate / 2 + ot;
+      } else if (rec.value === "A") {
+        pay = 0;
+      } else if (typeof rec.value === "number") {
+        pay = rec.value + ot;
       }
 
       if (rec.value === "P") presentDays++;
@@ -430,9 +424,12 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
     }
 
     const paymentRecords = await Payment.find(query).lean();
+    let totalPaid = 0;
     for (const p of paymentRecords) {
-      advancePaid += p.amount || 0;
+      totalPaid += p.amount || 0;
     }
+
+    const netPayable = Math.max(0, totalEarned - advancePaid - totalPaid);
 
     return res.json({
       worker: {
@@ -453,7 +450,8 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
         overtimeHours,
         totalEarned,
         advancePaid,
-        netPayable: Math.max(0, totalEarned - advancePaid),
+        totalPaid,
+        netPayable,
       },
     });
   } catch (error: any) {

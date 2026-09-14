@@ -198,11 +198,7 @@ function MainTabs() {
         name="AttendanceTab"
         component={AttendanceNavigator}
         options={{
-          title: isWorker
-            ? t("roles.worker", "डैशबोर्ड")
-            : isSupervisor
-              ? t("roles.supervisor", "डैशबोर्ड")
-              : t.tabs?.dashboard || "Dashboard",
+          title: t.tabs?.dashboard || "Dashboard",
           headerShown: false,
           tabBarItemStyle: isDashboardVisible ? undefined : { display: "none" },
           tabBarIcon: ({ color, size }) => (

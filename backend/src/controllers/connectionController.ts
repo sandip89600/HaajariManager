@@ -401,17 +401,45 @@ export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Respo
 
     // If target is worker / labor, ensure a corresponding Worker record exists in the tenant
     if (targetUser.role === "labor" || (targetUser.role as string) === "worker") {
-      let existingWorker = await Worker.findOne({
-        tenantId,
-        $or: [
-          { phone: targetUser.phone },
-          { name: targetUser.name },
-        ],
-      });
-
+      let existingWorker = null;
+      if (connectionReq.workerId) {
+        existingWorker = await Worker.findById(connectionReq.workerId);
+      }
       if (!existingWorker) {
+        const phoneDigits = targetUser.phone ? targetUser.phone.replace(/\D/g, "") : "";
+        existingWorker = await Worker.findOne({
+          tenantId,
+          $or: [
+            { userId: targetUser._id },
+            ...(targetUser.uniqueId ? [{ uniqueId: targetUser.uniqueId }] : []),
+            ...(phoneDigits.length >= 10 ? [{ phone: new RegExp(phoneDigits.slice(-10) + "$") }] : []),
+            { name: targetUser.name },
+          ],
+        });
+      }
+
+      if (existingWorker) {
+        existingWorker.userId = targetUser._id as any;
+        existingWorker.isClaimed = true;
+        existingWorker.claimedAt = new Date();
+        if (targetUser.uniqueId && !existingWorker.uniqueId) {
+          existingWorker.uniqueId = targetUser.uniqueId;
+        } else if (existingWorker.uniqueId && !targetUser.uniqueId) {
+          targetUser.uniqueId = existingWorker.uniqueId;
+          await targetUser.save();
+        }
+        if (existingWorker.dailyRate) {
+          targetUser.dailyWage = existingWorker.dailyRate;
+          await targetUser.save();
+        }
+        await existingWorker.save();
+        connectionReq.workerId = existingWorker._id as any;
+        await connectionReq.save();
+      } else {
         existingWorker = new Worker({
           tenantId,
+          userId: targetUser._id,
+          uniqueId: targetUser.uniqueId,
           name: targetUser.name,
           phone: targetUser.phone,
           category: targetUser.workerCategory || "Labour",
@@ -419,8 +447,12 @@ export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Respo
           skillCategory: "skilled",
           paymentType: "daily",
           isArchived: false,
+          isClaimed: true,
+          claimedAt: new Date(),
         });
         await existingWorker.save();
+        connectionReq.workerId = existingWorker._id as any;
+        await connectionReq.save();
       }
     }
 
@@ -541,20 +573,20 @@ export const acceptConnectionRequest = async (req: AuthenticatedRequest, res: Re
     // If member is worker/labor, link or create Worker profile in contractor's tenant
     if (member.role === "labor" || (member.role as string) === "worker") {
       try {
-        const phoneDigits = member.phone ? member.phone.replace(/\D/g, "") : "";
         let existingWorker = null;
-        if (phoneDigits.length >= 10) {
+        if (connectionReq.workerId) {
+          existingWorker = await Worker.findById(connectionReq.workerId);
+        }
+        if (!existingWorker) {
+          const phoneDigits = member.phone ? member.phone.replace(/\D/g, "") : "";
           existingWorker = await Worker.findOne({
             tenantId: contractorTenantId,
             $or: [
               { userId: member._id },
-              { phone: new RegExp(phoneDigits.slice(-10) + "$") },
+              ...(member.uniqueId ? [{ uniqueId: member.uniqueId }] : []),
+              ...(phoneDigits.length >= 10 ? [{ phone: new RegExp(phoneDigits.slice(-10) + "$") }] : []),
+              { name: member.name },
             ],
-          });
-        } else {
-          existingWorker = await Worker.findOne({
-            tenantId: contractorTenantId,
-            userId: member._id,
           });
         }
 
@@ -563,11 +595,24 @@ export const acceptConnectionRequest = async (req: AuthenticatedRequest, res: Re
           existingWorker.isClaimed = true;
           existingWorker.claimedAt = new Date();
           if (member.name) existingWorker.name = member.name;
+          if (member.uniqueId && !existingWorker.uniqueId) {
+            existingWorker.uniqueId = member.uniqueId;
+          } else if (existingWorker.uniqueId && !member.uniqueId) {
+            member.uniqueId = existingWorker.uniqueId;
+            await member.save();
+          }
+          if (existingWorker.dailyRate) {
+            member.dailyWage = existingWorker.dailyRate;
+            await member.save();
+          }
           await existingWorker.save();
+          connectionReq.workerId = existingWorker._id as any;
+          await connectionReq.save();
         } else {
           existingWorker = new Worker({
             tenantId: contractorTenantId,
             userId: member._id,
+            uniqueId: member.uniqueId,
             name: member.name || "Worker",
             phone: member.phone || "",
             category: member.workerCategory || "Labour",
@@ -579,6 +624,8 @@ export const acceptConnectionRequest = async (req: AuthenticatedRequest, res: Re
             claimedAt: new Date(),
           });
           await existingWorker.save();
+          connectionReq.workerId = existingWorker._id as any;
+          await connectionReq.save();
         }
       } catch (workerErr) {
         console.warn("Worker profile creation/sync non-fatal error:", workerErr);

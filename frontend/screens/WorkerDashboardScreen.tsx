@@ -58,6 +58,7 @@ export default function WorkerDashboardScreen() {
     overtimeHours: number;
     totalEarned: number;
     advancePaid: number;
+    totalPaid: number;
     netPayable: number;
   }>({
     presentDays: 0,
@@ -66,6 +67,7 @@ export default function WorkerDashboardScreen() {
     overtimeHours: 0,
     totalEarned: 0,
     advancePaid: 0,
+    totalPaid: 0,
     netPayable: 0,
   });
 
@@ -102,7 +104,9 @@ export default function WorkerDashboardScreen() {
         const monthRecords = localAttendance.filter(
           (r) =>
             r.year === selectedYear &&
-            (r.month === selectedMonth || r.month === selectedMonth - 1),
+            (r.month === selectedMonth ||
+              r.month === selectedMonth - 1 ||
+              r.month === selectedMonth + 1),
         );
         if (monthRecords.length > 0) {
           setAttendanceRecords(monthRecords);
@@ -111,16 +115,29 @@ export default function WorkerDashboardScreen() {
             localAttendance,
             user?.dailyWage || 0,
           );
+          const localPayments = await storage.getPaymentsForMonth(
+            selectedYear,
+            selectedMonth,
+          );
+          const totalPaid = localPayments
+            .filter(
+              (p) =>
+                p.workerId === user?.id ||
+                (user?.uniqueId && p.workerId === user.uniqueId),
+            )
+            .reduce((sum, p) => sum + p.amount, 0);
+          const totalAdvance = computed.totalAdvanceAmount || 0;
           setSummary({
             presentDays: computed.presentDays,
             absentDays: computed.absentDays,
             halfDays: computed.halfDays,
             overtimeHours: 0,
             totalEarned: computed.totalAmount,
-            advancePaid: computed.totalAdvanceAmount,
+            advancePaid: totalAdvance,
+            totalPaid,
             netPayable: Math.max(
               0,
-              computed.totalAmount - computed.totalAdvanceAmount,
+              computed.totalAmount - totalAdvance - totalPaid,
             ),
           });
         }
@@ -597,6 +614,18 @@ export default function WorkerDashboardScreen() {
                 </Text>
                 <Text style={[styles.wageRowValue, { color: "#EF4444" }]}>
                   -₹{summary.advancePaid.toLocaleString("en-IN")}
+                </Text>
+              </View>
+            )}
+            {summary.totalPaid > 0 && (
+              <View style={styles.wageRow}>
+                <Text
+                  style={[styles.wageRowLabel, { color: theme.textSecondary }]}
+                >
+                  {t("payment.totalPaid", "भुगतान प्राप्त (Paid)")}
+                </Text>
+                <Text style={[styles.wageRowValue, { color: "#3B82F6" }]}>
+                  -₹{summary.totalPaid.toLocaleString("en-IN")}
                 </Text>
               </View>
             )}

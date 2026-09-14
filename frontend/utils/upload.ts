@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
-import { storage, API_URL, authenticatedFetch } from "./storage";
+import { API_URL } from "./apiConfig";
+import { authenticatedFetch } from "./apiClient";
 
 export async function uploadImageToServer(localUri: string): Promise<string> {
   if (!localUri) throw new Error("No local URI provided");

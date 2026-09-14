@@ -1,53 +1,56 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform, DeviceEventEmitter } from "react-native";
 import * as SecureStore from "expo-secure-store";
-import Constants from "expo-constants";
 import { Language } from "@/constants/i18n";
 import { getDeviceHeaders } from "./device";
-import { syncManager } from "./syncManager";
-import { networkManager } from "./networkManager";
+import { API_URL, getApiUrl } from "./apiConfig";
+import { authenticatedFetch } from "./apiClient";
 
-declare const process: any;
+export { API_URL, getApiUrl, authenticatedFetch };
 
-const getApiUrl = () => {
-  if (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, "");
-  }
+async function enqueueSyncOperation(
+  type: string,
+  payload: any,
+): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem("@haajari/sync_queue");
+    const queue = raw ? JSON.parse(raw) : [];
+    const id = `sync_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
-  // 1. Web browser environment
-  if (
-    Platform.OS === "web" &&
-    typeof window !== "undefined" &&
-    window.location
-  ) {
-    const hostname = window.location.hostname;
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return "http://localhost:5000/api";
+    let updatedQueue = [...queue];
+    if (type === "RECORD_ATTENDANCE" && payload) {
+      const { workerId, year, month, day } = payload;
+      updatedQueue = updatedQueue.filter((q: any) => {
+        if (q.type === "RECORD_ATTENDANCE" && q.payload) {
+          return !(
+            q.payload.workerId === workerId &&
+            q.payload.year === year &&
+            q.payload.month === month &&
+            q.payload.day === day
+          );
+        }
+        return true;
+      });
     }
-  }
 
-  // 2. Development mode on Metro / Local simulator / LAN
-  if (__DEV__) {
-    const debuggerHost =
-      Constants.expoConfig?.hostUri ||
-      (Constants as any).manifest?.debuggerHost ||
-      (Constants as any).experienceUrl;
-    if (debuggerHost) {
-      const ip = debuggerHost.split(":")[0];
-      if (ip && ip !== "localhost" && ip !== "127.0.0.1") {
-        return `http://${ip}:5000/api`;
-      }
-    }
-    if (Platform.OS === "android") {
-      return "http://10.0.2.2:5000/api";
-    }
-    return "http://localhost:5000/api";
-  }
+    updatedQueue.push({
+      id,
+      type,
+      payload,
+      createdAt: Date.now(),
+      retryCount: 0,
+      status: "pending",
+    });
 
-  // 3. Standalone production mobile app
-  return "https://haajarimanager.onrender.com/api";
-};
-export const API_URL = getApiUrl();
+    await AsyncStorage.setItem(
+      "@haajari/sync_queue",
+      JSON.stringify(updatedQueue),
+    );
+    DeviceEventEmitter.emit("sync:processQueue");
+  } catch (e) {
+    console.warn("Failed to enqueue sync item:", e);
+  }
+}
 
 const inflightRequests = new Map<string, Promise<any>>();
 const memoryCache = new Map<string, { data: any; timestamp: number }>();
@@ -911,9 +914,9 @@ export const storage = {
       console.warn("Failed to save site update locally:", err);
     }
 
-    await syncManager.addToQueue({
-      type: "CREATE_SITE_UPDATE",
-      payload: { siteId, data: updateData },
+    await enqueueSyncOperation("CREATE_SITE_UPDATE", {
+      siteId,
+      data: updateData,
     });
 
     DeviceEventEmitter.emit("refreshData");
@@ -938,10 +941,7 @@ export const storage = {
     const updated = [newSite, ...sites];
     await AsyncStorage.setItem(STORAGE_KEYS.SITES, JSON.stringify(updated));
 
-    await syncManager.addToQueue({
-      type: "CREATE_SITE",
-      payload: siteData,
-    });
+    await enqueueSyncOperation("CREATE_SITE", siteData);
 
     DeviceEventEmitter.emit("refreshData");
     return newSite;
@@ -961,9 +961,9 @@ export const storage = {
       await AsyncStorage.setItem(STORAGE_KEYS.SITES, JSON.stringify(sites));
     }
 
-    await syncManager.addToQueue({
-      type: "UPDATE_SITE",
-      payload: { siteId, data: siteData },
+    await enqueueSyncOperation("UPDATE_SITE", {
+      siteId,
+      data: siteData,
     });
 
     DeviceEventEmitter.emit("refreshData");
@@ -1081,23 +1081,20 @@ export const storage = {
       JSON.stringify(updatedWorkers),
     ).catch(() => {});
 
-    await syncManager.addToQueue({
-      type: "CREATE_WORKER",
-      payload: {
-        id: worker.id,
-        name: worker.name,
-        projectId: worker.projectId,
-        category: worker.category,
-        dailyRate: worker.dailyRate,
-        skillCategory: worker.skillCategory,
-        paymentType: worker.paymentType,
-        pieceRateAmount: worker.pieceRateAmount,
-        subContractorName: worker.subContractorName,
-        phone: worker.phone,
-        address: worker.address,
-        notes: worker.notes,
-        photoUri: worker.photoUri,
-      },
+    await enqueueSyncOperation("CREATE_WORKER", {
+      id: worker.id,
+      name: worker.name,
+      projectId: worker.projectId,
+      category: worker.category,
+      dailyRate: worker.dailyRate,
+      skillCategory: worker.skillCategory,
+      paymentType: worker.paymentType,
+      pieceRateAmount: worker.pieceRateAmount,
+      subContractorName: worker.subContractorName,
+      phone: worker.phone,
+      address: worker.address,
+      notes: worker.notes,
+      photoUri: worker.photoUri,
     });
 
     DeviceEventEmitter.emit("refreshData");
@@ -1111,23 +1108,20 @@ export const storage = {
       await this.setWorkers(workers);
     }
 
-    await syncManager.addToQueue({
-      type: "UPDATE_WORKER",
-      payload: {
-        id: updatedWorker.id,
-        name: updatedWorker.name,
-        projectId: updatedWorker.projectId,
-        category: updatedWorker.category,
-        dailyRate: updatedWorker.dailyRate,
-        skillCategory: updatedWorker.skillCategory,
-        paymentType: updatedWorker.paymentType,
-        pieceRateAmount: updatedWorker.pieceRateAmount,
-        subContractorName: updatedWorker.subContractorName,
-        phone: updatedWorker.phone,
-        address: updatedWorker.address,
-        notes: updatedWorker.notes,
-        photoUri: updatedWorker.photoUri,
-      },
+    await enqueueSyncOperation("UPDATE_WORKER", {
+      id: updatedWorker.id,
+      name: updatedWorker.name,
+      projectId: updatedWorker.projectId,
+      category: updatedWorker.category,
+      dailyRate: updatedWorker.dailyRate,
+      skillCategory: updatedWorker.skillCategory,
+      paymentType: updatedWorker.paymentType,
+      pieceRateAmount: updatedWorker.pieceRateAmount,
+      subContractorName: updatedWorker.subContractorName,
+      phone: updatedWorker.phone,
+      address: updatedWorker.address,
+      notes: updatedWorker.notes,
+      photoUri: updatedWorker.photoUri,
     });
 
     invalidateMemoryCache();
@@ -1144,10 +1138,7 @@ export const storage = {
     );
     await this.setAttendance(filteredAttendance);
 
-    await syncManager.addToQueue({
-      type: "DELETE_WORKER",
-      payload: { workerId },
-    });
+    await enqueueSyncOperation("DELETE_WORKER", { workerId });
   },
 
   // Attendance methods
@@ -1212,22 +1203,19 @@ export const storage = {
     );
 
     // 3. Queue for synchronization to backend
-    await syncManager.addToQueue({
-      type: "RECORD_ATTENDANCE",
-      payload: {
-        workerId: record.workerId,
-        year: record.year,
-        month: record.month,
-        day: record.day,
-        value: record.value,
-        dailyRate: record.dailyRate,
-        customWage: record.customWage,
-        finalPay: record.finalPay,
-        overtimeHours: record.overtimeHours,
-        overtimeWage: record.overtimeWage,
-        location: record.location,
-        projectId: record.projectId,
-      },
+    await enqueueSyncOperation("RECORD_ATTENDANCE", {
+      workerId: record.workerId,
+      year: record.year,
+      month: record.month,
+      day: record.day,
+      value: record.value,
+      dailyRate: record.dailyRate,
+      customWage: record.customWage,
+      finalPay: record.finalPay,
+      overtimeHours: record.overtimeHours,
+      overtimeWage: record.overtimeWage,
+      location: record.location,
+      projectId: record.projectId,
     });
 
     invalidateMemoryCache();
@@ -1371,22 +1359,19 @@ export const storage = {
         JSON.stringify(payments),
       );
 
-      await syncManager.addToQueue({
-        type: "CREATE_PAYMENT",
-        payload: {
-          id: payment.id,
-          workerId: payment.workerId,
-          year: payment.year,
-          month: payment.month,
-          amount: payment.amount,
-          note: payment.note,
-          method: payment.method,
-          transactionId: payment.transactionId,
-          referenceNumber: payment.referenceNumber,
-          paidByName: payment.paidByName,
-          receivedByName: payment.receivedByName,
-          status: payment.status || "Completed",
-        },
+      await enqueueSyncOperation("CREATE_PAYMENT", {
+        id: payment.id,
+        workerId: payment.workerId,
+        year: payment.year,
+        month: payment.month,
+        amount: payment.amount,
+        note: payment.note,
+        method: payment.method,
+        transactionId: payment.transactionId,
+        referenceNumber: payment.referenceNumber,
+        paidByName: payment.paidByName,
+        receivedByName: payment.receivedByName,
+        status: payment.status || "Completed",
       });
 
       DeviceEventEmitter.emit("refreshData");
@@ -1405,10 +1390,7 @@ export const storage = {
       );
       DeviceEventEmitter.emit("refreshData");
 
-      await syncManager.addToQueue({
-        type: "DELETE_PAYMENT",
-        payload: { paymentId },
-      });
+      await enqueueSyncOperation("DELETE_PAYMENT", { paymentId });
     } catch (error) {
       console.error("Error deleting payment:", error);
     }
@@ -1648,7 +1630,7 @@ export const storage = {
       if (auth.role === "labor" || auth.role === "worker") {
         return;
       }
-      await syncManager.processSyncQueue();
+      DeviceEventEmitter.emit("sync:processQueue");
     } catch (error) {
       console.log("Error during syncWithBackend:", error);
     }
@@ -1666,160 +1648,6 @@ export const storage = {
     }
   },
 };
-
-let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
-
-function subscribeTokenRefresh(cb: (token: string) => void) {
-  refreshSubscribers.push(cb);
-}
-
-function onRefreshed(token: string) {
-  refreshSubscribers.forEach((cb) => cb(token));
-  refreshSubscribers = [];
-}
-
-export async function authenticatedFetch(
-  url: string,
-  options: RequestInit & { _retry?: boolean; timeoutMs?: number } = {},
-): Promise<Response> {
-  let fullUrl = url;
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    const endpoint = url.startsWith("/") ? url : `/${url}`;
-    fullUrl = `${API_URL}${endpoint}`;
-  }
-
-  const auth = await storage.getAuth();
-  const deviceHeaders = await getDeviceHeaders().catch(
-    () => ({}) as Record<string, string>,
-  );
-
-  const headers = {
-    ...deviceHeaders,
-    ...((options.headers || {}) as Record<string, string>),
-  };
-  if (!headers["Content-Type"] && !(options.body instanceof FormData)) {
-    headers["Content-Type"] = "application/json";
-  }
-  if (auth?.token) {
-    headers["Authorization"] = `Bearer ${auth.token}`;
-  }
-  options.headers = headers;
-
-  const controller = new AbortController();
-  const timeoutMs = options.timeoutMs || 15000;
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  let res: Response;
-  try {
-    res = await fetch(fullUrl, {
-      ...options,
-      signal: options.signal || controller.signal,
-    });
-    networkManager.setOnline(true);
-  } catch (netError: any) {
-    clearTimeout(timeoutId);
-    networkManager.setOnline(false);
-    if (netError.name === "AbortError") {
-      console.warn(`Request to ${fullUrl} timed out after ${timeoutMs}ms`);
-      throw new Error(
-        "Request timed out. Please check network connection and try again.",
-      );
-    }
-    console.warn(
-      `[Network Warning] Could not reach backend server at ${fullUrl}:`,
-      netError?.message || netError,
-    );
-    throw new Error(
-      "Unable to connect to Haajari server. Please check internet connection.",
-    );
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  if (res.status === 401 && !options._retry) {
-    if (auth?.token && auth?.refreshToken) {
-      if (isRefreshing) {
-        console.log("Queueing request during token refresh:", fullUrl);
-        return new Promise<Response>((resolve, reject) => {
-          subscribeTokenRefresh((newToken) => {
-            // Update auth token for request and retry
-            const updatedHeaders = (options.headers || {}) as Record<
-              string,
-              string
-            >;
-            updatedHeaders["Authorization"] = `Bearer ${newToken}`;
-            options.headers = updatedHeaders;
-            options._retry = true; // Mark retry to avoid infinite loop
-            fetch(fullUrl, options).then(resolve).catch(reject);
-          });
-        });
-      }
-
-      isRefreshing = true;
-      console.log("Token expired (401), attempting to refresh token...");
-
-      try {
-        const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken: auth.refreshToken }),
-        });
-
-        if (refreshRes.ok) {
-          const refreshData = await refreshRes.json();
-          const updatedAuth = {
-            ...auth,
-            token: refreshData.token,
-            refreshToken: refreshData.refreshToken,
-          };
-          await storage.setAuth(updatedAuth);
-          isRefreshing = false;
-
-          // Dispatch the new token to all queued subscribers
-          onRefreshed(refreshData.token);
-
-          // Retry the original request
-          headers["Authorization"] = `Bearer ${refreshData.token}`;
-          options.headers = headers;
-          options._retry = true;
-          return fetch(fullUrl, options);
-        } else if (
-          refreshRes.status === 401 ||
-          refreshRes.status === 403 ||
-          refreshRes.status === 400
-        ) {
-          console.warn(
-            "Refresh token rejected by server: status",
-            refreshRes.status,
-          );
-          isRefreshing = false;
-          // Notify queued subscribers with empty string so they don't hang indefinitely
-          onRefreshed("");
-          await storage.clearAuth();
-          DeviceEventEmitter.emit("unauthorized");
-        } else {
-          console.warn(
-            "Temporary server error during token refresh: status",
-            refreshRes.status,
-          );
-          isRefreshing = false;
-          // Resolve queued items with old token so they fail or recover
-          onRefreshed(auth.token);
-        }
-      } catch (err) {
-        console.warn(
-          "Network error during token refresh, keeping credentials:",
-          err,
-        );
-        isRefreshing = false;
-        onRefreshed(auth.token);
-      }
-    }
-  }
-
-  return res;
-}
 
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -1867,15 +1695,11 @@ export function calculateWorkerSummary(
   let totalOvertimeAmount = 0;
 
   workerAttendance.forEach((record) => {
-    // 1. Calculate pay for this day
+    // 1. Calculate pay for this day (Gross Earnings = Base Rate + Overtime)
     const rate =
       record.dailyRate !== undefined && record.dailyRate !== null
         ? record.dailyRate
         : dailyRate;
-    const advance =
-      record.customWage !== undefined && record.customWage !== null
-        ? record.customWage
-        : 0;
     const overtime =
       record.overtimeWage !== undefined && record.overtimeWage !== null
         ? record.overtimeWage
@@ -1883,13 +1707,13 @@ export function calculateWorkerSummary(
     let recordPay = 0;
 
     if (record.value === "P" || record.value === "OT") {
-      recordPay = rate + advance + overtime;
+      recordPay = rate + overtime;
     } else if (record.value === "H") {
-      recordPay = rate / 2 + advance + overtime;
+      recordPay = rate / 2 + overtime;
     } else if (record.value === "A") {
       recordPay = 0;
     } else if (typeof record.value === "number") {
-      recordPay = record.value;
+      recordPay = record.value + overtime;
     } else {
       recordPay = 0;
     }
@@ -1909,13 +1733,20 @@ export function calculateWorkerSummary(
       customAmount += record.value;
     }
 
-    if (record.customWage !== undefined && record.customWage !== null) {
-      customDays++;
-      customAmount += record.customWage;
+    // 3. Track Advance Deductions and Overtime Totals
+    if (
+      record.customWage !== undefined &&
+      record.customWage !== null &&
+      record.customWage > 0
+    ) {
       totalAdvanceAmount += record.customWage;
     }
 
-    if (record.overtimeWage !== undefined && record.overtimeWage !== null) {
+    if (
+      record.overtimeWage !== undefined &&
+      record.overtimeWage !== null &&
+      record.overtimeWage > 0
+    ) {
       totalOvertimeAmount += record.overtimeWage;
     }
   });

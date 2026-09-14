@@ -1,5 +1,5 @@
 import { Response } from "express";
-import { Payment, AuditLog } from "../models";
+import { Payment, AuditLog, User, Worker } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { broadcastAdminActivity } from "../utils/socket";
 import { logActivity } from "../services/activityLogger";
@@ -7,6 +7,7 @@ import { logActivity } from "../services/activityLogger";
 export const getPaymentsForMonth = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
+    const role = req.user?.role;
     const { year, month } = req.query;
 
     if (!year || month === undefined || month === null || month === "") {
@@ -17,11 +18,47 @@ export const getPaymentsForMonth = async (req: AuthenticatedRequest, res: Respon
     const m = parseInt(month as string);
     const monthFilter = { $in: [m, m + 1, ...(m > 0 ? [m - 1] : [])] };
 
-    const payments = await Payment.find({
+    let query: any = {
       tenantId,
       year: y,
       month: monthFilter,
-    }).populate("createdBy", "name").lean();
+    };
+
+    if (role === "labor" || role === "worker") {
+      const user = await User.findById(req.user?.id);
+      let worker = null;
+      if (tenantId) {
+        worker = await Worker.findOne({
+          tenantId,
+          $or: [
+            { userId: user?._id },
+            ...(user?.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
+            ...(user?.phone ? [{ phone: user.phone }] : []),
+            ...(user?.name ? [{ name: user.name }] : []),
+          ],
+        });
+      }
+      if (!worker) {
+        worker = await Worker.findOne({
+          $or: [
+            { userId: user?._id },
+            ...(user?.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
+            ...(user?.phone ? [{ phone: user.phone }] : []),
+            ...(user?.name ? [{ name: user.name }] : []),
+          ],
+        });
+      }
+      if (!worker) {
+        return res.json([]);
+      }
+      query = {
+        workerId: worker._id,
+        year: y,
+        month: monthFilter,
+      };
+    }
+
+    const payments = await Payment.find(query).populate("createdBy", "name").lean();
     res.json(payments);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

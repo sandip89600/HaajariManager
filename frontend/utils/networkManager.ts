@@ -4,8 +4,7 @@ import {
   AppState,
   AppStateStatus,
 } from "react-native";
-import { API_URL } from "./storage";
-import { syncManager } from "./syncManager";
+import { API_URL } from "./apiConfig";
 
 let isOnline = true;
 let heartbeatInterval: any = null;
@@ -21,10 +20,8 @@ export const networkManager = {
       isOnline = online;
       DeviceEventEmitter.emit("network:statusChanged", { isOnline });
       if (online) {
-        // Trigger sync whenever we come back online
-        syncManager.processSyncQueue().catch((err) => {
-          console.log("Auto-sync after reconnect error:", err?.message || err);
-        });
+        // Trigger sync whenever we come back online via event
+        DeviceEventEmitter.emit("sync:processQueue");
       }
     }
   },

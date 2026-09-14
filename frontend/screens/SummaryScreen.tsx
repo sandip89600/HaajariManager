@@ -222,7 +222,7 @@ const getRecordBreakdown = (
     else overtimeText = "Custom OT";
   }
 
-  const total = record.value === "A" ? 0 : basePay + advance + overtime; // strictly 0 for Absent
+  const total = record.value === "A" ? 0 : basePay + overtime; // strictly 0 for Absent
 
   return {
     day: record.day,
@@ -1191,6 +1191,9 @@ export default function SummaryScreen() {
                 workerAttendance = data.records.map(mapAttendance);
               }
               if (data.worker) {
+                if (data.worker.id) currentWorker.id = String(data.worker.id);
+                if (data.worker.uniqueId)
+                  currentWorker.uniqueId = data.worker.uniqueId;
                 currentWorker.name = data.worker.name || currentWorker.name;
                 currentWorker.dailyRate =
                   data.worker.dailyRate ?? currentWorker.dailyRate;
@@ -1227,14 +1230,15 @@ export default function SummaryScreen() {
             0,
           );
 
+          const totalAdvance = summary.totalAdvanceAmount || 0;
           const singleSummary: WorkerSummary = {
             worker: currentWorker,
             ...summary,
             totalPaid,
-            balance: Math.max(0, summary.totalAmount - totalPaid),
+            balance: Math.max(0, summary.totalAmount - totalAdvance - totalPaid),
             payments: workerPayments,
             records: workerAttendance,
-            totalAdvanceAmount: summary.totalAdvanceAmount || 0,
+            totalAdvanceAmount: totalAdvance,
             totalOvertimeAmount: summary.totalOvertimeAmount || 0,
           };
 
@@ -1243,7 +1247,7 @@ export default function SummaryScreen() {
           setSummaries([singleSummary]);
           setGrandTotal(singleSummary.totalAmount);
           setGrandTotalPaid(singleSummary.totalPaid);
-          setGrandTotalAdvance(singleSummary.customAmount || 0);
+          setGrandTotalAdvance(totalAdvance);
         } else {
           // Contractor / Supervisor workflow
           const [loadedWorkers, loadedAttendance, loadedPayments] =
@@ -1277,14 +1281,15 @@ export default function SummaryScreen() {
                 a.workerId === worker.id ||
                 (worker.uniqueId && a.workerId === worker.uniqueId),
             );
+            const totalAdvance = summary.totalAdvanceAmount || 0;
             return {
               worker,
               ...summary,
               totalPaid,
-              balance: Math.max(0, summary.totalAmount - totalPaid),
+              balance: Math.max(0, summary.totalAmount - totalAdvance - totalPaid),
               payments: workerPayments,
               records: workerRecords,
-              totalAdvanceAmount: summary.totalAdvanceAmount || 0,
+              totalAdvanceAmount: totalAdvance,
               totalOvertimeAmount: summary.totalOvertimeAmount || 0,
             };
           });
@@ -1297,7 +1302,7 @@ export default function SummaryScreen() {
             workerSummaries.reduce((sum, s) => sum + s.totalPaid, 0),
           );
           setGrandTotalAdvance(
-            workerSummaries.reduce((sum, s) => sum + (s.customAmount || 0), 0),
+            workerSummaries.reduce((sum, s) => sum + (s.totalAdvanceAmount || 0), 0),
           );
         }
       } catch (error) {
