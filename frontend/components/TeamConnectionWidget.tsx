@@ -601,56 +601,77 @@ export default function TeamConnectionWidget({
             </View>
           </View>
 
-          {/* Action Buttons: [Scan QR], [+ Connect Worker] & [+ Connect Supervisor] */}
-          <View style={[styles.actionsRow, { flexWrap: "wrap" }]}>
+          {/* Three Small, Adjustable Action Boxes: [Scan QR], [+ Worker], [+ Supervisor] */}
+          <View style={styles.threeBoxesRow}>
+            {/* Box 1: Scan QR */}
             <Pressable
               onPress={() => setShowQrScanner(true)}
-              style={[
-                styles.primaryActionBtn,
-                { backgroundColor: "#2563EB", minWidth: 105 },
+              style={({ pressed }) => [
+                styles.boxItem,
+                {
+                  backgroundColor: isDark ? "rgba(37, 99, 235, 0.15)" : "#EFF6FF",
+                  borderColor: isDark ? "rgba(37, 99, 235, 0.4)" : "#BFDBFE",
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
+                },
               ]}
             >
-              <MaterialCommunityIcons name="qrcode-scan" size={16} color="#FFFFFF" />
-              <Text style={styles.primaryActionBtnText}>Scan QR</Text>
+              <View style={[styles.boxIconWrap, { backgroundColor: "#2563EB18" }]}>
+                <MaterialCommunityIcons name="qrcode-scan" size={18} color="#2563EB" />
+              </View>
+              <Text style={[styles.boxLabel, { color: isDark ? "#93C5FD" : "#1D4ED8" }]} numberOfLines={1}>
+                {t("common.scanQr", "Scan QR")}
+              </Text>
             </Pressable>
 
+            {/* Box 2: + Worker */}
             <Pressable
               onPress={() => {
                 setTargetRole("worker");
                 setConnectTab("mobile");
                 setConnectModalVisible(true);
               }}
-              style={[styles.primaryActionBtn, { backgroundColor: "#EA580C", flex: 1 }]}
+              style={({ pressed }) => [
+                styles.boxItem,
+                {
+                  backgroundColor: isDark ? "rgba(234, 88, 12, 0.15)" : "#FFF7ED",
+                  borderColor: isDark ? "rgba(234, 88, 12, 0.4)" : "#FED7AA",
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
+                },
+              ]}
             >
-              <Feather name="user-plus" size={16} color="#FFFFFF" />
-              <Text style={styles.primaryActionBtnText}>
-                {t("connection.connectWorker", "+ Connect Worker")}
+              <View style={[styles.boxIconWrap, { backgroundColor: "#EA580C18" }]}>
+                <Feather name="user-plus" size={18} color="#EA580C" />
+              </View>
+              <Text style={[styles.boxLabel, { color: isDark ? "#FDBA74" : "#C2410C" }]} numberOfLines={1}>
+                {t("connection.connectWorkerShort", "+ Worker")}
               </Text>
             </Pressable>
 
+            {/* Box 3: + Supervisor */}
             <Pressable
               onPress={() => {
                 setTargetRole("supervisor");
                 setConnectTab("id");
                 setConnectModalVisible(true);
               }}
-              style={[
-                styles.secondaryActionBtn,
+              style={({ pressed }) => [
+                styles.boxItem,
                 {
-                  borderColor: borderCol,
-                  backgroundColor: isDark ? "#334155" : "#F1F5F9",
+                  backgroundColor: isDark ? "rgba(124, 58, 237, 0.15)" : "#F5F3FF",
+                  borderColor: isDark ? "rgba(124, 58, 237, 0.4)" : "#DDD6FE",
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
                 },
               ]}
             >
-              <MaterialCommunityIcons
-                name="shield-account"
-                size={16}
-                color={theme.text}
-              />
-              <Text
-                style={[styles.secondaryActionBtnText, { color: theme.text }]}
-              >
-                {t("connection.connectSupervisor", "+ Connect Supervisor")}
+              <View style={[styles.boxIconWrap, { backgroundColor: "#7C3AED18" }]}>
+                <MaterialCommunityIcons
+                  name="shield-account"
+                  size={18}
+                  color="#7C3AED"
+                />
+              </View>
+              <Text style={[styles.boxLabel, { color: isDark ? "#C4B5FD" : "#6D28D9" }]} numberOfLines={1}>
+                {t("connection.connectSupervisorShort", "+ Supervisor")}
               </Text>
             </Pressable>
           </View>
@@ -1371,6 +1392,36 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
+  },
+  threeBoxesRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginTop: 10,
+  },
+  boxItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    minHeight: 66,
+  },
+  boxIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  boxLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
   },
   actionsRow: {
     flexDirection: "row",

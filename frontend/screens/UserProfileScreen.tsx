@@ -666,6 +666,7 @@ export default function UserProfileScreen() {
           profileImage={user.profileImage}
           avatarColor={user.avatarColor}
           onAvatarPress={() => setShowImageModal(true)}
+          onEditPress={openEditModal}
         />
 
         {/* ── PERMANENT UNIQUE ID CARD ── */}

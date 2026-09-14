@@ -3,13 +3,16 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View, Pressable, Text } from "react-native";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import SecurityAlertModal from "@/components/SecurityAlertModal";
+import SettingsDrawer from "@/components/SettingsDrawer";
+import { QrScannerModal } from "@/components/QrScannerModal";
+import { ThemedText } from "@/components/ThemedText";
 import {
   getCommonScreenOptions,
   getCommonTabScreenOptions,
@@ -241,7 +244,7 @@ function MainTabs() {
           }}
         />
 
-        {/* TAB 2: Attendance */}
+        {/* TAB 2: Attendance (Hidden for Worker accounts) */}
         <Tab.Screen
           name="AttendanceScreenTab"
           component={AttendanceScreen}
@@ -249,6 +252,7 @@ function MainTabs() {
             title: t.tabs?.attendance || t("tabs.attendance", "Attendance"),
             tabBarLabel: t.tabs?.attendance || t("tabs.attendance", "Attendance"),
             headerShown: false,
+            tabBarItemStyle: isWorker ? { display: "none" } : undefined,
             tabBarIcon: ({ color, size }) => (
               <Feather name="check-square" size={22} color={color} />
             ),
@@ -266,7 +270,7 @@ function MainTabs() {
               <View style={styles.centerQrContainer}>
                 <Pressable
                   onPress={() => setIsScannerOpen(true)}
-                  style={({ pressed }) => [
+                  style={({ pressed }: any) => [
                     styles.centerQrBtn,
                     {
                       backgroundColor: theme.primary,
@@ -304,7 +308,7 @@ function MainTabs() {
           }}
         />
 
-        {/* TAB 5: Site */}
+        {/* TAB 5: Site (Hidden for Worker accounts) */}
         <Tab.Screen
           name="SiteManagementTab"
           component={isWorker ? SiteListScreen : SiteControlDashboardScreen}
@@ -316,7 +320,7 @@ function MainTabs() {
               ? t("supervisor.assignedSites", "मेरी साइट्स")
               : t.tabs?.siteControl || t("tabs.siteControl", "Site"),
             headerShown: false,
-            tabBarItemStyle: isSiteControlVisible ? undefined : { display: "none" },
+            tabBarItemStyle: isWorker || !isSiteControlVisible ? { display: "none" } : undefined,
             tabBarIcon: ({ color, size }) => (
               <Feather name="layers" size={22} color={color} />
             ),

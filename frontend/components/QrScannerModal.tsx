@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   View,
@@ -10,7 +10,9 @@ import {
   Alert,
   Platform,
   ScrollView,
+  Linking,
 } from "react-native";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
@@ -36,11 +38,28 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   const { t } = useLanguage();
   const { user } = useAuth();
 
+  const [permission, requestPermission] = useCameraPermissions();
+  const [torchOn, setTorchOn] = useState(false);
+  const [scanned, setScanned] = useState(false);
+
   const [inputCode, setInputCode] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [foundAccount, setFoundAccount] = useState<any | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Auto request permission when modal opens if not determined
+  useEffect(() => {
+    if (visible) {
+      setScanned(false);
+      setTorchOn(false);
+      if (!permission?.granted) {
+        requestPermission().catch((e) => {
+          console.warn("Camera permission request error:", e);
+        });
+      }
+    }
+  }, [visible]);
 
   const resetState = () => {
     setInputCode("");
@@ -48,6 +67,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
     setSearchError(null);
     setFoundAccount(null);
     setIsSubmitting(false);
+    setScanned(false);
+    setTorchOn(false);
   };
 
   const handleClose = () => {
@@ -58,7 +79,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   // Perform lookup by parsed uniqueId or direct ID
   const handleLookup = async (codeToLookup?: string) => {
     const raw = codeToLookup || inputCode;
-    if (!raw.trim()) {
+    if (!raw || !raw.trim()) {
       setSearchError("Please enter or scan a valid QR code or Unique ID.");
       return;
     }
@@ -80,6 +101,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
         setSearchError(
           data.message || "No account found with this QR code / ID.",
         );
+        // Allow scanning again on error
+        setScanned(false);
       } else {
         const account = data.user || data.worker;
         setFoundAccount(account);
@@ -89,9 +112,21 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
       setSearchError(
         e.message || "Failed to search account. Please check internet.",
       );
+      setScanned(false);
     } finally {
       setIsSearching(false);
     }
+  };
+
+  // Barcode / QR detection callback from CameraView
+  const handleBarcodeScanned = ({ data }: { type: string; data: string }) => {
+    if (scanned || isSearching || foundAccount) return;
+    if (!data) return;
+
+    setScanned(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setInputCode(data);
+    handleLookup(data);
   };
 
   const handlePasteFromClipboard = async () => {
@@ -196,16 +231,95 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
-            {/* Input / Scanner Area */}
+            {/* Live Camera Scanner Box */}
             <View style={styles.scannerBox}>
-              <View style={styles.scannerIconWrapper}>
-                <MaterialCommunityIcons
-                  name="camera-metering-spot"
-                  size={42}
-                  color={theme.primary}
-                />
-              </View>
-              <Text style={[styles.scannerHint, { color: textCol }]}>
+              {permission?.granted ? (
+                <View style={styles.cameraContainer}>
+                  <CameraView
+                    style={StyleSheet.absoluteFill}
+                    facing="back"
+                    enableTorch={torchOn}
+                    barcodeScannerSettings={{
+                      barcodeTypes: ["qr"],
+                    }}
+                    onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+                  />
+
+                  {/* QR Scanning Target Frame Overlay */}
+                  <View style={styles.scanTargetOverlay}>
+                    <View style={styles.scanTargetCornerTL} />
+                    <View style={styles.scanTargetCornerTR} />
+                    <View style={styles.scanTargetCornerBL} />
+                    <View style={styles.scanTargetCornerBR} />
+                    {isSearching ? (
+                      <ActivityIndicator size="large" color="#FFFFFF" />
+                    ) : null}
+                  </View>
+
+                  {/* Torch Toggle Button */}
+                  <Pressable
+                    onPress={() => setTorchOn((prev) => !prev)}
+                    style={[
+                      styles.torchBtn,
+                      { backgroundColor: torchOn ? "#F59E0B" : "rgba(0,0,0,0.5)" },
+                    ]}
+                  >
+                    <Feather
+                      name={torchOn ? "zap" : "zap-off"}
+                      size={18}
+                      color="#FFFFFF"
+                    />
+                  </Pressable>
+
+                  {/* Rescan Button if already scanned */}
+                  {scanned && !isSearching && (
+                    <Pressable
+                      onPress={() => {
+                        setScanned(false);
+                        setFoundAccount(null);
+                        setSearchError(null);
+                      }}
+                      style={styles.rescanBtn}
+                    >
+                      <Feather name="refresh-cw" size={14} color="#FFFFFF" />
+                      <Text style={styles.rescanBtnText}>Tap to Scan Again</Text>
+                    </Pressable>
+                  )}
+                </View>
+              ) : (
+                <View style={styles.permissionBox}>
+                  <View style={styles.scannerIconWrapper}>
+                    <MaterialCommunityIcons
+                      name="camera-off"
+                      size={36}
+                      color={theme.primary}
+                    />
+                  </View>
+                  <Text style={[styles.scannerHint, { color: textCol }]}>
+                    Camera Access Needed
+                  </Text>
+                  <Text style={[styles.scannerSubhint, { color: subTextCol }]}>
+                    Please enable camera permission to scan QR codes directly with your device camera.
+                  </Text>
+                  <Pressable
+                    onPress={async () => {
+                      if (permission && !permission.canAskAgain) {
+                        Linking.openSettings().catch(() => {});
+                      } else {
+                        await requestPermission();
+                      }
+                    }}
+                    style={[styles.grantPermissionBtn, { backgroundColor: theme.primary }]}
+                  >
+                    <Feather name="camera" size={16} color="#FFFFFF" />
+                    <Text style={styles.grantPermissionBtnText}>
+                      Enable Camera Permission
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+
+              <Text style={[styles.scannerHintBottom, { color: textCol }]}>
                 Scan QR or Paste Deep Link
               </Text>
               <Text style={[styles.scannerSubhint, { color: subTextCol }]}>
@@ -370,11 +484,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   card: {
     width: "100%",
-    maxHeight: "85%",
+    maxHeight: "88%",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: Spacing.lg,
@@ -416,17 +530,125 @@ const styles = StyleSheet.create({
   },
   scannerBox: {
     alignItems: "center",
-    padding: Spacing.lg,
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: "#E2E8F0",
     borderStyle: "dashed",
+    padding: Spacing.md,
     marginBottom: Spacing.md,
+    overflow: "hidden",
+  },
+  cameraContainer: {
+    width: "100%",
+    height: 240,
+    borderRadius: 16,
+    overflow: "hidden",
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000000",
+    marginBottom: Spacing.sm,
+  },
+  scanTargetOverlay: {
+    width: 170,
+    height: 170,
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  scanTargetCornerTL: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: 24,
+    height: 24,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+    borderColor: "#F97316",
+    borderTopLeftRadius: 6,
+  },
+  scanTargetCornerTR: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+    borderColor: "#F97316",
+    borderTopRightRadius: 6,
+  },
+  scanTargetCornerBL: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    width: 24,
+    height: 24,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+    borderColor: "#F97316",
+    borderBottomLeftRadius: 6,
+  },
+  scanTargetCornerBR: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
+    borderColor: "#F97316",
+    borderBottomRightRadius: 6,
+  },
+  torchBtn: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  rescanBtn: {
+    position: "absolute",
+    bottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  rescanBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  permissionBox: {
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+  },
+  grantPermissionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginTop: Spacing.md,
+  },
+  grantPermissionBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
   },
   scannerIconWrapper: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: "#EFF6FF",
     alignItems: "center",
     justifyContent: "center",
@@ -436,6 +658,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     marginBottom: 4,
+    textAlign: "center",
+  },
+  scannerHintBottom: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginTop: 6,
+    marginBottom: 2,
+    textAlign: "center",
   },
   scannerSubhint: {
     fontSize: 12,

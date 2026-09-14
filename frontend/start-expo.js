@@ -43,11 +43,22 @@ try {
   console.log("[Expo Setup] Brute-forcing release of port 8081...");
   if (process.platform === "win32") {
     try {
-      execSync(
-        'powershell -Command "Stop-Process -Id (Get-NetTCPConnection -LocalPort 8081).OwningProcess -Force"',
-        { stdio: "ignore" },
-      );
-      console.log("[Expo Setup] Terminated existing process on port 8081.");
+      const output = execSync('netstat -ano | findstr ":8081"', { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] });
+      const lines = output.trim().split("\n");
+      const pids = new Set();
+      for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+        const pid = parts[parts.length - 1];
+        if (pid && /^\d+$/.test(pid) && pid !== "0") {
+          pids.add(pid);
+        }
+      }
+      for (const pid of pids) {
+        try {
+          execSync(`taskkill /F /PID ${pid}`, { stdio: "ignore" });
+          console.log(`[Expo Setup] Terminated existing process PID ${pid} on port 8081.`);
+        } catch (kErr) {}
+      }
     } catch (e) {}
   } else {
     try {
@@ -68,9 +79,12 @@ userArgs.forEach((arg) => {
   args.push(arg);
 });
 
-const child = spawn("npx", args, {
+const isWin = process.platform === "win32";
+const command = isWin ? "cmd.exe" : "npx";
+const commandArgs = isWin ? ["/c", "npx", ...args] : args;
+
+const child = spawn(command, commandArgs, {
   stdio: "inherit",
-  shell: true,
   env,
 });
 

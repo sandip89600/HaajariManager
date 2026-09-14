@@ -1072,7 +1072,7 @@ export default function SettingsScreen({
       <ScrollView
         contentContainerStyle={{
           paddingTop: isInDrawer
-            ? insets.top + Spacing.md
+            ? Math.max(insets.top, Platform.OS === "android" ? 28 : 20) + 16
             : finalHeaderHeight + Spacing.lg,
           paddingBottom: insets.bottom + Spacing["5xl"],
           paddingHorizontal: Spacing.lg,
@@ -1084,16 +1084,54 @@ export default function SettingsScreen({
             style={{
               flexDirection: "row",
               alignItems: "center",
-              marginBottom: Spacing.lg,
-              marginTop: Platform.OS === "ios" ? 10 : 0,
+              justifyContent: "space-between",
+              paddingBottom: 16,
+              marginBottom: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: isDark
+                ? "rgba(255,255,255,0.08)"
+                : "rgba(0,0,0,0.06)",
             }}
           >
-            <Pressable onPress={onClose} style={{ paddingRight: 16 }}>
-              <Feather name="x" size={24} color={theme.text} />
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 12,
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.08)"
+                    : "rgba(0,0,0,0.05)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginRight: 12,
+                }}
+              >
+                <Feather name="settings" size={20} color={theme.primary} />
+              </View>
+              <ThemedText style={{ fontSize: 22, fontWeight: "900" }}>
+                {t.settings.title}
+              </ThemedText>
+            </View>
+            <Pressable
+              onPress={onClose}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              style={({ pressed }) => [
+                {
+                  width: 38,
+                  height: 38,
+                  borderRadius: 19,
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.08)"
+                    : "rgba(0,0,0,0.05)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Feather name="x" size={22} color={theme.text} />
             </Pressable>
-            <ThemedText style={{ fontSize: 20, fontWeight: "900" }}>
-              {t.settings.title}
-            </ThemedText>
           </View>
         )}
 
@@ -2809,6 +2847,12 @@ export default function SettingsScreen({
             params: { screen: "Dashboard" },
           });
         }}
+      />
+
+      {/* ─── MY QR CODE MODAL ─── */}
+      <MyQrCodeModal
+        visible={showMyQrModal}
+        onClose={() => setShowMyQrModal(false)}
       />
     </ThemedView>
   );

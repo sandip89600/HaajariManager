@@ -1,7 +1,7 @@
 import React from "react";
 import { View, StyleSheet, Pressable, Image, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -49,26 +49,26 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
       style={[
         styles.cardWrapper,
         {
-          backgroundColor: theme.backgroundDefault,
-          borderColor: isDark ? "#334155" : theme.border,
+          backgroundColor: isDark ? "#0F172A" : "#FFFFFF",
+          borderColor: isDark ? "#334155" : "#E2E8F0",
         },
       ]}
     >
       <LinearGradient
         colors={
           isDark
-            ? ["#0F172A", "#1E293B", "#0F172A"]
-            : [theme.backgroundDefault, theme.backgroundSecondary || "#F8FAFC"]
+            ? ["#1E293B", "#0F172A"]
+            : ["#FFFFFF", "#F8FAFC"]
         }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.cardGradient}
       >
         <View style={styles.cardContent}>
-          {/* ── Left Side: Circular Avatar Badge ── */}
-          <Pressable onPress={onAvatarPress} style={styles.avatarTouchArea}>
+          {/* ── Left Side: Avatar with edit photo badge ── */}
+          <Pressable onPress={onAvatarPress || onEditPress} style={styles.avatarTouchArea}>
             <LinearGradient
-              colors={["#4ADE80", "#2DD4BF", "#14B8A6"]}
+              colors={["#10B981", "#14B8A6", "#06B6D4"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.avatarCircle}
@@ -86,11 +86,24 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
                 </View>
               )}
             </LinearGradient>
+
+            {/* Small camera/edit badge on avatar */}
+            <View
+              style={[
+                styles.avatarBadge,
+                {
+                  backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                  borderColor: isDark ? "#475569" : "#CBD5E1",
+                },
+              ]}
+            >
+              <Feather name="camera" size={10} color={isDark ? "#38BDF8" : "#0284C7"} />
+            </View>
           </Pressable>
 
-          {/* ── Right Side: User Details ── */}
+          {/* ── Center & Right: User Details & Top Actions ── */}
           <View style={styles.detailsContainer}>
-            {/* Top Row: User Name & Optional Edit Action */}
+            {/* Top Row: User Name & Action Buttons (QR & Edit) */}
             <View style={styles.topRow}>
               <ThemedText
                 style={[styles.nameText, { color: theme.text }]}
@@ -99,50 +112,75 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
                 {name || "Ganesh Pandit"}
               </ThemedText>
 
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View style={styles.actionsContainer}>
                 {onQrPress ? (
                   <Pressable
                     onPress={onQrPress}
-                    hitSlop={8}
-                    style={[
-                      styles.editButton,
+                    hitSlop={6}
+                    style={({ pressed }) => [
+                      styles.qrBtn,
                       {
-                        backgroundColor: isDark ? "rgba(59, 130, 246, 0.15)" : "#EFF6FF",
-                        borderColor: isDark ? "rgba(59, 130, 246, 0.3)" : "#BFDBFE",
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
+                        backgroundColor: isDark ? "rgba(59, 130, 246, 0.18)" : "#EFF6FF",
+                        borderColor: isDark ? "rgba(59, 130, 246, 0.4)" : "#BFDBFE",
+                        transform: [{ scale: pressed ? 0.94 : 1 }],
                       },
                     ]}
                   >
-                    <Feather name="maximize" size={13} color={theme.primary} />
-                    <ThemedText style={[styles.editText, { color: theme.primary, marginLeft: 3 }]}>
+                    <MaterialCommunityIcons
+                      name="qrcode"
+                      size={15}
+                      color={isDark ? "#60A5FA" : "#2563EB"}
+                    />
+                    <ThemedText
+                      style={[
+                        styles.qrBtnText,
+                        { color: isDark ? "#93C5FD" : "#1D4ED8" },
+                      ]}
+                    >
                       QR
                     </ThemedText>
                   </Pressable>
                 ) : null}
 
-                {onEditPress && editLabel ? (
+                {onEditPress ? (
                   <Pressable
                     onPress={onEditPress}
-                    hitSlop={8}
-                    style={styles.editButton}
+                    hitSlop={6}
+                    style={({ pressed }) => [
+                      styles.editActionBtn,
+                      {
+                        backgroundColor: isDark ? "rgba(249, 115, 22, 0.15)" : "#FFF7ED",
+                        borderColor: isDark ? "rgba(249, 115, 22, 0.35)" : "#FED7AA",
+                        transform: [{ scale: pressed ? 0.94 : 1 }],
+                      },
+                    ]}
                   >
-                    <ThemedText style={styles.editText}>{editLabel}</ThemedText>
+                    <Feather name="edit-2" size={12} color="#EA580C" />
+                    <ThemedText style={styles.editActionBtnText}>
+                      Edit
+                    </ThemedText>
                   </Pressable>
                 ) : null}
               </View>
             </View>
 
-            {/* Vertically Stacked Contact List */}
+            {/* Contact Details List */}
             <View style={styles.contactList}>
               {/* Phone Row */}
               {phone ? (
                 <View style={styles.contactItem}>
-                  <View style={styles.iconBox}>
+                  <View
+                    style={[
+                      styles.iconCircle,
+                      {
+                        backgroundColor: isDark ? "rgba(148, 163, 184, 0.12)" : "#F1F5F9",
+                      },
+                    ]}
+                  >
                     <Feather
                       name="phone"
-                      size={13}
-                      color={theme.textSecondary}
+                      size={11}
+                      color={isDark ? "#94A3B8" : "#64748B"}
                     />
                   </View>
                   <ThemedText
@@ -157,11 +195,18 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
               {/* Email Row */}
               {email ? (
                 <View style={styles.contactItem}>
-                  <View style={styles.iconBox}>
+                  <View
+                    style={[
+                      styles.iconCircle,
+                      {
+                        backgroundColor: isDark ? "rgba(148, 163, 184, 0.12)" : "#F1F5F9",
+                      },
+                    ]}
+                  >
                     <Feather
                       name="mail"
-                      size={13}
-                      color={theme.textSecondary}
+                      size={11}
+                      color={isDark ? "#94A3B8" : "#64748B"}
                     />
                   </View>
                   <ThemedText
@@ -176,15 +221,25 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
               {/* Company Row */}
               {companyName ? (
                 <View style={styles.contactItem}>
-                  <View style={styles.iconBox}>
+                  <View
+                    style={[
+                      styles.iconCircle,
+                      {
+                        backgroundColor: isDark ? "rgba(148, 163, 184, 0.12)" : "#F1F5F9",
+                      },
+                    ]}
+                  >
                     <Feather
                       name="briefcase"
-                      size={13}
-                      color={theme.textSecondary}
+                      size={11}
+                      color={isDark ? "#94A3B8" : "#64748B"}
                     />
                   </View>
                   <ThemedText
-                    style={[styles.contactText, { color: theme.textSecondary }]}
+                    style={[
+                      styles.contactText,
+                      { color: theme.textSecondary, fontWeight: "500" },
+                    ]}
                     numberOfLines={1}
                   >
                     {companyName}
@@ -194,15 +249,6 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
             </View>
           </View>
         </View>
-
-        {/* ── Bottom-Right Accent Sparkle ── */}
-        <View style={styles.sparkleAccent} pointerEvents="none">
-          <Feather
-            name="star"
-            size={15}
-            color={isDark ? "#2DD4BF" : "#F97316"}
-          />
-        </View>
       </LinearGradient>
     </View>
   );
@@ -210,16 +256,16 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
 
 const styles = StyleSheet.create({
   cardWrapper: {
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1,
     overflow: "hidden",
-    marginVertical: 12,
+    marginVertical: 10,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
       },
       android: {
         elevation: 3,
@@ -228,7 +274,6 @@ const styles = StyleSheet.create({
   },
   cardGradient: {
     padding: 16,
-    position: "relative",
   },
   cardContent: {
     flexDirection: "row",
@@ -236,21 +281,22 @@ const styles = StyleSheet.create({
   },
   avatarTouchArea: {
     marginRight: 14,
+    position: "relative",
   },
   avatarCircle: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 0.4)",
+    borderColor: "rgba(255, 255, 255, 0.35)",
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
+        shadowColor: "#10B981",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
       },
       android: {
         elevation: 4,
@@ -258,22 +304,44 @@ const styles = StyleSheet.create({
     }),
   },
   avatarImage: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
   },
   initialsContainer: {
     justifyContent: "center",
     alignItems: "center",
   },
   avatarInitialsText: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "900",
     color: "#FFFFFF",
     letterSpacing: 1,
-    textShadowColor: "rgba(0, 0, 0, 0.35)",
-    textShadowOffset: { width: 1, height: 2 },
-    textShadowRadius: 3,
+    textShadowColor: "rgba(0, 0, 0, 0.25)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  avatarBadge: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   detailsContainer: {
     flex: 1,
@@ -284,21 +352,45 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 8,
+    gap: 8,
   },
   nameText: {
-    fontSize: 17,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
     flex: 1,
-    marginRight: 8,
+    letterSpacing: 0.2,
   },
-  editButton: {
-    paddingVertical: 2,
-    paddingHorizontal: 4,
+  actionsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
-  editText: {
-    fontSize: 13,
+  qrBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 3,
+  },
+  qrBtnText: {
+    fontSize: 11,
     fontWeight: "700",
-    color: "#F97316", // Bright Orange
+  },
+  editActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 4,
+  },
+  editActionBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#EA580C",
   },
   contactList: {
     gap: 4,
@@ -306,23 +398,21 @@ const styles = StyleSheet.create({
   contactItem: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
   },
-  iconBox: {
+  iconCircle: {
     width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: "center",
-    marginRight: 6,
+    justifyContent: "center",
   },
   contactText: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: "400",
     flex: 1,
-  },
-  sparkleAccent: {
-    position: "absolute",
-    bottom: 10,
-    right: 12,
-    opacity: 0.9,
   },
 });
 
 export default ProfileHeaderCard;
+
