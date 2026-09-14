@@ -150,10 +150,14 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
         foundAccount.role === "worker" || foundAccount.role === "labor";
       const targetType = isTargetWorker ? "worker" : "supervisor";
 
-      const res = await authenticatedFetch(`${API_URL}/connections/requests`, {
+      const targetUserId = foundAccount.id || foundAccount._id;
+
+      const res = await authenticatedFetch(`${API_URL}/connections/request`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           targetUniqueId: foundAccount.uniqueId,
+          targetUserId: targetUserId || undefined,
           targetType,
           note: `Connection request from ${user?.name || "Contractor"}`,
         }),

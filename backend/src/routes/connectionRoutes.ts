@@ -29,6 +29,7 @@ router.use(authenticateJWT as any);
 // Unified Unique ID & Connection Endpoints
 router.get("/lookup", lookupByUniqueId as any);
 router.post("/request", createConnectionRequest as any);
+router.post("/requests", createConnectionRequest as any); // Backward-compatible alias
 router.post("/accept", acceptConnectionRequest as any);
 router.post("/reject", rejectConnectionRequest as any);
 router.post("/verify", verifyConnectionCode as any);
