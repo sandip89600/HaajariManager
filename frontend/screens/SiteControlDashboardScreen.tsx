@@ -11,6 +11,7 @@ import {
   RefreshControl,
   ScrollView,
   Text,
+  DeviceEventEmitter,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -403,7 +404,21 @@ export default function SiteControlDashboardScreen() {
       <View
         style={[styles.header, { paddingTop: Math.max(insets.top + 12, 28) }]}
       >
-        <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+          <Pressable
+            onPress={() => {
+              triggerHaptic();
+              DeviceEventEmitter.emit("OPEN_SETTINGS_DRAWER");
+            }}
+            style={{
+              padding: 6,
+              marginRight: 8,
+              borderRadius: 8,
+              backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+            }}
+          >
+            <Feather name="menu" size={20} color={theme.text} />
+          </Pressable>
           <ThemedText style={styles.headerTitle}>
             Site Control Center
           </ThemedText>

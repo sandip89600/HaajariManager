@@ -38,6 +38,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { ProfileHeaderCard } from "@/components/ProfileHeaderCard";
 import TeamConnectionWidget from "@/components/TeamConnectionWidget";
+import { MyQrCodeModal } from "@/components/MyQrCodeModal";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { translateWorkerName } from "@/utils/transliteration";
@@ -263,6 +264,7 @@ export default function SettingsScreen({
   const [feedbackText, setFeedbackText] = useState("");
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [showHelpSheet, setShowHelpSheet] = useState(false);
+  const [showMyQrModal, setShowMyQrModal] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -1122,6 +1124,7 @@ export default function SettingsScreen({
                   }
                   navigation.navigate("UserProfile");
                 }}
+                onQrPress={() => setShowMyQrModal(true)}
                 editLabel="Edit Profile >"
               />
             );
@@ -1610,6 +1613,12 @@ export default function SettingsScreen({
           </ThemedText>
         </Pressable>
       </ScrollView>
+
+      {/* ─── MY QR CODE MODAL ─── */}
+      <MyQrCodeModal
+        visible={showMyQrModal}
+        onClose={() => setShowMyQrModal(false)}
+      />
 
       {/* ─── THEME MODAL ─── */}
       <Modal

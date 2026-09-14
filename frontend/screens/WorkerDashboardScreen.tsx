@@ -315,13 +315,30 @@ export default function WorkerDashboardScreen() {
         ]}
       >
         <View style={styles.headerRow}>
-          <View style={styles.headerUserInfo}>
-            <View style={styles.categoryPill}>
-              <Text style={styles.categoryPillText}>{activeCategory}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                DeviceEventEmitter.emit("OPEN_SETTINGS_DRAWER");
+              }}
+              style={[
+                styles.headerIconBtn,
+                {
+                  backgroundColor: isDark ? "#334155" : "#F1F5F9",
+                  marginRight: 10,
+                },
+              ]}
+            >
+              <Feather name="menu" size={20} color={theme.text} />
+            </Pressable>
+            <View style={styles.headerUserInfo}>
+              <View style={styles.categoryPill}>
+                <Text style={styles.categoryPillText}>{activeCategory}</Text>
+              </View>
+              <Text style={[styles.userNameText, { color: theme.text }]}>
+                {activeName}
+              </Text>
             </View>
-            <Text style={[styles.userNameText, { color: theme.text }]}>
-              {activeName}
-            </Text>
           </View>
           <Pressable
             onPress={() => navigation.navigate("Notifications")}

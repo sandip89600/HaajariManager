@@ -22,6 +22,8 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
 import { authenticatedFetch, API_URL, storage } from "@/utils/storage";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import { QrScannerModal } from "@/components/QrScannerModal";
+import { MyQrCodeModal } from "@/components/MyQrCodeModal";
 
 interface TeamConnectionWidgetProps {
   onRefreshParent?: () => void;
@@ -61,6 +63,10 @@ export default function TeamConnectionWidget({
   const [isSearchingId, setIsSearchingId] = useState(false);
   const [foundAccount, setFoundAccount] = useState<any>(null);
   const [isSendingIdRequest, setIsSendingIdRequest] = useState(false);
+
+  // QR Modals state
+  const [showQrScanner, setShowQrScanner] = useState(false);
+  const [showMyQrModal, setShowMyQrModal] = useState(false);
 
   // Pending requests and connected team state
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
@@ -572,8 +578,14 @@ export default function TeamConnectionWidget({
             </View>
             <View style={styles.idActions}>
               <Pressable
+                onPress={() => setShowMyQrModal(true)}
+                style={[styles.iconBtn, { borderColor: borderCol, backgroundColor: isDark ? "#1E293B" : "#FFF7ED" }]}
+              >
+                <MaterialCommunityIcons name="qrcode" size={16} color="#EA580C" />
+              </Pressable>
+              <Pressable
                 onPress={() => handleCopyId()}
-                style={[styles.iconBtn, { borderColor: borderCol }]}
+                style={[styles.iconBtn, { borderColor: borderCol, marginLeft: 6 }]}
               >
                 <Feather name="copy" size={15} color={theme.text} />
               </Pressable>
@@ -589,15 +601,26 @@ export default function TeamConnectionWidget({
             </View>
           </View>
 
-          {/* Action Buttons: [+ Connect Worker] & [+ Connect Supervisor] */}
-          <View style={styles.actionsRow}>
+          {/* Action Buttons: [Scan QR], [+ Connect Worker] & [+ Connect Supervisor] */}
+          <View style={[styles.actionsRow, { flexWrap: "wrap" }]}>
+            <Pressable
+              onPress={() => setShowQrScanner(true)}
+              style={[
+                styles.primaryActionBtn,
+                { backgroundColor: "#2563EB", minWidth: 105 },
+              ]}
+            >
+              <MaterialCommunityIcons name="qrcode-scan" size={16} color="#FFFFFF" />
+              <Text style={styles.primaryActionBtnText}>Scan QR</Text>
+            </Pressable>
+
             <Pressable
               onPress={() => {
                 setTargetRole("worker");
                 setConnectTab("mobile");
                 setConnectModalVisible(true);
               }}
-              style={[styles.primaryActionBtn, { backgroundColor: "#EA580C" }]}
+              style={[styles.primaryActionBtn, { backgroundColor: "#EA580C", flex: 1 }]}
             >
               <Feather name="user-plus" size={16} color="#FFFFFF" />
               <Text style={styles.primaryActionBtnText}>
@@ -699,8 +722,14 @@ export default function TeamConnectionWidget({
             </View>
             <View style={styles.idActions}>
               <Pressable
+                onPress={() => setShowMyQrModal(true)}
+                style={[styles.iconBtn, { borderColor: "#10B981", backgroundColor: isDark ? "#064E3B" : "#D1FAE5" }]}
+              >
+                <MaterialCommunityIcons name="qrcode" size={16} color="#059669" />
+              </Pressable>
+              <Pressable
                 onPress={() => handleCopyId()}
-                style={[styles.iconBtn, { borderColor: "#10B981" }]}
+                style={[styles.iconBtn, { borderColor: "#10B981", marginLeft: 6 }]}
               >
                 <Feather name="copy" size={15} color="#059669" />
               </Pressable>
@@ -720,23 +749,41 @@ export default function TeamConnectionWidget({
           {!user?.contractorName && (
             <View style={styles.actionsRow}>
               <Pressable
+                onPress={() => setShowQrScanner(true)}
+                style={[
+                  styles.primaryActionBtn,
+                  { backgroundColor: "#2563EB", flex: 1 },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="qrcode-scan"
+                  size={16}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.primaryActionBtnText}>Scan Contractor QR</Text>
+              </Pressable>
+
+              <Pressable
                 onPress={() => {
                   setTargetRole("worker");
                   setConnectTab("id");
                   setConnectModalVisible(true);
                 }}
                 style={[
-                  styles.primaryActionBtn,
-                  { backgroundColor: "#10B981" },
+                  styles.secondaryActionBtn,
+                  {
+                    borderColor: borderCol,
+                    backgroundColor: isDark ? "#334155" : "#F1F5F9",
+                  },
                 ]}
               >
                 <MaterialCommunityIcons
                   name="link-variant"
                   size={16}
-                  color="#FFFFFF"
+                  color={theme.text}
                 />
-                <Text style={styles.primaryActionBtnText}>
-                  {t("connection.enterContractorIdBtn", "+ Connect Contractor")}
+                <Text style={[styles.secondaryActionBtnText, { color: theme.text }]}>
+                  {t("connection.enterContractorIdBtn", "Enter ID")}
                 </Text>
               </Pressable>
             </View>
@@ -1237,6 +1284,22 @@ export default function TeamConnectionWidget({
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* ── QR CODE SCANNER MODAL ── */}
+      <QrScannerModal
+        visible={showQrScanner}
+        onClose={() => setShowQrScanner(false)}
+        onSuccess={() => {
+          loadConnectionData();
+          onRefreshParent?.();
+        }}
+      />
+
+      {/* ── MY QR CODE MODAL ── */}
+      <MyQrCodeModal
+        visible={showMyQrModal}
+        onClose={() => setShowMyQrModal(false)}
+      />
     </View>
   );
 }

@@ -19,10 +19,6 @@ export const networkManager = {
     if (isOnline !== online) {
       isOnline = online;
       DeviceEventEmitter.emit("network:statusChanged", { isOnline });
-      if (online) {
-        // Trigger sync whenever we come back online via event
-        DeviceEventEmitter.emit("sync:processQueue");
-      }
     }
   },
 

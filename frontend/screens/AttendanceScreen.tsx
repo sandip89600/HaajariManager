@@ -416,12 +416,24 @@ export default function AttendanceScreen() {
           },
         ]}
       >
-        <Pressable
-          onPress={() => navigation.goBack()}
-          style={styles.headerBackBtn}
-        >
-          <Feather name="arrow-left" size={22} color="#FFFFFF" />
-        </Pressable>
+        {navigation.canGoBack() ? (
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={styles.headerBackBtn}
+          >
+            <Feather name="arrow-left" size={22} color="#FFFFFF" />
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              DeviceEventEmitter.emit("OPEN_SETTINGS_DRAWER");
+            }}
+            style={styles.headerBackBtn}
+          >
+            <Feather name="menu" size={22} color="#FFFFFF" />
+          </Pressable>
+        )}
         <ThemedText style={styles.headerTitle}>{t.attendance.title}</ThemedText>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           <Pressable

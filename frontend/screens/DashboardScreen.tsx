@@ -695,11 +695,27 @@ export default function DashboardScreen() {
                 justifyContent: "space-between",
               }}
             >
-              <ThemedText
-                style={{ fontSize: 20, fontWeight: "900", color: "#FFFFFF" }}
-              >
-                Haajari Manager
-              </ThemedText>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Pressable
+                  onPress={() => {
+                    triggerHaptic();
+                    DeviceEventEmitter.emit("OPEN_SETTINGS_DRAWER");
+                  }}
+                  style={{
+                    padding: 6,
+                    marginRight: 8,
+                    borderRadius: 8,
+                    backgroundColor: "rgba(255,255,255,0.15)",
+                  }}
+                >
+                  <Feather name="menu" size={22} color="#FFFFFF" />
+                </Pressable>
+                <ThemedText
+                  style={{ fontSize: 20, fontWeight: "900", color: "#FFFFFF" }}
+                >
+                  Haajari Manager
+                </ThemedText>
+              </View>
               <Pressable
                 onPress={() => {
                   triggerHaptic();

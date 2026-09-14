@@ -44,10 +44,12 @@ import NotificationScreen from "@/screens/NotificationScreen";
 
 export type MainTabParamList = {
   AttendanceTab: undefined;
-  SiteManagementTab: undefined;
+  AttendanceScreenTab: undefined;
+  ScanQRTab: undefined;
   ReportsTab: undefined;
-  WorkersTab: undefined;
-  SettingsTab: undefined;
+  SiteManagementTab: undefined;
+  WorkersTab?: undefined;
+  SettingsTab?: undefined;
 };
 
 export type AttendanceStackParamList = {
@@ -90,6 +92,8 @@ export type RootStackParamList = {
   Workers: undefined;
   Summary: undefined;
   AttendanceTab: any;
+  AttendanceScreenTab: any;
+  ScanQRTab: any;
   WorkersTab: any;
   SettingsTab: any;
   SiteManagementTab: any;
@@ -150,28 +154,50 @@ function AttendanceNavigator() {
   );
 }
 
+// Dummy screen for center tab
+const DummyScreen = () => <View style={{ flex: 1 }} />;
+
 function MainTabs() {
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
   const { isSupervisor, isWorker } = useAuth();
   const { isModuleVisible } = useFeatureAccess();
 
+  const [isScannerOpen, setIsScannerOpen] = React.useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    const subDrawer = require("react-native").DeviceEventEmitter.addListener(
+      "OPEN_SETTINGS_DRAWER",
+      () => {
+        setIsDrawerOpen(true);
+      }
+    );
+    const subScanner = require("react-native").DeviceEventEmitter.addListener(
+      "OPEN_QR_SCANNER",
+      () => {
+        setIsScannerOpen(true);
+      }
+    );
+    return () => {
+      subDrawer.remove();
+      subScanner.remove();
+    };
+  }, []);
+
   const isDashboardVisible = isModuleVisible("dashboard");
-  const isSiteControlVisible = !isWorker && isModuleVisible("siteControl");
+  const isSiteControlVisible = isModuleVisible("siteControl");
   const isReportsVisible = isModuleVisible("reports");
-  const isWorkersVisible =
-    !isWorker && !isSupervisor && isModuleVisible("workers");
-  const isSettingsVisible = isModuleVisible("settings");
 
   const tabBarStyle = {
     backgroundColor:
       Platform.OS === "ios" ? "transparent" : theme.backgroundSecondary,
     borderTopColor: theme.border,
     borderTopWidth: 1,
-    height: Platform.OS === "ios" ? 85 : 65,
-    paddingBottom: Platform.OS === "ios" ? 25 : 10,
-    paddingTop: 8,
-    elevation: 0,
+    height: Platform.OS === "ios" ? 85 : 68,
+    paddingBottom: Platform.OS === "ios" ? 25 : 8,
+    paddingTop: 6,
+    elevation: 8,
   };
 
   const tabBackground = () =>
@@ -184,81 +210,132 @@ function MainTabs() {
     ) : null;
 
   return (
-    <Tab.Navigator
-      initialRouteName="AttendanceTab"
-      screenOptions={{
-        tabBarActiveTintColor: theme.primary,
-        tabBarInactiveTintColor: theme.tabIconDefault,
-        tabBarStyle,
-        tabBarBackground: tabBackground,
-        ...getCommonTabScreenOptions({ theme, isDark }),
-      }}
-    >
-      <Tab.Screen
-        name="AttendanceTab"
-        component={AttendanceNavigator}
-        options={{
-          title: t.tabs?.dashboard || "Dashboard",
-          headerShown: false,
-          tabBarItemStyle: isDashboardVisible ? undefined : { display: "none" },
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="grid" size={size} color={color} />
-          ),
+    <>
+      <Tab.Navigator
+        initialRouteName="AttendanceTab"
+        screenOptions={{
+          tabBarActiveTintColor: theme.primary,
+          tabBarInactiveTintColor: theme.tabIconDefault,
+          tabBarStyle,
+          tabBarBackground: tabBackground,
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: "600",
+            marginTop: 2,
+          },
+          ...getCommonTabScreenOptions({ theme, isDark }),
         }}
+      >
+        {/* TAB 1: Dashboard */}
+        <Tab.Screen
+          name="AttendanceTab"
+          component={AttendanceNavigator}
+          options={{
+            title: t.tabs?.dashboard || t("tabs.dashboard", "Dashboard"),
+            tabBarLabel: t.tabs?.dashboard || t("tabs.dashboard", "Dashboard"),
+            headerShown: false,
+            tabBarItemStyle: isDashboardVisible ? undefined : { display: "none" },
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="grid" size={22} color={color} />
+            ),
+          }}
+        />
+
+        {/* TAB 2: Attendance */}
+        <Tab.Screen
+          name="AttendanceScreenTab"
+          component={AttendanceScreen}
+          options={{
+            title: t.tabs?.attendance || t("tabs.attendance", "Attendance"),
+            tabBarLabel: t.tabs?.attendance || t("tabs.attendance", "Attendance"),
+            headerShown: false,
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="check-square" size={22} color={color} />
+            ),
+          }}
+        />
+
+        {/* TAB 3: CENTER ACTION SCAN QR */}
+        <Tab.Screen
+          name="ScanQRTab"
+          component={DummyScreen}
+          options={{
+            title: t("tabs.scanQr", "Scan QR"),
+            tabBarLabel: t("tabs.scanQr", "Scan QR"),
+            tabBarButton: () => (
+              <View style={styles.centerQrContainer}>
+                <Pressable
+                  onPress={() => setIsScannerOpen(true)}
+                  style={({ pressed }) => [
+                    styles.centerQrBtn,
+                    {
+                      backgroundColor: theme.primary,
+                      transform: [{ scale: pressed ? 0.94 : 1 }],
+                    },
+                  ]}
+                >
+                  <Feather name="maximize" size={24} color="#FFFFFF" />
+                </Pressable>
+                <ThemedText
+                  style={[
+                    styles.centerQrLabel,
+                    { color: theme.tabIconDefault },
+                  ]}
+                >
+                  {t("tabs.scanQr", "Scan QR")}
+                </ThemedText>
+              </View>
+            ),
+          }}
+        />
+
+        {/* TAB 4: Summary */}
+        <Tab.Screen
+          name="ReportsTab"
+          component={SummaryScreen}
+          options={{
+            title: t.tabs?.summary || t("tabs.summary", "Summary"),
+            tabBarLabel: t.tabs?.summary || t("tabs.summary", "Summary"),
+            headerShown: false,
+            tabBarItemStyle: isReportsVisible ? undefined : { display: "none" },
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="bar-chart-2" size={22} color={color} />
+            ),
+          }}
+        />
+
+        {/* TAB 5: Site */}
+        <Tab.Screen
+          name="SiteManagementTab"
+          component={isWorker ? SiteListScreen : SiteControlDashboardScreen}
+          options={{
+            title: isSupervisor
+              ? t("supervisor.assignedSites", "मेरी साइट्स")
+              : t.tabs?.siteControl || t("tabs.siteControl", "Site"),
+            tabBarLabel: isSupervisor
+              ? t("supervisor.assignedSites", "मेरी साइट्स")
+              : t.tabs?.siteControl || t("tabs.siteControl", "Site"),
+            headerShown: false,
+            tabBarItemStyle: isSiteControlVisible ? undefined : { display: "none" },
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="layers" size={22} color={color} />
+            ),
+          }}
+        />
+      </Tab.Navigator>
+
+      {/* Settings Drawer & QR Scanner Modals */}
+      <SettingsDrawer
+        visible={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
       />
-      <Tab.Screen
-        name="SiteManagementTab"
-        component={SiteControlDashboardScreen}
-        options={{
-          title: isSupervisor
-            ? t("supervisor.assignedSites", "मेरी साइट्स")
-            : t.tabs?.siteControl || "Site Control",
-          headerShown: false,
-          tabBarItemStyle: isSiteControlVisible
-            ? undefined
-            : { display: "none" },
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="layers" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="ReportsTab"
-        component={SummaryScreen}
-        options={{
-          title: t.tabs?.summary || t("tabs.summary", "Summary"),
-          headerTitle: t.tabs?.summary || t("tabs.summary", "Summary"),
-          tabBarItemStyle: isReportsVisible ? undefined : { display: "none" },
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="bar-chart-2" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="WorkersTab"
-        component={WorkersScreen}
-        options={{
-          title: t.tabs?.workers || t.workers.title || "Workers",
-          headerTitle: t.workers.title,
-          tabBarItemStyle: isWorkersVisible ? undefined : { display: "none" },
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="users" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="SettingsTab"
-        component={SettingsScreen}
-        options={{
-          title: t.tabs?.settings || t.settings.title || "Settings",
-          headerTitle: t.settings.title,
-          tabBarItemStyle: isSettingsVisible ? undefined : { display: "none" },
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="settings" size={size} color={color} />
-          ),
-        }}
-      />
-    </Tab.Navigator>
+      {isScannerOpen && (
+        <QrScannerModal
+          visible={isScannerOpen}
+          onClose={() => setIsScannerOpen(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -505,3 +582,29 @@ export default function MainTabNavigator() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  centerQrContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    top: -14,
+  },
+  centerQrBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  centerQrLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+});
+

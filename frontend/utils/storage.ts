@@ -8,49 +8,7 @@ import { authenticatedFetch } from "./apiClient";
 
 export { API_URL, getApiUrl, authenticatedFetch };
 
-async function enqueueSyncOperation(
-  type: string,
-  payload: any,
-): Promise<void> {
-  try {
-    const raw = await AsyncStorage.getItem("@haajari/sync_queue");
-    const queue = raw ? JSON.parse(raw) : [];
-    const id = `sync_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
-    let updatedQueue = [...queue];
-    if (type === "RECORD_ATTENDANCE" && payload) {
-      const { workerId, year, month, day } = payload;
-      updatedQueue = updatedQueue.filter((q: any) => {
-        if (q.type === "RECORD_ATTENDANCE" && q.payload) {
-          return !(
-            q.payload.workerId === workerId &&
-            q.payload.year === year &&
-            q.payload.month === month &&
-            q.payload.day === day
-          );
-        }
-        return true;
-      });
-    }
-
-    updatedQueue.push({
-      id,
-      type,
-      payload,
-      createdAt: Date.now(),
-      retryCount: 0,
-      status: "pending",
-    });
-
-    await AsyncStorage.setItem(
-      "@haajari/sync_queue",
-      JSON.stringify(updatedQueue),
-    );
-    DeviceEventEmitter.emit("sync:processQueue");
-  } catch (e) {
-    console.warn("Failed to enqueue sync item:", e);
-  }
-}
 
 const inflightRequests = new Map<string, Promise<any>>();
 const memoryCache = new Map<string, { data: any; timestamp: number }>();
@@ -894,6 +852,26 @@ export const storage = {
   },
 
   async createSiteUpdate(siteId: string, updateData: any): Promise<any | null> {
+    const auth = await this.getAuth();
+    if (auth?.token && siteId.length >= 24) {
+      const res = await authenticatedFetch(
+        `${API_URL}/sites/${siteId}/updates`,
+        {
+          method: "POST",
+          body: JSON.stringify(updateData),
+        },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          err.error || `Failed to create site update (${res.status})`,
+        );
+      }
+      const saved = await res.json();
+      DeviceEventEmitter.emit("refreshData");
+      return saved;
+    }
+
     const localUpdate = {
       _id: `upd_${Date.now()}`,
       siteId,
@@ -901,73 +879,59 @@ export const storage = {
       timestamp: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     };
-
-    try {
-      const key = `@haajari/site_updates_${siteId}`;
-      const existing = await AsyncStorage.getItem(key);
-      const updates = existing ? JSON.parse(existing) : [];
-      await AsyncStorage.setItem(
-        key,
-        JSON.stringify([localUpdate, ...updates]),
-      );
-    } catch (err) {
-      console.warn("Failed to save site update locally:", err);
-    }
-
-    await enqueueSyncOperation("CREATE_SITE_UPDATE", {
-      siteId,
-      data: updateData,
-    });
-
-    DeviceEventEmitter.emit("refreshData");
     return localUpdate;
   },
 
   async createSite(siteData: any): Promise<Site | null> {
-    const newSite: Site = {
-      id: `site_${Date.now()}`,
-      name: siteData.name || "New Site",
-      projectType: siteData.projectType || "Residential",
-      clientName: siteData.clientName || "",
-      address: siteData.address || "",
-      startDate: siteData.startDate || new Date().toISOString().split("T")[0],
-      description: siteData.description || "",
-      status: siteData.status || "Planning",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const { sites } = await this.getSites();
-    const updated = [newSite, ...sites];
-    await AsyncStorage.setItem(STORAGE_KEYS.SITES, JSON.stringify(updated));
-
-    await enqueueSyncOperation("CREATE_SITE", siteData);
-
-    DeviceEventEmitter.emit("refreshData");
-    return newSite;
+    const auth = await this.getAuth();
+    if (auth?.token) {
+      const res = await authenticatedFetch(`${API_URL}/sites`, {
+        method: "POST",
+        body: JSON.stringify(siteData),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to create site (${res.status})`);
+      }
+      const saved = await res.json();
+      const serverSite = mapSite(saved);
+      const { sites } = await this.getSites();
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.SITES,
+        JSON.stringify([
+          serverSite,
+          ...sites.filter((s) => s.id !== serverSite.id),
+        ]),
+      );
+      DeviceEventEmitter.emit("refreshData");
+      return serverSite;
+    }
+    return null;
   },
 
   async updateSite(siteId: string, siteData: any): Promise<Site | null> {
-    const { sites } = await this.getSites();
-    const idx = sites.findIndex((s) => s.id === siteId);
-    let updatedSite = sites[idx];
-    if (idx !== -1) {
-      updatedSite = {
-        ...sites[idx],
-        ...siteData,
-        updatedAt: new Date().toISOString(),
-      };
-      sites[idx] = updatedSite;
-      await AsyncStorage.setItem(STORAGE_KEYS.SITES, JSON.stringify(sites));
+    const auth = await this.getAuth();
+    if (auth?.token && siteId.length >= 24) {
+      const res = await authenticatedFetch(`${API_URL}/sites/${siteId}`, {
+        method: "PUT",
+        body: JSON.stringify(siteData),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to update site (${res.status})`);
+      }
+      const saved = await res.json();
+      const serverSite = mapSite(saved);
+      const { sites } = await this.getSites();
+      const idx = sites.findIndex((s) => s.id === siteId);
+      if (idx !== -1) {
+        sites[idx] = serverSite;
+        await AsyncStorage.setItem(STORAGE_KEYS.SITES, JSON.stringify(sites));
+      }
+      DeviceEventEmitter.emit("refreshData");
+      return serverSite;
     }
-
-    await enqueueSyncOperation("UPDATE_SITE", {
-      siteId,
-      data: siteData,
-    });
-
-    DeviceEventEmitter.emit("refreshData");
-    return updatedSite || null;
+    return null;
   },
 
   async archiveSite(siteId: string): Promise<Site | null> {
@@ -1057,78 +1021,117 @@ export const storage = {
     }
   },
 
-  async addWorker(worker: Worker): Promise<void> {
-    const workers = await this.getWorkers();
+  async addWorker(worker: Worker): Promise<Worker> {
     const auth = await this.getAuth();
-    const plan = auth?.plan || "free";
+    if (auth?.token) {
+      const res = await authenticatedFetch(`${API_URL}/workers`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: worker.name,
+          projectId: worker.projectId,
+          category: worker.category,
+          dailyRate: worker.dailyRate,
+          skillCategory: worker.skillCategory,
+          paymentType: worker.paymentType,
+          pieceRateAmount: worker.pieceRateAmount,
+          subContractorName: worker.subContractorName,
+          phone: worker.phone,
+          address: worker.address,
+          notes: worker.notes,
+          photoUri: worker.photoUri,
+        }),
+      });
 
-    if (auth?.role !== "guest") {
-      if ((plan === "free" || plan === "basic") && workers.length >= 20) {
-        throw new Error("LIMIT_EXCEEDED_WORKERS");
+      if (!res.ok) {
+        if (res.status === 403) {
+          throw new Error("LIMIT_EXCEEDED_WORKERS");
+        }
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to add worker (${res.status})`);
       }
-      if (
-        (plan === "professional" || plan === "super") &&
-        workers.length >= 100
-      ) {
-        throw new Error("LIMIT_EXCEEDED_WORKERS");
-      }
+
+      const saved = await res.json();
+      const serverWorker = mapWorker(saved);
+      const workers = await this.getWorkers();
+      const updatedWorkers = [
+        serverWorker,
+        ...workers.filter((w) => w.id !== serverWorker.id),
+      ];
+      setMemoryCache("workers", updatedWorkers);
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.WORKERS,
+        JSON.stringify(updatedWorkers),
+      ).catch(() => {});
+      DeviceEventEmitter.emit("refreshData");
+      return serverWorker;
     }
-
-    const updatedWorkers = [worker, ...workers];
-    setMemoryCache("workers", updatedWorkers);
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.WORKERS,
-      JSON.stringify(updatedWorkers),
-    ).catch(() => {});
-
-    await enqueueSyncOperation("CREATE_WORKER", {
-      id: worker.id,
-      name: worker.name,
-      projectId: worker.projectId,
-      category: worker.category,
-      dailyRate: worker.dailyRate,
-      skillCategory: worker.skillCategory,
-      paymentType: worker.paymentType,
-      pieceRateAmount: worker.pieceRateAmount,
-      subContractorName: worker.subContractorName,
-      phone: worker.phone,
-      address: worker.address,
-      notes: worker.notes,
-      photoUri: worker.photoUri,
-    });
-
-    DeviceEventEmitter.emit("refreshData");
+    throw new Error("You must be logged in to add a worker");
   },
 
-  async updateWorker(updatedWorker: Worker): Promise<void> {
-    const workers = await this.getWorkers();
-    const index = workers.findIndex((w) => w.id === updatedWorker.id);
-    if (index !== -1) {
-      workers[index] = updatedWorker;
-      await this.setWorkers(workers);
+  async updateWorker(updatedWorker: Worker): Promise<Worker> {
+    const auth = await this.getAuth();
+    if (auth?.token && updatedWorker.id && updatedWorker.id.length >= 24) {
+      const res = await authenticatedFetch(
+        `${API_URL}/workers/${updatedWorker.id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            name: updatedWorker.name,
+            projectId: updatedWorker.projectId,
+            category: updatedWorker.category,
+            dailyRate: updatedWorker.dailyRate,
+            skillCategory: updatedWorker.skillCategory,
+            paymentType: updatedWorker.paymentType,
+            pieceRateAmount: updatedWorker.pieceRateAmount,
+            subContractorName: updatedWorker.subContractorName,
+            phone: updatedWorker.phone,
+            address: updatedWorker.address,
+            notes: updatedWorker.notes,
+            photoUri: updatedWorker.photoUri,
+          }),
+        },
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          err.error || `Failed to update worker (${res.status})`,
+        );
+      }
+
+      const saved = await res.json();
+      const serverWorker = mapWorker(saved);
+      const workers = await this.getWorkers();
+      const index = workers.findIndex((w) => w.id === updatedWorker.id);
+      if (index !== -1) {
+        workers[index] = serverWorker;
+        setMemoryCache("workers", workers);
+        await AsyncStorage.setItem(
+          STORAGE_KEYS.WORKERS,
+          JSON.stringify(workers),
+        );
+      }
+      invalidateMemoryCache();
+      DeviceEventEmitter.emit("refreshData");
+      return serverWorker;
     }
-
-    await enqueueSyncOperation("UPDATE_WORKER", {
-      id: updatedWorker.id,
-      name: updatedWorker.name,
-      projectId: updatedWorker.projectId,
-      category: updatedWorker.category,
-      dailyRate: updatedWorker.dailyRate,
-      skillCategory: updatedWorker.skillCategory,
-      paymentType: updatedWorker.paymentType,
-      pieceRateAmount: updatedWorker.pieceRateAmount,
-      subContractorName: updatedWorker.subContractorName,
-      phone: updatedWorker.phone,
-      address: updatedWorker.address,
-      notes: updatedWorker.notes,
-      photoUri: updatedWorker.photoUri,
-    });
-
-    invalidateMemoryCache();
-    DeviceEventEmitter.emit("refreshData");
+    throw new Error("Invalid worker ID or session");
   },
 
   async deleteWorker(workerId: string): Promise<void> {
+    const auth = await this.getAuth();
+    if (auth?.token && workerId && workerId.length >= 24) {
+      const res = await authenticatedFetch(`${API_URL}/workers/${workerId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 404) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          err.error || `Failed to delete worker (${res.status})`,
+        );
+      }
+    }
+
     const workers = await this.getWorkers();
     const filtered = workers.filter((w) => w.id !== workerId);
     await this.setWorkers(filtered);
@@ -1137,8 +1140,8 @@ export const storage = {
       (a) => a.workerId !== workerId,
     );
     await this.setAttendance(filteredAttendance);
-
-    await enqueueSyncOperation("DELETE_WORKER", { workerId });
+    invalidateMemoryCache();
+    DeviceEventEmitter.emit("refreshData");
   },
 
   // Attendance methods
@@ -1164,7 +1167,35 @@ export const storage = {
   },
 
   async setAttendanceRecord(record: AttendanceRecord): Promise<void> {
-    // 1. Optimistically update memory cache for instant UI renders
+    const auth = await this.getAuth();
+    if (auth?.token) {
+      const res = await authenticatedFetch(`${API_URL}/attendance/record`, {
+        method: "POST",
+        body: JSON.stringify({
+          workerId: record.workerId,
+          year: record.year,
+          month: record.month,
+          day: record.day,
+          value: record.value,
+          dailyRate: record.dailyRate,
+          customWage: record.customWage,
+          finalPay: record.finalPay,
+          overtimeHours: record.overtimeHours,
+          overtimeWage: record.overtimeWage,
+          location: record.location,
+          projectId: record.projectId,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          err.error || `Failed to record attendance (${res.status})`,
+        );
+      }
+    }
+
+    // Update local cache so UI is immediately refreshed
     const monthKey = `attendance_${record.year}_${record.month}`;
     const cachedMonthRecords = getMemoryCache<AttendanceRecord[]>(monthKey);
     if (cachedMonthRecords) {
@@ -1183,7 +1214,6 @@ export const storage = {
       setMemoryCache(monthKey, cachedMonthRecords);
     }
 
-    // 2. Persist to local disk asynchronously
     const records = await this.getAttendance();
     const existingIndex = records.findIndex(
       (r) =>
@@ -1201,22 +1231,6 @@ export const storage = {
       STORAGE_KEYS.ATTENDANCE,
       JSON.stringify(records),
     );
-
-    // 3. Queue for synchronization to backend
-    await enqueueSyncOperation("RECORD_ATTENDANCE", {
-      workerId: record.workerId,
-      year: record.year,
-      month: record.month,
-      day: record.day,
-      value: record.value,
-      dailyRate: record.dailyRate,
-      customWage: record.customWage,
-      finalPay: record.finalPay,
-      overtimeHours: record.overtimeHours,
-      overtimeWage: record.overtimeWage,
-      location: record.location,
-      projectId: record.projectId,
-    });
 
     invalidateMemoryCache();
     DeviceEventEmitter.emit("refreshData");
@@ -1346,54 +1360,78 @@ export const storage = {
     }
   },
 
-  async addPayment(payment: PaymentRecord): Promise<void> {
-    try {
-      const payments = await this.getPayments();
+  async addPayment(payment: PaymentRecord): Promise<PaymentRecord> {
+    const auth = await this.getAuth();
+    if (auth?.token) {
       payment.method = payment.method || "Cash";
       const profile = await this.getProfile();
       payment.paidByName = profile?.name || "Admin";
 
-      payments.push(payment);
-      await AsyncStorage.setItem(
-        STORAGE_KEYS_EXT.PAYMENTS,
-        JSON.stringify(payments),
-      );
-
-      await enqueueSyncOperation("CREATE_PAYMENT", {
-        id: payment.id,
-        workerId: payment.workerId,
-        year: payment.year,
-        month: payment.month,
-        amount: payment.amount,
-        note: payment.note,
-        method: payment.method,
-        transactionId: payment.transactionId,
-        referenceNumber: payment.referenceNumber,
-        paidByName: payment.paidByName,
-        receivedByName: payment.receivedByName,
-        status: payment.status || "Completed",
+      const res = await authenticatedFetch(`${API_URL}/payments`, {
+        method: "POST",
+        body: JSON.stringify({
+          workerId: payment.workerId,
+          year: payment.year,
+          month: payment.month,
+          amount: payment.amount,
+          note: payment.note,
+          method: payment.method,
+          transactionId: payment.transactionId,
+          referenceNumber: payment.referenceNumber,
+          paidByName: payment.paidByName,
+          receivedByName: payment.receivedByName,
+          status: payment.status || "Completed",
+        }),
       });
 
-      DeviceEventEmitter.emit("refreshData");
-    } catch (error) {
-      console.error("Error saving payment:", error);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          err.error || `Failed to record payment (${res.status})`,
+        );
+      }
+
+      const saved = await res.json();
+      if (saved._id || saved.id) {
+        payment.id = saved._id || saved.id;
+      }
     }
+
+    const payments = await this.getPayments();
+    payments.push(payment);
+    await AsyncStorage.setItem(
+      STORAGE_KEYS_EXT.PAYMENTS,
+      JSON.stringify(payments),
+    );
+
+    DeviceEventEmitter.emit("refreshData");
+    return payment;
   },
 
   async deletePayment(paymentId: string): Promise<void> {
-    try {
-      const payments = await this.getPayments();
-      const filtered = payments.filter((p) => p.id !== paymentId);
-      await AsyncStorage.setItem(
-        STORAGE_KEYS_EXT.PAYMENTS,
-        JSON.stringify(filtered),
+    const auth = await this.getAuth();
+    if (auth?.token && paymentId && paymentId.length >= 24) {
+      const res = await authenticatedFetch(
+        `${API_URL}/payments/${paymentId}`,
+        {
+          method: "DELETE",
+        },
       );
-      DeviceEventEmitter.emit("refreshData");
-
-      await enqueueSyncOperation("DELETE_PAYMENT", { paymentId });
-    } catch (error) {
-      console.error("Error deleting payment:", error);
+      if (!res.ok && res.status !== 404) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          err.error || `Failed to delete payment (${res.status})`,
+        );
+      }
     }
+
+    const payments = await this.getPayments();
+    const filtered = payments.filter((p) => p.id !== paymentId);
+    await AsyncStorage.setItem(
+      STORAGE_KEYS_EXT.PAYMENTS,
+      JSON.stringify(filtered),
+    );
+    DeviceEventEmitter.emit("refreshData");
   },
 
   // Labour Dashboard Cache

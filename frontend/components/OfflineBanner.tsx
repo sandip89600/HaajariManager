@@ -1,76 +1,38 @@
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Pressable,
-} from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useLanguage } from "@/hooks/useLanguage";
 
 export default function OfflineBanner() {
-  const { isOnline, isSyncing, pendingCount, showSyncedBanner, triggerSync } =
-    useNetworkStatus();
+  const { isOnline, checkConnectivity } = useNetworkStatus();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
 
-  // If online, not syncing, no pending count, and not showing finished banner, don't render anything
-  if (isOnline && !isSyncing && pendingCount === 0 && !showSyncedBanner) {
+  if (isOnline) {
     return null;
-  }
-
-  let bannerBg = "#F59E0B"; // Amber for offline
-  let textColor = "#78350F";
-  let iconName: any = "cloud-off";
-  let message = t(
-    "common.offlineNotice",
-    "Offline — Changes will sync when online",
-  );
-
-  if (showSyncedBanner && isOnline && !isSyncing) {
-    bannerBg = "#10B981"; // Green for synced
-    textColor = "#FFFFFF";
-    iconName = "check-circle";
-    message = t("common.allSynced", "All changes synced with server");
-  } else if (isSyncing) {
-    bannerBg = "#3B82F6"; // Blue for syncing
-    textColor = "#FFFFFF";
-    iconName = "refresh-cw";
-    message = t("common.syncingNotice", "Back Online — Syncing changes...");
-  } else if (!isOnline && pendingCount > 0) {
-    message = `${t("common.offlineNotice", "Offline")} • ${pendingCount} ${t("common.changesPending", "pending changes")}`;
   }
 
   return (
     <View
       style={[
         styles.container,
-        { backgroundColor: bannerBg, paddingTop: Math.max(insets.top, 6) },
+        { paddingTop: Math.max(insets.top, 6) },
       ]}
     >
       <Pressable
-        onPress={() => isOnline && triggerSync()}
+        onPress={() => checkConnectivity()}
         style={styles.contentRow}
       >
-        {isSyncing ? (
-          <ActivityIndicator
-            size="small"
-            color={textColor}
-            style={{ marginRight: 8 }}
-          />
-        ) : (
-          <Feather
-            name={iconName}
-            size={15}
-            color={textColor}
-            style={{ marginRight: 8 }}
-          />
-        )}
-        <Text style={[styles.messageText, { color: textColor }]}>
-          {message}
+        <Feather
+          name="wifi-off"
+          size={14}
+          color="#FFFFFF"
+          style={{ marginRight: 6 }}
+        />
+        <Text style={styles.messageText}>
+          {t("common.noInternet", "No Internet Connection — Reconnecting...")}
         </Text>
       </Pressable>
     </View>
@@ -80,6 +42,7 @@ export default function OfflineBanner() {
 const styles = StyleSheet.create({
   container: {
     width: "100%",
+    backgroundColor: "#EF4444",
     paddingBottom: 6,
     paddingHorizontal: 16,
     zIndex: 9999,
@@ -92,6 +55,7 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 12,
     fontWeight: "700",
+    color: "#FFFFFF",
     textAlign: "center",
   },
 });

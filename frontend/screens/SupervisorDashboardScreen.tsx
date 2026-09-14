@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Platform,
   Share,
+  DeviceEventEmitter,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -151,13 +152,30 @@ export default function SupervisorDashboardScreen() {
         ]}
       >
         <View style={styles.headerRow}>
-          <View style={styles.headerUserInfo}>
-            <Text style={[styles.greetingText, { color: theme.textSecondary }]}>
-              {t("supervisor.dashboardGreeting", "नमस्ते, सुपरवाइजर")}
-            </Text>
-            <Text style={[styles.userNameText, { color: theme.text }]}>
-              {user?.name || "Supervisor"}
-            </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                DeviceEventEmitter.emit("OPEN_SETTINGS_DRAWER");
+              }}
+              style={[
+                styles.headerIconBtn,
+                {
+                  backgroundColor: isDark ? "#334155" : "#F1F5F9",
+                  marginRight: 10,
+                },
+              ]}
+            >
+              <Feather name="menu" size={20} color={theme.text} />
+            </Pressable>
+            <View style={styles.headerUserInfo}>
+              <Text style={[styles.greetingText, { color: theme.textSecondary }]}>
+                {t("supervisor.dashboardGreeting", "नमस्ते, सुपरवाइजर")}
+              </Text>
+              <Text style={[styles.userNameText, { color: theme.text }]}>
+                {user?.name || "Supervisor"}
+              </Text>
+            </View>
           </View>
           <Pressable
             onPress={() => navigation.navigate("Notifications")}

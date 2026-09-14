@@ -46,7 +46,11 @@ export async function authenticatedFetch(
 
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs || 15000;
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let didTimeout = false;
+  const timeoutId = setTimeout(() => {
+    didTimeout = true;
+    controller.abort();
+  }, timeoutMs);
 
   let res: Response;
   try {
@@ -57,8 +61,12 @@ export async function authenticatedFetch(
     networkManager.setOnline(true);
   } catch (netError: any) {
     clearTimeout(timeoutId);
+    if (netError.name === "AbortError" && !didTimeout) {
+      // Caller intentionally cancelled/aborted request (e.g., React Query unmount or focus change)
+      throw netError;
+    }
     networkManager.setOnline(false);
-    if (netError.name === "AbortError") {
+    if (didTimeout || netError.name === "AbortError") {
       console.warn(`Request to ${fullUrl} timed out after ${timeoutMs}ms`);
       throw new Error(
         "Request timed out. Please check network connection and try again.",

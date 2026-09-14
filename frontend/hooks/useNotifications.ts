@@ -35,7 +35,7 @@ export interface NotificationItem {
 export function useNotifications() {
   const queryClient = useQueryClient();
 
-  // 1. Query notifications list
+  // 1. Query notifications list (returns notifications array and unreadCount)
   const notificationsQuery = useQuery<{
     notifications: NotificationItem[];
     unreadCount: number;
@@ -45,15 +45,18 @@ export function useNotifications() {
       const res = await authenticatedFetch(`${API_URL}/notifications`);
       if (!res.ok) throw new Error("Failed to fetch notifications");
       const data = await res.json();
+      const count = Number(data.unreadCount || 0);
+      queryClient.setQueryData<number>(["notifications-unread-count"], count);
       return {
         notifications: data.notifications || [],
-        unreadCount: data.unreadCount || 0,
+        unreadCount: count,
       };
     },
     staleTime: 60 * 1000,
+    retry: 1,
   });
 
-  // 2. Query unread count independently for fast badge updates
+  // 2. Query unread count independently for fast badge updates (only if notifications list is not loaded)
   const unreadCountQuery = useQuery<number>({
     queryKey: ["notifications-unread-count"],
     queryFn: async () => {
@@ -64,7 +67,9 @@ export function useNotifications() {
       const data = await res.json();
       return data.unreadCount || 0;
     },
-    staleTime: 30 * 1000,
+    staleTime: 60 * 1000,
+    retry: 1,
+    enabled: !notificationsQuery.data,
   });
 
   // 3. Mark single notification as read

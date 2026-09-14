@@ -14,6 +14,7 @@ export interface ProfileHeaderCardProps {
   avatarColor?: string;
   onEditPress?: () => void;
   onAvatarPress?: () => void;
+  onQrPress?: () => void;
   editLabel?: string;
 }
 
@@ -26,6 +27,7 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
   avatarColor = "#5EEAD4",
   onEditPress,
   onAvatarPress,
+  onQrPress,
   editLabel,
 }) => {
   const { theme, isDark } = useTheme();
@@ -97,15 +99,38 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
                 {name || "Ganesh Pandit"}
               </ThemedText>
 
-              {onEditPress && editLabel ? (
-                <Pressable
-                  onPress={onEditPress}
-                  hitSlop={8}
-                  style={styles.editButton}
-                >
-                  <ThemedText style={styles.editText}>{editLabel}</ThemedText>
-                </Pressable>
-              ) : null}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                {onQrPress ? (
+                  <Pressable
+                    onPress={onQrPress}
+                    hitSlop={8}
+                    style={[
+                      styles.editButton,
+                      {
+                        backgroundColor: isDark ? "rgba(59, 130, 246, 0.15)" : "#EFF6FF",
+                        borderColor: isDark ? "rgba(59, 130, 246, 0.3)" : "#BFDBFE",
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                      },
+                    ]}
+                  >
+                    <Feather name="maximize" size={13} color={theme.primary} />
+                    <ThemedText style={[styles.editText, { color: theme.primary, marginLeft: 3 }]}>
+                      QR
+                    </ThemedText>
+                  </Pressable>
+                ) : null}
+
+                {onEditPress && editLabel ? (
+                  <Pressable
+                    onPress={onEditPress}
+                    hitSlop={8}
+                    style={styles.editButton}
+                  >
+                    <ThemedText style={styles.editText}>{editLabel}</ThemedText>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
 
             {/* Vertically Stacked Contact List */}

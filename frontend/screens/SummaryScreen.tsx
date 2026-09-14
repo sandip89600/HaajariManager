@@ -1530,11 +1530,35 @@ export default function SummaryScreen() {
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              DeviceEventEmitter.emit("OPEN_SETTINGS_DRAWER");
+            }}
+            style={[
+              styles.monthSelector,
+              {
+                paddingHorizontal: 10,
+                marginRight: 6,
+                backgroundColor: isDark
+                  ? "rgba(30, 41, 59, 0.45)"
+                  : "rgba(255, 255, 255, 0.9)",
+                borderColor: isDark
+                  ? "rgba(255, 255, 255, 0.06)"
+                  : "rgba(0, 0, 0, 0.05)",
+                borderWidth: 1,
+              },
+            ]}
+          >
+            <Feather name="menu" size={18} color={theme.text} />
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setShowMonthPicker(true);
             }}
             style={[
               styles.monthSelector,
               {
+                flex: 1,
                 backgroundColor: isDark
                   ? "rgba(30, 41, 59, 0.45)"
                   : "rgba(255, 255, 255, 0.9)",
