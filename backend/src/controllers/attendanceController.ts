@@ -8,6 +8,7 @@ import { getPlanRank } from "../middleware/subscription";
 export const getAttendanceForMonth = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
+    const role = req.user?.role;
     const { year, month } = req.query;
 
     if (!year || month === undefined || month === null || month === "") {
@@ -21,45 +22,46 @@ export const getAttendanceForMonth = async (req: AuthenticatedRequest, res: Resp
     const monthFilter = { $in: [m, m + 1, ...(m > 0 ? [m - 1] : [])] };
 
     let query: any = {
-      tenantId,
       year: y,
       month: monthFilter,
     };
 
-    if (req.user?.role === "labor" || req.user?.role === "worker") {
-      const user = await User.findById(req.user.id);
-      let worker = null;
-      if (tenantId) {
-        worker = await Worker.findOne({
-          tenantId,
-          $or: [
-            { userId: user?._id },
-            ...(user?.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
-            ...(user?.phone ? [{ phone: user.phone }] : []),
-            ...(user?.name ? [{ name: user.name }] : []),
-          ],
-        });
-      }
-      if (!worker) {
-        worker = await Worker.findOne({
-          $or: [
-            { userId: user?._id },
-            ...(user?.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
-            ...(user?.phone ? [{ phone: user.phone }] : []),
-            ...(user?.name ? [{ name: user.name }] : []),
-          ],
-        });
-      }
-      if (!worker) {
+    if (role === "labor" || role === "worker") {
+      const user = await User.findById(req.user?.id);
+      const phoneDigits = user?.phone ? String(user.phone).replace(/\D/g, "") : "";
+      const cleanPhone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : "";
+      const phoneRegex = cleanPhone ? new RegExp(cleanPhone + "$") : null;
+
+      const workerMatchCriteria: any[] = [
+        { userId: user?._id },
+        ...(user?.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
+        ...(phoneRegex ? [{ phone: phoneRegex }] : []),
+        ...(user?.phone ? [{ phone: user.phone }] : []),
+        ...(user?.name ? [{ name: new RegExp(`^${user.name.trim()}$`, "i") }] : []),
+      ];
+
+      const matchedWorkers = await Worker.find({
+        $or: workerMatchCriteria,
+      }).lean();
+
+      const workerIds = matchedWorkers.map((w) => w._id);
+
+      if (workerIds.length === 0 && !user?.uniqueId) {
         return res.json([]);
       }
-      query.workerId = worker._id;
-    } else if (req.user?.role === "supervisor") {
-      const supervisor = await User.findById(req.user.id);
+
+      query.workerId = { $in: workerIds };
+      // Worker matches attendance across all contractor tenants without tenantId constraint
+    } else if (role === "supervisor") {
+      query.tenantId = tenantId;
+      const supervisor = await User.findById(req.user?.id);
       const assignedProjects = supervisor?.assignedProjects || [];
       const workers = await Worker.find({ tenantId, isArchived: false, projectId: { $in: assignedProjects } });
-      const workerIds = workers.map(w => w._id);
+      const workerIds = workers.map((w) => w._id);
       query.workerId = { $in: workerIds };
+    } else {
+      // Contractor / Admin
+      query.tenantId = tenantId;
     }
 
     const records = await Attendance.find(query).lean();
@@ -93,13 +95,13 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
           return res.status(403).json({
             error: "GPS attendance is not available on your current plan. Upgrade to Super Plan to unlock this feature.",
             limitExceeded: true,
-            plan: tenant?.plan || "free"
+            plan: tenant?.plan || "free",
           });
         }
       }
     }
 
-    const worker = await Worker.findById(workerId).select("dailyRate").lean();
+    const worker = await Worker.findById(workerId).lean();
     const workerDailyRate = worker ? worker.dailyRate : 0;
 
     const dailyRateResolved = req.body.dailyRate !== undefined ? req.body.dailyRate : workerDailyRate;
@@ -150,14 +152,34 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
       { new: true, upsert: true }
     );
 
+    // Resolve user ID if not directly attached to worker doc
+    let resolvedUserId = worker?.userId;
+    if (!resolvedUserId) {
+      const phoneDigits = worker?.phone ? String(worker.phone).replace(/\D/g, "") : "";
+      const cleanPhone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : "";
+      const userLookupCriteria: any[] = [
+        ...(worker?.uniqueId ? [{ uniqueId: worker.uniqueId }] : []),
+        ...(cleanPhone ? [{ phone: new RegExp(cleanPhone + "$") }] : []),
+      ];
+      if (userLookupCriteria.length > 0) {
+        const matchedUser = await User.findOne({
+          $or: userLookupCriteria,
+          role: { $in: ["labor", "worker"] },
+        });
+        if (matchedUser) {
+          resolvedUserId = matchedUser._id;
+          await Worker.findByIdAndUpdate(workerId, { userId: matchedUser._id });
+        }
+      }
+    }
+
     // ── Real-time Socket Broadcast to Worker & Tenant ──
     try {
       const io = getIO();
-      const workerDoc = await Worker.findById(workerId).select("userId uniqueId tenantId");
       const payload = {
         attendanceId: record._id,
         workerId: record.workerId,
-        uniqueId: workerDoc?.uniqueId,
+        uniqueId: worker?.uniqueId,
         year: record.year,
         month: record.month,
         day: record.day,
@@ -166,9 +188,13 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
         dailyRate: record.dailyRate,
         timestamp: record.timestamp,
       };
-      if (workerDoc?.userId) {
-        io.to(`user_${workerDoc.userId}`).emit("attendance:recorded", payload);
-        io.to(`user_${workerDoc.userId}`).emit("attendance:updated", payload);
+      if (resolvedUserId) {
+        io.to(`user_${resolvedUserId}`).emit("attendance:recorded", payload);
+        io.to(`user_${resolvedUserId}`).emit("attendance:updated", payload);
+      }
+      if (worker?.uniqueId) {
+        io.to(`worker_${worker.uniqueId}`).emit("attendance:recorded", payload);
+        io.to(`worker_${worker.uniqueId}`).emit("attendance:updated", payload);
       }
       if (tenantId) {
         io.to(`tenant_${tenantId}`).emit("attendance:recorded", payload);
@@ -227,8 +253,12 @@ export const syncAttendance = async (req: AuthenticatedRequest, res: Response) =
     }
 
     const results = [];
+    const affectedWorkerIds = new Set<string>();
+
     for (const record of records) {
       const { workerId, year, month, day, value, location, timestamp, projectId, overtimeHours, overtimeWage, dailyRate, customWage, finalPay } = record;
+
+      if (workerId) affectedWorkerIds.add(String(workerId));
 
       const worker = await Worker.findById(workerId);
       const workerDailyRate = worker ? worker.dailyRate : 0;
@@ -283,6 +313,34 @@ export const syncAttendance = async (req: AuthenticatedRequest, res: Response) =
       results.push(result);
     }
 
+    // ── Broadcast batch sync to all affected workers and tenant ──
+    try {
+      const io = getIO();
+      if (tenantId) {
+        io.to(`tenant_${tenantId}`).emit("attendance:updated", { count: results.length });
+      }
+      for (const wId of affectedWorkerIds) {
+        const workerDoc = await Worker.findById(wId);
+        let targetUserId = workerDoc?.userId;
+        if (!targetUserId && workerDoc?.uniqueId) {
+          const u = await User.findOne({ uniqueId: workerDoc.uniqueId, role: { $in: ["labor", "worker"] } });
+          if (u) {
+            targetUserId = u._id;
+            await Worker.findByIdAndUpdate(wId, { userId: u._id });
+          }
+        }
+        if (targetUserId) {
+          io.to(`user_${targetUserId}`).emit("attendance:updated", { count: results.length });
+        }
+        if (workerDoc?.uniqueId) {
+          io.to(`worker_${workerDoc.uniqueId}`).emit("attendance:updated", { count: results.length });
+        }
+      }
+      io.emit("admin_dashboard_update");
+    } catch (socketErr) {
+      console.warn("[Attendance Controller] syncAttendance socket broadcast error:", socketErr);
+    }
+
     res.json({ success: true, count: results.length });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -333,32 +391,38 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
 
     const { year, month } = req.query;
 
-    // Find linked worker record in user's tenant or global fallback
-    let worker = null;
-    if (user.tenantId) {
-      worker = await Worker.findOne({
-        tenantId: user.tenantId,
-        $or: [
-          { userId: user._id },
-          ...(user.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
-          ...(user.phone ? [{ phone: user.phone }] : []),
-          ...(user.name ? [{ name: user.name }] : []),
-        ],
-      });
-    }
-    if (!worker) {
-      worker = await Worker.findOne({
-        $or: [
-          { userId: user._id },
-          ...(user.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
-          ...(user.phone ? [{ phone: user.phone }] : []),
-          ...(user.name ? [{ name: user.name }] : []),
-        ],
-      });
-    }
-    if (!worker) {
+    const phoneDigits = user.phone ? String(user.phone).replace(/\D/g, "") : "";
+    const cleanPhone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : "";
+    const phoneRegex = cleanPhone ? new RegExp(cleanPhone + "$") : null;
+
+    const workerMatchCriteria: any[] = [
+      { userId: user._id },
+      ...(user.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
+      ...(phoneRegex ? [{ phone: phoneRegex }] : []),
+      ...(user.phone ? [{ phone: user.phone }] : []),
+      ...(user.name ? [{ name: new RegExp(`^${user.name.trim()}$`, "i") }] : []),
+    ];
+
+    // Find ALL worker documents across tenants
+    const matchedWorkers = await Worker.find({
+      $or: workerMatchCriteria,
+    }).sort({ updatedAt: -1, createdAt: -1 });
+
+    const workerIds = matchedWorkers.map((w) => w._id);
+    const primaryWorker = matchedWorkers[0] || null;
+
+    if (workerIds.length === 0) {
       return res.json({
-        worker: null,
+        worker: {
+          id: user._id,
+          uniqueId: user.uniqueId || "",
+          name: user.name,
+          category: user.workerCategory || "Labour",
+          dailyRate: user.dailyWage || 0,
+          dailyWage: user.dailyWage || 0,
+          contractorName: user.contractorName || "Contractor",
+          contractorCompany: user.contractorCompany || "Company",
+        },
         records: [],
         summary: {
           presentDays: 0,
@@ -367,12 +431,13 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
           overtimeHours: 0,
           totalEarned: 0,
           advancePaid: 0,
+          totalPaid: 0,
           netPayable: 0,
         },
       });
     }
 
-    let query: any = { workerId: worker._id };
+    let query: any = { workerId: { $in: workerIds } };
 
     if (year) query.year = parseInt(year as string);
     if (month !== undefined && month !== null && month !== "") {
@@ -389,11 +454,13 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
     let totalEarned = 0;
     let advancePaid = 0;
 
+    const defaultRate = primaryWorker?.dailyRate ?? user.dailyWage ?? 0;
+
     for (const rec of records) {
       const rate =
         rec.dailyRate !== undefined && rec.dailyRate !== null
           ? rec.dailyRate
-          : worker.dailyRate || 0;
+          : defaultRate;
       const ot =
         rec.overtimeWage !== undefined && rec.overtimeWage !== null
           ? rec.overtimeWage
@@ -433,12 +500,12 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
 
     return res.json({
       worker: {
-        id: worker._id,
-        uniqueId: worker.uniqueId || user.uniqueId || "",
-        name: worker.name,
-        category: worker.category,
-        dailyRate: worker.dailyRate,
-        dailyWage: worker.dailyRate,
+        id: primaryWorker?._id || user._id,
+        uniqueId: primaryWorker?.uniqueId || user.uniqueId || "",
+        name: primaryWorker?.name || user.name,
+        category: primaryWorker?.category || user.workerCategory || "Labour",
+        dailyRate: primaryWorker?.dailyRate ?? user.dailyWage ?? 0,
+        dailyWage: primaryWorker?.dailyRate ?? user.dailyWage ?? 0,
         contractorName: user.contractorName || "Contractor",
         contractorCompany: user.contractorCompany || "Company",
       },

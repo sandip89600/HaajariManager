@@ -19,43 +19,33 @@ export const getPaymentsForMonth = async (req: AuthenticatedRequest, res: Respon
     const monthFilter = { $in: [m, m + 1, ...(m > 0 ? [m - 1] : [])] };
 
     let query: any = {
-      tenantId,
       year: y,
       month: monthFilter,
     };
 
     if (role === "labor" || role === "worker") {
       const user = await User.findById(req.user?.id);
-      let worker = null;
-      if (tenantId) {
-        worker = await Worker.findOne({
-          tenantId,
-          $or: [
-            { userId: user?._id },
-            ...(user?.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
-            ...(user?.phone ? [{ phone: user.phone }] : []),
-            ...(user?.name ? [{ name: user.name }] : []),
-          ],
-        });
-      }
-      if (!worker) {
-        worker = await Worker.findOne({
-          $or: [
-            { userId: user?._id },
-            ...(user?.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
-            ...(user?.phone ? [{ phone: user.phone }] : []),
-            ...(user?.name ? [{ name: user.name }] : []),
-          ],
-        });
-      }
-      if (!worker) {
+      const phoneDigits = user?.phone ? String(user.phone).replace(/\D/g, "") : "";
+      const cleanPhone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : "";
+      const phoneRegex = cleanPhone ? new RegExp(cleanPhone + "$") : null;
+
+      const matchedWorkers = await Worker.find({
+        $or: [
+          { userId: user?._id },
+          ...(user?.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
+          ...(phoneRegex ? [{ phone: phoneRegex }] : []),
+          ...(user?.phone ? [{ phone: user.phone }] : []),
+          ...(user?.name ? [{ name: new RegExp(`^${user.name.trim()}$`, "i") }] : []),
+        ],
+      }).lean();
+
+      const workerIds = matchedWorkers.map((w) => w._id);
+      if (workerIds.length === 0) {
         return res.json([]);
       }
-      query = {
-        workerId: worker._id,
-        year: y,
-        month: monthFilter,
-      };
+      query.workerId = { $in: workerIds };
+    } else {
+      query.tenantId = tenantId;
     }
 
     const payments = await Payment.find(query).populate("createdBy", "name").lean();
@@ -104,6 +94,24 @@ export const addPayment = async (req: AuthenticatedRequest, res: Response) => {
     });
     await payment.save();
     await payment.populate("createdBy", "name");
+
+    // Socket notification
+    try {
+      const workerDoc = await Worker.findById(workerId).select("userId uniqueId tenantId");
+      const io = (await import("../utils/socket")).getIO();
+      if (workerDoc?.userId) {
+        io.to(`user_${workerDoc.userId}`).emit("attendance:updated", { paymentId: payment._id });
+      }
+      if (workerDoc?.uniqueId) {
+        io.to(`worker_${workerDoc.uniqueId}`).emit("attendance:updated", { paymentId: payment._id });
+      }
+      if (tenantId) {
+        io.to(`tenant_${tenantId}`).emit("attendance:updated", { paymentId: payment._id });
+      }
+      io.emit("admin_dashboard_update");
+    } catch (socketErr) {
+      console.warn("[Payment Controller] Socket notification non-fatal error:", socketErr);
+    }
 
     res.status(201).json(payment);
 

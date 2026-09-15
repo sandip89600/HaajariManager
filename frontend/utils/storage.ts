@@ -261,6 +261,8 @@ export interface User {
   lastLogin?: number;
   loginHistory: number[];
   assignedProjects?: string[];
+  tenantId?: string;
+  contractorId?: string;
   companyName?: string;
   plan?:
     | "free"

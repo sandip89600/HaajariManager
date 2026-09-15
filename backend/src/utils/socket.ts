@@ -135,6 +135,20 @@ export const initSocket = (server: HttpServer): Server => {
       }
     });
 
+    socket.on("join_worker_room", (uniqueId: string) => {
+      if (uniqueId) {
+        socket.join(`worker_${uniqueId}`);
+        console.log(`[Socket] Client ${socket.id} joined room worker_${uniqueId}`);
+      }
+    });
+
+    socket.on("join_tenant_room", (tenantId: string) => {
+      if (tenantId) {
+        socket.join(`tenant_${tenantId}`);
+        console.log(`[Socket] Client ${socket.id} joined room tenant_${tenantId}`);
+      }
+    });
+
     socket.on("disconnect", () => {
       console.log(`[Socket] Client disconnected: ${socket.id}`);
     });

@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { Platform, StyleSheet, View, Pressable, Text } from "react-native";
+import { Platform, StyleSheet, View, Pressable, Text, DeviceEventEmitter } from "react-native";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
@@ -346,13 +346,30 @@ function MainTabs() {
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
-  const { newDeviceAlert, clearNewDeviceAlert, setNewDeviceAlert, userId } =
+  const { newDeviceAlert, clearNewDeviceAlert, setNewDeviceAlert, userId, uniqueId, user } =
     useAuth();
   const { socket } = useSocket();
 
   React.useEffect(() => {
-    if (socket && userId) {
-      socket.emit("join_user_room", userId);
+    if (socket) {
+      if (userId) {
+        socket.emit("join_user_room", userId);
+      }
+      if (uniqueId || user?.uniqueId) {
+        socket.emit("join_worker_room", uniqueId || user?.uniqueId);
+      }
+      if (user?.tenantId) {
+        socket.emit("join_tenant_room", user.tenantId);
+      }
+
+      const handleAttendanceUpdate = (data: any) => {
+        DeviceEventEmitter.emit("attendanceUpdated", data);
+        DeviceEventEmitter.emit("refreshData", data);
+      };
+
+      socket.on("attendance:recorded", handleAttendanceUpdate);
+      socket.on("attendance:updated", handleAttendanceUpdate);
+      socket.on("admin_dashboard_update", handleAttendanceUpdate);
 
       const handleNewDeviceLogin = (data: any) => {
         if (data) {
@@ -362,10 +379,13 @@ export default function MainTabNavigator() {
 
       socket.on("new_device_login", handleNewDeviceLogin);
       return () => {
+        socket.off("attendance:recorded", handleAttendanceUpdate);
+        socket.off("attendance:updated", handleAttendanceUpdate);
+        socket.off("admin_dashboard_update", handleAttendanceUpdate);
         socket.off("new_device_login", handleNewDeviceLogin);
       };
     }
-  }, [socket, userId]);
+  }, [socket, userId, uniqueId, user?.uniqueId, user?.tenantId]);
 
   return (
     <>

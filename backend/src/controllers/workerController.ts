@@ -14,14 +14,18 @@ export const getWorkers = async (req: AuthenticatedRequest, res: Response) => {
 
     if (role === "labor" || role === "worker") {
       const user = await User.findById(userId);
+      const phoneDigits = user?.phone ? String(user.phone).replace(/\D/g, "") : "";
+      const cleanPhone = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : "";
+      const phoneRegex = cleanPhone ? new RegExp(cleanPhone + "$") : null;
+
       const myWorker = await Worker.find({
-        tenantId,
         isArchived: false,
         $or: [
           { userId: user?._id },
           ...(user?.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
+          ...(phoneRegex ? [{ phone: phoneRegex }] : []),
           ...(user?.phone ? [{ phone: user.phone }] : []),
-          ...(user?.name ? [{ name: user.name }] : []),
+          ...(user?.name ? [{ name: new RegExp(`^${user.name.trim()}$`, "i") }] : []),
         ],
       }).lean();
       return res.json(myWorker);
