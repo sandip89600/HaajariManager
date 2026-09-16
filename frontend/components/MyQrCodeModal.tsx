@@ -12,11 +12,10 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "@/hooks/useTheme";
-import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
 import { QrCodeView } from "./QrCodeView";
 import { buildConnectPayload } from "@/utils/qrCodeGenerator";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing } from "@/constants/theme";
 
 interface MyQrCodeModalProps {
   visible: boolean;
@@ -28,7 +27,6 @@ export const MyQrCodeModal: React.FC<MyQrCodeModalProps> = ({
   onClose,
 }) => {
   const { theme, isDark } = useTheme();
-  const { t } = useLanguage();
   const { user, uniqueId } = useAuth();
   const [copiedType, setCopiedType] = useState<string | null>(null);
 
@@ -47,7 +45,11 @@ export const MyQrCodeModal: React.FC<MyQrCodeModalProps> = ({
         : "Contractor / Builder";
 
   const roleColor =
-    role === "worker" ? "#10B981" : role === "supervisor" ? "#3B82F6" : "#8B5CF6";
+    role === "worker"
+      ? "#10B981"
+      : role === "supervisor"
+        ? "#3B82F6"
+        : "#8B5CF6";
 
   const displayId = uniqueId || user?.uniqueId || "HJR-ID";
   const displayName = user?.name || "Haajari User";
@@ -106,11 +108,7 @@ export const MyQrCodeModal: React.FC<MyQrCodeModalProps> = ({
                 My QR Code
               </Text>
             </View>
-            <Pressable
-              onPress={onClose}
-              hitSlop={10}
-              style={styles.closeBtn}
-            >
+            <Pressable onPress={onClose} hitSlop={10} style={styles.closeBtn}>
               <Feather name="x" size={20} color={subTextCol} />
             </Pressable>
           </View>
@@ -123,7 +121,10 @@ export const MyQrCodeModal: React.FC<MyQrCodeModalProps> = ({
             <View
               style={[
                 styles.roleBadge,
-                { backgroundColor: `${roleColor}18`, borderColor: `${roleColor}40` },
+                {
+                  backgroundColor: `${roleColor}18`,
+                  borderColor: `${roleColor}40`,
+                },
               ]}
             >
               <Text style={[styles.roleText, { color: roleColor }]}>

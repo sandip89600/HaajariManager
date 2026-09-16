@@ -55,18 +55,17 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
       ]}
     >
       <LinearGradient
-        colors={
-          isDark
-            ? ["#1E293B", "#0F172A"]
-            : ["#FFFFFF", "#F8FAFC"]
-        }
+        colors={isDark ? ["#1E293B", "#0F172A"] : ["#FFFFFF", "#F8FAFC"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.cardGradient}
       >
         <View style={styles.cardContent}>
           {/* ── Left Side: Avatar with edit photo badge ── */}
-          <Pressable onPress={onAvatarPress || onEditPress} style={styles.avatarTouchArea}>
+          <Pressable
+            onPress={onAvatarPress || onEditPress}
+            style={styles.avatarTouchArea}
+          >
             <LinearGradient
               colors={["#10B981", "#14B8A6", "#06B6D4"]}
               start={{ x: 0, y: 0 }}
@@ -97,7 +96,11 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
                 },
               ]}
             >
-              <Feather name="camera" size={10} color={isDark ? "#38BDF8" : "#0284C7"} />
+              <Feather
+                name="camera"
+                size={10}
+                color={isDark ? "#38BDF8" : "#0284C7"}
+              />
             </View>
           </Pressable>
 
@@ -120,8 +123,12 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
                     style={({ pressed }) => [
                       styles.qrBtn,
                       {
-                        backgroundColor: isDark ? "rgba(59, 130, 246, 0.18)" : "#EFF6FF",
-                        borderColor: isDark ? "rgba(59, 130, 246, 0.4)" : "#BFDBFE",
+                        backgroundColor: isDark
+                          ? "rgba(59, 130, 246, 0.18)"
+                          : "#EFF6FF",
+                        borderColor: isDark
+                          ? "rgba(59, 130, 246, 0.4)"
+                          : "#BFDBFE",
                         transform: [{ scale: pressed ? 0.94 : 1 }],
                       },
                     ]}
@@ -149,8 +156,12 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
                     style={({ pressed }) => [
                       styles.editActionBtn,
                       {
-                        backgroundColor: isDark ? "rgba(249, 115, 22, 0.15)" : "#FFF7ED",
-                        borderColor: isDark ? "rgba(249, 115, 22, 0.35)" : "#FED7AA",
+                        backgroundColor: isDark
+                          ? "rgba(249, 115, 22, 0.15)"
+                          : "#FFF7ED",
+                        borderColor: isDark
+                          ? "rgba(249, 115, 22, 0.35)"
+                          : "#FED7AA",
                         transform: [{ scale: pressed ? 0.94 : 1 }],
                       },
                     ]}
@@ -173,7 +184,9 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
                     style={[
                       styles.iconCircle,
                       {
-                        backgroundColor: isDark ? "rgba(148, 163, 184, 0.12)" : "#F1F5F9",
+                        backgroundColor: isDark
+                          ? "rgba(148, 163, 184, 0.12)"
+                          : "#F1F5F9",
                       },
                     ]}
                   >
@@ -199,7 +212,9 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
                     style={[
                       styles.iconCircle,
                       {
-                        backgroundColor: isDark ? "rgba(148, 163, 184, 0.12)" : "#F1F5F9",
+                        backgroundColor: isDark
+                          ? "rgba(148, 163, 184, 0.12)"
+                          : "#F1F5F9",
                       },
                     ]}
                   >
@@ -225,7 +240,9 @@ export const ProfileHeaderCard: React.FC<ProfileHeaderCardProps> = ({
                     style={[
                       styles.iconCircle,
                       {
-                        backgroundColor: isDark ? "rgba(148, 163, 184, 0.12)" : "#F1F5F9",
+                        backgroundColor: isDark
+                          ? "rgba(148, 163, 184, 0.12)"
+                          : "#F1F5F9",
                       },
                     ]}
                   >
@@ -415,4 +432,3 @@ const styles = StyleSheet.create({
 });
 
 export default ProfileHeaderCard;
-

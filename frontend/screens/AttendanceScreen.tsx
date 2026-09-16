@@ -267,7 +267,12 @@ export default function AttendanceScreen() {
       else if (nextVal === "H") finalPay = dailyRate / 2;
 
       if (nextVal === null) {
-        await deleteAttendanceLocally(workerId, year, month, dayNum);
+        await storage.clearAttendanceRecord({
+          workerId,
+          year,
+          month,
+          day: dayNum,
+        });
         setAttendance((prev) =>
           prev.filter(
             (r) =>
@@ -367,12 +372,12 @@ export default function AttendanceScreen() {
   const handleClearDetailedRecord = async () => {
     if (!selectedWorker) return;
     try {
-      await deleteAttendanceLocally(
-        selectedWorker.id,
+      await storage.clearAttendanceRecord({
+        workerId: selectedWorker.id,
         year,
         month,
-        selectedDayNum,
-      );
+        day: selectedDayNum,
+      });
       setAttendance((prev) =>
         prev.filter(
           (r) =>

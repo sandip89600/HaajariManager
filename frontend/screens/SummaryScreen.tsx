@@ -1235,7 +1235,10 @@ export default function SummaryScreen() {
             worker: currentWorker,
             ...summary,
             totalPaid,
-            balance: Math.max(0, summary.totalAmount - totalAdvance - totalPaid),
+            balance: Math.max(
+              0,
+              summary.totalAmount - totalAdvance - totalPaid,
+            ),
             payments: workerPayments,
             records: workerAttendance,
             totalAdvanceAmount: totalAdvance,
@@ -1260,39 +1263,44 @@ export default function SummaryScreen() {
           setWorkers(loadedWorkers);
           setAttendance(loadedAttendance);
 
-          const workerSummaries: WorkerSummary[] = loadedWorkers.map((worker) => {
-            const summary = calculateWorkerSummary(
-              worker.id,
-              loadedAttendance,
-              worker.dailyRate,
-              worker.uniqueId,
-            );
-            const workerPayments = loadedPayments.filter(
-              (p) =>
-                p.workerId === worker.id ||
-                (worker.uniqueId && p.workerId === worker.uniqueId),
-            );
-            const totalPaid = workerPayments.reduce(
-              (sum, p) => sum + p.amount,
-              0,
-            );
-            const workerRecords = loadedAttendance.filter(
-              (a) =>
-                a.workerId === worker.id ||
-                (worker.uniqueId && a.workerId === worker.uniqueId),
-            );
-            const totalAdvance = summary.totalAdvanceAmount || 0;
-            return {
-              worker,
-              ...summary,
-              totalPaid,
-              balance: Math.max(0, summary.totalAmount - totalAdvance - totalPaid),
-              payments: workerPayments,
-              records: workerRecords,
-              totalAdvanceAmount: totalAdvance,
-              totalOvertimeAmount: summary.totalOvertimeAmount || 0,
-            };
-          });
+          const workerSummaries: WorkerSummary[] = loadedWorkers.map(
+            (worker) => {
+              const summary = calculateWorkerSummary(
+                worker.id,
+                loadedAttendance,
+                worker.dailyRate,
+                worker.uniqueId,
+              );
+              const workerPayments = loadedPayments.filter(
+                (p) =>
+                  p.workerId === worker.id ||
+                  (worker.uniqueId && p.workerId === worker.uniqueId),
+              );
+              const totalPaid = workerPayments.reduce(
+                (sum, p) => sum + p.amount,
+                0,
+              );
+              const workerRecords = loadedAttendance.filter(
+                (a) =>
+                  a.workerId === worker.id ||
+                  (worker.uniqueId && a.workerId === worker.uniqueId),
+              );
+              const totalAdvance = summary.totalAdvanceAmount || 0;
+              return {
+                worker,
+                ...summary,
+                totalPaid,
+                balance: Math.max(
+                  0,
+                  summary.totalAmount - totalAdvance - totalPaid,
+                ),
+                payments: workerPayments,
+                records: workerRecords,
+                totalAdvanceAmount: totalAdvance,
+                totalOvertimeAmount: summary.totalOvertimeAmount || 0,
+              };
+            },
+          );
 
           setSummaries(workerSummaries);
           setGrandTotal(
@@ -1302,7 +1310,10 @@ export default function SummaryScreen() {
             workerSummaries.reduce((sum, s) => sum + s.totalPaid, 0),
           );
           setGrandTotalAdvance(
-            workerSummaries.reduce((sum, s) => sum + (s.totalAdvanceAmount || 0), 0),
+            workerSummaries.reduce(
+              (sum, s) => sum + (s.totalAdvanceAmount || 0),
+              0,
+            ),
           );
         }
       } catch (error) {

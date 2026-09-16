@@ -1,18 +1,9 @@
 import React from "react";
-import {
-  View,
-  StyleSheet,
-  Modal,
-  Pressable,
-  Platform,
-  Dimensions,
-} from "react-native";
+import { View, StyleSheet, Modal, Pressable, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
-
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 interface LimitReachedModalProps {
   visible: boolean;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   View,
@@ -17,11 +17,10 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "@/hooks/useTheme";
-import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
 import { authenticatedFetch, API_URL } from "@/utils/storage";
 import { parseConnectPayload } from "@/utils/qrCodeGenerator";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing } from "@/constants/theme";
 
 interface QrScannerModalProps {
   visible: boolean;
@@ -35,7 +34,6 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   onSuccess,
 }) => {
   const { theme, isDark } = useTheme();
-  const { t } = useLanguage();
   const { user } = useAuth();
 
   const [permission, requestPermission] = useCameraPermissions();
@@ -246,7 +244,9 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                     barcodeScannerSettings={{
                       barcodeTypes: ["qr"],
                     }}
-                    onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+                    onBarcodeScanned={
+                      scanned ? undefined : handleBarcodeScanned
+                    }
                   />
 
                   {/* QR Scanning Target Frame Overlay */}
@@ -265,7 +265,11 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                     onPress={() => setTorchOn((prev) => !prev)}
                     style={[
                       styles.torchBtn,
-                      { backgroundColor: torchOn ? "#F59E0B" : "rgba(0,0,0,0.5)" },
+                      {
+                        backgroundColor: torchOn
+                          ? "#F59E0B"
+                          : "rgba(0,0,0,0.5)",
+                      },
                     ]}
                   >
                     <Feather
@@ -286,7 +290,9 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                       style={styles.rescanBtn}
                     >
                       <Feather name="refresh-cw" size={14} color="#FFFFFF" />
-                      <Text style={styles.rescanBtnText}>Tap to Scan Again</Text>
+                      <Text style={styles.rescanBtnText}>
+                        Tap to Scan Again
+                      </Text>
                     </Pressable>
                   )}
                 </View>
@@ -303,7 +309,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                     Camera Access Needed
                   </Text>
                   <Text style={[styles.scannerSubhint, { color: subTextCol }]}>
-                    Please enable camera permission to scan QR codes directly with your device camera.
+                    Please enable camera permission to scan QR codes directly
+                    with your device camera.
                   </Text>
                   <Pressable
                     onPress={async () => {
@@ -313,7 +320,10 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                         await requestPermission();
                       }
                     }}
-                    style={[styles.grantPermissionBtn, { backgroundColor: theme.primary }]}
+                    style={[
+                      styles.grantPermissionBtn,
+                      { backgroundColor: theme.primary },
+                    ]}
                   >
                     <Feather name="camera" size={16} color="#FFFFFF" />
                     <Text style={styles.grantPermissionBtnText}>
@@ -327,7 +337,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                 Scan QR or Paste Deep Link
               </Text>
               <Text style={[styles.scannerSubhint, { color: subTextCol }]}>
-                Point camera at the QR code, or paste their Unique ID / Link below.
+                Point camera at the QR code, or paste their Unique ID / Link
+                below.
               </Text>
             </View>
 
@@ -439,7 +450,9 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                         </Text>
                       </View>
                       {foundAccount.workerCategory && (
-                        <View style={[styles.tag, { backgroundColor: "#E0E7FF" }]}>
+                        <View
+                          style={[styles.tag, { backgroundColor: "#E0E7FF" }]}
+                        >
                           <Text style={[styles.tagText, { color: "#3730A3" }]}>
                             {foundAccount.workerCategory}
                           </Text>

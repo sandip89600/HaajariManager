@@ -15,16 +15,8 @@ export default function OfflineBanner() {
   }
 
   return (
-    <View
-      style={[
-        styles.container,
-        { paddingTop: Math.max(insets.top, 6) },
-      ]}
-    >
-      <Pressable
-        onPress={() => checkConnectivity()}
-        style={styles.contentRow}
-      >
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 6) }]}>
+      <Pressable onPress={() => checkConnectivity()} style={styles.contentRow}>
         <Feather
           name="wifi-off"
           size={14}

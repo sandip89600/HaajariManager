@@ -414,7 +414,9 @@ export default function SiteControlDashboardScreen() {
               padding: 6,
               marginRight: 8,
               borderRadius: 8,
-              backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+              backgroundColor: isDark
+                ? "rgba(255,255,255,0.08)"
+                : "rgba(0,0,0,0.05)",
             }}
           >
             <Feather name="menu" size={20} color={theme.text} />

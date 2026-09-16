@@ -94,6 +94,13 @@
     "setNewPassword": "नया पासवर्ड सेट करें",
     "passwordResetSuccess": "पासवर्ड सफलतापूर्वक बदल दिया गया है! कृपया नए पासवर्ड से लॉग इन करें।"
   },
+  "nav": {
+    "dashboard": "डैशबोर्ड",
+    "workers": "कर्मचारी",
+    "qrScanner": "QR स्कैन",
+    "summary": "सारांश",
+    "siteControl": "साइट कंट्रोल"
+  },
   "tabs": {
     "dashboard": "डैशबोर्ड",
     "siteControl": "साइट प्रबंधन",
@@ -101,7 +108,8 @@
     "workers": "कर्मचारी",
     "settings": "सेटिंग्स",
     "attendance": "हाजिरी",
-    "summary": "सारांश"
+    "summary": "सारांश",
+    "scanQr": "QR स्कैन"
   },
   "dashboard": {
     "title": "डैशबोर्ड",

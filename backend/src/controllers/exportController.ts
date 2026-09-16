@@ -39,48 +39,55 @@ const calculateWorkerSummary = (
   let halfDays = 0;
   let absentDays = 0;
   let overtimeDays = 0;
+  let overtimeHours = 0;
+  let overtimeWageTotal = 0;
   let customDays = 0;
   let customAmount = 0;
   let totalAmount = 0;
 
   workerAttendance.forEach((record) => {
     const rate = record.dailyRate !== undefined && record.dailyRate !== null ? record.dailyRate : dailyRate;
-    const extra = (record.customWage !== undefined && record.customWage !== null) ? record.customWage : 0;
-    let recordPay = 0;
+    const advance = (record.customWage !== undefined && record.customWage !== null) ? record.customWage : 0;
+    const otWage = (record.value === "OT" && record.overtimeWage !== undefined && record.overtimeWage !== null) ? record.overtimeWage : 0;
 
-    if (record.value === "P" || record.value === "OT") {
-      recordPay = rate + extra;
+    let recordPay = 0;
+    if (record.value === "OT") {
+      recordPay = rate + otWage;
+      overtimeDays++;
+      overtimeHours += record.overtimeHours || 0;
+      overtimeWageTotal += otWage;
+    } else if (record.value === "P") {
+      recordPay = rate;
+      presentDays++;
     } else if (record.value === "H") {
-      recordPay = (rate / 2) + extra;
+      recordPay = rate / 2;
+      halfDays++;
     } else if (record.value === "A") {
-      recordPay = extra;
+      recordPay = 0;
+      absentDays++;
     } else if (typeof record.value === "number") {
       recordPay = record.value;
-    } else {
-      recordPay = extra;
+      customDays++;
     }
+
     totalAmount += recordPay;
 
-    if (record.value === "P") {
-      presentDays++;
-    } else if (record.value === "A") {
-      absentDays++;
-    } else if (record.value === "H") {
-      halfDays++;
-    } else if (record.value === "OT") {
-      overtimeDays++;
-    } else if (typeof record.value === "number") {
-      customDays++;
-      customAmount += record.value;
-    }
-
-    if (record.customWage !== undefined && record.customWage !== null) {
-      customDays++;
-      customAmount += record.customWage;
+    if (advance > 0) {
+      customAmount += advance;
     }
   });
 
-  return { presentDays, halfDays, absentDays, overtimeDays, customDays, customAmount, totalAmount };
+  return {
+    presentDays,
+    halfDays,
+    absentDays,
+    overtimeDays,
+    overtimeHours,
+    overtimeWageTotal,
+    customDays,
+    customAmount,
+    totalAmount,
+  };
 };
 
 // 1. Generate Attendance Report PDF

@@ -26,7 +26,9 @@ export async function authenticatedFetch(
     fullUrl = `${API_URL}${endpoint}`;
   }
 
-  const authDataRaw = await AsyncStorage.getItem("@haajari/auth").catch(() => null);
+  const authDataRaw = await AsyncStorage.getItem("@haajari/auth").catch(
+    () => null,
+  );
   const auth = authDataRaw ? JSON.parse(authDataRaw) : null;
   const deviceHeaders = await getDeviceHeaders().catch(
     () => ({}) as Record<string, string>,
@@ -118,7 +120,10 @@ export async function authenticatedFetch(
             token: refreshData.token,
             refreshToken: refreshData.refreshToken,
           };
-          await AsyncStorage.setItem("@haajari/auth", JSON.stringify(updatedAuth));
+          await AsyncStorage.setItem(
+            "@haajari/auth",
+            JSON.stringify(updatedAuth),
+          );
           isRefreshing = false;
 
           onRefreshed(refreshData.token);

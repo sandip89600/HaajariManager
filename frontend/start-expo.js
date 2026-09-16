@@ -43,7 +43,10 @@ try {
   console.log("[Expo Setup] Brute-forcing release of port 8081...");
   if (process.platform === "win32") {
     try {
-      const output = execSync('netstat -ano | findstr ":8081"', { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] });
+      const output = execSync('netstat -ano | findstr ":8081"', {
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "ignore"],
+      });
       const lines = output.trim().split("\n");
       const pids = new Set();
       for (const line of lines) {
@@ -56,7 +59,9 @@ try {
       for (const pid of pids) {
         try {
           execSync(`taskkill /F /PID ${pid}`, { stdio: "ignore" });
-          console.log(`[Expo Setup] Terminated existing process PID ${pid} on port 8081.`);
+          console.log(
+            `[Expo Setup] Terminated existing process PID ${pid} on port 8081.`,
+          );
         } catch (kErr) {}
       }
     } catch (e) {}

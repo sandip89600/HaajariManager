@@ -2,13 +2,10 @@ import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
-import Animated, {
+import {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSequence,
-  interpolate,
-  Extrapolation,
   runOnJS,
 } from "react-native-reanimated";
 import { useTheme } from "@/hooks/useTheme";
@@ -56,7 +53,7 @@ export const KPICard: React.FC<KPICardProps> = ({
   trend,
   isLoading = false,
 }) => {
-  const { theme, isDark } = useTheme();
+  const { isDark } = useTheme();
   const textColor = isDark ? "#FFFFFF" : "#0F172A";
 
   if (isLoading) {

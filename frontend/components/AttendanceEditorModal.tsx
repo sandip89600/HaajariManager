@@ -49,7 +49,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
   onSave,
   onClear,
 }) => {
-  const { theme, isDark } = useTheme();
+  const { isDark } = useTheme();
   const { t } = useLanguage();
 
   // Form states
@@ -165,6 +165,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
       statusChanged ||
       advanceChanged ||
       otHoursChanged ||
+      otWageChanged ||
       overtimeHoursChanged() ||
       locationChanged
     );
@@ -307,14 +308,6 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
     if (!worker) return;
 
     const dailyRate = worker.dailyRate ?? 0;
-    const advanceNum = modalAdvance ? parseFloat(modalAdvance) : undefined;
-    const otHoursNum = modalOvertimeHours
-      ? parseFloat(modalOvertimeHours)
-      : undefined;
-    const otWageNum = modalOvertimeWage
-      ? parseFloat(modalOvertimeWage)
-      : undefined;
-
     if (!modalStatus) {
       Alert.alert(
         t("attendance.statusRequired", "Status Required"),
@@ -324,16 +317,29 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
     }
 
     const finalValue: AttendanceValue = modalStatus;
-    const advanceAmount = advanceNum || 0;
-    const otAmount = otWageNum || 0;
+    const isOT = finalValue === "OT";
+    const otHoursNum =
+      isOT && modalOvertimeHours ? parseFloat(modalOvertimeHours) : undefined;
+    const otWageNum =
+      isOT && modalOvertimeWage ? parseFloat(modalOvertimeWage) : undefined;
+    const advanceNum =
+      finalValue === "A"
+        ? undefined
+        : modalAdvance
+          ? parseFloat(modalAdvance)
+          : undefined;
 
     let finalPay = 0;
-    if (finalValue === "P" || finalValue === "OT") {
-      finalPay = dailyRate + advanceAmount + otAmount;
+    if (finalValue === "OT") {
+      finalPay = dailyRate + (otWageNum || 0);
+    } else if (finalValue === "P") {
+      finalPay = dailyRate;
     } else if (finalValue === "H") {
-      finalPay = dailyRate / 2 + advanceAmount + otAmount;
+      finalPay = dailyRate / 2;
     } else if (finalValue === "A") {
       finalPay = 0;
+    } else if (typeof finalValue === "number") {
+      finalPay = finalValue;
     }
 
     const record: AttendanceRecord = {
@@ -372,16 +378,16 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
 
     if (modalStatus === "P") {
       statusText = t.translateAttendanceStatus("PRESENT");
-      finalPay = dailyRate + advanceNum + otWageNum;
+      finalPay = dailyRate;
     } else if (modalStatus === "A") {
       statusText = t.translateAttendanceStatus("ABSENT");
       finalPay = 0;
     } else if (modalStatus === "H") {
       statusText = t.translateAttendanceStatus("HALF_DAY");
-      finalPay = dailyRate / 2 + advanceNum + otWageNum;
+      finalPay = dailyRate / 2;
     } else if (modalStatus === "OT") {
       statusText = t.translateAttendanceStatus("OVERTIME");
-      finalPay = dailyRate + advanceNum + otWageNum;
+      finalPay = dailyRate + otWageNum;
     }
 
     return {
@@ -489,6 +495,8 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setModalStatus("P");
+                  setModalOvertimeHours("");
+                  setModalOvertimeWage("");
                 }}
                 style={[
                   styles.statusCell,
@@ -537,6 +545,9 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setModalStatus("A");
+                  setModalOvertimeHours("");
+                  setModalOvertimeWage("");
+                  setModalAdvance("");
                 }}
                 style={[
                   styles.statusCell,
@@ -585,6 +596,8 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setModalStatus("H");
+                  setModalOvertimeHours("");
+                  setModalOvertimeWage("");
                 }}
                 style={[
                   styles.statusCell,

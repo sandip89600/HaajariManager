@@ -169,7 +169,9 @@ export default function SupervisorDashboardScreen() {
               <Feather name="menu" size={20} color={theme.text} />
             </Pressable>
             <View style={styles.headerUserInfo}>
-              <Text style={[styles.greetingText, { color: theme.textSecondary }]}>
+              <Text
+                style={[styles.greetingText, { color: theme.textSecondary }]}
+              >
                 {t("supervisor.dashboardGreeting", "नमस्ते, सुपरवाइजर")}
               </Text>
               <Text style={[styles.userNameText, { color: theme.text }]}>

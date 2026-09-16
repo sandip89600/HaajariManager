@@ -150,7 +150,7 @@ class QRBitBuffer {
   putBit(bit: boolean) {
     const bufIndex = Math.floor(this.length / 8);
     if (this.buffer.length <= bufIndex) this.buffer.push(0);
-    if (bit) this.buffer[bufIndex] |= 0x80 >>> (this.length % 8);
+    if (bit) this.buffer[bufIndex] |= 0x80 >>> this.length % 8;
     this.length++;
   }
 }
@@ -180,7 +180,12 @@ export class QRCodeModel {
   }
 
   isDark(row: number, col: number): boolean {
-    if (row < 0 || this.moduleCount <= row || col < 0 || this.moduleCount <= col) {
+    if (
+      row < 0 ||
+      this.moduleCount <= row ||
+      col < 0 ||
+      this.moduleCount <= col
+    ) {
       return false;
     }
     return !!this.modules[row][col];
@@ -194,7 +199,7 @@ export class QRCodeModel {
     // Auto-select type number if needed
     let totalLen = 0;
     for (const d of this.dataList) totalLen += d.getLength();
-    
+
     for (let t = 1; t <= 10; t++) {
       const capacity = RS_BLOCK_TABLE[t - 1][0][2];
       if (totalLen + 3 <= capacity) {
@@ -435,7 +440,10 @@ export function parseConnectPayload(payload: string): {
   const trimmed = payload.trim();
 
   // 1. Check deep link format
-  if (trimmed.startsWith("haajari://connect?") || trimmed.startsWith("haajari://connect")) {
+  if (
+    trimmed.startsWith("haajari://connect?") ||
+    trimmed.startsWith("haajari://connect")
+  ) {
     try {
       const urlParts = trimmed.split("?");
       if (urlParts.length > 1) {

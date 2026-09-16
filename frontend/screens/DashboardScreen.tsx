@@ -580,12 +580,12 @@ export default function DashboardScreen() {
       const todayYear = today.getFullYear();
       const todayMonth = today.getMonth();
       const todayDay = today.getDate();
-      await deleteAttendanceLocally(
-        quickMarkWorker.id,
-        todayYear,
-        todayMonth,
-        todayDay,
-      );
+      await storage.clearAttendanceRecord({
+        workerId: quickMarkWorker.id,
+        year: todayYear,
+        month: todayMonth,
+        day: todayDay,
+      });
       setAttendanceRecords((prev) =>
         prev.filter(
           (r) =>

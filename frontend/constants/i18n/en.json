@@ -94,6 +94,13 @@
     "setNewPassword": "Set New Password",
     "passwordResetSuccess": "Password reset successfully! Please log in with your new password."
   },
+  "nav": {
+    "dashboard": "Dashboard",
+    "workers": "Workers",
+    "qrScanner": "Scan QR",
+    "summary": "Summary",
+    "siteControl": "Site Control"
+  },
   "tabs": {
     "dashboard": "Dashboard",
     "siteControl": "Site Control",
@@ -101,7 +108,8 @@
     "workers": "Workers",
     "settings": "Settings",
     "attendance": "Attendance",
-    "summary": "Summary"
+    "summary": "Summary",
+    "scanQr": "Scan QR"
   },
   "dashboard": {
     "title": "Dashboard",

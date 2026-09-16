@@ -3,7 +3,14 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { Platform, StyleSheet, View, Pressable, Text, DeviceEventEmitter } from "react-native";
+import {
+  Platform,
+  StyleSheet,
+  View,
+  Pressable,
+  Text,
+  DeviceEventEmitter,
+} from "react-native";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
@@ -44,14 +51,21 @@ import BillingHistoryScreen from "@/screens/BillingHistoryScreen";
 import PaymentHandoverMenuScreen from "@/screens/PaymentHandoverMenuScreen";
 import SecureAccountScreen from "@/screens/SecureAccountScreen";
 import NotificationScreen from "@/screens/NotificationScreen";
+import RoleBottomNavigation from "@/components/RoleBottomNavigation";
+import { getNormalizedRole } from "@/navigation/navigationConfig";
 
 export type MainTabParamList = {
-  AttendanceTab: undefined;
-  AttendanceScreenTab: undefined;
-  ScanQRTab: undefined;
-  ReportsTab: undefined;
-  SiteManagementTab: undefined;
+  DashboardTab: undefined;
   WorkersTab?: undefined;
+  ScanQRTab: undefined;
+  SummaryTab: undefined;
+  SiteControlTab?: undefined;
+
+  // Legacy tab aliases
+  AttendanceTab?: undefined;
+  AttendanceScreenTab?: undefined;
+  ReportsTab?: undefined;
+  SiteManagementTab?: undefined;
   SettingsTab?: undefined;
 };
 
@@ -94,12 +108,15 @@ export type RootStackParamList = {
   AttendanceDetail: { siteId?: string } | undefined;
   Workers: undefined;
   Summary: undefined;
+  DashboardTab: any;
   AttendanceTab: any;
   AttendanceScreenTab: any;
   ScanQRTab: any;
   WorkersTab: any;
   SettingsTab: any;
+  SiteControlTab: any;
   SiteManagementTab: any;
+  SummaryTab: any;
   ReportsTab: any;
 };
 
@@ -143,189 +160,101 @@ function AttendanceNavigator() {
         name="Workers"
         component={WorkersScreen}
         options={{
-          headerTitle: t.workers.title,
+          headerTitle: t("nav.workers", t.workers.title),
         }}
       />
       <AttendanceStack.Screen
         name="Summary"
         component={SummaryScreen}
         options={{
-          headerTitle: t.summary.title,
+          headerTitle: t("nav.summary", t.summary.title),
         }}
       />
     </AttendanceStack.Navigator>
   );
 }
 
-// Dummy screen for center tab
+// Dummy screen for center action tab
 const DummyScreen = () => <View style={{ flex: 1 }} />;
 
 function MainTabs() {
   const { theme, isDark } = useTheme();
-  const { t } = useLanguage();
-  const { isSupervisor, isWorker } = useAuth();
-  const { isModuleVisible } = useFeatureAccess();
+  const { isWorker, user, role } = useAuth();
+  const normalizedRole = getNormalizedRole(user?.role || role);
 
   const [isScannerOpen, setIsScannerOpen] = React.useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
 
   React.useEffect(() => {
-    const subDrawer = require("react-native").DeviceEventEmitter.addListener(
+    const subDrawer = DeviceEventEmitter.addListener(
       "OPEN_SETTINGS_DRAWER",
       () => {
         setIsDrawerOpen(true);
-      }
+      },
     );
-    const subScanner = require("react-native").DeviceEventEmitter.addListener(
-      "OPEN_QR_SCANNER",
-      () => {
-        setIsScannerOpen(true);
-      }
-    );
+    const subScanner = DeviceEventEmitter.addListener("OPEN_QR_SCANNER", () => {
+      setIsScannerOpen(true);
+    });
     return () => {
       subDrawer.remove();
       subScanner.remove();
     };
   }, []);
 
-  const isDashboardVisible = isModuleVisible("dashboard");
-  const isSiteControlVisible = isModuleVisible("siteControl");
-  const isReportsVisible = isModuleVisible("reports");
-
-  const tabBarStyle = {
-    backgroundColor:
-      Platform.OS === "ios" ? "transparent" : theme.backgroundSecondary,
-    borderTopColor: theme.border,
-    borderTopWidth: 1,
-    height: Platform.OS === "ios" ? 85 : 68,
-    paddingBottom: Platform.OS === "ios" ? 25 : 8,
-    paddingTop: 6,
-    elevation: 8,
-  };
-
-  const tabBackground = () =>
-    Platform.OS === "ios" ? (
-      <BlurView
-        intensity={100}
-        tint={isDark ? "dark" : "light"}
-        style={StyleSheet.absoluteFill}
-      />
-    ) : null;
-
   return (
     <>
       <Tab.Navigator
-        initialRouteName="AttendanceTab"
+        initialRouteName="DashboardTab"
+        tabBar={(props) => (
+          <RoleBottomNavigation
+            {...props}
+            role={normalizedRole}
+            onOpenQrScanner={() => setIsScannerOpen(true)}
+          />
+        )}
         screenOptions={{
-          tabBarActiveTintColor: theme.primary,
-          tabBarInactiveTintColor: theme.tabIconDefault,
-          tabBarStyle,
-          tabBarBackground: tabBackground,
-          tabBarLabelStyle: {
-            fontSize: 11,
-            fontWeight: "600",
-            marginTop: 2,
-          },
+          headerShown: false,
           ...getCommonTabScreenOptions({ theme, isDark }),
         }}
       >
-        {/* TAB 1: Dashboard */}
+        {/* 1. Dashboard (All roles: Contractor, Supervisor, Worker) */}
         <Tab.Screen
-          name="AttendanceTab"
+          name="DashboardTab"
           component={AttendanceNavigator}
-          options={{
-            title: t.tabs?.dashboard || t("tabs.dashboard", "Dashboard"),
-            tabBarLabel: t.tabs?.dashboard || t("tabs.dashboard", "Dashboard"),
-            headerShown: false,
-            tabBarItemStyle: isDashboardVisible ? undefined : { display: "none" },
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="grid" size={22} color={color} />
-            ),
-          }}
+          options={{ headerShown: false }}
         />
 
-        {/* TAB 2: Attendance (Hidden for Worker accounts) */}
-        <Tab.Screen
-          name="AttendanceScreenTab"
-          component={AttendanceScreen}
-          options={{
-            title: t.tabs?.attendance || t("tabs.attendance", "Attendance"),
-            tabBarLabel: t.tabs?.attendance || t("tabs.attendance", "Attendance"),
-            headerShown: false,
-            tabBarItemStyle: isWorker ? { display: "none" } : undefined,
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="check-square" size={22} color={color} />
-            ),
-          }}
-        />
+        {/* 2. Workers (Contractor & Supervisor only) */}
+        {!isWorker && (
+          <Tab.Screen
+            name="WorkersTab"
+            component={WorkersScreen}
+            options={{ headerShown: false }}
+          />
+        )}
 
-        {/* TAB 3: CENTER ACTION SCAN QR */}
+        {/* 3. Center QR Action (All roles: Contractor, Supervisor, Worker) */}
         <Tab.Screen
           name="ScanQRTab"
           component={DummyScreen}
-          options={{
-            title: t("tabs.scanQr", "Scan QR"),
-            tabBarLabel: t("tabs.scanQr", "Scan QR"),
-            tabBarButton: () => (
-              <View style={styles.centerQrContainer}>
-                <Pressable
-                  onPress={() => setIsScannerOpen(true)}
-                  style={({ pressed }: any) => [
-                    styles.centerQrBtn,
-                    {
-                      backgroundColor: theme.primary,
-                      transform: [{ scale: pressed ? 0.94 : 1 }],
-                    },
-                  ]}
-                >
-                  <Feather name="maximize" size={24} color="#FFFFFF" />
-                </Pressable>
-                <ThemedText
-                  style={[
-                    styles.centerQrLabel,
-                    { color: theme.tabIconDefault },
-                  ]}
-                >
-                  {t("tabs.scanQr", "Scan QR")}
-                </ThemedText>
-              </View>
-            ),
-          }}
+          options={{ headerShown: false }}
         />
 
-        {/* TAB 4: Summary */}
+        {/* 4. Summary (All roles: Contractor, Supervisor, Worker) */}
         <Tab.Screen
-          name="ReportsTab"
+          name="SummaryTab"
           component={SummaryScreen}
-          options={{
-            title: t.tabs?.summary || t("tabs.summary", "Summary"),
-            tabBarLabel: t.tabs?.summary || t("tabs.summary", "Summary"),
-            headerShown: false,
-            tabBarItemStyle: isReportsVisible ? undefined : { display: "none" },
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="bar-chart-2" size={22} color={color} />
-            ),
-          }}
+          options={{ headerShown: false }}
         />
 
-        {/* TAB 5: Site (Hidden for Worker accounts) */}
-        <Tab.Screen
-          name="SiteManagementTab"
-          component={isWorker ? SiteListScreen : SiteControlDashboardScreen}
-          options={{
-            title: isSupervisor
-              ? t("supervisor.assignedSites", "मेरी साइट्स")
-              : t.tabs?.siteControl || t("tabs.siteControl", "Site"),
-            tabBarLabel: isSupervisor
-              ? t("supervisor.assignedSites", "मेरी साइट्स")
-              : t.tabs?.siteControl || t("tabs.siteControl", "Site"),
-            headerShown: false,
-            tabBarItemStyle: isWorker || !isSiteControlVisible ? { display: "none" } : undefined,
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="layers" size={22} color={color} />
-            ),
-          }}
-        />
+        {/* 5. Site Control (Contractor & Supervisor only) */}
+        {!isWorker && (
+          <Tab.Screen
+            name="SiteControlTab"
+            component={SiteControlDashboardScreen}
+            options={{ headerShown: false }}
+          />
+        )}
       </Tab.Navigator>
 
       {/* Settings Drawer & QR Scanner Modals */}
@@ -346,8 +275,14 @@ function MainTabs() {
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
-  const { newDeviceAlert, clearNewDeviceAlert, setNewDeviceAlert, userId, uniqueId, user } =
-    useAuth();
+  const {
+    newDeviceAlert,
+    clearNewDeviceAlert,
+    setNewDeviceAlert,
+    userId,
+    uniqueId,
+    user,
+  } = useAuth();
   const { socket } = useSocket();
 
   React.useEffect(() => {
@@ -369,6 +304,8 @@ export default function MainTabNavigator() {
 
       socket.on("attendance:recorded", handleAttendanceUpdate);
       socket.on("attendance:updated", handleAttendanceUpdate);
+      socket.on("attendance:cleared", handleAttendanceUpdate);
+      socket.on("attendance:deleted", handleAttendanceUpdate);
       socket.on("admin_dashboard_update", handleAttendanceUpdate);
 
       const handleNewDeviceLogin = (data: any) => {
@@ -381,6 +318,8 @@ export default function MainTabNavigator() {
       return () => {
         socket.off("attendance:recorded", handleAttendanceUpdate);
         socket.off("attendance:updated", handleAttendanceUpdate);
+        socket.off("attendance:cleared", handleAttendanceUpdate);
+        socket.off("attendance:deleted", handleAttendanceUpdate);
         socket.off("admin_dashboard_update", handleAttendanceUpdate);
         socket.off("new_device_login", handleNewDeviceLogin);
       };
@@ -571,6 +510,11 @@ export default function MainTabNavigator() {
         />
         {/* Fallback tab alias screen mappings */}
         <Stack.Screen
+          name="DashboardTab"
+          component={DashboardScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="AttendanceTab"
           component={DashboardScreen}
           options={{ headerShown: false }}
@@ -586,13 +530,28 @@ export default function MainTabNavigator() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="SiteControlTab"
+          component={SiteControlDashboardScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="SiteManagementTab"
           component={SiteControlDashboardScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="SummaryTab"
+          component={SummaryScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="ReportsTab"
           component={SummaryScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ScanQRTab"
+          component={DummyScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
@@ -631,4 +590,3 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 });
-

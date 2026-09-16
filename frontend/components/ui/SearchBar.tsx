@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, TextInput, Pressable, StyleSheet } from "react-native";
+import { TextInput, Pressable, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import Animated, {
   useSharedValue,

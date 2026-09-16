@@ -8,8 +8,6 @@ import { authenticatedFetch } from "./apiClient";
 
 export { API_URL, getApiUrl, authenticatedFetch };
 
-
-
 const inflightRequests = new Map<string, Promise<any>>();
 const memoryCache = new Map<string, { data: any; timestamp: number }>();
 const DEFAULT_STALE_TIME_MS = 15000; // 15 seconds memory cache stale time
@@ -107,7 +105,8 @@ export function mapAttendance(doc: any): AttendanceRecord {
     dailyRate: doc.dailyRate !== undefined ? doc.dailyRate : undefined,
     customWage: doc.customWage !== undefined ? doc.customWage : undefined,
     finalPay: doc.finalPay !== undefined ? doc.finalPay : undefined,
-    overtimeHours: doc.overtimeHours !== undefined ? doc.overtimeHours : undefined,
+    overtimeHours:
+      doc.overtimeHours !== undefined ? doc.overtimeHours : undefined,
     overtimeWage: doc.overtimeWage !== undefined ? doc.overtimeWage : undefined,
     location: doc.location || undefined,
     timestamp: doc.timestamp ? new Date(doc.timestamp).getTime() : undefined,
@@ -1096,9 +1095,7 @@ export const storage = {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(
-          err.error || `Failed to update worker (${res.status})`,
-        );
+        throw new Error(err.error || `Failed to update worker (${res.status})`);
       }
 
       const saved = await res.json();
@@ -1128,9 +1125,7 @@ export const storage = {
       });
       if (!res.ok && res.status !== 404) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(
-          err.error || `Failed to delete worker (${res.status})`,
-        );
+        throw new Error(err.error || `Failed to delete worker (${res.status})`);
       }
     }
 
@@ -1169,23 +1164,32 @@ export const storage = {
   },
 
   async setAttendanceRecord(record: AttendanceRecord): Promise<void> {
+    const isOT = record.value === "OT";
+    const isAbsent = record.value === "A";
+    const sanitizedRecord: AttendanceRecord = {
+      ...record,
+      overtimeHours: isOT ? record.overtimeHours : undefined,
+      overtimeWage: isOT ? record.overtimeWage : undefined,
+      customWage: isAbsent ? undefined : record.customWage,
+    };
+
     const auth = await this.getAuth();
     if (auth?.token) {
       const res = await authenticatedFetch(`${API_URL}/attendance/record`, {
         method: "POST",
         body: JSON.stringify({
-          workerId: record.workerId,
-          year: record.year,
-          month: record.month,
-          day: record.day,
-          value: record.value,
-          dailyRate: record.dailyRate,
-          customWage: record.customWage,
-          finalPay: record.finalPay,
-          overtimeHours: record.overtimeHours,
-          overtimeWage: record.overtimeWage,
-          location: record.location,
-          projectId: record.projectId,
+          workerId: sanitizedRecord.workerId,
+          year: sanitizedRecord.year,
+          month: sanitizedRecord.month,
+          day: sanitizedRecord.day,
+          value: sanitizedRecord.value,
+          dailyRate: sanitizedRecord.dailyRate,
+          customWage: sanitizedRecord.customWage,
+          finalPay: sanitizedRecord.finalPay,
+          overtimeHours: sanitizedRecord.overtimeHours,
+          overtimeWage: sanitizedRecord.overtimeWage,
+          location: sanitizedRecord.location,
+          projectId: sanitizedRecord.projectId,
         }),
       });
 
@@ -1198,20 +1202,20 @@ export const storage = {
     }
 
     // Update local cache so UI is immediately refreshed
-    const monthKey = `attendance_${record.year}_${record.month}`;
+    const monthKey = `attendance_${sanitizedRecord.year}_${sanitizedRecord.month}`;
     const cachedMonthRecords = getMemoryCache<AttendanceRecord[]>(monthKey);
     if (cachedMonthRecords) {
       const idx = cachedMonthRecords.findIndex(
         (r) =>
-          r.workerId === record.workerId &&
-          r.year === record.year &&
-          r.month === record.month &&
-          r.day === record.day,
+          r.workerId === sanitizedRecord.workerId &&
+          r.year === sanitizedRecord.year &&
+          r.month === sanitizedRecord.month &&
+          r.day === sanitizedRecord.day,
       );
       if (idx !== -1) {
-        cachedMonthRecords[idx] = record;
+        cachedMonthRecords[idx] = sanitizedRecord;
       } else {
-        cachedMonthRecords.push(record);
+        cachedMonthRecords.push(sanitizedRecord);
       }
       setMemoryCache(monthKey, cachedMonthRecords);
     }
@@ -1219,19 +1223,93 @@ export const storage = {
     const records = await this.getAttendance();
     const existingIndex = records.findIndex(
       (r) =>
-        r.workerId === record.workerId &&
-        r.year === record.year &&
-        r.month === record.month &&
-        r.day === record.day,
+        r.workerId === sanitizedRecord.workerId &&
+        r.year === sanitizedRecord.year &&
+        r.month === sanitizedRecord.month &&
+        r.day === sanitizedRecord.day,
     );
     if (existingIndex !== -1) {
-      records[existingIndex] = record;
+      records[existingIndex] = sanitizedRecord;
     } else {
-      records.push(record);
+      records.push(sanitizedRecord);
     }
     await AsyncStorage.setItem(
       STORAGE_KEYS.ATTENDANCE,
       JSON.stringify(records),
+    );
+
+    invalidateMemoryCache();
+    DeviceEventEmitter.emit("refreshData");
+    DeviceEventEmitter.emit("attendanceUpdated");
+  },
+
+  async clearAttendanceRecord(params: {
+    workerId: string;
+    year: number;
+    month: number;
+    day: number;
+    id?: string;
+  }): Promise<void> {
+    const { workerId, year, month, day, id } = params;
+    const auth = await this.getAuth();
+    if (auth?.token) {
+      try {
+        await authenticatedFetch(`${API_URL}/attendance/clear`, {
+          method: "POST",
+          body: JSON.stringify({ workerId, year, month, day, id }),
+        });
+      } catch (e) {
+        console.warn(
+          "Failed to clear attendance on backend, removing locally:",
+          e,
+        );
+      }
+    }
+
+    const monthVariations = [
+      month,
+      month + 1,
+      ...(month > 0 ? [month - 1] : []),
+    ];
+
+    // 1. Remove from all possible month memory caches
+    for (const m of monthVariations) {
+      const monthKey = `attendance_${year}_${m}`;
+      const cachedMonthRecords = getMemoryCache<AttendanceRecord[]>(monthKey);
+      if (cachedMonthRecords) {
+        const filteredMonth = cachedMonthRecords.filter(
+          (r) =>
+            !(
+              r.workerId === workerId &&
+              r.year === year &&
+              monthVariations.includes(r.month) &&
+              r.day === day
+            ),
+        );
+        setMemoryCache(monthKey, filteredMonth);
+      }
+
+      // Purge labour dashboard cache
+      try {
+        const dashboardKey = `${STORAGE_KEYS.LABOUR_DASHBOARD}_${year}_${m}`;
+        await AsyncStorage.removeItem(dashboardKey);
+      } catch {}
+    }
+
+    // 2. Remove from global attendance in AsyncStorage
+    const allRecords = await this.getAttendance();
+    const filteredAll = allRecords.filter(
+      (r) =>
+        !(
+          r.workerId === workerId &&
+          r.year === year &&
+          monthVariations.includes(r.month) &&
+          r.day === day
+        ),
+    );
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.ATTENDANCE,
+      JSON.stringify(filteredAll),
     );
 
     invalidateMemoryCache();
@@ -1413,12 +1491,9 @@ export const storage = {
   async deletePayment(paymentId: string): Promise<void> {
     const auth = await this.getAuth();
     if (auth?.token && paymentId && paymentId.length >= 24) {
-      const res = await authenticatedFetch(
-        `${API_URL}/payments/${paymentId}`,
-        {
-          method: "DELETE",
-        },
-      );
+      const res = await authenticatedFetch(`${API_URL}/payments/${paymentId}`, {
+        method: "DELETE",
+      });
       if (!res.ok && res.status !== 404) {
         const err = await res.json().catch(() => ({}));
         throw new Error(

@@ -113,19 +113,29 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
     const advanceAmount = (customWageResolved !== undefined && customWageResolved !== null) ? customWageResolved : 0;
     const otAmount = (overtimeWageResolved !== undefined && overtimeWageResolved !== null) ? overtimeWageResolved : 0;
 
-    if (value === "P" || value === "OT") {
+    if (value === "OT") {
       finalPayResolved = dailyRateResolved + otAmount;
+    } else if (value === "P") {
+      finalPayResolved = dailyRateResolved;
+      overtimeWageResolved = null as any;
+      overtimeHoursResolved = null as any;
     } else if (value === "H") {
-      finalPayResolved = (dailyRateResolved / 2) + otAmount;
+      finalPayResolved = dailyRateResolved / 2;
+      overtimeWageResolved = null as any;
+      overtimeHoursResolved = null as any;
     } else if (value === "A") {
       finalPayResolved = 0;
-      customWageResolved = undefined;
-      overtimeWageResolved = undefined;
-      overtimeHoursResolved = undefined;
+      customWageResolved = null as any;
+      overtimeWageResolved = null as any;
+      overtimeHoursResolved = null as any;
     } else if (typeof value === "number") {
-      finalPayResolved = value + otAmount;
+      finalPayResolved = value;
+      overtimeWageResolved = null as any;
+      overtimeHoursResolved = null as any;
     } else {
       finalPayResolved = 0;
+      overtimeWageResolved = null as any;
+      overtimeHoursResolved = null as any;
     }
 
     const filter = { tenantId, workerId, year, month, day };
@@ -138,10 +148,10 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
       day,
       value,
       dailyRate: dailyRateResolved,
-      customWage: customWageResolved,
+      customWage: customWageResolved ?? null,
       finalPay: finalPayResolved,
-      overtimeHours: overtimeHoursResolved,
-      overtimeWage: overtimeWageResolved,
+      overtimeHours: overtimeHoursResolved ?? null,
+      overtimeWage: overtimeWageResolved ?? null,
       location,
       timestamp: new Date(),
     };
@@ -149,7 +159,7 @@ export const setAttendanceRecord = async (req: AuthenticatedRequest, res: Respon
     const record = await Attendance.findOneAndUpdate(
       filter,
       update,
-      { new: true, upsert: true }
+      { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 
     // Resolve user ID if not directly attached to worker doc
@@ -272,19 +282,29 @@ export const syncAttendance = async (req: AuthenticatedRequest, res: Response) =
       const advanceAmount = (customWageResolved !== undefined && customWageResolved !== null) ? customWageResolved : 0;
       const otAmount = (overtimeWageResolved !== undefined && overtimeWageResolved !== null) ? overtimeWageResolved : 0;
 
-      if (value === "P" || value === "OT") {
+      if (value === "OT") {
         finalPayResolved = dailyRateResolved + otAmount;
+      } else if (value === "P") {
+        finalPayResolved = dailyRateResolved;
+        overtimeWageResolved = null as any;
+        overtimeHoursResolved = null as any;
       } else if (value === "H") {
-        finalPayResolved = (dailyRateResolved / 2) + otAmount;
+        finalPayResolved = dailyRateResolved / 2;
+        overtimeWageResolved = null as any;
+        overtimeHoursResolved = null as any;
       } else if (value === "A") {
         finalPayResolved = 0;
-        customWageResolved = undefined;
-        overtimeWageResolved = undefined;
-        overtimeHoursResolved = undefined;
+        customWageResolved = null as any;
+        overtimeWageResolved = null as any;
+        overtimeHoursResolved = null as any;
       } else if (typeof value === "number") {
-        finalPayResolved = value + otAmount;
+        finalPayResolved = value;
+        overtimeWageResolved = null as any;
+        overtimeHoursResolved = null as any;
       } else {
         finalPayResolved = 0;
+        overtimeWageResolved = null as any;
+        overtimeHoursResolved = null as any;
       }
 
       const filter = { tenantId, workerId, year, month, day };
@@ -297,10 +317,10 @@ export const syncAttendance = async (req: AuthenticatedRequest, res: Response) =
         day,
         value,
         dailyRate: dailyRateResolved,
-        customWage: customWageResolved,
+        customWage: customWageResolved ?? null,
         finalPay: finalPayResolved,
-        overtimeHours: overtimeHoursResolved,
-        overtimeWage: overtimeWageResolved,
+        overtimeHours: overtimeHoursResolved ?? null,
+        overtimeWage: overtimeWageResolved ?? null,
         location,
         timestamp: timestamp ? new Date(timestamp) : new Date(),
       };
@@ -308,7 +328,7 @@ export const syncAttendance = async (req: AuthenticatedRequest, res: Response) =
       const result = await Attendance.findOneAndUpdate(
         filter,
         update,
-        { new: true, upsert: true }
+        { new: true, upsert: true, setDefaultsOnInsert: true }
       );
       results.push(result);
     }
@@ -347,6 +367,114 @@ export const syncAttendance = async (req: AuthenticatedRequest, res: Response) =
   }
 };
 
+export const clearAttendanceRecord = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const role = req.user?.role;
+    if (role === "labor" || role === "worker") {
+      return res.status(403).json({ error: "Forbidden: Workers cannot clear attendance." });
+    }
+
+    const tenantId = req.user?.tenantId;
+    const { workerId, year, month, day, id } = { ...req.query, ...req.body };
+
+    let targetWorkerIds: any[] = [];
+    let workerDoc: any = null;
+
+    if (id) {
+      const existing = await Attendance.findById(id);
+      if (existing) {
+        workerDoc = await Worker.findById(existing.workerId);
+        targetWorkerIds = [existing.workerId];
+      }
+    } else if (workerId) {
+      targetWorkerIds = [workerId];
+      workerDoc = await Worker.findById(workerId);
+      if (workerDoc?.uniqueId) {
+        const siblingWorkers = await Worker.find({ uniqueId: workerDoc.uniqueId }).select("_id").lean();
+        siblingWorkers.forEach((w) => targetWorkerIds.push(w._id));
+      }
+    }
+
+    let deleteFilter: any = {};
+    if (id) {
+      deleteFilter._id = id;
+    } else if (workerId && year !== undefined && month !== undefined && day !== undefined) {
+      const y = parseInt(year as string);
+      const m = parseInt(month as string);
+      const d = parseInt(day as string);
+      const monthFilter = [m, m + 1, ...(m > 0 ? [m - 1] : [])];
+
+      deleteFilter = {
+        workerId: { $in: targetWorkerIds },
+        year: y,
+        month: { $in: monthFilter },
+        day: d,
+      };
+    } else {
+      return res.status(400).json({ error: "Missing required parameters: workerId, year, month, day (or id)" });
+    }
+
+    // Find all matching before deleting for logging & broadcast
+    const matchingRecords = await Attendance.find(deleteFilter).lean();
+    const deleteResult = await Attendance.deleteMany(deleteFilter);
+
+    // Resolve worker to broadcast socket event
+    let resolvedUserId = workerDoc?.userId;
+    if (!resolvedUserId && workerDoc?.uniqueId) {
+      const u = await User.findOne({ uniqueId: workerDoc.uniqueId, role: { $in: ["labor", "worker"] } });
+      if (u) resolvedUserId = u._id;
+    }
+
+    try {
+      const io = getIO();
+      const payload = {
+        workerId: workerId || workerDoc?._id,
+        uniqueId: workerDoc?.uniqueId,
+        year: year ? parseInt(year as string) : undefined,
+        month: month !== undefined ? parseInt(month as string) : undefined,
+        day: day ? parseInt(day as string) : undefined,
+        cleared: true,
+        deletedCount: deleteResult.deletedCount,
+      };
+
+      if (resolvedUserId) {
+        io.to(`user_${resolvedUserId}`).emit("attendance:cleared", payload);
+        io.to(`user_${resolvedUserId}`).emit("attendance:deleted", payload);
+        io.to(`user_${resolvedUserId}`).emit("attendance:updated", payload);
+      }
+      if (workerDoc?.uniqueId) {
+        io.to(`worker_${workerDoc.uniqueId}`).emit("attendance:cleared", payload);
+        io.to(`worker_${workerDoc.uniqueId}`).emit("attendance:deleted", payload);
+        io.to(`worker_${workerDoc.uniqueId}`).emit("attendance:updated", payload);
+      }
+      if (tenantId) {
+        io.to(`tenant_${tenantId}`).emit("attendance:cleared", payload);
+        io.to(`tenant_${tenantId}`).emit("attendance:deleted", payload);
+        io.to(`tenant_${tenantId}`).emit("attendance:updated", payload);
+      }
+      io.emit("admin_dashboard_update");
+    } catch (socketErr) {
+      console.warn("[Attendance Controller] Socket emit on clear error:", socketErr);
+    }
+
+    logActivity({
+      req,
+      action: "ATTENDANCE_DELETED",
+      targetType: "ATTENDANCE",
+      targetId: (matchingRecords[0]?._id || workerId || "BATCH").toString(),
+      changes: { before: matchingRecords }
+    }).catch(() => {});
+
+    res.json({
+      success: true,
+      message: "Attendance permanently cleared from database",
+      deletedCount: deleteResult.deletedCount,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const deleteAttendanceRecord = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const role = req.user?.role;
@@ -355,7 +483,6 @@ export const deleteAttendanceRecord = async (req: AuthenticatedRequest, res: Res
     }
 
     const tenantId = req.user?.tenantId;
-    const userId = req.user?.id;
     const { id } = req.params;
 
     const attendance = await Attendance.findOne({ _id: id, tenantId });
@@ -366,13 +493,52 @@ export const deleteAttendanceRecord = async (req: AuthenticatedRequest, res: Res
     const before = attendance.toObject();
     await Attendance.findByIdAndDelete(id);
 
-    await logActivity({
+    // Resolve worker to broadcast socket event
+    const worker = await Worker.findById(attendance.workerId);
+    let resolvedUserId = worker?.userId;
+    if (!resolvedUserId && worker?.uniqueId) {
+      const u = await User.findOne({ uniqueId: worker.uniqueId, role: { $in: ["labor", "worker"] } });
+      if (u) resolvedUserId = u._id;
+    }
+
+    try {
+      const io = getIO();
+      const payload = {
+        attendanceId: attendance._id,
+        workerId: attendance.workerId,
+        uniqueId: worker?.uniqueId,
+        year: attendance.year,
+        month: attendance.month,
+        day: attendance.day,
+        cleared: true,
+      };
+      if (resolvedUserId) {
+        io.to(`user_${resolvedUserId}`).emit("attendance:cleared", payload);
+        io.to(`user_${resolvedUserId}`).emit("attendance:deleted", payload);
+        io.to(`user_${resolvedUserId}`).emit("attendance:updated", payload);
+      }
+      if (worker?.uniqueId) {
+        io.to(`worker_${worker.uniqueId}`).emit("attendance:cleared", payload);
+        io.to(`worker_${worker.uniqueId}`).emit("attendance:deleted", payload);
+        io.to(`worker_${worker.uniqueId}`).emit("attendance:updated", payload);
+      }
+      if (tenantId) {
+        io.to(`tenant_${tenantId}`).emit("attendance:cleared", payload);
+        io.to(`tenant_${tenantId}`).emit("attendance:deleted", payload);
+        io.to(`tenant_${tenantId}`).emit("attendance:updated", payload);
+      }
+      io.emit("admin_dashboard_update");
+    } catch (socketErr) {
+      console.warn("[Attendance Controller] Socket emit on delete error:", socketErr);
+    }
+
+    logActivity({
       req,
       action: "ATTENDANCE_DELETED",
       targetType: "ATTENDANCE",
       targetId: id,
       changes: { before }
-    });
+    }).catch(() => {});
 
     res.json({ success: true, message: "Attendance record deleted successfully" });
   } catch (error: any) {
@@ -467,14 +633,16 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response) 
           : 0;
 
       let pay = 0;
-      if (rec.value === "P" || rec.value === "OT") {
+      if (rec.value === "OT") {
         pay = rate + ot;
+      } else if (rec.value === "P") {
+        pay = rate;
       } else if (rec.value === "H") {
-        pay = rate / 2 + ot;
+        pay = rate / 2;
       } else if (rec.value === "A") {
         pay = 0;
       } else if (typeof rec.value === "number") {
-        pay = rec.value + ot;
+        pay = rec.value;
       }
 
       if (rec.value === "P") presentDays++;

@@ -20,7 +20,7 @@ import * as Haptics from "expo-haptics";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
-import { authenticatedFetch, API_URL, storage } from "@/utils/storage";
+import { authenticatedFetch, API_URL } from "@/utils/storage";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { QrScannerModal } from "@/components/QrScannerModal";
 import { MyQrCodeModal } from "@/components/MyQrCodeModal";
@@ -579,13 +579,26 @@ export default function TeamConnectionWidget({
             <View style={styles.idActions}>
               <Pressable
                 onPress={() => setShowMyQrModal(true)}
-                style={[styles.iconBtn, { borderColor: borderCol, backgroundColor: isDark ? "#1E293B" : "#FFF7ED" }]}
+                style={[
+                  styles.iconBtn,
+                  {
+                    borderColor: borderCol,
+                    backgroundColor: isDark ? "#1E293B" : "#FFF7ED",
+                  },
+                ]}
               >
-                <MaterialCommunityIcons name="qrcode" size={16} color="#EA580C" />
+                <MaterialCommunityIcons
+                  name="qrcode"
+                  size={16}
+                  color="#EA580C"
+                />
               </Pressable>
               <Pressable
                 onPress={() => handleCopyId()}
-                style={[styles.iconBtn, { borderColor: borderCol, marginLeft: 6 }]}
+                style={[
+                  styles.iconBtn,
+                  { borderColor: borderCol, marginLeft: 6 },
+                ]}
               >
                 <Feather name="copy" size={15} color={theme.text} />
               </Pressable>
@@ -609,16 +622,30 @@ export default function TeamConnectionWidget({
               style={({ pressed }) => [
                 styles.boxItem,
                 {
-                  backgroundColor: isDark ? "rgba(37, 99, 235, 0.15)" : "#EFF6FF",
+                  backgroundColor: isDark
+                    ? "rgba(37, 99, 235, 0.15)"
+                    : "#EFF6FF",
                   borderColor: isDark ? "rgba(37, 99, 235, 0.4)" : "#BFDBFE",
                   transform: [{ scale: pressed ? 0.96 : 1 }],
                 },
               ]}
             >
-              <View style={[styles.boxIconWrap, { backgroundColor: "#2563EB18" }]}>
-                <MaterialCommunityIcons name="qrcode-scan" size={18} color="#2563EB" />
+              <View
+                style={[styles.boxIconWrap, { backgroundColor: "#2563EB18" }]}
+              >
+                <MaterialCommunityIcons
+                  name="qrcode-scan"
+                  size={18}
+                  color="#2563EB"
+                />
               </View>
-              <Text style={[styles.boxLabel, { color: isDark ? "#93C5FD" : "#1D4ED8" }]} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.boxLabel,
+                  { color: isDark ? "#93C5FD" : "#1D4ED8" },
+                ]}
+                numberOfLines={1}
+              >
                 {t("common.scanQr", "Scan QR")}
               </Text>
             </Pressable>
@@ -633,16 +660,26 @@ export default function TeamConnectionWidget({
               style={({ pressed }) => [
                 styles.boxItem,
                 {
-                  backgroundColor: isDark ? "rgba(234, 88, 12, 0.15)" : "#FFF7ED",
+                  backgroundColor: isDark
+                    ? "rgba(234, 88, 12, 0.15)"
+                    : "#FFF7ED",
                   borderColor: isDark ? "rgba(234, 88, 12, 0.4)" : "#FED7AA",
                   transform: [{ scale: pressed ? 0.96 : 1 }],
                 },
               ]}
             >
-              <View style={[styles.boxIconWrap, { backgroundColor: "#EA580C18" }]}>
+              <View
+                style={[styles.boxIconWrap, { backgroundColor: "#EA580C18" }]}
+              >
                 <Feather name="user-plus" size={18} color="#EA580C" />
               </View>
-              <Text style={[styles.boxLabel, { color: isDark ? "#FDBA74" : "#C2410C" }]} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.boxLabel,
+                  { color: isDark ? "#FDBA74" : "#C2410C" },
+                ]}
+                numberOfLines={1}
+              >
                 {t("connection.connectWorkerShort", "+ Worker")}
               </Text>
             </Pressable>
@@ -657,20 +694,30 @@ export default function TeamConnectionWidget({
               style={({ pressed }) => [
                 styles.boxItem,
                 {
-                  backgroundColor: isDark ? "rgba(124, 58, 237, 0.15)" : "#F5F3FF",
+                  backgroundColor: isDark
+                    ? "rgba(124, 58, 237, 0.15)"
+                    : "#F5F3FF",
                   borderColor: isDark ? "rgba(124, 58, 237, 0.4)" : "#DDD6FE",
                   transform: [{ scale: pressed ? 0.96 : 1 }],
                 },
               ]}
             >
-              <View style={[styles.boxIconWrap, { backgroundColor: "#7C3AED18" }]}>
+              <View
+                style={[styles.boxIconWrap, { backgroundColor: "#7C3AED18" }]}
+              >
                 <MaterialCommunityIcons
                   name="shield-account"
                   size={18}
                   color="#7C3AED"
                 />
               </View>
-              <Text style={[styles.boxLabel, { color: isDark ? "#C4B5FD" : "#6D28D9" }]} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.boxLabel,
+                  { color: isDark ? "#C4B5FD" : "#6D28D9" },
+                ]}
+                numberOfLines={1}
+              >
                 {t("connection.connectSupervisorShort", "+ Supervisor")}
               </Text>
             </Pressable>
@@ -744,13 +791,26 @@ export default function TeamConnectionWidget({
             <View style={styles.idActions}>
               <Pressable
                 onPress={() => setShowMyQrModal(true)}
-                style={[styles.iconBtn, { borderColor: "#10B981", backgroundColor: isDark ? "#064E3B" : "#D1FAE5" }]}
+                style={[
+                  styles.iconBtn,
+                  {
+                    borderColor: "#10B981",
+                    backgroundColor: isDark ? "#064E3B" : "#D1FAE5",
+                  },
+                ]}
               >
-                <MaterialCommunityIcons name="qrcode" size={16} color="#059669" />
+                <MaterialCommunityIcons
+                  name="qrcode"
+                  size={16}
+                  color="#059669"
+                />
               </Pressable>
               <Pressable
                 onPress={() => handleCopyId()}
-                style={[styles.iconBtn, { borderColor: "#10B981", marginLeft: 6 }]}
+                style={[
+                  styles.iconBtn,
+                  { borderColor: "#10B981", marginLeft: 6 },
+                ]}
               >
                 <Feather name="copy" size={15} color="#059669" />
               </Pressable>
@@ -781,7 +841,9 @@ export default function TeamConnectionWidget({
                   size={16}
                   color="#FFFFFF"
                 />
-                <Text style={styles.primaryActionBtnText}>Scan Contractor QR</Text>
+                <Text style={styles.primaryActionBtnText}>
+                  Scan Contractor QR
+                </Text>
               </Pressable>
 
               <Pressable
@@ -803,7 +865,9 @@ export default function TeamConnectionWidget({
                   size={16}
                   color={theme.text}
                 />
-                <Text style={[styles.secondaryActionBtnText, { color: theme.text }]}>
+                <Text
+                  style={[styles.secondaryActionBtnText, { color: theme.text }]}
+                >
                   {t("connection.enterContractorIdBtn", "Enter ID")}
                 </Text>
               </Pressable>
