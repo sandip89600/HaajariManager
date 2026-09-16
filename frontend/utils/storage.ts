@@ -1878,3 +1878,276 @@ export function calculateWorkerSummary(
     totalOvertimeAmount,
   };
 }
+
+// Site Control Center & Daily Site Activity Types & Storage Extension
+export interface SiteActivityProof {
+  id: string;
+  type: "MORNING_WORK" | "EVENING_WORK" | "ISSUE" | "INSTRUCTION";
+  title?: string;
+  description?: string;
+  photo?: {
+    url: string;
+    thumbnailUrl?: string;
+    capturedAt: string;
+  };
+  location?: {
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    address?: string;
+    isVerifiedSiteLocation?: boolean;
+    distanceFromSiteMeters?: number;
+  };
+  worker?: {
+    id: string;
+    uniqueId?: string;
+    name: string;
+    category?: string;
+    profileImage?: string;
+  };
+  user?: {
+    id: string;
+    name: string;
+    role: string;
+  };
+  site?: {
+    id: string;
+    name: string;
+    address?: string;
+  };
+  status?: string;
+  dateStr: string;
+  timeStr: string;
+  createdAt: string;
+}
+
+export interface WorkerTodayContext {
+  success: boolean;
+  worker: {
+    id: string;
+    uniqueId: string;
+    name: string;
+    category: string;
+    dailyWage: number;
+    profileImage?: string;
+  };
+  hasActiveSession: boolean;
+  activeSession: any;
+  defaultSite: {
+    id: string;
+    name: string;
+    address?: string;
+    location?: any;
+  } | null;
+  detectedNearbySite: {
+    id: string;
+    name: string;
+    address?: string;
+    location?: any;
+  } | null;
+  activeWorkingSite: {
+    id: string;
+    name: string;
+    address?: string;
+    location?: any;
+  } | null;
+  attendance: {
+    status: string;
+    overtimeHours: number;
+  };
+  workUpdates: {
+    morning: {
+      submitted: boolean;
+      time?: string;
+      photo?: any;
+      description?: string;
+    };
+    evening: {
+      submitted: boolean;
+      time?: string;
+      photo?: any;
+      description?: string;
+    };
+  };
+  latestInstruction: {
+    id: string;
+    description: string;
+    voiceNoteUrl?: string;
+    priority?: string;
+    timeStr?: string;
+    givenBy?: string;
+  } | null;
+}
+
+// Extended storage methods for Site Activity & Workforce
+export const siteActivityStorage = {
+  async getContractorSitesControl(date?: string) {
+    const url = date
+      ? `${API_URL}/sites/control/summary?date=${date}`
+      : `${API_URL}/sites/control/summary`;
+    const res = await authenticatedFetch(url);
+    if (!res.ok) {
+      throw new Error(`Failed to load contractor sites control: ${res.status}`);
+    }
+    return await res.json();
+  },
+
+  async getSiteControlCenter(siteId: string, date?: string) {
+    const url = date
+      ? `${API_URL}/sites/${siteId}/control?date=${date}`
+      : `${API_URL}/sites/${siteId}/control`;
+    const res = await authenticatedFetch(url);
+    if (!res.ok) {
+      throw new Error(`Failed to load site control center: ${res.status}`);
+    }
+    return await res.json();
+  },
+
+  async submitWorkUpdate(
+    siteId: string,
+    payload: {
+      type: "MORNING_WORK" | "EVENING_WORK";
+      photoUrl: string;
+      description?: string;
+      latitude?: number;
+      longitude?: number;
+      accuracy?: number;
+      address?: string;
+      clientRequestId?: string;
+    },
+  ) {
+    const res = await authenticatedFetch(
+      `${API_URL}/sites/${siteId}/work-updates`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(
+        err.error || `Failed to submit work update: ${res.status}`,
+      );
+    }
+    DeviceEventEmitter.emit("refreshData");
+    return await res.json();
+  },
+
+  async startDailyWorkSession(
+    siteId: string,
+    location?: {
+      latitude?: number;
+      longitude?: number;
+      accuracy?: number;
+      address?: string;
+    },
+  ) {
+    const res = await authenticatedFetch(`${API_URL}/sites/session/start`, {
+      method: "POST",
+      body: JSON.stringify({ siteId, ...location }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(
+        err.error || `Failed to start work session: ${res.status}`,
+      );
+    }
+    DeviceEventEmitter.emit("refreshData");
+    return await res.json();
+  },
+
+  async getWorkerTodayContext(coords?: {
+    latitude?: number;
+    longitude?: number;
+  }): Promise<WorkerTodayContext> {
+    let url = `${API_URL}/sites/workers/me/today-context`;
+    if (coords?.latitude && coords?.longitude) {
+      url += `?lat=${coords.latitude}&lon=${coords.longitude}`;
+    }
+    const res = await authenticatedFetch(url);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch worker today context: ${res.status}`);
+    }
+    return await res.json();
+  },
+
+  async getWorkerSiteLogs(filter = "all", limit = 50) {
+    const url = `${API_URL}/sites/workers/me/site-logs?filter=${filter}&limit=${limit}`;
+    const res = await authenticatedFetch(url);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch worker site logs: ${res.status}`);
+    }
+    return await res.json();
+  },
+
+  async reportSiteIssue(
+    siteId: string,
+    payload: {
+      description: string;
+      photoUrl?: string;
+      severity?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+      latitude?: number;
+      longitude?: number;
+      accuracy?: number;
+      address?: string;
+    },
+  ) {
+    const res = await authenticatedFetch(`${API_URL}/sites/${siteId}/issues`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Failed to report issue: ${res.status}`);
+    }
+    DeviceEventEmitter.emit("refreshData");
+    return await res.json();
+  },
+
+  async resolveSiteIssue(issueId: string, resolutionNotes?: string) {
+    const res = await authenticatedFetch(
+      `${API_URL}/sites/issues/${issueId}/resolve`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ resolutionNotes }),
+      },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Failed to resolve issue: ${res.status}`);
+    }
+    DeviceEventEmitter.emit("refreshData");
+    return await res.json();
+  },
+
+  async addSiteInstruction(
+    siteId: string,
+    payload: {
+      description: string;
+      voiceNoteUrl?: string;
+      priority?: "NORMAL" | "HIGH" | "URGENT";
+    },
+  ) {
+    const res = await authenticatedFetch(
+      `${API_URL}/sites/${siteId}/instructions`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Failed to add instruction: ${res.status}`);
+    }
+    DeviceEventEmitter.emit("refreshData");
+    return await res.json();
+  },
+
+  async getWorkerSummaryStats() {
+    const res = await authenticatedFetch(`${API_URL}/sites/workers/me/summary`);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch worker summary stats: ${res.status}`);
+    }
+    return await res.json();
+  },
+};

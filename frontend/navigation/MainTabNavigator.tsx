@@ -40,6 +40,9 @@ import SiteDetailControlScreen from "@/screens/SiteDetailControlScreen";
 import DashboardScreen from "@/screens/DashboardScreen";
 import SupervisorDashboardScreen from "@/screens/SupervisorDashboardScreen";
 import WorkerDashboardScreen from "@/screens/WorkerDashboardScreen";
+import WorkerCameraUpdateScreen from "@/screens/WorkerCameraUpdateScreen";
+import WorkerSiteLogsScreen from "@/screens/WorkerSiteLogsScreen";
+import WorkerSummaryScreen from "@/screens/WorkerSummaryScreen";
 import SiteListScreen from "@/screens/SiteListScreen";
 import CreateSiteScreen from "@/screens/CreateSiteScreen";
 import EditSiteScreen from "@/screens/EditSiteScreen";
@@ -57,7 +60,9 @@ import { getNormalizedRole } from "@/navigation/navigationConfig";
 export type MainTabParamList = {
   DashboardTab: undefined;
   WorkersTab?: undefined;
-  ScanQRTab: undefined;
+  WorkerCameraTab?: undefined;
+  SiteLogsTab?: undefined;
+  ScanQRTab?: undefined;
   SummaryTab: undefined;
   SiteControlTab?: undefined;
 
@@ -89,6 +94,7 @@ export type RootStackParamList = {
   SiteDetailControl: { siteId: string };
   SiteList: undefined;
   CreateSite: undefined;
+  AddSite: undefined;
   EditSite: { siteId: string };
   SiteDetails: { siteId: string };
   EnterpriseCollaboration: undefined;
@@ -217,14 +223,23 @@ function MainTabs() {
           ...getCommonTabScreenOptions({ theme, isDark }),
         }}
       >
-        {/* 1. Dashboard (All roles: Contractor, Supervisor, Worker) */}
+        {/* 1. Home / Dashboard (All roles) */}
         <Tab.Screen
           name="DashboardTab"
           component={AttendanceNavigator}
           options={{ headerShown: false }}
         />
 
-        {/* 2. Workers (Contractor & Supervisor only) */}
+        {/* WORKER SPECIFIC TABS */}
+        {isWorker && (
+          <Tab.Screen
+            name="WorkerCameraTab"
+            component={WorkerCameraUpdateScreen}
+            options={{ headerShown: false }}
+          />
+        )}
+
+        {/* CONTRACTOR / SUPERVISOR SPECIFIC TABS */}
         {!isWorker && (
           <Tab.Screen
             name="WorkersTab"
@@ -240,14 +255,23 @@ function MainTabs() {
           options={{ headerShown: false }}
         />
 
-        {/* 4. Summary (All roles: Contractor, Supervisor, Worker) */}
+        {/* WORKER SITE LOGS TAB */}
+        {isWorker && (
+          <Tab.Screen
+            name="SiteLogsTab"
+            component={WorkerSiteLogsScreen}
+            options={{ headerShown: false }}
+          />
+        )}
+
+        {/* Summary Tab (Worker uses WorkerSummaryScreen, Contractor/Supervisor uses SummaryScreen) */}
         <Tab.Screen
           name="SummaryTab"
-          component={SummaryScreen}
+          component={isWorker ? WorkerSummaryScreen : SummaryScreen}
           options={{ headerShown: false }}
         />
 
-        {/* 5. Site Control (Contractor & Supervisor only) */}
+        {/* Site Control (Contractor & Supervisor only) */}
         {!isWorker && (
           <Tab.Screen
             name="SiteControlTab"
@@ -410,6 +434,13 @@ export default function MainTabNavigator() {
         />
         <Stack.Screen
           name="CreateSite"
+          component={CreateSiteScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="AddSite"
           component={CreateSiteScreen}
           options={{
             headerShown: false,

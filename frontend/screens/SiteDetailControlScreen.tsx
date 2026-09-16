@@ -9,6 +9,10 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  Image,
+  RefreshControl,
+  DeviceEventEmitter,
+  Text,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRoute, useNavigation } from "@react-navigation/native";
@@ -18,9 +22,10 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
-import { Spacing } from "@/constants/theme";
+import { Spacing, BorderRadius } from "@/constants/theme";
 import {
   storage,
+  siteActivityStorage,
   Project,
   Worker,
   authenticatedFetch,
@@ -28,6 +33,7 @@ import {
 } from "@/utils/storage";
 
 type ActiveTab =
+  | "updates"
   | "overview"
   | "workers"
   | "materials"
@@ -36,21 +42,75 @@ type ActiveTab =
   | "analytics"
   | "photos";
 
+type UpdateFilter = "ALL" | "MORNING" | "EVENING" | "ISSUES";
+
+function getTodayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function getYesterdayStr() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export default function SiteDetailControlScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { t } = useLanguage();
   const route = useRoute<any>();
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { siteId } = route.params || {};
 
   const [site, setSite] = useState<Project | null>(null);
   const [allWorkers, setAllWorkers] = useState<Worker[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>(
-    route.params?.initialTab || "overview",
+    route.params?.initialTab || "updates"
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Detail Data States from API/Cache
+  // ----------------------------------------------------
+  // SITE CONTROL & UPDATES STATE
+  // ----------------------------------------------------
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
+  const [updateFilter, setUpdateFilter] = useState<UpdateFilter>("ALL");
+  const [selectedWorkerFilter, setSelectedWorkerFilter] = useState<string>("ALL");
+  const [controlData, setControlData] = useState<any>(null);
+
+  // Instruction Modal State
+  const [showInstructionModal, setShowInstructionModal] = useState(false);
+  const [instructionText, setInstructionText] = useState("");
+  const [instructionPriority, setInstructionPriority] = useState<"NORMAL" | "HIGH" | "URGENT">("NORMAL");
+  const [isPostingInstruction, setIsPostingInstruction] = useState(false);
+
+  // Resolve Issue Modal State
+  const [showResolveModal, setShowResolveModal] = useState(false);
+  const [selectedIssueToResolve, setSelectedIssueToResolve] = useState<any>(null);
+  const [resolutionNotes, setResolutionNotes] = useState("");
+  const [isResolving, setIsResolving] = useState(false);
+
+  // Photo Full-Screen Viewer Modal State
+  const [selectedPhotoModal, setSelectedPhotoModal] = useState<{
+    photoUrl: string;
+    workerName?: string;
+    siteName?: string;
+    activityType?: string;
+    timeStr?: string;
+    dateStr?: string;
+    description?: string;
+    location?: any;
+  } | null>(null);
+
+  // ----------------------------------------------------
+  // LEGACY TAB STATES
+  // ----------------------------------------------------
   const [spentAmount, setSpentAmount] = useState(0);
   const [expenseBreakdown, setExpenseBreakdown] = useState<any>({
     material: 0,
@@ -63,23 +123,17 @@ export default function SiteDetailControlScreen() {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [mbEntries, setMbEntries] = useState<any[]>([]);
 
-  // Worker skills filter
   const [skillFilter, setSkillFilter] = useState<string>("all");
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [selectedWorkerForTransfer, setSelectedWorkerForTransfer] =
-    useState<Worker | null>(null);
+  const [selectedWorkerForTransfer, setSelectedWorkerForTransfer] = useState<Worker | null>(null);
   const [allSitesForTransfer, setAllSitesForTransfer] = useState<Project[]>([]);
 
-  // Expense form states
   const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [expType, setExpType] = useState<
-    "material" | "machinery" | "labour" | "vendor" | "other"
-  >("material");
+  const [expType, setExpType] = useState<"material" | "machinery" | "labour" | "vendor" | "other">("material");
   const [expAmount, setExpAmount] = useState("");
   const [expVendor, setExpVendor] = useState("");
   const [expDesc, setExpDesc] = useState("");
 
-  // Material Tracker Mock Database (syncs with local state for visual simulation)
   const [materials, setMaterials] = useState<any[]>([]);
   const [photos, setPhotos] = useState<any[]>([]);
   const [searchMaterial, setSearchMaterial] = useState("");
@@ -99,64 +153,39 @@ export default function SiteDetailControlScreen() {
   });
   const [materialHistoryModal, setMaterialHistoryModal] = useState(false);
   const [materialHistory, setMaterialHistory] = useState<any[]>([]);
-  const [showAssignWorkerModal, setShowAssignWorkerModal] = useState(false);
-  // Mock removed
-  /*
-    { name: "Cement", unit: "bags", required: 500, used: 380, remaining: 120, minThreshold: 50 },
-    { name: "Steel Rebars", unit: "tons", required: 15, used: 12, remaining: 3, minThreshold: 2 },
-    { name: "Sand", unit: "brass", required: 80, used: 65, remaining: 15, minThreshold: 10 },
-    { name: "Bricks", unit: "pcs", required: 20000, used: 18500, remaining: 1500, minThreshold: 2000 },
-    { name: "Paint", unit: "litres", required: 600, used: 120, remaining: 480, minThreshold: 100 },
-    { name: "Tiles", unit: "boxes", required: 400, used: 350, remaining: 50, minThreshold: 40 },
-  ]);*/
 
-  // Documents Local Mock state
-  const [documents, setDocuments] = useState([
-    {
-      id: "doc-1",
-      name: "Agreement_Contract_Signed.pdf",
-      type: "Agreement",
-      date: "2026-06-10",
-    },
-    {
-      id: "doc-2",
-      name: "Structural_Drawings_Slab.dwg",
-      type: "Drawings",
-      date: "2026-06-15",
-    },
-    {
-      id: "doc-3",
-      name: "BOQ_Quantities_Final.xlsx",
-      type: "BOQ",
-      date: "2026-06-20",
-    },
-    {
-      id: "doc-4",
-      name: "Cement_Invoice_UltraTech.pdf",
-      type: "Invoices",
-      date: "2026-07-02",
-    },
-  ]);
+  const triggerHaptic = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
-  const loadSiteData = async () => {
+  // Load all site data & control center
+  const loadSiteData = async (showIndicator = true) => {
     if (!siteId) return;
-    setIsLoading(true);
+    if (showIndicator) setIsLoading(true);
     try {
-      // 1. Fetch site details from our new Site Management API first
-      let currentSite = (await storage.getSiteById(siteId)) as any;
+      // 1. Fetch site control center metrics & timeline
+      try {
+        const ctrl = await siteActivityStorage.getSiteControlCenter(siteId, selectedDate);
+        if (ctrl && ctrl.success) {
+          setControlData(ctrl);
+        }
+      } catch (cErr) {
+        console.warn("Failed to fetch site control center", cErr);
+      }
 
-      // 2. Fallback to Project model if it was an older project
+      // 2. Fetch basic site details
+      let currentSite = (await storage.getSiteById(siteId)) as any;
       const allProjects = await storage.getProjects();
       if (!currentSite) {
         currentSite = allProjects.find((p) => p.id === siteId) || null;
       }
-
       setSite(currentSite);
 
+      // 3. Workers
       const workersList = await storage.getWorkers();
       setAllWorkers(workersList);
 
-      // Fetch sites list and combine for transfer options
+      // 4. Combined sites for transfer
       const allSitesResult = await storage.getSites();
       const allSites = allSitesResult.sites || [];
       const combinedSites = [
@@ -171,117 +200,99 @@ export default function SiteDetailControlScreen() {
       ];
       setAllSitesForTransfer(combinedSites.filter((p) => p.id !== siteId));
 
-      // Load analytics and ledger from Server if online, else mock fallback
+      // 5. Materials & photos
       try {
-        const res = await authenticatedFetch(
-          `${API_URL}/projects/${siteId}/dashboard`,
-        );
+        const matRes = await authenticatedFetch(`${API_URL}/sites/${siteId}/materials`);
+        if (matRes.ok) setMaterials(await matRes.json());
+
+        const photRes = await authenticatedFetch(`${API_URL}/sites/${siteId}/photos`);
+        if (photRes.ok) setPhotos(await photRes.json());
+      } catch (e) {}
+
+      // 6. Analytics
+      try {
+        const res = await authenticatedFetch(`${API_URL}/projects/${siteId}/dashboard`);
         if (res.ok) {
           const data = await res.json();
           setSpentAmount(data.totalSpent || 0);
           setExpenseBreakdown(data.expenseBreakdown || {});
           setDelayDays(data.totalDelayDays || 0);
         }
+        const expRes = await authenticatedFetch(`${API_URL}/projects/${siteId}/expenses`);
+        if (expRes.ok) setExpenses(await expRes.json());
 
-        const expRes = await authenticatedFetch(
-          `${API_URL}/projects/${siteId}/expenses`,
-        );
-        if (expRes.ok) {
-          setExpenses(await expRes.json());
-        }
-
-        const mbRes = await authenticatedFetch(
-          `${API_URL}/projects/${siteId}/mb-entries`,
-        );
-        if (mbRes.ok) {
-          setMbEntries(await mbRes.json());
-        }
-        // Fetch materials and photos
-        try {
-          const matRes = await authenticatedFetch(
-            `${API_URL}/sites/${siteId}/materials`,
-          );
-          if (matRes.ok) setMaterials(await matRes.json());
-
-          const photRes = await authenticatedFetch(
-            `${API_URL}/sites/${siteId}/photos`,
-          );
-          if (photRes.ok) setPhotos(await photRes.json());
-        } catch (e) {
-          console.warn("Failed to fetch materials or photos", e);
-        }
-      } catch (e) {
-        // Offline cache / simulated values
-        const spent = currentSite?.budget
-          ? Math.round(currentSite.budget * 0.45)
-          : 180000;
-        setSpentAmount(spent);
-        setExpenseBreakdown({
-          material: Math.round(spent * 0.5),
-          machinery: Math.round(spent * 0.15),
-          labour: Math.round(spent * 0.25),
-          vendor: Math.round(spent * 0.05),
-          other: Math.round(spent * 0.05),
-        });
-        setDelayDays(currentSite?.status === "active" ? 2 : 0);
-      }
+        const mbRes = await authenticatedFetch(`${API_URL}/projects/${siteId}/mb-entries`);
+        if (mbRes.ok) setMbEntries(await mbRes.json());
+      } catch (e) {}
     } catch (err) {
-      console.warn("Failed to load details", err);
+      console.warn("loadSiteData error", err);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
-    loadSiteData();
-  }, [siteId]);
+    loadSiteData(true);
+  }, [siteId, selectedDate]);
 
-  const getProgressPercentage = (project: Project) => {
-    if (project.phases && project.phases.length > 0) {
-      const sumWeight = project.phases.reduce(
-        (sum, p) => sum + (p.weight || 0),
-        0,
-      );
-      const achievedWeight = project.phases.reduce((sum, p) => {
-        return sum + ((p.percentDone || 0) * (p.weight || 0)) / 100;
-      }, 0);
-      return Math.round(sumWeight > 0 ? (achievedWeight / sumWeight) * 100 : 0);
-    }
-    if (project.plannedQty && project.plannedQty > 0) {
-      return Math.round(
-        Math.min(((project.completedQty || 0) / project.plannedQty) * 100, 100),
-      );
-    }
-    return 0;
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("refreshData", () => {
+      loadSiteData(false);
+    });
+    return () => sub.remove();
+  }, [selectedDate]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    loadSiteData(false);
   };
 
-  // Phase completion change updater
-  const handleUpdatePhaseProgress = async (
-    phaseName: string,
-    newPercentage: number,
-  ) => {
-    if (!site) return;
-    const updatedPhases = (site.phases || []).map((p) => {
-      if (p.name === phaseName) {
-        const finalPercent = Math.min(100, Math.max(0, newPercentage));
-        return {
-          ...p,
-          percentDone: finalPercent,
-          status:
-            finalPercent >= 100
-              ? ("completed" as const)
-              : finalPercent > 0
-                ? ("in_progress" as const)
-                : ("pending" as const),
-        };
-      }
-      return p;
-    });
+  // Submit Site Instruction
+  const handleSubmitInstruction = async () => {
+    if (!instructionText.trim()) {
+      Alert.alert("Required", "Please enter instruction details.");
+      return;
+    }
+    setIsPostingInstruction(true);
+    try {
+      await siteActivityStorage.addSiteInstruction(siteId, {
+        description: instructionText.trim(),
+        priority: instructionPriority,
+      });
+      triggerHaptic();
+      setShowInstructionModal(false);
+      setInstructionText("");
+      setInstructionPriority("NORMAL");
+      loadSiteData(false);
+      Alert.alert("Success", "Instruction broadcasted to site workers.");
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to post instruction");
+    } finally {
+      setIsPostingInstruction(false);
+    }
+  };
 
-    const updatedSite = { ...site, phases: updatedPhases };
-    setSite(updatedSite);
-    await storage.updateProject(updatedSite);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  // Resolve Issue Action
+  const handleConfirmResolveIssue = async () => {
+    if (!selectedIssueToResolve) return;
+    setIsResolving(true);
+    try {
+      await siteActivityStorage.resolveSiteIssue(
+        selectedIssueToResolve._id || selectedIssueToResolve.id,
+        resolutionNotes
+      );
+      triggerHaptic();
+      setShowResolveModal(false);
+      setSelectedIssueToResolve(null);
+      setResolutionNotes("");
+      loadSiteData(false);
+      Alert.alert("Resolved", "Issue has been marked as resolved.");
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to resolve issue");
+    } finally {
+      setIsResolving(false);
+    }
   };
 
   // Worker list for current site
@@ -289,181 +300,56 @@ export default function SiteDetailControlScreen() {
     return allWorkers.filter((w: Worker) => w.projectId === siteId);
   }, [allWorkers, siteId]);
 
-  // Filtered workers list
-  const filteredWorkers = useMemo(() => {
-    if (skillFilter === "all") return siteWorkers;
-    return siteWorkers.filter((w: Worker) => w.category === skillFilter);
-  }, [siteWorkers, skillFilter]);
+  // Combined timeline filtering
+  const filteredTimeline = useMemo(() => {
+    if (!controlData?.dailyTimeline) return [];
+    let items = controlData.dailyTimeline as any[];
 
-  // Worker Transfer Logic
-  const handleTransferWorker = async (targetProjectId: string) => {
-    if (!selectedWorkerForTransfer) return;
-    try {
-      const updatedWorkers = allWorkers.map((w: Worker) => {
-        if (w.id === selectedWorkerForTransfer.id) {
-          return { ...w, projectId: targetProjectId };
-        }
-        return w;
-      });
-      setAllWorkers(updatedWorkers);
-      await storage.setWorkers(updatedWorkers);
-
-      // Backend sync if possible
-      try {
-        await authenticatedFetch(
-          `${API_URL}/workers/${selectedWorkerForTransfer.id}`,
-          {
-            method: "PUT",
-            body: JSON.stringify({
-              ...selectedWorkerForTransfer,
-              projectId: targetProjectId,
-            }),
-          },
-        );
-      } catch {}
-
-      setShowTransferModal(false);
-      setSelectedWorkerForTransfer(null);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Success", "Worker transferred successfully.");
-    } catch {
-      Alert.alert("Error", "Failed to transfer worker.");
+    // 1. Worker filter
+    if (selectedWorkerFilter !== "ALL") {
+      items = items.filter(
+        (i) =>
+          i.workerId === selectedWorkerFilter ||
+          i.userId === selectedWorkerFilter ||
+          i.workerId?._id === selectedWorkerFilter
+      );
     }
-  };
 
-  // Log Expense Submission
-  const handleLogExpenseSubmit = async () => {
-    if (!expAmount.trim()) {
-      Alert.alert("Error", "Amount is required.");
-      return;
+    // 2. Sub-tab filter
+    if (updateFilter === "MORNING") {
+      items = items.filter((i) => i.activityType === "MORNING_WORK");
+    } else if (updateFilter === "EVENING") {
+      items = items.filter((i) => i.activityType === "EVENING_WORK");
+    } else if (updateFilter === "ISSUES") {
+      items = items.filter((i) => i.activityType === "ISSUE");
     }
-    const amount = parseFloat(expAmount);
-    try {
-      // Offline local update first
-      const newSpent = spentAmount + amount;
-      setSpentAmount(newSpent);
-      setExpenseBreakdown((prev: any) => ({
-        ...prev,
-        [expType]: (prev[expType] || 0) + amount,
-      }));
 
-      // Server attempt
-      try {
-        await authenticatedFetch(`${API_URL}/projects/${siteId}/expenses`, {
-          method: "POST",
-          body: JSON.stringify({
-            type: expType,
-            amount,
-            vendorName: expVendor.trim() || undefined,
-            description: expDesc.trim() || undefined,
-          }),
-        });
-      } catch {}
+    return items;
+  }, [controlData, updateFilter, selectedWorkerFilter]);
 
-      setExpAmount("");
-      setExpVendor("");
-      setExpDesc("");
-      setShowExpenseModal(false);
+  // Pending Workers helper
+  const pendingMorningWorkers = useMemo(() => {
+    if (!controlData?.workers) return [];
+    return controlData.workers.filter((w: any) => w.morningStatus === "pending");
+  }, [controlData]);
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Success", "Expense logged successfully.");
-    } catch {
-      Alert.alert("Error", "Failed to submit expense.");
+  const pendingEveningWorkers = useMemo(() => {
+    if (!controlData?.workers) return [];
+    return controlData.workers.filter((w: any) => w.eveningStatus === "pending");
+  }, [controlData]);
+
+  const getProgressPercentage = (project: Project) => {
+    if (project.phases && project.phases.length > 0) {
+      const sumWeight = project.phases.reduce((sum, p) => sum + (p.weight || 0), 0);
+      const achievedWeight = project.phases.reduce((sum, p) => {
+        return sum + ((p.percentDone || 0) * (p.weight || 0)) / 100;
+      }, 0);
+      return Math.round(sumWeight > 0 ? (achievedWeight / sumWeight) * 100 : 0);
     }
+    return 0;
   };
 
-  // Material usage logger
-  const handleLogMaterialUse = (materialName: string) => {
-    Alert.prompt(
-      "Log Material Used",
-      `How many units of ${materialName} did you use today?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log Usage",
-          onPress: async (val?: string) => {
-            if (!val || isNaN(Number(val))) return;
-            const qty = Number(val);
-            const mat = materials.find((m) => m.name === materialName);
-            if (!mat) return;
-            try {
-              const r = await authenticatedFetch(
-                `${API_URL}/sites/${siteId}/materials/${mat.id || mat._id}/consume`,
-                {
-                  method: "POST",
-                  body: JSON.stringify({ quantity: qty }),
-                },
-              );
-              if (r.ok) loadSiteData();
-            } catch (e) {}
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          },
-        },
-      ],
-      "plain-text",
-      "",
-      "number-pad",
-    );
-  };
-
-  // Measuring Tape progress bar
-  const renderTapeProgress = (percentage: number) => {
-    const ticks = [10, 20, 30, 40, 50, 60, 70, 80, 90];
-    return (
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 10,
-          marginTop: Spacing.sm,
-        }}
-      >
-        <View
-          style={{
-            flex: 1,
-            height: 18,
-            backgroundColor: "#FFE066",
-            borderColor: "#C59B27",
-            borderWidth: 1.5,
-            borderRadius: 4,
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          <View
-            style={{
-              position: "absolute",
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: `${percentage}%`,
-              backgroundColor: "#E2B800",
-            }}
-          />
-          {ticks.map((tick) => (
-            <View
-              key={tick}
-              style={{
-                position: "absolute",
-                left: `${tick}%`,
-                top: 0,
-                width: 1.2,
-                height: tick % 50 === 0 ? "70%" : "40%",
-                backgroundColor: "#2B2B2B",
-              }}
-            />
-          ))}
-        </View>
-        <ThemedText
-          style={{ fontSize: 13, fontWeight: "700", color: theme.text }}
-        >
-          {percentage}%
-        </ThemedText>
-      </View>
-    );
-  };
-
-  if (!site) {
+  if (!site && !controlData) {
     return (
       <ThemedView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.primary} />
@@ -471,38 +357,47 @@ export default function SiteDetailControlScreen() {
     );
   }
 
-  const budgetUsedPct = site.budget
-    ? Math.min(100, Math.round((spentAmount / site.budget) * 100))
-    : 0;
-  const progressPercent = getProgressPercentage(site);
+  const siteDisplayName = controlData?.site?.name || site?.name || "Site Details";
+  const siteDisplayAddress = controlData?.site?.address || site?.location || "Nashik";
 
   return (
     <ThemedView style={{ flex: 1, backgroundColor: theme.backgroundRoot }}>
-      {/* Detail Header */}
+      {/* 1. TOP MAIN HEADER */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <Pressable
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            triggerHaptic();
+            navigation.goBack();
+          }}
           style={styles.backButton}
         >
           <Feather name="arrow-left" size={22} color={theme.text} />
         </Pressable>
+
         <View style={{ flex: 1, marginLeft: 8 }}>
           <ThemedText numberOfLines={1} style={styles.headerTitle}>
-            {site.name}
+            {siteDisplayName}
           </ThemedText>
           <ThemedText numberOfLines={1} style={styles.headerSubtitle}>
-            {site.location || (site as any).address || "N/A"}
+            📍 {siteDisplayAddress}
           </ThemedText>
         </View>
+
+        {/* Post Instruction Quick Button */}
+        <Pressable
+          onPress={() => {
+            triggerHaptic();
+            setShowInstructionModal(true);
+          }}
+          style={[styles.instructionHeaderBtn, { backgroundColor: theme.primary }]}
+        >
+          <Feather name="volume-2" size={16} color="#FFFFFF" />
+          <Text style={styles.instructionHeaderBtnText}>+ Instruction</Text>
+        </Pressable>
       </View>
 
-      {/* Tabs list */}
-      <View
-        style={[
-          styles.tabsScrollContainer,
-          { borderBottomColor: theme.border },
-        ]}
-      >
+      {/* 2. MAIN TABS SCROLL ROW */}
+      <View style={[styles.tabsScrollContainer, { borderBottomColor: theme.border }]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -510,19 +405,11 @@ export default function SiteDetailControlScreen() {
         >
           {(
             [
-              {
-                id: "overview",
-                label: t("sites.timelineStages", "Timeline & Stages"),
-              },
-              {
-                id: "workers",
-                label: t("sites.workersWages", "Workers & Wages"),
-              },
+              { id: "updates", label: "🏗️ Updates & Feed" },
+              { id: "overview", label: t("sites.timelineStages", "Timeline & Stages") },
+              { id: "workers", label: t("sites.workersWages", "Workers & Wages") },
               { id: "materials", label: t("sites.materials", "Materials") },
-              {
-                id: "reports",
-                label: t("sites.reportsDocs", "Reports & Docs"),
-              },
+              { id: "reports", label: t("sites.reportsDocs", "Reports & Docs") },
               { id: "analytics", label: t("sites.analytics", "Analytics") },
               { id: "photos", label: t("sites.photos", "Photos") },
             ] as const
@@ -532,7 +419,7 @@ export default function SiteDetailControlScreen() {
               <Pressable
                 key={tab.id}
                 onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  triggerHaptic();
                   setActiveTab(tab.id);
                 }}
                 style={[
@@ -545,7 +432,10 @@ export default function SiteDetailControlScreen() {
                 <ThemedText
                   style={[
                     styles.tabText,
-                    { color: isActive ? theme.primary : "#6B7280" },
+                    {
+                      color: isActive ? theme.primary : "#6B7280",
+                      fontWeight: isActive ? "800" : "600",
+                    },
                   ]}
                 >
                   {tab.label}
@@ -556,14 +446,581 @@ export default function SiteDetailControlScreen() {
         </ScrollView>
       </View>
 
+      {/* 3. TAB CONTENT */}
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[theme.primary]}
+          />
+        }
       >
-        {/* TAB 1: OVERVIEW & STAGES */}
-        {activeTab === "overview" && (
+        {/* ========================================================================= */}
+        {/* TAB 1: UPDATES & SITE CONTROL COMMAND CENTER                             */}
+        {/* ========================================================================= */}
+        {activeTab === "updates" && (
           <View>
-            {/* Site Card Header Info */}
+            {/* A. Date Quick Selector Bar */}
+            <View style={styles.dateSelectorRow}>
+              <View style={styles.datePillsGroup}>
+                <Pressable
+                  onPress={() => {
+                    triggerHaptic();
+                    setSelectedDate(getTodayStr());
+                  }}
+                  style={[
+                    styles.datePill,
+                    selectedDate === getTodayStr()
+                      ? { backgroundColor: theme.primary, borderColor: theme.primary }
+                      : { backgroundColor: theme.backgroundDefault, borderColor: theme.border },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.datePillText,
+                      selectedDate === getTodayStr()
+                        ? { color: "#FFFFFF", fontWeight: "700" }
+                        : { color: theme.textSecondary },
+                    ]}
+                  >
+                    Today
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    triggerHaptic();
+                    setSelectedDate(getYesterdayStr());
+                  }}
+                  style={[
+                    styles.datePill,
+                    selectedDate === getYesterdayStr()
+                      ? { backgroundColor: theme.primary, borderColor: theme.primary }
+                      : { backgroundColor: theme.backgroundDefault, borderColor: theme.border },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.datePillText,
+                      selectedDate === getYesterdayStr()
+                        ? { color: "#FFFFFF", fontWeight: "700" }
+                        : { color: theme.textSecondary },
+                    ]}
+                  >
+                    Yesterday
+                  </Text>
+                </Pressable>
+              </View>
+
+              <ThemedText style={styles.currentDateLabel}>
+                📅 {selectedDate}
+              </ThemedText>
+            </View>
+
+            {/* B. TOP KPI SUMMARY METRIC CARDS */}
+            <View style={styles.kpiGrid}>
+              {/* Workers Present */}
+              <View
+                style={[
+                  styles.kpiCard,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.kpiCardTop}>
+                  <Text style={styles.kpiEmoji}>👷</Text>
+                  <Text style={[styles.kpiVal, { color: "#16A34A" }]}>
+                    {controlData?.metrics?.presentCount || 0}
+                    <Text style={{ fontSize: 13, color: theme.textSecondary }}>
+                      /{controlData?.metrics?.totalWorkers || 0}
+                    </Text>
+                  </Text>
+                </View>
+                <Text style={styles.kpiTitle}>Workers Present</Text>
+              </View>
+
+              {/* Total Updates */}
+              <View
+                style={[
+                  styles.kpiCard,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.kpiCardTop}>
+                  <Text style={styles.kpiEmoji}>📸</Text>
+                  <Text style={[styles.kpiVal, { color: theme.text }]}>
+                    {controlData?.metrics?.workUpdatesCount || 0}
+                  </Text>
+                </View>
+                <Text style={styles.kpiTitle}>Total Updates</Text>
+              </View>
+
+              {/* Morning Progress */}
+              <View
+                style={[
+                  styles.kpiCard,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.kpiCardTop}>
+                  <Text style={styles.kpiEmoji}>🌅</Text>
+                  <Text style={[styles.kpiVal, { color: theme.text }]}>
+                    {controlData?.morningProgress?.submittedCount || 0}/
+                    {controlData?.morningProgress?.totalWorkers || 0}
+                  </Text>
+                </View>
+                <Text style={styles.kpiTitle}>
+                  Morning ({controlData?.morningProgress?.percentage || 0}%)
+                </Text>
+              </View>
+
+              {/* Evening Progress */}
+              <View
+                style={[
+                  styles.kpiCard,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.kpiCardTop}>
+                  <Text style={styles.kpiEmoji}>🌆</Text>
+                  <Text style={[styles.kpiVal, { color: theme.text }]}>
+                    {controlData?.eveningProgress?.submittedCount || 0}/
+                    {controlData?.eveningProgress?.totalWorkers || 0}
+                  </Text>
+                </View>
+                <Text style={styles.kpiTitle}>
+                  Evening ({controlData?.eveningProgress?.percentage || 0}%)
+                </Text>
+              </View>
+            </View>
+
+            {/* Open Issues Alert Strip (if > 0) */}
+            {(controlData?.metrics?.openIssuesCount || 0) > 0 && (
+              <Pressable
+                onPress={() => {
+                  triggerHaptic();
+                  setUpdateFilter("ISSUES");
+                }}
+                style={[
+                  styles.openIssuesAlertStrip,
+                  { backgroundColor: isDark ? "rgba(239,68,68,0.2)" : "#FEF2F2" },
+                ]}
+              >
+                <Feather name="alert-triangle" size={18} color="#DC2626" />
+                <ThemedText style={styles.openIssuesAlertText}>
+                  {controlData.metrics.openIssuesCount} Open Site Issue
+                  {controlData.metrics.openIssuesCount > 1 ? "s" : ""} requiring attention.
+                </ThemedText>
+                <Feather name="chevron-right" size={18} color="#DC2626" />
+              </Pressable>
+            )}
+
+            {/* C. SEGMENTED FILTER BAR ([ALL] [MORNING] [EVENING] [ISSUES]) */}
+            <View style={styles.segmentedFilterContainer}>
+              {(["ALL", "MORNING", "EVENING", "ISSUES"] as UpdateFilter[]).map((filter) => {
+                const isSelected = updateFilter === filter;
+                return (
+                  <Pressable
+                    key={filter}
+                    onPress={() => {
+                      triggerHaptic();
+                      setUpdateFilter(filter);
+                    }}
+                    style={[
+                      styles.segmentedFilterBtn,
+                      isSelected
+                        ? { backgroundColor: theme.primary }
+                        : { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentedFilterText,
+                        isSelected
+                          ? { color: "#FFFFFF", fontWeight: "800" }
+                          : { color: theme.textSecondary },
+                      ]}
+                    >
+                      {filter === "ALL" && "📋 ALL"}
+                      {filter === "MORNING" && "🌅 MORNING"}
+                      {filter === "EVENING" && "🌆 EVENING"}
+                      {filter === "ISSUES" && "⚠️ ISSUES"}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* D. SUB-TAB VIEW: MORNING PROGRESS BAR & PENDING WORKERS */}
+            {updateFilter === "MORNING" && (
+              <View
+                style={[
+                  styles.progressSectionCard,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.progressHeaderRow}>
+                  <ThemedText style={styles.progressSectionTitle}>
+                    🌅 Morning Work Submission Progress
+                  </ThemedText>
+                  <Text style={[styles.progressSectionVal, { color: theme.primary }]}>
+                    {controlData?.morningProgress?.submittedCount || 0} /{" "}
+                    {controlData?.morningProgress?.totalWorkers || 0} (
+                    {controlData?.morningProgress?.percentage || 0}%)
+                  </Text>
+                </View>
+
+                {/* Visual Progress Bar */}
+                <View
+                  style={[
+                    styles.progressBarTrack,
+                    { backgroundColor: isDark ? "#334155" : "#E2E8F0" },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      {
+                        width: `${controlData?.morningProgress?.percentage || 0}%`,
+                        backgroundColor: "#16A34A",
+                      },
+                    ]}
+                  />
+                </View>
+
+                {/* Pending Workers Alert Box */}
+                {pendingMorningWorkers.length > 0 && (
+                  <View
+                    style={[
+                      styles.pendingWorkersBox,
+                      {
+                        backgroundColor: isDark ? "rgba(217, 119, 6, 0.15)" : "#FEF3C7",
+                        borderColor: "#F59E0B",
+                      },
+                    ]}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Feather name="clock" size={15} color="#D97706" />
+                      <Text style={styles.pendingWorkersTitle}>
+                        Pending Morning Updates ({pendingMorningWorkers.length})
+                      </Text>
+                    </View>
+                    <View style={styles.pendingWorkerTagsRow}>
+                      {pendingMorningWorkers.map((w: any) => (
+                        <View key={w.id} style={styles.pendingWorkerTag}>
+                          <Text style={styles.pendingWorkerTagText}>
+                            👷 {w.name} ({w.category})
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* E. SUB-TAB VIEW: EVENING PROGRESS BAR & PENDING WORKERS */}
+            {updateFilter === "EVENING" && (
+              <View
+                style={[
+                  styles.progressSectionCard,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.progressHeaderRow}>
+                  <ThemedText style={styles.progressSectionTitle}>
+                    🌆 Evening Work Submission Progress
+                  </ThemedText>
+                  <Text style={[styles.progressSectionVal, { color: theme.primary }]}>
+                    {controlData?.eveningProgress?.submittedCount || 0} /{" "}
+                    {controlData?.eveningProgress?.totalWorkers || 0} (
+                    {controlData?.eveningProgress?.percentage || 0}%)
+                  </Text>
+                </View>
+
+                {/* Visual Progress Bar */}
+                <View
+                  style={[
+                    styles.progressBarTrack,
+                    { backgroundColor: isDark ? "#334155" : "#E2E8F0" },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      {
+                        width: `${controlData?.eveningProgress?.percentage || 0}%`,
+                        backgroundColor: "#2563EB",
+                      },
+                    ]}
+                  />
+                </View>
+
+                {/* Pending Workers Alert Box */}
+                {pendingEveningWorkers.length > 0 && (
+                  <View
+                    style={[
+                      styles.pendingWorkersBox,
+                      {
+                        backgroundColor: isDark ? "rgba(217, 119, 6, 0.15)" : "#FEF3C7",
+                        borderColor: "#F59E0B",
+                      },
+                    ]}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Feather name="clock" size={15} color="#D97706" />
+                      <Text style={styles.pendingWorkersTitle}>
+                        Pending Evening Updates ({pendingEveningWorkers.length})
+                      </Text>
+                    </View>
+                    <View style={styles.pendingWorkerTagsRow}>
+                      {pendingEveningWorkers.map((w: any) => (
+                        <View key={w.id} style={styles.pendingWorkerTag}>
+                          <Text style={styles.pendingWorkerTagText}>
+                            👷 {w.name} ({w.category})
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* F. CHRONOLOGICAL TIMELINE FEED */}
+            <View style={styles.feedContainer}>
+              <ThemedText style={styles.feedSectionTitle}>
+                {updateFilter === "ALL" && "Timeline Feed"}
+                {updateFilter === "MORNING" && "Morning Updates Feed"}
+                {updateFilter === "EVENING" && "Evening Updates Feed"}
+                {updateFilter === "ISSUES" && "Reported Issues"}
+              </ThemedText>
+
+              {filteredTimeline.length === 0 ? (
+                <View
+                  style={[
+                    styles.emptyTimelineBox,
+                    {
+                      backgroundColor: theme.backgroundDefault,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
+                  <Text style={{ fontSize: 32, marginBottom: 8 }}>📋</Text>
+                  <ThemedText style={styles.emptyTimelineTitle}>
+                    No Updates Found
+                  </ThemedText>
+                  <ThemedText style={styles.emptyTimelineDesc}>
+                    {updateFilter === "ISSUES"
+                      ? "Great! There are no reported issues for this site."
+                      : "Workers haven't submitted any activity for the selected date yet."}
+                  </ThemedText>
+                </View>
+              ) : (
+                filteredTimeline.map((item: any) => {
+                  const isIssue = item.activityType === "ISSUE";
+                  const isInstruction = item.activityType === "INSTRUCTION";
+                  const isMorning = item.activityType === "MORNING_WORK";
+                  const isEvening = item.activityType === "EVENING_WORK";
+
+                  const photoUri = item.photo?.url || (typeof item.photo === "string" ? item.photo : null);
+
+                  return (
+                    <View
+                      key={item._id || item.id}
+                      style={[
+                        styles.timelineCard,
+                        {
+                          backgroundColor: theme.backgroundDefault,
+                          borderColor: isIssue && item.status === "OPEN" ? "#FCA5A5" : theme.border,
+                        },
+                      ]}
+                    >
+                      {/* Top Header: User Profile, Activity Badge & Time */}
+                      <View style={styles.timelineCardHeader}>
+                        <View style={styles.timelineUserInfo}>
+                          <View
+                            style={[
+                              styles.userAvatarCircle,
+                              { backgroundColor: isDark ? "#334155" : "#E2E8F0" },
+                            ]}
+                          >
+                            <Text style={{ fontSize: 14 }}>
+                              {isIssue ? "⚠️" : isInstruction ? "📢" : "👷"}
+                            </Text>
+                          </View>
+                          <View>
+                            <ThemedText style={styles.timelineUserName}>
+                              {item.userName || "Worker"}
+                            </ThemedText>
+                            <Text style={styles.timelineUserRole}>
+                              {item.workerRole || "Labour"}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={{ alignItems: "flex-end" }}>
+                          <View
+                            style={[
+                              styles.activityBadge,
+                              isMorning
+                                ? { backgroundColor: "rgba(22, 163, 74, 0.12)" }
+                                : isEvening
+                                ? { backgroundColor: "rgba(37, 99, 235, 0.12)" }
+                                : isIssue
+                                ? { backgroundColor: "rgba(220, 38, 38, 0.12)" }
+                                : { backgroundColor: "rgba(217, 119, 6, 0.12)" },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.activityBadgeText,
+                                isMorning
+                                  ? { color: "#16A34A" }
+                                  : isEvening
+                                  ? { color: "#2563EB" }
+                                  : isIssue
+                                  ? { color: "#DC2626" }
+                                  : { color: "#D97706" },
+                              ]}
+                            >
+                              {isMorning && "🌅 Morning"}
+                              {isEvening && "🌆 Evening"}
+                              {isIssue && "⚠️ Issue"}
+                              {isInstruction && "📢 Instruction"}
+                            </Text>
+                          </View>
+                          <Text style={styles.timelineTimeText}>
+                            {item.timeStr || "Just now"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Photo Display (Tap to Full-Screen) */}
+                      {photoUri ? (
+                        <Pressable
+                          onPress={() => {
+                            triggerHaptic();
+                            setSelectedPhotoModal({
+                              photoUrl: photoUri,
+                              workerName: item.userName,
+                              siteName: siteDisplayName,
+                              activityType: item.activityType,
+                              timeStr: item.timeStr,
+                              dateStr: item.dateStr,
+                              description: item.description,
+                              location: item.location,
+                            });
+                          }}
+                          style={styles.photoContainer}
+                        >
+                          <Image
+                            source={{ uri: photoUri }}
+                            style={styles.timelinePhoto}
+                            resizeMode="cover"
+                          />
+                          <View style={styles.photoExpandOverlay}>
+                            <Feather name="maximize-2" size={14} color="#FFFFFF" />
+                            <Text style={styles.photoExpandText}>Tap to enlarge</Text>
+                          </View>
+                        </Pressable>
+                      ) : null}
+
+                      {/* Description */}
+                      {item.description ? (
+                        <ThemedText style={styles.timelineDescription}>
+                          {item.description}
+                        </ThemedText>
+                      ) : null}
+
+                      {/* GPS Location & Status Tag */}
+                      <View style={styles.timelineFooterRow}>
+                        {item.location?.latitude ? (
+                          <View style={styles.locationChip}>
+                            <Feather name="map-pin" size={12} color="#64748B" />
+                            <Text style={styles.locationChipText} numberOfLines={1}>
+                              {item.location.address || `${item.location.latitude.toFixed(4)}, ${item.location.longitude.toFixed(4)}`}
+                            </Text>
+                          </View>
+                        ) : <View />}
+
+                        {/* Issue Status & Resolve Action */}
+                        {isIssue && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                            <View
+                              style={[
+                                styles.issueStatusBadge,
+                                {
+                                  backgroundColor:
+                                    item.status === "RESOLVED"
+                                      ? "rgba(22, 163, 74, 0.15)"
+                                      : "rgba(220, 38, 38, 0.15)",
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.issueStatusText,
+                                  {
+                                    color:
+                                      item.status === "RESOLVED" ? "#16A34A" : "#DC2626",
+                                  },
+                                ]}
+                              >
+                                {item.status === "RESOLVED" ? "✓ RESOLVED" : "OPEN"}
+                              </Text>
+                            </View>
+
+                            {item.status !== "RESOLVED" && (
+                              <Pressable
+                                onPress={() => {
+                                  triggerHaptic();
+                                  setSelectedIssueToResolve(item);
+                                  setShowResolveModal(true);
+                                }}
+                                style={styles.markResolvedBtn}
+                              >
+                                <Text style={styles.markResolvedBtnText}>
+                                  Mark Resolved
+                                </Text>
+                              </Pressable>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 2: OVERVIEW & STAGES                                                  */}
+        {/* ========================================================================= */}
+        {activeTab === "overview" && site && (
+          <View>
             <View
               style={[
                 styles.infoCard,
@@ -573,1315 +1030,422 @@ export default function SiteDetailControlScreen() {
                 },
               ]}
             >
-              <ThemedText style={styles.infoTitle}>
-                {t("sites.siteClientDetails", "Site & Client Details")}
-              </ThemedText>
+              <ThemedText style={styles.infoTitle}>Site & Client Details</ThemedText>
               <View style={styles.infoRow}>
-                <ThemedText style={styles.infoLabel}>
-                  {t("sites.clientName", "Client Name")}
-                </ThemedText>
-                <ThemedText style={styles.infoValue}>
-                  {site.clientName || "N/A"}
-                </ThemedText>
+                <ThemedText style={styles.infoLabel}>Client Name</ThemedText>
+                <ThemedText style={styles.infoValue}>{site.clientName || "N/A"}</ThemedText>
               </View>
               <View style={styles.infoRow}>
-                <ThemedText style={styles.infoLabel}>
-                  {t("sites.budget", "Budget")}
-                </ThemedText>
+                <ThemedText style={styles.infoLabel}>Budget</ThemedText>
                 <ThemedText style={styles.infoValue}>
                   ₹{site.budget?.toLocaleString("en-IN") || "N/A"}
                 </ThemedText>
               </View>
               <View style={styles.infoRow}>
-                <ThemedText style={styles.infoLabel}>
-                  {t("sites.timeline", "Timeline")}
-                </ThemedText>
+                <ThemedText style={styles.infoLabel}>Timeline</ThemedText>
                 <ThemedText style={styles.infoValue}>
                   {site.startDate || "N/A"} to {site.endDate || "N/A"}
                 </ThemedText>
               </View>
             </View>
-
-            {/* Stages & Phases Controls */}
-            <ThemedText style={styles.sectionHeaderTitle}>
-              {t(
-                "sites.constructionStagesCompletion",
-                "Construction Stages Completion",
-              )}
-            </ThemedText>
-            {!site.phases || site.phases.length === 0 ? (
-              <ThemedText style={styles.emptyText}>
-                {t(
-                  "sites.noStagesRegistered",
-                  "No stages registered for this project.",
-                )}
-              </ThemedText>
-            ) : (
-              site.phases.map((phase) => {
-                const colorBadge =
-                  phase.percentDone >= 100
-                    ? {
-                        bg: "#D1FAE5",
-                        text: "#16A34A",
-                        label: t.translateSiteStatus("COMPLETED"),
-                      }
-                    : phase.percentDone > 0
-                      ? {
-                          bg: "#E0F2FE",
-                          text: "#0284C7",
-                          label: t.translateSiteStatus("IN_PROGRESS"),
-                        }
-                      : {
-                          bg: "#F3F4F6",
-                          text: "#4B5563",
-                          label: t.translateSiteStatus("NOT_STARTED"),
-                        };
-
-                return (
-                  <View
-                    key={phase.name}
-                    style={[
-                      styles.stageCard,
-                      {
-                        backgroundColor: theme.backgroundDefault,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    <View style={styles.stageCardHeader}>
-                      <ThemedText style={styles.stageName}>
-                        {phase.name}
-                      </ThemedText>
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          { backgroundColor: colorBadge.bg },
-                        ]}
-                      >
-                        <ThemedText
-                          style={[
-                            styles.statusBadgeText,
-                            { color: colorBadge.text },
-                          ]}
-                        >
-                          {colorBadge.label}
-                        </ThemedText>
-                      </View>
-                    </View>
-
-                    {renderTapeProgress(phase.percentDone)}
-
-                    <View style={styles.stageControllerRow}>
-                      <Pressable
-                        onPress={() =>
-                          handleUpdatePhaseProgress(
-                            phase.name,
-                            phase.percentDone - 10,
-                          )
-                        }
-                        style={styles.stageButton}
-                      >
-                        <Feather name="minus" size={16} color={theme.text} />
-                      </Pressable>
-                      <ThemedText style={styles.stageControllerPercent}>
-                        {phase.percentDone}% {t("sites.done", "done")}
-                      </ThemedText>
-                      <Pressable
-                        onPress={() =>
-                          handleUpdatePhaseProgress(
-                            phase.name,
-                            phase.percentDone + 10,
-                          )
-                        }
-                        style={styles.stageButton}
-                      >
-                        <Feather name="plus" size={16} color={theme.text} />
-                      </Pressable>
-                    </View>
-                  </View>
-                );
-              })
-            )}
           </View>
         )}
 
-        {/* TAB 2: WORKERS & WAGES */}
+        {/* ========================================================================= */}
+        {/* TAB 3: WORKERS & WAGES                                                    */}
+        {/* ========================================================================= */}
         {activeTab === "workers" && (
           <View>
-            <View style={styles.headcountRow}>
-              <View
-                style={[
-                  styles.headcountStat,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <ThemedText style={styles.headcountVal}>
-                  {siteWorkers.length}
-                </ThemedText>
-                <ThemedText style={styles.headcountLabel}>
-                  {t("sites.workersAssigned", "Workers Assigned")}
-                </ThemedText>
-              </View>
-              <View
-                style={[
-                  styles.headcountStat,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <ThemedText style={styles.headcountVal}>
-                  ₹
-                  {siteWorkers
-                    .reduce(
-                      (sum: number, w: Worker) => sum + (w.dailyRate || 0),
-                      0,
-                    )
-                    .toLocaleString("en-IN")}
-                </ThemedText>
-                <ThemedText style={styles.headcountLabel}>
-                  {t("sites.dailyWageBudget", "Daily Wage Budget")}
-                </ThemedText>
-              </View>
-            </View>
-
-            {/* Category Filter selector */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.skillsFilterContainer}
-            >
-              {["all", "labour", "bai", "mistri", "tiles", "plaster"].map(
-                (cat) => (
-                  <Pressable
-                    key={cat}
-                    onPress={() => setSkillFilter(cat)}
-                    style={[
-                      styles.skillFilterItem,
-                      {
-                        backgroundColor:
-                          skillFilter === cat ? theme.primary : theme.border,
-                      },
-                    ]}
-                  >
-                    <ThemedText
-                      style={{
-                        color: skillFilter === cat ? "#FFFFFF" : theme.text,
-                        fontSize: 11,
-                        fontWeight: "700",
-                      }}
-                    >
-                      {cat === "all"
-                        ? (t.common?.all || "ALL").toUpperCase()
-                        : t.translateCategory(cat).toUpperCase()}
-                    </ThemedText>
-                  </Pressable>
-                ),
-              )}
-            </ScrollView>
-
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 12,
-                marginTop: 12,
-              }}
-            >
-              <ThemedText
-                style={[
-                  styles.sectionHeaderTitle,
-                  { marginTop: 0, marginBottom: 0 },
-                ]}
-              >
-                {t("sites.assignedRosterList", "Assigned Roster List")}
-              </ThemedText>
-              <Pressable
-                onPress={() => setShowAssignWorkerModal(true)}
-                style={[
-                  styles.transferButton,
-                  { backgroundColor: theme.primary },
-                ]}
-              >
-                <Feather name="plus" size={14} color="#FFF" />
-                <ThemedText style={[styles.transferText, { color: "#FFF" }]}>
-                  {t("common.assign", "Assign")}
-                </ThemedText>
-              </Pressable>
-            </View>
-            {filteredWorkers.length === 0 ? (
-              <ThemedText style={styles.emptyText}>
-                {t(
-                  "sites.noWorkersMatch",
-                  "No workers match the selected category.",
-                )}
-              </ThemedText>
-            ) : (
-              filteredWorkers.map((worker: Worker) => (
-                <View
-                  key={worker.id}
-                  style={[
-                    styles.workerCard,
-                    {
-                      backgroundColor: theme.backgroundDefault,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                >
-                  <View style={{ flex: 1 }}>
-                    <ThemedText style={styles.workerName}>
-                      {worker.name}
-                    </ThemedText>
-                    <View
-                      style={{ flexDirection: "row", gap: 6, marginTop: 2 }}
-                    >
-                      <ThemedText style={styles.workerCategoryBadge}>
-                        {worker.category}
-                      </ThemedText>
-                      <ThemedText style={styles.workerRate}>
-                        ₹{worker.dailyRate}/day
-                      </ThemedText>
-                    </View>
-                  </View>
-                  <Pressable
-                    onPress={() => {
-                      setSelectedWorkerForTransfer(worker);
-                      setShowTransferModal(true);
-                    }}
-                    style={[
-                      styles.transferButton,
-                      { backgroundColor: theme.border },
-                    ]}
-                  >
-                    <Feather name="move" size={14} color={theme.text} />
-                    <ThemedText style={styles.transferText}>
-                      Transfer
-                    </ThemedText>
-                  </Pressable>
-                  <Pressable
-                    onPress={async () => {
-                      try {
-                        const updated = { ...worker, projectId: undefined };
-                        await storage.updateWorker(updated);
-                        setAllWorkers(
-                          allWorkers.map((w) =>
-                            w.id === worker.id ? updated : w,
-                          ),
-                        );
-                        Alert.alert("Success", "Worker removed from site.");
-                      } catch (e) {
-                        Alert.alert("Error", "Failed to remove worker");
-                      }
-                    }}
-                    style={[
-                      styles.transferButton,
-                      { backgroundColor: "#FEE2E2", marginLeft: 6 },
-                    ]}
-                  >
-                    <Feather name="user-minus" size={14} color="#EF4444" />
-                    <ThemedText
-                      style={[styles.transferText, { color: "#EF4444" }]}
-                    >
-                      Remove
-                    </ThemedText>
-                  </Pressable>
-                </View>
-              ))
-            )}
-          </View>
-        )}
-
-        {/* TAB 3: MATERIALS TRACKER */}
-        {activeTab === "materials" && (
-          <View>
-            <ThemedText style={styles.sectionHeaderTitle}>
-              Stock Levels & Alerts
+            <ThemedText style={styles.sectionHeading}>
+              Assigned Workers ({controlData?.workers?.length || siteWorkers.length})
             </ThemedText>
 
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 16,
-              }}
-            >
-              <TextInput
-                placeholder="Search materials..."
-                placeholderTextColor="#9CA3AF"
-                value={searchMaterial}
-                onChangeText={setSearchMaterial}
+            {(controlData?.workers || siteWorkers).map((w: any) => (
+              <View
+                key={w.id || w._id}
                 style={[
-                  styles.formInput,
+                  styles.workerCard,
                   {
-                    flex: 1,
-                    marginRight: 8,
+                    backgroundColor: theme.backgroundDefault,
                     borderColor: theme.border,
-                    color: theme.text,
-                    height: 40,
-                    marginBottom: 0,
-                  },
-                ]}
-              />
-              <Pressable
-                onPress={() => {
-                  setMaterialForm({
-                    name: "",
-                    unit: "bags",
-                    required: "0",
-                    minThreshold: "0",
-                    id: "",
-                  });
-                  setShowMaterialModal(true);
-                }}
-                style={[
-                  styles.transferButton,
-                  { backgroundColor: theme.primary, height: 40 },
-                ]}
-              >
-                <Feather name="plus" size={16} color="#FFF" />
-                <ThemedText style={[styles.transferText, { color: "#FFF" }]}>
-                  Add
-                </ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={async () => {
-                  try {
-                    const r = await authenticatedFetch(
-                      `${API_URL}/sites/${siteId}/materials-history`,
-                    );
-                    if (r.ok) {
-                      setMaterialHistory(await r.json());
-                      setMaterialHistoryModal(true);
-                    }
-                  } catch (e) {}
-                }}
-                style={[
-                  styles.transferButton,
-                  {
-                    backgroundColor: theme.backgroundSecondary,
-                    height: 40,
-                    marginLeft: 8,
                   },
                 ]}
               >
-                <Feather name="clock" size={16} color={theme.text} />
-              </Pressable>
-            </View>
-
-            {materials
-              .filter((m) =>
-                m.name.toLowerCase().includes(searchMaterial.toLowerCase()),
-              )
-              .map((mat) => {
-                const remaining = mat.remaining || 0;
-                const isLow = remaining <= mat.minThreshold;
-
-                return (
-                  <View
-                    key={mat.name}
-                    style={[
-                      styles.materialCard,
-                      {
-                        backgroundColor: theme.backgroundDefault,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    <View style={styles.materialHeader}>
-                      <ThemedText style={styles.materialName}>
-                        {mat.name}
-                      </ThemedText>
-                      {isLow && (
-                        <View style={styles.lowStockBadge}>
-                          <ThemedText style={styles.lowStockText}>
-                            LOW STOCK
-                          </ThemedText>
-                        </View>
-                      )}
-                    </View>
-
-                    <View style={styles.materialMetricsRow}>
-                      <View>
-                        <ThemedText style={styles.matMetricLabel}>
-                          Required
-                        </ThemedText>
-                        <ThemedText style={styles.matMetricVal}>
-                          {mat.required} {mat.unit}
-                        </ThemedText>
-                      </View>
-                      <View>
-                        <ThemedText style={styles.matMetricLabel}>
-                          Used
-                        </ThemedText>
-                        <ThemedText style={styles.matMetricVal}>
-                          {mat.used} {mat.unit}
-                        </ThemedText>
-                      </View>
-                      <View>
-                        <ThemedText style={styles.matMetricLabel}>
-                          Stock Remaining
-                        </ThemedText>
-                        <ThemedText
-                          style={[
-                            styles.matMetricVal,
-                            { color: isLow ? "#DC2626" : theme.text },
-                          ]}
-                        >
-                          {mat.remaining} {mat.unit}
-                        </ThemedText>
-                      </View>
-                    </View>
-
-                    <Pressable
-                      onPress={() => handleLogMaterialUse(mat.name)}
-                      style={[
-                        styles.logUsageButton,
-                        { backgroundColor: theme.border },
-                      ]}
-                    >
-                      <Feather name="edit-2" size={14} color={theme.text} />
-                      <ThemedText style={styles.logUsageText}>
-                        Log Usage
-                      </ThemedText>
-                    </Pressable>
-                  </View>
-                );
-              })}
-          </View>
-        )}
-
-        {/* TAB 4: EXPENSES LEDGER */}
-        {activeTab === "expenses" && (
-          <View>
-            <View
-              style={[
-                styles.budgetTracker,
-                {
-                  backgroundColor: theme.backgroundDefault,
-                  borderColor: theme.border,
-                },
-              ]}
-            >
-              <ThemedText style={styles.budgetTitle}>
-                Budget Utilization
-              </ThemedText>
-              <View style={styles.budgetStats}>
-                <View>
-                  <ThemedText style={styles.budgetText}>
-                    Total Budget
-                  </ThemedText>
-                  <ThemedText style={styles.budgetVal}>
-                    ₹{site.budget?.toLocaleString("en-IN") || "N/A"}
-                  </ThemedText>
+                <View style={styles.workerAvatar}>
+                  <Text style={{ fontSize: 18 }}>👷</Text>
                 </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <ThemedText style={styles.budgetText}>
-                    Spent (Ledger)
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <ThemedText style={styles.workerName}>{w.name}</ThemedText>
+                  <ThemedText style={styles.workerCategory}>
+                    {w.category || "Labour"} • Daily Wage: ₹{w.dailyRate || w.dailyWage || 0}
                   </ThemedText>
-                  <ThemedText
-                    style={[
-                      styles.budgetVal,
-                      { color: budgetUsedPct > 80 ? "#DC2626" : theme.primary },
-                    ]}
-                  >
-                    ₹{spentAmount.toLocaleString("en-IN")}
-                  </ThemedText>
+                  <Text style={styles.workerActivityTime}>
+                    Morning: {w.morningStatus === "submitted" ? `✓ ${w.morningTime || "Submitted"}` : "Pending"} • 
+                    Evening: {w.eveningStatus === "submitted" ? `✓ ${w.eveningTime || "Submitted"}` : "Pending"}
+                  </Text>
                 </View>
-              </View>
-
-              {/* Progress visual */}
-              <View style={styles.barContainer}>
-                <View
-                  style={[
-                    styles.barFill,
-                    {
-                      backgroundColor:
-                        budgetUsedPct > 80 ? "#DC2626" : theme.primary,
-                      width: `${budgetUsedPct}%`,
-                    },
-                  ]}
-                />
-              </View>
-              <ThemedText style={styles.budgetSubtext}>
-                {budgetUsedPct}% of allocation consumed. Remaining: ₹
-                {Math.max(0, (site.budget || 0) - spentAmount).toLocaleString(
-                  "en-IN",
-                )}
-              </ThemedText>
-            </View>
-
-            {/* Expense Breakdown Category Grid */}
-            <ThemedText style={styles.sectionHeaderTitle}>
-              Ledger Categories
-            </ThemedText>
-            <View style={styles.ledgerGrid}>
-              <View
-                style={[
-                  styles.ledgerItem,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <ThemedText style={styles.ledgerVal}>
-                  ₹{expenseBreakdown.material?.toLocaleString("en-IN") || 0}
-                </ThemedText>
-                <ThemedText style={styles.ledgerLabel}>Materials</ThemedText>
-              </View>
-              <View
-                style={[
-                  styles.ledgerItem,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <ThemedText style={styles.ledgerVal}>
-                  ₹{expenseBreakdown.labour?.toLocaleString("en-IN") || 0}
-                </ThemedText>
-                <ThemedText style={styles.ledgerLabel}>Labour wages</ThemedText>
-              </View>
-              <View
-                style={[
-                  styles.ledgerItem,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <ThemedText style={styles.ledgerVal}>
-                  ₹{expenseBreakdown.machinery?.toLocaleString("en-IN") || 0}
-                </ThemedText>
-                <ThemedText style={styles.ledgerLabel}>
-                  Machinery Rent
-                </ThemedText>
-              </View>
-              <View
-                style={[
-                  styles.ledgerItem,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <ThemedText style={styles.ledgerVal}>
-                  ₹
-                  {(
-                    (expenseBreakdown.vendor || 0) +
-                    (expenseBreakdown.other || 0)
-                  ).toLocaleString("en-IN")}
-                </ThemedText>
-                <ThemedText style={styles.ledgerLabel}>Other / Misc</ThemedText>
-              </View>
-            </View>
-
-            <Pressable
-              onPress={() => setShowExpenseModal(true)}
-              style={[styles.addExpenseFAB, { backgroundColor: theme.primary }]}
-            >
-              <Feather name="plus" size={18} color="#FFFFFF" />
-              <ThemedText style={styles.addExpenseText}>
-                Log Ledger Expense
-              </ThemedText>
-            </Pressable>
-          </View>
-        )}
-
-        {/* TAB 5: REPORTS & DOCUMENTS */}
-        {activeTab === "reports" && (
-          <View>
-            <ThemedText style={styles.sectionHeaderTitle}>
-              Automated Daily Report Preview
-            </ThemedText>
-            <View
-              style={[
-                styles.dailyReportCard,
-                {
-                  backgroundColor: theme.backgroundDefault,
-                  borderColor: theme.border,
-                },
-              ]}
-            >
-              <ThemedText style={styles.reportHeader}>
-                Daily Supervisor Compilation
-              </ThemedText>
-              <ThemedText style={styles.reportDate}>
-                Report Date: {new Date().toISOString().split("T")[0]}
-              </ThemedText>
-
-              <View style={styles.reportDivider} />
-
-              <View style={styles.reportRow}>
-                <ThemedText style={styles.reportLabel}>
-                  Project Progress
-                </ThemedText>
-                <ThemedText style={styles.reportValue}>
-                  {progressPercent}% stages completed
-                </ThemedText>
-              </View>
-              <View style={styles.reportRow}>
-                <ThemedText style={styles.reportLabel}>
-                  Labour Present
-                </ThemedText>
-                <ThemedText style={styles.reportValue}>
-                  {siteWorkers.length} active heads today
-                </ThemedText>
-              </View>
-              <View style={styles.reportRow}>
-                <ThemedText style={styles.reportLabel}>Delay status</ThemedText>
-                <ThemedText
-                  style={[
-                    styles.reportValue,
-                    { color: delayDays > 0 ? "#DC2626" : theme.text },
-                  ]}
-                >
-                  {delayDays > 0
-                    ? `${delayDays} Days logged delay`
-                    : "On schedule"}
-                </ThemedText>
-              </View>
-            </View>
-
-            <ThemedText style={styles.sectionHeaderTitle}>
-              Site Documents Library
-            </ThemedText>
-            {documents.map((doc) => (
-              <View
-                key={doc.id}
-                style={[
-                  styles.documentCard,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <Feather
-                  name="file-text"
-                  size={24}
-                  color={theme.primary}
-                  style={{ marginRight: 10 }}
-                />
-                <View style={{ flex: 1 }}>
-                  <ThemedText style={styles.docName} numberOfLines={1}>
-                    {doc.name}
-                  </ThemedText>
-                  <ThemedText style={styles.docMeta}>
-                    {doc.type} • Uploaded {doc.date}
-                  </ThemedText>
-                </View>
-                <Pressable
-                  onPress={() =>
-                    Alert.alert(
-                      "Download Document",
-                      `Downloading ${doc.name}...`,
-                    )
-                  }
-                  style={styles.downloadIcon}
-                >
-                  <Feather name="download" size={16} color={theme.text} />
-                </Pressable>
               </View>
             ))}
           </View>
         )}
 
-        {/* TAB 6: ANALYTICS */}
-        {activeTab === "analytics" && (
+        {/* ========================================================================= */}
+        {/* TAB 4: MATERIALS                                                          */}
+        {/* ========================================================================= */}
+        {activeTab === "materials" && (
           <View>
-            <View
-              style={[
-                styles.analyticsCard,
-                {
-                  backgroundColor: theme.backgroundDefault,
-                  borderColor: theme.border,
-                },
-              ]}
-            >
-              <ThemedText style={styles.analyticsTitle}>
-                Completion Curve Progress
-              </ThemedText>
-              <ThemedText style={styles.analyticsStat}>
-                {progressPercent}%
-              </ThemedText>
-              <ThemedText style={styles.analyticsLabel}>
-                Weighted physical progress completed.
-              </ThemedText>
-            </View>
-
-            <View
-              style={[
-                styles.analyticsCard,
-                {
-                  backgroundColor: theme.backgroundDefault,
-                  borderColor: theme.border,
-                },
-              ]}
-            >
-              <ThemedText style={styles.analyticsTitle}>
-                Labour Roll Attendance %
-              </ThemedText>
-              <ThemedText style={styles.analyticsStat}>88%</ThemedText>
-              <ThemedText style={styles.analyticsLabel}>
-                Average active ratio for assigned roster over past 30 days.
-              </ThemedText>
-            </View>
-
-            <View
-              style={[
-                styles.analyticsCard,
-                {
-                  backgroundColor: theme.backgroundDefault,
-                  borderColor: theme.border,
-                },
-              ]}
-            >
-              <ThemedText style={styles.analyticsTitle}>
-                Delayed Days Registered
-              </ThemedText>
-              <ThemedText
-                style={[
-                  styles.analyticsStat,
-                  { color: delayDays > 0 ? "#DC2626" : theme.text },
-                ]}
-              >
-                {delayDays} Days
-              </ThemedText>
-              <ThemedText style={styles.analyticsLabel}>
-                Days logged from weather issues, material deficits, or design
-                changes.
-              </ThemedText>
-            </View>
-          </View>
-        )}
-
-        {/* TAB 7: PHOTOS */}
-        {activeTab === "photos" && (
-          <View>
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 16,
-              }}
-            >
-              <ThemedText style={styles.sectionHeaderTitle}>
-                Site Progress Photos
-              </ThemedText>
-              <Pressable
-                onPress={() => setShowPhotoModal(true)}
-                style={[
-                  styles.transferButton,
-                  { backgroundColor: theme.primary },
-                ]}
-              >
-                <Feather name="camera" size={14} color="#FFF" />
-                <ThemedText style={[styles.transferText, { color: "#FFF" }]}>
-                  Upload
-                </ThemedText>
-              </Pressable>
-            </View>
-            {photos.length === 0 ? (
-              <ThemedText style={styles.emptyText}>
-                No photos available.
-              </ThemedText>
+            <ThemedText style={styles.sectionHeading}>Materials Tracker</ThemedText>
+            {materials.length === 0 ? (
+              <ThemedText style={styles.emptyText}>No materials recorded yet.</ThemedText>
             ) : (
-              photos.map((p, i) => (
+              materials.map((m: any, idx: number) => (
                 <View
-                  key={i}
+                  key={idx}
                   style={[
-                    styles.workerCard,
+                    styles.materialItemCard,
                     {
                       backgroundColor: theme.backgroundDefault,
                       borderColor: theme.border,
                     },
                   ]}
                 >
-                  <Feather
-                    name="image"
-                    size={24}
-                    color={theme.primary}
-                    style={{ marginRight: 10 }}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <ThemedText style={styles.workerName}>
-                      {p.type === "before" ? "Before Work" : "After Work"}
-                    </ThemedText>
-                    <ThemedText style={styles.workerRate}>
-                      {new Date(p.timestamp || Date.now()).toLocaleString()}
-                    </ThemedText>
-                  </View>
+                  <ThemedText style={styles.materialName}>{m.name}</ThemedText>
+                  <ThemedText style={styles.materialQuantity}>
+                    {m.quantity || 0} {m.unit || "units"}
+                  </ThemedText>
                 </View>
               ))
             )}
+          </View>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 5: REPORTS & DOCS                                                     */}
+        {/* ========================================================================= */}
+        {activeTab === "reports" && (
+          <View>
+            <ThemedText style={styles.sectionHeading}>Reports & Documentation</ThemedText>
+            <View
+              style={[
+                styles.reportCard,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <ThemedText style={styles.reportTitle}>Daily Progress Report (DPR)</ThemedText>
+              <ThemedText style={styles.reportSubtitle}>
+                Generated automatically from daily work updates and haajari records.
+              </ThemedText>
+            </View>
+          </View>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 6: ANALYTICS                                                          */}
+        {/* ========================================================================= */}
+        {activeTab === "analytics" && (
+          <View>
+            <ThemedText style={styles.sectionHeading}>Site Analytics</ThemedText>
+            <View
+              style={[
+                styles.analyticsCard,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <ThemedText style={styles.analyticsTitle}>Budget Spent</ThemedText>
+              <ThemedText style={styles.analyticsStat}>
+                ₹{spentAmount.toLocaleString("en-IN")}
+              </ThemedText>
+            </View>
+          </View>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 7: PHOTOS                                                             */}
+        {/* ========================================================================= */}
+        {activeTab === "photos" && (
+          <View>
+            <ThemedText style={styles.sectionHeading}>Site Gallery</ThemedText>
+            <View style={styles.photoGrid}>
+              {(controlData?.sitePhotos || photos).map((p: any, idx: number) => {
+                const uri = p.photo?.url || p.photo || p.url || p;
+                return (
+                  <Pressable
+                    key={idx}
+                    onPress={() => {
+                      triggerHaptic();
+                      setSelectedPhotoModal({
+                        photoUrl: uri,
+                        workerName: p.workerName || "Worker",
+                        siteName: siteDisplayName,
+                        activityType: p.activityType || "Site Photo",
+                        timeStr: p.timeStr,
+                        description: p.description,
+                      });
+                    }}
+                    style={styles.galleryPhotoItem}
+                  >
+                    <Image source={{ uri }} style={styles.galleryPhoto} />
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         )}
       </ScrollView>
 
-      {/* Worker Transfer Modal */}
-      <Modal visible={showTransferModal} animationType="slide" transparent>
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowTransferModal(false)}
-        >
+      {/* ========================================================================= */}
+      {/* MODAL 1: ADD SITE INSTRUCTION MODAL                                       */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={showInstructionModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowInstructionModal(false)}
+      >
+        <View style={styles.modalOverlay}>
           <View
             style={[
               styles.modalSheet,
-              { backgroundColor: theme.backgroundDefault },
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
             ]}
           >
-            <View style={styles.sheetHeader}>
-              <ThemedText style={styles.sheetTitle}>Transfer Worker</ThemedText>
-              <Pressable onPress={() => setShowTransferModal(false)}>
-                <Feather name="x" size={20} color={theme.text} />
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={{ fontSize: 20 }}>📢</Text>
+                <ThemedText style={styles.modalTitle}>Add Site Instruction</ThemedText>
+              </View>
+              <Pressable onPress={() => setShowInstructionModal(false)} hitSlop={10}>
+                <Feather name="x" size={20} color={theme.textSecondary} />
               </Pressable>
             </View>
 
-            <ThemedText style={{ fontSize: 13, marginBottom: 12 }}>
-              Select target construction site to relocate{" "}
-              <ThemedText style={{ fontWeight: "700" }}>
-                {selectedWorkerForTransfer?.name}
-              </ThemedText>
-              :
-            </ThemedText>
+            <Text style={[styles.modalSubtitle, { color: theme.textSecondary }]}>
+              Post an instruction for all workers at {siteDisplayName}. This will appear in their daily site context.
+            </Text>
 
-            {allSitesForTransfer.length === 0 ? (
-              <ThemedText style={styles.emptyText}>
-                No other active sites available to transfer.
-              </ThemedText>
-            ) : (
-              allSitesForTransfer.map((p) => (
-                <Pressable
-                  key={p.id}
-                  onPress={() => handleTransferWorker(p.id)}
-                  style={[styles.siteOptionItem, { borderColor: theme.border }]}
-                >
-                  <ThemedText style={{ fontWeight: "700", fontSize: 13 }}>
-                    {p.name}
-                  </ThemedText>
-                  <ThemedText style={{ fontSize: 11, color: "#6B7280" }}>
-                    {p.location || (p as any).address || "N/A"}
-                  </ThemedText>
-                </Pressable>
-              ))
-            )}
-          </View>
-        </Pressable>
-      </Modal>
-
-      <Modal visible={showAssignWorkerModal} animationType="slide" transparent>
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowAssignWorkerModal(false)}
-        >
-          <View
-            style={[
-              styles.modalSheet,
-              { backgroundColor: theme.backgroundDefault },
-            ]}
-          >
-            <View style={styles.sheetHeader}>
-              <ThemedText style={styles.sheetTitle}>Assign Worker</ThemedText>
-              <Pressable onPress={() => setShowAssignWorkerModal(false)}>
-                <Feather name="x" size={20} color={theme.text} />
-              </Pressable>
-            </View>
-            <ScrollView>
-              {allWorkers.filter((w) => w.projectId !== siteId).length === 0 ? (
-                <ThemedText style={styles.emptyText}>
-                  No unassigned workers available.
-                </ThemedText>
-              ) : (
-                allWorkers
-                  .filter((w) => w.projectId !== siteId)
-                  .map((w) => (
-                    <View
-                      key={w.id}
-                      style={[
-                        styles.workerCard,
-                        {
-                          backgroundColor: theme.backgroundDefault,
-                          borderColor: theme.border,
-                        },
-                      ]}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <ThemedText style={styles.workerName}>
-                          {w.name}
-                        </ThemedText>
-                        <ThemedText style={styles.workerRate}>
-                          {w.category}
-                        </ThemedText>
-                      </View>
-                      <Pressable
-                        onPress={async () => {
-                          try {
-                            const updated = { ...w, projectId: siteId };
-                            await storage.updateWorker(updated);
-                            setAllWorkers(
-                              allWorkers.map((aw) =>
-                                aw.id === w.id ? updated : aw,
-                              ),
-                            );
-                            Alert.alert("Success", "Worker assigned.");
-                          } catch (e) {}
-                        }}
-                        style={[
-                          styles.transferButton,
-                          { backgroundColor: theme.primary },
-                        ]}
-                      >
-                        <ThemedText
-                          style={[styles.transferText, { color: "#FFF" }]}
-                        >
-                          Assign
-                        </ThemedText>
-                      </Pressable>
-                    </View>
-                  ))
-              )}
-            </ScrollView>
-          </View>
-        </Pressable>
-      </Modal>
-
-      <Modal visible={showMaterialModal} animationType="slide" transparent>
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowMaterialModal(false)}
-        >
-          <View
-            style={[
-              styles.modalSheet,
-              { backgroundColor: theme.backgroundDefault },
-            ]}
-          >
-            <View style={styles.sheetHeader}>
-              <ThemedText style={styles.sheetTitle}>
-                {materialForm.id ? "Edit Material" : "Add Material"}
-              </ThemedText>
-              <Pressable onPress={() => setShowMaterialModal(false)}>
-                <Feather name="x" size={20} color={theme.text} />
-              </Pressable>
-            </View>
-            <ScrollView>
-              <TextInput
-                placeholder="Name"
-                value={materialForm.name}
-                onChangeText={(t) =>
-                  setMaterialForm({ ...materialForm, name: t })
-                }
-                style={[
-                  styles.formInput,
-                  { color: theme.text, borderColor: theme.border },
-                ]}
-              />
-              <TextInput
-                placeholder="Unit"
-                value={materialForm.unit}
-                onChangeText={(t) =>
-                  setMaterialForm({ ...materialForm, unit: t })
-                }
-                style={[
-                  styles.formInput,
-                  { color: theme.text, borderColor: theme.border },
-                ]}
-              />
-              <TextInput
-                placeholder="Required"
-                value={materialForm.required}
-                onChangeText={(t) =>
-                  setMaterialForm({ ...materialForm, required: t })
-                }
-                keyboardType="numeric"
-                style={[
-                  styles.formInput,
-                  { color: theme.text, borderColor: theme.border },
-                ]}
-              />
-              <TextInput
-                placeholder="Min Threshold"
-                value={materialForm.minThreshold}
-                onChangeText={(t) =>
-                  setMaterialForm({ ...materialForm, minThreshold: t })
-                }
-                keyboardType="numeric"
-                style={[
-                  styles.formInput,
-                  { color: theme.text, borderColor: theme.border },
-                ]}
-              />
-              <Pressable
-                onPress={async () => {
-                  try {
-                    const m = materialForm.id ? "PUT" : "POST";
-                    const u = materialForm.id
-                      ? `${API_URL}/sites/${siteId}/materials/${materialForm.id}`
-                      : `${API_URL}/sites/${siteId}/materials`;
-                    const r = await authenticatedFetch(u, {
-                      method: m,
-                      body: JSON.stringify({
-                        name: materialForm.name,
-                        unit: materialForm.unit,
-                        required: Number(materialForm.required),
-                        minThreshold: Number(materialForm.minThreshold),
-                      }),
-                    });
-                    if (r.ok) loadSiteData();
-                    setShowMaterialModal(false);
-                  } catch (e) {}
-                }}
-                style={[
-                  styles.submitButton,
-                  { backgroundColor: theme.primary },
-                ]}
-              >
-                <ThemedText style={{ color: "#FFF", fontWeight: "700" }}>
-                  Save
-                </ThemedText>
-              </Pressable>
-            </ScrollView>
-          </View>
-        </Pressable>
-      </Modal>
-
-      <Modal visible={materialHistoryModal} animationType="slide" transparent>
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setMaterialHistoryModal(false)}
-        >
-          <View
-            style={[
-              styles.modalSheet,
-              { backgroundColor: theme.backgroundDefault },
-            ]}
-          >
-            <View style={styles.sheetHeader}>
-              <ThemedText style={styles.sheetTitle}>
-                Material Usage History
-              </ThemedText>
-              <Pressable onPress={() => setMaterialHistoryModal(false)}>
-                <Feather name="x" size={20} color={theme.text} />
-              </Pressable>
-            </View>
-            <ScrollView>
-              {materialHistory.map((h, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.workerCard,
-                    {
-                      backgroundColor: theme.backgroundDefault,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                >
-                  <ThemedText style={styles.workerName}>
-                    {h.materialName} - Used {h.quantity}
-                  </ThemedText>
-                  <ThemedText style={styles.workerRate}>
-                    {new Date(h.date || Date.now()).toLocaleDateString()}
-                  </ThemedText>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        </Pressable>
-      </Modal>
-
-      <Modal visible={showPhotoModal} animationType="slide" transparent>
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowPhotoModal(false)}
-        >
-          <View
-            style={[
-              styles.modalSheet,
-              { backgroundColor: theme.backgroundDefault },
-            ]}
-          >
-            <View style={styles.sheetHeader}>
-              <ThemedText style={styles.sheetTitle}>Upload Photo</ThemedText>
-              <Pressable onPress={() => setShowPhotoModal(false)}>
-                <Feather name="x" size={20} color={theme.text} />
-              </Pressable>
-            </View>
-            <ScrollView>
-              <TextInput
-                placeholder="Worker ID (optional)"
-                value={photoForm.workerId}
-                onChangeText={(t) =>
-                  setPhotoForm({ ...photoForm, workerId: t })
-                }
-                style={[
-                  styles.formInput,
-                  { color: theme.text, borderColor: theme.border },
-                ]}
-              />
-              <TextInput
-                placeholder="Type (before/after)"
-                value={photoForm.type}
-                onChangeText={(t) => setPhotoForm({ ...photoForm, type: t })}
-                style={[
-                  styles.formInput,
-                  { color: theme.text, borderColor: theme.border },
-                ]}
-              />
-
-              <Pressable
-                onPress={async () => {
-                  try {
-                    const r = await authenticatedFetch(
-                      `${API_URL}/sites/${siteId}/photos`,
-                      {
-                        method: "POST",
-                        body: JSON.stringify({
-                          workerId: photoForm.workerId || undefined,
-                          type: photoForm.type,
-                          uri: "fake_uri.jpg",
-                          location: { lat: 28.7041, lng: 77.1025 },
-                        }),
-                      },
-                    );
-                    if (r.ok) loadSiteData();
-                    setShowPhotoModal(false);
-                  } catch (e) {}
-                }}
-                style={[
-                  styles.submitButton,
-                  { backgroundColor: theme.primary },
-                ]}
-              >
-                <ThemedText style={{ color: "#FFF", fontWeight: "700" }}>
-                  Upload (Simulated)
-                </ThemedText>
-              </Pressable>
-            </ScrollView>
-          </View>
-        </Pressable>
-      </Modal>
-
-      {/* Add Expense Modal */}
-      <Modal visible={showExpenseModal} animationType="slide" transparent>
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowExpenseModal(false)}
-        >
-          <View
-            style={[
-              styles.modalSheet,
-              { backgroundColor: theme.backgroundDefault },
-            ]}
-          >
-            <View style={styles.sheetHeader}>
-              <ThemedText style={styles.sheetTitle}>Log New Expense</ThemedText>
-              <Pressable onPress={() => setShowExpenseModal(false)}>
-                <Feather name="x" size={20} color={theme.text} />
-              </Pressable>
-            </View>
-
-            <ScrollView>
-              <ThemedText style={styles.inputLabel}>
-                Expense Category
-              </ThemedText>
-              <View style={styles.filterGroup}>
-                {(
-                  [
-                    { id: "material", label: "Material" },
-                    { id: "labour", label: "Labour Wages" },
-                    { id: "machinery", label: "Machinery" },
-                    { id: "vendor", label: "Vendor" },
-                    { id: "other", label: "Other" },
-                  ] as const
-                ).map((cat) => (
+            {/* Priority Selector */}
+            <Text style={[styles.fieldLabel, { color: theme.text }]}>Priority Level</Text>
+            <View style={styles.prioritySelectorRow}>
+              {(["NORMAL", "HIGH", "URGENT"] as const).map((p) => {
+                const isSelected = instructionPriority === p;
+                return (
                   <Pressable
-                    key={cat.id}
-                    onPress={() => setExpType(cat.id)}
+                    key={p}
+                    onPress={() => {
+                      triggerHaptic();
+                      setInstructionPriority(p);
+                    }}
                     style={[
-                      styles.filterItem,
-                      {
-                        backgroundColor:
-                          expType === cat.id ? theme.primary : theme.border,
-                      },
+                      styles.priorityPill,
+                      isSelected
+                        ? {
+                            backgroundColor:
+                              p === "URGENT"
+                                ? "#DC2626"
+                                : p === "HIGH"
+                                ? "#D97706"
+                                : theme.primary,
+                          }
+                        : { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" },
                     ]}
                   >
-                    <ThemedText
-                      style={{
-                        color: expType === cat.id ? "#FFFFFF" : theme.text,
-                        fontSize: 11,
-                        fontWeight: "700",
-                      }}
+                    <Text
+                      style={[
+                        styles.priorityPillText,
+                        isSelected ? { color: "#FFFFFF", fontWeight: "700" } : { color: theme.textSecondary },
+                      ]}
                     >
-                      {cat.label}
-                    </ThemedText>
+                      {p}
+                    </Text>
                   </Pressable>
-                ))}
+                );
+              })}
+            </View>
+
+            {/* Instruction Text Input */}
+            <Text style={[styles.fieldLabel, { color: theme.text, marginTop: 12 }]}>
+              Instruction Note
+            </Text>
+            <TextInput
+              value={instructionText}
+              onChangeText={setInstructionText}
+              placeholder="e.g. Ensure column shuttering is checked before 12 PM..."
+              placeholderTextColor={theme.textSecondary}
+              multiline
+              numberOfLines={4}
+              style={[
+                styles.instructionTextInput,
+                {
+                  color: theme.text,
+                  backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
+                  borderColor: theme.border,
+                },
+              ]}
+            />
+
+            <Pressable
+              onPress={handleSubmitInstruction}
+              disabled={isPostingInstruction}
+              style={[styles.modalPrimaryBtn, { backgroundColor: theme.primary }]}
+            >
+              {isPostingInstruction ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.modalPrimaryBtnText}>Broadcast Instruction</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODAL 2: RESOLVE SITE ISSUE MODAL                                         */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={showResolveModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowResolveModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalSheet,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={{ fontSize: 20 }}>✓</Text>
+                <ThemedText style={styles.modalTitle}>Resolve Issue</ThemedText>
               </View>
+              <Pressable onPress={() => setShowResolveModal(false)} hitSlop={10}>
+                <Feather name="x" size={20} color={theme.textSecondary} />
+              </Pressable>
+            </View>
 
-              <ThemedText style={styles.inputLabel}>Amount (₹) *</ThemedText>
-              <TextInput
-                placeholder="e.g. 15,000"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="numeric"
-                value={expAmount}
-                onChangeText={setExpAmount}
-                style={[
-                  styles.formInput,
-                  { color: theme.text, borderColor: theme.border },
-                ]}
-              />
+            <Text style={[styles.modalSubtitle, { color: theme.textSecondary }]}>
+              Mark issue as resolved. Add optional notes on how it was fixed.
+            </Text>
 
-              <ThemedText style={styles.inputLabel}>Vendor Name</ThemedText>
-              <TextInput
-                placeholder="e.g. UltraTech Dealer"
-                placeholderTextColor="#9CA3AF"
-                value={expVendor}
-                onChangeText={setExpVendor}
-                style={[
-                  styles.formInput,
-                  { color: theme.text, borderColor: theme.border },
-                ]}
-              />
+            <TextInput
+              value={resolutionNotes}
+              onChangeText={setResolutionNotes}
+              placeholder="e.g. Material replaced by vendor at 3 PM..."
+              placeholderTextColor={theme.textSecondary}
+              multiline
+              numberOfLines={3}
+              style={[
+                styles.instructionTextInput,
+                {
+                  color: theme.text,
+                  backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
+                  borderColor: theme.border,
+                },
+              ]}
+            />
 
-              <ThemedText style={styles.inputLabel}>
-                Notes / Specifications
-              </ThemedText>
-              <TextInput
-                placeholder="e.g. 50 bags purchased"
-                placeholderTextColor="#9CA3AF"
-                value={expDesc}
-                onChangeText={setExpDesc}
-                style={[
-                  styles.formInput,
-                  { color: theme.text, borderColor: theme.border },
-                ]}
-              />
-
+            <View style={styles.modalActionsRow}>
               <Pressable
-                onPress={handleLogExpenseSubmit}
+                onPress={() => setShowResolveModal(false)}
                 style={[
-                  styles.submitButton,
-                  { backgroundColor: theme.primary },
+                  styles.modalCancelBtn,
+                  { backgroundColor: isDark ? "#334155" : "#E2E8F0" },
                 ]}
               >
-                <ThemedText style={styles.submitButtonText}>
-                  Log Expense Entry
-                </ThemedText>
+                <Text style={{ color: theme.text, fontWeight: "700" }}>Cancel</Text>
               </Pressable>
-            </ScrollView>
+              <Pressable
+                onPress={handleConfirmResolveIssue}
+                disabled={isResolving}
+                style={[styles.modalConfirmBtn, { backgroundColor: "#16A34A" }]}
+              >
+                {isResolving ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                    Confirm Resolution
+                  </Text>
+                )}
+              </Pressable>
+            </View>
           </View>
-        </Pressable>
+        </View>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: FULL SCREEN PHOTO VIEWER WITH METADATA                           */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={selectedPhotoModal !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedPhotoModal(null)}
+      >
+        <View style={styles.photoViewerContainer}>
+          {/* Header */}
+          <View style={styles.photoViewerHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.photoViewerTitle}>
+                {selectedPhotoModal?.activityType === "MORNING_WORK"
+                  ? "🌅 Morning Work Photo"
+                  : selectedPhotoModal?.activityType === "EVENING_WORK"
+                  ? "🌆 Evening Work Photo"
+                  : selectedPhotoModal?.activityType === "ISSUE"
+                  ? "⚠️ Site Issue Photo"
+                  : "📸 Site Photo"}
+              </Text>
+              <Text style={styles.photoViewerSub}>
+                {selectedPhotoModal?.workerName} • {selectedPhotoModal?.timeStr || selectedPhotoModal?.dateStr || "Today"}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => setSelectedPhotoModal(null)}
+              style={styles.photoViewerCloseBtn}
+            >
+              <Feather name="x" size={24} color="#FFFFFF" />
+            </Pressable>
+          </View>
+
+          {/* Full Screen Image */}
+          {selectedPhotoModal?.photoUrl ? (
+            <Image
+              source={{ uri: selectedPhotoModal.photoUrl }}
+              style={styles.photoViewerImage}
+              resizeMode="contain"
+            />
+          ) : null}
+
+          {/* Footer Metadata Overlay */}
+          <View style={styles.photoViewerFooter}>
+            {selectedPhotoModal?.description ? (
+              <Text style={styles.photoViewerDesc}>
+                "{selectedPhotoModal.description}"
+              </Text>
+            ) : null}
+            {selectedPhotoModal?.location?.latitude ? (
+              <View style={styles.photoViewerLocation}>
+                <Feather name="map-pin" size={13} color="#94A3B8" />
+                <Text style={styles.photoViewerLocationText}>
+                  📍 GPS: {selectedPhotoModal.location.latitude.toFixed(5)},{" "}
+                  {selectedPhotoModal.location.longitude.toFixed(5)}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
       </Modal>
     </ThemedView>
   );
@@ -1896,52 +1460,360 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    paddingTop: Platform.OS === "ios" ? 56 : 36,
-    paddingBottom: Spacing.sm,
-    borderBottomWidth: 1.5,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
+    padding: 6,
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: -0.2,
   },
   headerSubtitle: {
-    fontSize: 11,
-    color: "#6B7280",
-    fontWeight: "500",
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
   },
+  instructionHeaderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.md,
+  },
+  instructionHeaderBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  // Tabs
   tabsScrollContainer: {
-    borderBottomWidth: 1.5,
-    height: 48,
+    borderBottomWidth: 1,
   },
   tabsRow: {
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: 16,
+    gap: 12,
   },
   tabItem: {
-    paddingHorizontal: 16,
-    justifyContent: "center",
+    paddingVertical: 12,
     borderBottomWidth: 2,
-    height: "100%",
   },
   tabText: {
     fontSize: 13,
-    fontWeight: "700",
   },
   scrollContent: {
-    padding: Spacing.md,
-    paddingBottom: 80,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingBottom: 100,
   },
+
+  // Date Selector
+  dateSelectorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  datePillsGroup: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  datePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  datePillText: {
+    fontSize: 12,
+  },
+  currentDateLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  // KPI Grid
+  kpiGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  },
+  kpiCard: {
+    flex: 1,
+    minWidth: "47%",
+    padding: 12,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  kpiCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  kpiEmoji: {
+    fontSize: 18,
+  },
+  kpiVal: {
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  kpiTitle: {
+    fontSize: 11,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+
+  // Open Issues Alert Strip
+  openIssuesAlertStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    borderRadius: BorderRadius.md,
+    marginBottom: 12,
+  },
+  openIssuesAlertText: {
+    flex: 1,
+    marginHorizontal: 8,
+    fontSize: 13,
+    color: "#DC2626",
+    fontWeight: "700",
+  },
+
+  // Segmented Sub-filters
+  segmentedFilterContainer: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 14,
+  },
+  segmentedFilterBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  segmentedFilterText: {
+    fontSize: 11,
+  },
+
+  // Progress Section Card
+  progressSectionCard: {
+    padding: 14,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  progressHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  progressSectionTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  progressSectionVal: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  progressBarTrack: {
+    height: 8,
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 10,
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: 4,
+  },
+  pendingWorkersBox: {
+    padding: 10,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  pendingWorkersTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#D97706",
+  },
+  pendingWorkerTagsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 8,
+  },
+  pendingWorkerTag: {
+    backgroundColor: "rgba(217, 119, 6, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  pendingWorkerTagText: {
+    fontSize: 11,
+    color: "#B45309",
+    fontWeight: "600",
+  },
+
+  // Feed Section
+  feedContainer: {
+    marginTop: 4,
+  },
+  feedSectionTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 10,
+  },
+  emptyTimelineBox: {
+    alignItems: "center",
+    padding: 24,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  emptyTimelineTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  emptyTimelineDesc: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+  },
+
+  // Timeline Card
+  timelineCard: {
+    padding: 14,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  timelineCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  timelineUserInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  userAvatarCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timelineUserName: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  timelineUserRole: {
+    fontSize: 11,
+    color: "#64748B",
+  },
+  activityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  activityBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  timelineTimeText: {
+    fontSize: 10,
+    color: "#94A3B8",
+    marginTop: 2,
+  },
+  photoContainer: {
+    position: "relative",
+    borderRadius: BorderRadius.md,
+    overflow: "hidden",
+    marginBottom: 10,
+  },
+  timelinePhoto: {
+    width: "100%",
+    height: 190,
+    backgroundColor: "#1E293B",
+  },
+  photoExpandOverlay: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  photoExpandText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  timelineDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  timelineFooterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  locationChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flex: 1,
+    marginRight: 8,
+  },
+  locationChipText: {
+    fontSize: 11,
+    color: "#64748B",
+  },
+  issueStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.sm,
+  },
+  issueStatusText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  markResolvedBtn: {
+    backgroundColor: "#16A34A",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.sm,
+  },
+  markResolvedBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  // Other Tabs Helpers
   infoCard: {
-    borderWidth: 1.5,
-    borderRadius: 12,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
+    padding: 14,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
   },
   infoTitle: {
     fontSize: 14,
@@ -1951,358 +1823,118 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
   infoLabel: {
     fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "500",
+    color: "#64748B",
   },
   infoValue: {
     fontSize: 12,
     fontWeight: "700",
   },
-  sectionHeaderTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: Spacing.sm,
-    marginTop: Spacing.sm,
-  },
-  emptyText: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "500",
-    textAlign: "center",
-    paddingVertical: 12,
-  },
-  stageCard: {
-    borderWidth: 1.5,
-    borderRadius: 12,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  stageCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  stageName: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  statusBadge: {
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-  },
-  statusBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  stageControllerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-    paddingTop: Spacing.sm,
-  },
-  stageButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stageControllerPercent: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  headcountRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: Spacing.md,
-  },
-  headcountStat: {
-    flex: 1,
-    padding: Spacing.md,
-    borderWidth: 1.5,
-    borderRadius: 12,
-  },
-  headcountVal: {
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  headcountLabel: {
-    fontSize: 10,
-    color: "#6B7280",
-    fontWeight: "500",
-    marginTop: 2,
-  },
-  skillsFilterContainer: {
-    gap: 6,
-    marginBottom: Spacing.md,
-  },
-  skillFilterItem: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+  sectionHeading: {
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 10,
   },
   workerCard: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: Spacing.md,
-    borderWidth: 1.5,
-    borderRadius: 12,
-    marginBottom: 6,
+    padding: 12,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  workerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(100,116,139,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   workerName: {
     fontSize: 13,
     fontWeight: "700",
   },
-  workerCategoryBadge: {
+  workerCategory: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  workerActivityTime: {
     fontSize: 10,
-    fontWeight: "700",
-    color: "#4B5563",
-    backgroundColor: "#F3F4F6",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    color: "#94A3B8",
+    marginTop: 2,
   },
-  workerRate: {
-    fontSize: 11,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  transferButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    height: 32,
-  },
-  transferText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  materialCard: {
-    borderWidth: 1.5,
-    borderRadius: 12,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  materialHeader: {
+  materialItemCard: {
+    padding: 12,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 8,
   },
   materialName: {
     fontSize: 13,
     fontWeight: "700",
   },
-  lowStockBadge: {
-    backgroundColor: "#FEE2E2",
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 4,
-  },
-  lowStockText: {
-    fontSize: 9,
-    color: "#DC2626",
-    fontWeight: "700",
-  },
-  materialMetricsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: Spacing.sm,
-  },
-  matMetricLabel: {
-    fontSize: 10,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  matMetricVal: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  logUsageButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    paddingVertical: 6,
-    borderRadius: 6,
-    height: 32,
-  },
-  logUsageText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  budgetTracker: {
-    borderWidth: 1.5,
-    borderRadius: 12,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  budgetTitle: {
+  materialQuantity: {
     fontSize: 13,
     fontWeight: "700",
-    marginBottom: 8,
+    color: "#2563EB",
   },
-  budgetStats: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: Spacing.sm,
+  reportCard: {
+    padding: 14,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
   },
-  budgetText: {
-    fontSize: 11,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  budgetVal: {
-    fontSize: 15,
+  reportTitle: {
+    fontSize: 14,
     fontWeight: "700",
+    marginBottom: 4,
   },
-  barContainer: {
-    height: 8,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 4,
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  barFill: {
-    height: "100%",
-    borderRadius: 4,
-  },
-  budgetSubtext: {
-    fontSize: 11,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  ledgerGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: Spacing.md,
-  },
-  ledgerItem: {
-    flex: 1,
-    minWidth: "46%",
-    padding: Spacing.md,
-    borderWidth: 1.5,
-    borderRadius: 12,
-  },
-  ledgerVal: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  ledgerLabel: {
-    fontSize: 11,
-    color: "#6B7280",
-    fontWeight: "500",
-    marginTop: 2,
-  },
-  addExpenseFAB: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    borderRadius: 12,
-    height: 48,
-    marginTop: Spacing.sm,
-  },
-  addExpenseText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  dailyReportCard: {
-    borderWidth: 1.5,
-    borderRadius: 12,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  reportHeader: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  reportDate: {
-    fontSize: 11,
-    color: "#6B7280",
-    fontWeight: "500",
-    marginTop: 2,
-  },
-  reportDivider: {
-    height: 1,
-    backgroundColor: "#E5E7EB",
-    marginVertical: 12,
-  },
-  reportRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 6,
-  },
-  reportLabel: {
+  reportSubtitle: {
     fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  reportValue: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  documentCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.md,
-    borderWidth: 1.5,
-    borderRadius: 12,
-    marginBottom: 6,
-  },
-  docName: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  docMeta: {
-    fontSize: 10,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  downloadIcon: {
-    width: 32,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
+    color: "#64748B",
   },
   analyticsCard: {
-    borderWidth: 1.5,
-    borderRadius: 12,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
+    padding: 14,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
   },
   analyticsTitle: {
     fontSize: 12,
-    fontWeight: "700",
-    color: "#6B7280",
+    color: "#64748B",
   },
   analyticsStat: {
-    fontSize: 26,
-    fontWeight: "700",
+    fontSize: 24,
+    fontWeight: "800",
     marginTop: 4,
   },
-  analyticsLabel: {
-    fontSize: 11,
-    color: "#9CA3AF",
-    marginTop: 4,
-    fontWeight: "500",
+  emptyText: {
+    fontSize: 13,
+    color: "#64748B",
+    marginVertical: 12,
   },
+  photoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  galleryPhotoItem: {
+    width: "31%",
+    aspectRatio: 1,
+    borderRadius: BorderRadius.md,
+    overflow: "hidden",
+  },
+  galleryPhoto: {
+    width: "100%",
+    height: "100%",
+  },
+
+  // Modals
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -2311,61 +1943,129 @@ const styles = StyleSheet.create({
   modalSheet: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: Spacing.md,
-    maxHeight: "85%",
+    padding: 20,
+    borderWidth: 1,
   },
-  sheetHeader: {
+  modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing.md,
+    marginBottom: 6,
   },
-  sheetTitle: {
+  modalTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "800",
   },
-  siteOptionItem: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
+  modalSubtitle: {
+    fontSize: 12,
+    marginBottom: 14,
+    lineHeight: 17,
   },
-  inputLabel: {
+  fieldLabel: {
     fontSize: 12,
     fontWeight: "700",
-    marginBottom: 4,
-    marginTop: 12,
+    marginBottom: 6,
   },
-  formInput: {
-    borderWidth: 1.5,
-    borderRadius: 8,
-    height: 44,
-    paddingHorizontal: 12,
-    fontSize: 13,
-    fontWeight: "500",
-    marginBottom: 4,
-  },
-  filterGroup: {
+  prioritySelectorRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 8,
-    marginBottom: Spacing.md,
+    marginBottom: 10,
   },
-  filterItem: {
+  priorityPill: {
+    flex: 1,
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
   },
-  submitButton: {
-    borderRadius: 12,
-    height: 48,
+  priorityPillText: {
+    fontSize: 12,
+  },
+  instructionTextInput: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    padding: 12,
+    fontSize: 13,
+    textAlignVertical: "top",
+    marginBottom: 16,
+  },
+  modalPrimaryBtn: {
+    paddingVertical: 12,
+    borderRadius: BorderRadius.md,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 20,
   },
-  submitButtonText: {
+  modalPrimaryBtnText: {
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
+  },
+  modalActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+  },
+  modalConfirmBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+  },
+
+  // Photo Viewer
+  photoViewerContainer: {
+    flex: 1,
+    backgroundColor: "#000000",
+    justifyContent: "space-between",
+  },
+  photoViewerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 50,
+    paddingBottom: 16,
+    backgroundColor: "rgba(0,0,0,0.7)",
+  },
+  photoViewerTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  photoViewerSub: {
+    color: "#94A3B8",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  photoViewerCloseBtn: {
+    padding: 6,
+  },
+  photoViewerImage: {
+    flex: 1,
+    width: "100%",
+  },
+  photoViewerFooter: {
+    padding: 16,
+    paddingBottom: 40,
+    backgroundColor: "rgba(0,0,0,0.7)",
+  },
+  photoViewerDesc: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  photoViewerLocation: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  photoViewerLocationText: {
+    color: "#94A3B8",
+    fontSize: 12,
   },
 });

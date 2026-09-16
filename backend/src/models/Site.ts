@@ -22,6 +22,12 @@ export interface ISite extends Document {
   lastUpdateAt?: Date;
   lastUpdatedBy?: mongoose.Types.ObjectId;
   lastUpdateType?: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+    radius?: number;
+    address?: string;
+  };
 }
 
 const SiteSchema = new Schema<ISite>({
@@ -47,7 +53,13 @@ const SiteSchema = new Schema<ISite>({
   currentProgress: { type: Number, default: 0, min: 0, max: 100 },
   lastUpdateAt: { type: Date },
   lastUpdatedBy: { type: Schema.Types.ObjectId, ref: "User" },
-  lastUpdateType: { type: String, trim: true }
+  lastUpdateType: { type: String, trim: true },
+  location: {
+    latitude: { type: Number },
+    longitude: { type: Number },
+    radius: { type: Number, default: 300 }, // 300m default geofence
+    address: { type: String, trim: true },
+  },
 }, {
   timestamps: true
 });

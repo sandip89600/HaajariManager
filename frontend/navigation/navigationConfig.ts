@@ -121,17 +121,24 @@ export const SUPERVISOR_NAV: NavItemConfig[] = [
 
 /**
  * WORKER NAVIGATION
- * Simplified navigation with only 3 allowed destinations:
- * Exact Order: 1. Dashboard, 2. QR Scanner (Center), 3. Summary
- * No disabled placeholders for hidden items.
+ * 5 Dedicated Workforce Tabs with Floating Center QR Scanner:
+ * Exact Order: 1. Home, 2. Camera, 3. Scan QR (Center Action), 4. Site Logs, 5. Summary
  */
 export const WORKER_NAV: NavItemConfig[] = [
   {
-    id: "dashboard",
+    id: "home",
     name: "DashboardTab",
-    titleKey: "nav.dashboard",
-    defaultTitle: "Dashboard",
-    iconName: "grid",
+    titleKey: "nav.home",
+    defaultTitle: "Home",
+    iconName: "home",
+    iconFamily: "Feather",
+  },
+  {
+    id: "camera",
+    name: "WorkerCameraTab",
+    titleKey: "nav.camera",
+    defaultTitle: "Camera",
+    iconName: "camera",
     iconFamily: "Feather",
   },
   {
@@ -142,6 +149,14 @@ export const WORKER_NAV: NavItemConfig[] = [
     iconName: "maximize",
     iconFamily: "Feather",
     isCenterAction: true,
+  },
+  {
+    id: "siteLogs",
+    name: "SiteLogsTab",
+    titleKey: "nav.siteLogs",
+    defaultTitle: "Site Logs",
+    iconName: "file-text",
+    iconFamily: "Feather",
   },
   {
     id: "summary",

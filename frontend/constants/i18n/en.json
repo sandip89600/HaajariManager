@@ -3,6 +3,16 @@
     "name": "Haajari",
     "tagline": "Powered by Haajari Artificial Intelligence"
   },
+  "nav": {
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "workers": "Workers",
+    "camera": "Camera",
+    "qrScanner": "Scan QR",
+    "siteLogs": "Site Logs",
+    "summary": "Summary",
+    "siteControl": "Site Control"
+  },
   "auth": {
     "welcome": "Welcome Back",
     "email": "Email or Mobile",

@@ -26,6 +26,8 @@ export * from "./Notification";
 export * from "./EmailNotification";
 export * from "./IssueFeedback";
 export * from "./DailySiteWorkUpdate";
+export * from "./DailySiteActivity";
+export * from "./DailySiteSession";
 export * from "./Plan";
 export * from "./PlanPrice";
 export * from "./Feature";

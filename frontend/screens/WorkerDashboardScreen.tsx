@@ -24,7 +24,10 @@ import {
   API_URL,
   storage,
   calculateWorkerSummary,
+  siteActivityStorage,
+  WorkerTodayContext,
 } from "@/utils/storage";
+import { captureLocation } from "@/utils/gps";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import TeamConnectionWidget from "@/components/TeamConnectionWidget";
 
@@ -39,6 +42,11 @@ export default function WorkerDashboardScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  const [todayContext, setTodayContext] = useState<WorkerTodayContext | null>(
+    null,
+  );
+  const [isStartingWork, setIsStartingWork] = useState(false);
 
   const [workerInfo, setWorkerInfo] = useState<{
     id?: string;
@@ -159,6 +167,18 @@ export default function WorkerDashboardScreen() {
             data,
           );
         }
+        // 3. Fetch fresh worker today site context (smart site detection / work update proof status)
+        try {
+          const loc = await captureLocation();
+          const ctx = await siteActivityStorage.getWorkerTodayContext(
+            loc
+              ? { latitude: loc.latitude, longitude: loc.longitude }
+              : undefined,
+          );
+          if (ctx) setTodayContext(ctx);
+        } catch (ctxErr) {
+          console.log("Failed to fetch worker today site context:", ctxErr);
+        }
       } catch (netErr) {
         console.log(
           "Worker dashboard using cached/offline data:",
@@ -173,6 +193,38 @@ export default function WorkerDashboardScreen() {
       setIsRefreshing(false);
     }
   }, [selectedYear, selectedMonth]);
+
+  const handleStartWork = async () => {
+    const targetSiteId =
+      todayContext?.detectedNearbySite?.id ||
+      todayContext?.defaultSite?.id ||
+      todayContext?.activeWorkingSite?.id;
+
+    if (!targetSiteId) {
+      return;
+    }
+
+    setIsStartingWork(true);
+    try {
+      const loc = await captureLocation();
+      await siteActivityStorage.startDailyWorkSession(
+        targetSiteId,
+        loc
+          ? {
+              latitude: loc.latitude,
+              longitude: loc.longitude,
+              accuracy: loc.accuracy,
+            }
+          : undefined,
+      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      loadWorkerData();
+    } catch (err: any) {
+      console.warn("Error starting daily work session:", err);
+    } finally {
+      setIsStartingWork(false);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -248,35 +300,35 @@ export default function WorkerDashboardScreen() {
     switch (val) {
       case "P":
         return {
-          label: t("attendance.present", "उपस्थित (Present)"),
+          label: t("attendance.present", "Present"),
           color: "#10B981",
           bg: "#DCFCE7",
           icon: "check-circle",
         };
       case "A":
         return {
-          label: t("attendance.absent", "अनुपस्थित (Absent)"),
+          label: t("attendance.absent", "Absent"),
           color: "#EF4444",
           bg: "#FEE2E2",
           icon: "x-circle",
         };
       case "H":
         return {
-          label: t("attendance.halfDay", "आधा दिन (Half Day)"),
+          label: t("attendance.halfDay", "Half Day"),
           color: "#F59E0B",
           bg: "#FEF3C7",
           icon: "clock",
         };
       case "OT":
         return {
-          label: t("attendance.overtime", "ओवरटाइम (Overtime)"),
+          label: t("attendance.overtime", "Overtime"),
           color: "#3B82F6",
           bg: "#DBEAFE",
           icon: "plus-circle",
         };
       default:
         return {
-          label: t("attendance.unmarked", "अचिह्नित (Not Marked)"),
+          label: t("attendance.unmarked", "Not Marked"),
           color: "#94A3B8",
           bg: isDark ? "#334155" : "#F1F5F9",
           icon: "help-circle",
@@ -287,18 +339,18 @@ export default function WorkerDashboardScreen() {
   const todayStatus = getStatusBadge(todayRecord?.value);
 
   const monthNames = [
-    t("months.january", "जनवरी"),
-    t("months.february", "फ़रवरी"),
-    t("months.march", "मार्च"),
-    t("months.april", "अप्रैल"),
-    t("months.may", "मई"),
-    t("months.june", "जून"),
-    t("months.july", "जुलाई"),
-    t("months.august", "अगस्त"),
-    t("months.september", "सितंबर"),
-    t("months.october", "अक्टूबर"),
-    t("months.november", "नवंबर"),
-    t("months.december", "दिसंबर"),
+    t("months.january", "January"),
+    t("months.february", "February"),
+    t("months.march", "March"),
+    t("months.april", "April"),
+    t("months.may", "May"),
+    t("months.june", "June"),
+    t("months.july", "July"),
+    t("months.august", "August"),
+    t("months.september", "September"),
+    t("months.october", "October"),
+    t("months.november", "November"),
+    t("months.december", "December"),
   ];
 
   return (
@@ -369,7 +421,7 @@ export default function WorkerDashboardScreen() {
             />
             <View style={{ marginLeft: 8 }}>
               <Text style={[styles.uniqueIdLabel, { color: "#047857" }]}>
-                {t("worker.uniqueIdLabel", "वर्कर यूनिक आईडी (Worker ID)")}
+                {t("worker.uniqueIdLabel", "Worker Unique ID")}
               </Text>
               <Text style={[styles.uniqueIdValue, { color: "#065F46" }]}>
                 {activeUniqueId}
@@ -407,6 +459,285 @@ export default function WorkerDashboardScreen() {
         {/* Team Connection Widget */}
         <TeamConnectionWidget onRefreshParent={loadWorkerData} />
 
+        {/* 1. SMART SITE DETECTION CARD */}
+        {(todayContext?.activeWorkingSite ||
+          todayContext?.detectedNearbySite ||
+          todayContext?.defaultSite) && (
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: cardBg,
+                borderColor: todayContext?.hasActiveSession
+                  ? "#10B981"
+                  : borderCol,
+                borderLeftWidth: 4,
+                borderLeftColor: todayContext?.hasActiveSession
+                  ? "#10B981"
+                  : theme.primary,
+              },
+            ]}
+          >
+            <View style={styles.cardTitleRow}>
+              <Feather
+                name="map-pin"
+                size={18}
+                color={
+                  todayContext?.hasActiveSession ? "#10B981" : theme.primary
+                }
+              />
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={[styles.sectionHeading, { color: theme.text }]}>
+                  {todayContext?.hasActiveSession
+                    ? t("site.activeSiteToday", "🟢 Today's Active Site")
+                    : todayContext?.detectedNearbySite
+                      ? t("site.detectedNearby", "📍 Detected Nearby Site")
+                      : t("site.assignedSite", "📍 Assigned Site")}
+                </Text>
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.siteAddressText,
+                    { color: isDark ? "#CBD5E1" : "#475569" },
+                  ]}
+                >
+                  {
+                    (
+                      todayContext.activeWorkingSite ||
+                      todayContext.detectedNearbySite ||
+                      todayContext.defaultSite
+                    )?.name
+                  }
+                </Text>
+              </View>
+
+              {!todayContext?.hasActiveSession && (
+                <Pressable
+                  onPress={handleStartWork}
+                  disabled={isStartingWork}
+                  style={[
+                    styles.startWorkBtn,
+                    { backgroundColor: theme.primary },
+                  ]}
+                >
+                  {isStartingWork ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Feather name="zap" size={14} color="#FFFFFF" />
+                      <Text style={styles.startWorkBtnText}>
+                        {t("site.startWork", "Start Work")}
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* 2. CONTRACTOR INSTRUCTION BANNER */}
+        {todayContext?.latestInstruction && (
+          <View
+            style={[
+              styles.instructionBanner,
+              {
+                backgroundColor: isDark ? "#312E81" : "#EEF2FF",
+                borderColor: "#6366F1",
+              },
+            ]}
+          >
+            <View style={styles.instructionBannerHeader}>
+              <MaterialCommunityIcons
+                name="bullhorn"
+                size={18}
+                color="#6366F1"
+              />
+              <Text style={styles.instructionBannerTitle}>
+                {t("site.contractorInstruction", "Contractor Instruction")}
+              </Text>
+              {todayContext.latestInstruction.timeStr && (
+                <Text style={styles.instructionTimeTag}>
+                  {todayContext.latestInstruction.timeStr}
+                </Text>
+              )}
+            </View>
+            <Text
+              style={[
+                styles.instructionBannerDesc,
+                { color: isDark ? "#E0E7FF" : "#312E81" },
+              ]}
+            >
+              "{todayContext.latestInstruction.description}"
+            </Text>
+          </View>
+        )}
+
+        {/* 3. PROMINENT CTA: SUBMIT WORK UPDATE */}
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            navigation.navigate("WorkerCameraTab");
+          }}
+          style={[
+            styles.prominentWorkUpdateBtn,
+            { backgroundColor: theme.primary },
+          ]}
+        >
+          <View style={styles.workUpdateBtnIconWrapper}>
+            <Feather name="camera" size={24} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.prominentWorkUpdateTitle}>
+              {t("camera.submitWorkUpdateBtn", "📸 Submit Work Photo Update")}
+            </Text>
+            <Text style={styles.prominentWorkUpdateSubtitle}>
+              {todayContext?.workUpdates?.morning?.submitted &&
+              !todayContext?.workUpdates?.evening?.submitted
+                ? t(
+                    "camera.eveningPendingPrompt",
+                    "Capture and submit evening work completion photo",
+                  )
+                : t(
+                    "camera.morningPendingPrompt",
+                    "Capture and submit morning / evening work proof",
+                  )}
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={22} color="#FFFFFF" />
+        </Pressable>
+
+        {/* 4. TODAY'S WORK PROOF STATUS BADGES */}
+        <View style={styles.proofStatusRow}>
+          <View
+            style={[
+              styles.proofStatusBadge,
+              {
+                backgroundColor: todayContext?.workUpdates?.morning?.submitted
+                  ? isDark
+                    ? "#064E3B"
+                    : "#DCFCE7"
+                  : isDark
+                    ? "#1E293B"
+                    : "#F1F5F9",
+                borderColor: todayContext?.workUpdates?.morning?.submitted
+                  ? "#10B981"
+                  : borderCol,
+              },
+            ]}
+          >
+            <Feather
+              name={
+                todayContext?.workUpdates?.morning?.submitted
+                  ? "check-circle"
+                  : "clock"
+              }
+              size={16}
+              color={
+                todayContext?.workUpdates?.morning?.submitted
+                  ? "#10B981"
+                  : "#94A3B8"
+              }
+            />
+            <View style={{ marginLeft: 8 }}>
+              <Text
+                style={[
+                  styles.proofBadgeTitle,
+                  {
+                    color: todayContext?.workUpdates?.morning?.submitted
+                      ? "#10B981"
+                      : isDark
+                        ? "#CBD5E1"
+                        : "#475569",
+                  },
+                ]}
+              >
+                {t("camera.morning", "🌅 Morning Work")}
+              </Text>
+              <Text
+                style={[
+                  styles.proofBadgeSub,
+                  {
+                    color: todayContext?.workUpdates?.morning?.submitted
+                      ? "#059669"
+                      : isDark
+                        ? "#94A3B8"
+                        : "#64748B",
+                  },
+                ]}
+              >
+                {todayContext?.workUpdates?.morning?.submitted
+                  ? `✅ ${todayContext.workUpdates.morning.time || "Submitted"}`
+                  : `⏳ ${t("common.pending", "Pending")}`}
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.proofStatusBadge,
+              {
+                backgroundColor: todayContext?.workUpdates?.evening?.submitted
+                  ? isDark
+                    ? "#064E3B"
+                    : "#DCFCE7"
+                  : isDark
+                    ? "#1E293B"
+                    : "#F1F5F9",
+                borderColor: todayContext?.workUpdates?.evening?.submitted
+                  ? "#10B981"
+                  : borderCol,
+              },
+            ]}
+          >
+            <Feather
+              name={
+                todayContext?.workUpdates?.evening?.submitted
+                  ? "check-circle"
+                  : "clock"
+              }
+              size={16}
+              color={
+                todayContext?.workUpdates?.evening?.submitted
+                  ? "#10B981"
+                  : "#94A3B8"
+              }
+            />
+            <View style={{ marginLeft: 8 }}>
+              <Text
+                style={[
+                  styles.proofBadgeTitle,
+                  {
+                    color: todayContext?.workUpdates?.evening?.submitted
+                      ? "#10B981"
+                      : isDark
+                        ? "#CBD5E1"
+                        : "#475569",
+                  },
+                ]}
+              >
+                {t("camera.evening", "🌆 Evening Work")}
+              </Text>
+              <Text
+                style={[
+                  styles.proofBadgeSub,
+                  {
+                    color: todayContext?.workUpdates?.evening?.submitted
+                      ? "#059669"
+                      : isDark
+                        ? "#94A3B8"
+                        : "#64748B",
+                  },
+                ]}
+              >
+                {todayContext?.workUpdates?.evening?.submitted
+                  ? `✅ ${todayContext.workUpdates.evening.time || "Submitted"}`
+                  : `⏳ ${t("common.pending", "Pending")}`}
+              </Text>
+            </View>
+          </View>
+        </View>
+
         {/* Today's Attendance Highlight Card */}
         <View
           style={[
@@ -422,10 +753,10 @@ export default function WorkerDashboardScreen() {
                 { color: theme.text, marginLeft: 8 },
               ]}
             >
-              {t("worker.todayStatus", "आज की हाजिरी (Today's Status)")}
+              {t("worker.todayStatus", "Today's Attendance Status")}
             </Text>
             <Text style={[styles.dateSubtext, { color: theme.textSecondary }]}>
-              {new Date().toLocaleDateString("hi-IN", {
+              {new Date().toLocaleDateString("en-IN", {
                 day: "numeric",
                 month: "short",
                 year: "numeric",
@@ -452,7 +783,7 @@ export default function WorkerDashboardScreen() {
                   style={[styles.todayOtText, { color: todayStatus.color }]}
                 >
                   +{todayRecord.overtimeHours}{" "}
-                  {t("attendance.hours", "घंटे ओवरटाइम")}
+                  {t("attendance.hours", "hrs overtime")}
                 </Text>
               ) : null}
             </View>
@@ -463,7 +794,7 @@ export default function WorkerDashboardScreen() {
           >
             {t(
               "worker.viewOnlyNotice",
-              "🔒 हाजिरी केवल साइट सुपरवाइजर या ठेकेदार द्वारा दर्ज की जाती है।",
+              "🔒 Attendance is recorded and verified by your site supervisor or contractor.",
             )}
           </Text>
         </View>
@@ -481,7 +812,10 @@ export default function WorkerDashboardScreen() {
                 {monthNames[selectedMonth - 1]} {selectedYear}
               </Text>
               <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>
-                {t("worker.monthlySummary", "मासिक हाजिरी एवं वेतन विवरण")}
+                {t(
+                  "worker.monthlySummary",
+                  "Monthly Attendance & Wage Details",
+                )}
               </Text>
             </View>
             <View style={styles.monthSwitchRow}>
@@ -593,14 +927,14 @@ export default function WorkerDashboardScreen() {
               <Text
                 style={[styles.wageRowLabel, { color: theme.textSecondary }]}
               >
-                {t("workers.dailyWage", "दैनिक मजदूरी दर (Daily Rate)")}
+                {t("workers.dailyWage", "Daily Wage Rate")}
               </Text>
               <Text style={[styles.wageRowValue, { color: theme.text }]}>
                 ₹
                 {workerInfo?.dailyRate !== undefined
                   ? workerInfo.dailyRate
                   : user?.dailyWage || 0}{" "}
-                / {t("common.day", "दिन")}
+                / {t("common.day", "day")}
               </Text>
             </View>
             <View style={styles.wageDivider} />
@@ -608,7 +942,7 @@ export default function WorkerDashboardScreen() {
               <Text
                 style={[styles.wageRowLabel, { color: theme.textSecondary }]}
               >
-                {t("worker.totalEarnings", "कुल अर्जित राशि (Gross Earned)")}
+                {t("worker.totalEarnings", "Gross Earned")}
               </Text>
               <Text
                 style={[
@@ -624,10 +958,7 @@ export default function WorkerDashboardScreen() {
                 <Text
                   style={[styles.wageRowLabel, { color: theme.textSecondary }]}
                 >
-                  {t(
-                    "worker.advanceDeductions",
-                    "उठाव / अग्रिम (Advance Taken)",
-                  )}
+                  {t("worker.advanceDeductions", "Advance Deductions")}
                 </Text>
                 <Text style={[styles.wageRowValue, { color: "#EF4444" }]}>
                   -₹{summary.advancePaid.toLocaleString("en-IN")}
@@ -639,7 +970,7 @@ export default function WorkerDashboardScreen() {
                 <Text
                   style={[styles.wageRowLabel, { color: theme.textSecondary }]}
                 >
-                  {t("payment.totalPaid", "भुगतान प्राप्त (Paid)")}
+                  {t("payment.totalPaid", "Paid Received")}
                 </Text>
                 <Text style={[styles.wageRowValue, { color: "#3B82F6" }]}>
                   -₹{summary.totalPaid.toLocaleString("en-IN")}
@@ -649,7 +980,7 @@ export default function WorkerDashboardScreen() {
             <View style={styles.wageDivider} />
             <View style={styles.wageRow}>
               <Text style={[styles.netPayLabel, { color: theme.text }]}>
-                {t("worker.netPayable", "शुद्ध प्राप्य राशि (Net Balance)")}
+                {t("worker.netPayable", "Net Payable Balance")}
               </Text>
               <Text style={[styles.netPayValue, { color: theme.primary }]}>
                 ₹{summary.netPayable.toLocaleString("en-IN")}
@@ -671,10 +1002,7 @@ export default function WorkerDashboardScreen() {
               { color: theme.text, marginBottom: 12 },
             ]}
           >
-            {t(
-              "worker.dailyBreakdown",
-              "दैनिक विवरण (Daily Attendance History)",
-            )}
+            {t("worker.dailyBreakdown", "Daily Attendance History")}
           </Text>
           {isLoading ? (
             <ActivityIndicator
@@ -688,7 +1016,7 @@ export default function WorkerDashboardScreen() {
               <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
                 {t(
                   "worker.noRecordsThisMonth",
-                  "इस माह के लिए कोई रिकॉर्ड नहीं मिला।",
+                  "No attendance records found for this month.",
                 )}
               </Text>
             </View>
@@ -1077,5 +1405,104 @@ const styles = StyleSheet.create({
   dailyPayText: {
     fontSize: 14,
     fontWeight: "700",
+  },
+  siteAddressText: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  startWorkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    gap: 4,
+  },
+  startWorkBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  instructionBanner: {
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: Spacing.md,
+  },
+  instructionBannerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  instructionBannerTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#4F46E5",
+    flex: 1,
+  },
+  instructionTimeTag: {
+    fontSize: 11,
+    color: "#6366F1",
+    fontWeight: "600",
+  },
+  instructionBannerDesc: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
+  },
+  prominentWorkUpdateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 18,
+    marginBottom: Spacing.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  workUpdateBtnIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  prominentWorkUpdateTitle: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  prominentWorkUpdateSubtitle: {
+    color: "rgba(255, 255, 255, 0.85)",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  proofStatusRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: Spacing.md,
+  },
+  proofStatusBadge: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  proofBadgeTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  proofBadgeSub: {
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 1,
   },
 });

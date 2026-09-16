@@ -20,6 +20,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import {
   getNavigationForRole,
+  getNormalizedRole,
   NavItemConfig,
 } from "@/navigation/navigationConfig";
 
@@ -137,6 +138,7 @@ export default function RoleBottomNavigation({
   const insets = useSafeAreaInsets();
   const [barWidth, setBarWidth] = useState(Dimensions.get("window").width);
 
+  const normalizedRole = getNormalizedRole(role);
   const navItems = getNavigationForRole(role);
 
   const bottomInset = Math.max(
@@ -145,15 +147,18 @@ export default function RoleBottomNavigation({
   );
   const barHeight = (Platform.OS === "ios" ? 56 : 60) + bottomInset;
 
-  // Compute curved notch path
+  const hasCenterAction = navItems.some((i) => i.isCenterAction);
+
+  // Compute curved notch path if center action exists; otherwise flat bar
   const w = barWidth || Dimensions.get("window").width;
   const h = barHeight;
   const cx = w / 2;
   const cr = 40;
   const notchDepth = 30;
 
-  // Smooth SVG Path for the curved notch bottom bar background
-  const bgPath = `
+  // Smooth SVG Path for the bottom bar background
+  const bgPath = hasCenterAction
+    ? `
     M 0,0
     L ${cx - cr - 10},0
     C ${cx - cr + 4},0 ${cx - cr + 6},${notchDepth} ${cx - 18},${notchDepth}
@@ -163,15 +168,27 @@ export default function RoleBottomNavigation({
     L ${w},${h}
     L 0,${h}
     Z
+  `
+    : `
+    M 0,0
+    L ${w},0
+    L ${w},${h}
+    L 0,${h}
+    Z
   `;
 
-  // Stroke path for the top curved border
-  const borderPath = `
+  // Stroke path for the top border
+  const borderPath = hasCenterAction
+    ? `
     M 0,0
     L ${cx - cr - 10},0
     C ${cx - cr + 4},0 ${cx - cr + 6},${notchDepth} ${cx - 18},${notchDepth}
     C ${cx - 8},${notchDepth + 2} ${cx + 8},${notchDepth + 2} ${cx + 18},${notchDepth}
     C ${cx + cr - 6},${notchDepth} ${cx + cr - 4},0 ${cx + cr + 10},0
+    L ${w},0
+  `
+    : `
+    M 0,0
     L ${w},0
   `;
 
@@ -227,7 +244,10 @@ export default function RoleBottomNavigation({
             (r) => r.name === item.name,
           );
           const isFocused = routeIndex !== -1 && state.index === routeIndex;
-          const label = t(item.titleKey, item.defaultTitle);
+          const label =
+            normalizedRole === "worker"
+              ? item.defaultTitle
+              : t(item.titleKey, item.defaultTitle);
 
           const onPress = () => {
             if (routeIndex === -1) return;

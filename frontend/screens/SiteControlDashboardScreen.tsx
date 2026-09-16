@@ -22,28 +22,44 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { BorderRadius } from "@/constants/theme";
-import { storage, Site } from "@/utils/storage";
+import { storage, siteActivityStorage, Site } from "@/utils/storage";
 import { useLanguage } from "@/hooks/useLanguage";
 import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
 
 const FILTER_OPTIONS = [
   "All",
-  "Planning",
-  "Started",
-  "In Progress",
+  "Active",
+  "Attention Required",
   "Delayed",
   "Completed",
 ];
 
-interface DashboardStats {
+interface ContractorSiteCard {
+  id: string;
+  name: string;
+  address: string;
+  projectType: string;
+  status: string;
+  statusBadge: "Active" | "Completed" | "Attention Required" | string;
+  totalWorkers: number;
+  presentWorkers: number;
+  updatesCount: number;
+  openIssuesCount: number;
+  morningSubmitted: number;
+  morningTotal: number;
+  eveningSubmitted: number;
+  eveningTotal: number;
+  supervisorName?: string;
+  lastUpdateAt?: string;
+}
+
+interface ContractorOverviewMetrics {
   totalSites: number;
   activeSites: number;
-  workersPresent: number;
-  workersAbsent: number;
   totalWorkers: number;
-  sitesInProgress: number;
-  delayedSites: number;
-  completedSites: number;
+  workersPresent: number;
+  totalUpdates: number;
+  totalOpenIssues: number;
 }
 
 export default function SiteControlDashboardScreen() {
@@ -53,16 +69,15 @@ export default function SiteControlDashboardScreen() {
   const insets = useSafeAreaInsets();
 
   // Data States
-  const [sites, setSites] = useState<Site[]>([]);
-  const [stats, setStats] = useState<DashboardStats>({
+  const [contractorName, setContractorName] = useState<string>("Contractor");
+  const [sites, setSites] = useState<ContractorSiteCard[]>([]);
+  const [metrics, setMetrics] = useState<ContractorOverviewMetrics>({
     totalSites: 0,
     activeSites: 0,
-    workersPresent: 0,
-    workersAbsent: 0,
     totalWorkers: 0,
-    sitesInProgress: 0,
-    delayedSites: 0,
-    completedSites: 0,
+    workersPresent: 0,
+    totalUpdates: 0,
+    totalOpenIssues: 0,
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -73,28 +88,74 @@ export default function SiteControlDashboardScreen() {
   const [activeFilter, setActiveFilter] = useState("All");
 
   // Three-Dot Menu State
-  const [menuTargetSite, setMenuTargetSite] = useState<Site | null>(null);
-  const [deleteTargetSite, setDeleteTargetSite] = useState<Site | null>(null);
+  const [menuTargetSite, setMenuTargetSite] = useState<ContractorSiteCard | null>(null);
+  const [deleteTargetSite, setDeleteTargetSite] = useState<ContractorSiteCard | null>(null);
 
   const triggerHaptic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  // Greeting helper
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    if (hour < 17) return "Good Afternoon";
+    return "Good Evening";
+  };
+
+  // Formatted date string (e.g. Wednesday, Sep 17, 2026)
+  const getFormattedDate = () => {
+    return new Date().toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
   const loadData = async (showLoadingIndicator = true) => {
     if (showLoadingIndicator) setIsLoading(true);
     try {
-      const statsData = await storage.getSiteDashboardStats();
-      setStats(statsData);
+      // 1. Fetch rich Site Control data from backend
+      const result = await siteActivityStorage.getContractorSitesControl();
+      if (result && result.success) {
+        setContractorName(result.contractorName || "Contractor");
+        if (result.metrics) setMetrics(result.metrics);
+        if (result.sites) setSites(result.sites);
+      } else {
+        // Fallback to legacy dashboard stats & sites
+        const statsData = await storage.getSiteDashboardStats();
+        setMetrics({
+          totalSites: statsData.totalSites || 0,
+          activeSites: statsData.activeSites || 0,
+          totalWorkers: statsData.totalWorkers || 0,
+          workersPresent: statsData.workersPresent || 0,
+          totalUpdates: 0,
+          totalOpenIssues: 0,
+        });
 
-      const queryStatus = activeFilter === "All" ? undefined : activeFilter;
-      const sitesData = await storage.getSites({
-        search,
-        status: queryStatus,
-        sortBy: "Recently Updated",
-      });
-      setSites(sitesData.sites || []);
+        const legacySites = await storage.getSites({ search });
+        const adapted = (legacySites.sites || []).map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          address: s.address || "Nashik",
+          projectType: s.projectType || "Residential Project",
+          status: s.status || "Active",
+          statusBadge: s.status === "Completed" ? "Completed" : "Active",
+          totalWorkers: s.totalWorkers || 0,
+          presentWorkers: s.presentWorkers || 0,
+          updatesCount: 0,
+          openIssuesCount: 0,
+          morningSubmitted: 0,
+          morningTotal: s.totalWorkers || 0,
+          eveningSubmitted: 0,
+          eveningTotal: s.totalWorkers || 0,
+          supervisorName: s.supervisor?.name,
+        }));
+        setSites(adapted);
+      }
     } catch (e) {
-      console.warn("Failed to load dashboard data", e);
+      console.warn("Failed to load contractor site control data", e);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -104,15 +165,22 @@ export default function SiteControlDashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData(true);
-    }, [search, activeFilter]),
+    }, [])
   );
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("refreshData", () => {
+      loadData(false);
+    });
+    return () => sub.remove();
+  }, []);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
     loadData(false);
   };
 
-  const handleArchiveSite = async (site: Site) => {
+  const handleArchiveSite = async (site: ContractorSiteCard) => {
     setMenuTargetSite(null);
     triggerHaptic();
     Alert.alert(
@@ -131,11 +199,11 @@ export default function SiteControlDashboardScreen() {
             }
           },
         },
-      ],
+      ]
     );
   };
 
-  const handleDeleteSite = (site: Site) => {
+  const handleDeleteSite = (site: ContractorSiteCard) => {
     setMenuTargetSite(null);
     triggerHaptic();
     setDeleteTargetSite(site);
@@ -148,8 +216,7 @@ export default function SiteControlDashboardScreen() {
       if (success) {
         setSites((prev) => prev.filter((s) => s.id !== deleteTargetSite.id));
         setDeleteTargetSite(null);
-        const statsData = await storage.getSiteDashboardStats();
-        setStats(statsData);
+        loadData(false);
       } else {
         Alert.alert("Error", "Failed to delete site");
       }
@@ -158,66 +225,72 @@ export default function SiteControlDashboardScreen() {
     }
   };
 
-  const getStatusColors = (status: string) => {
-    switch (status) {
-      case "Planning":
-        return {
-          text: isDark ? "#CBD5E1" : "#475569",
-          bg: isDark ? "#334155" : "#E2E8F0",
-        };
-      case "Started":
-        return { text: "#16A34A", bg: "rgba(22,163,74,0.12)" };
-      case "In Progress":
-      case "Active":
-        return { text: "#2563EB", bg: "rgba(37,99,235,0.12)" };
-      case "On Hold":
-        return { text: "#D97706", bg: "rgba(217,119,6,0.12)" };
-      case "Delayed":
-        return { text: "#DC2626", bg: "rgba(220,38,38,0.12)" };
-      case "Completed":
-        return { text: "#16A34A", bg: "rgba(22,163,74,0.16)" };
-      default:
-        return { text: "#64748B", bg: "rgba(100,116,139,0.12)" };
+  // Filtered sites based on search and status pills
+  const filteredSites = sites.filter((item) => {
+    const matchesSearch =
+      search.trim() === "" ||
+      item.name.toLowerCase().includes(search.toLowerCase()) ||
+      item.address.toLowerCase().includes(search.toLowerCase()) ||
+      item.projectType.toLowerCase().includes(search.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    if (activeFilter === "All") return true;
+    if (activeFilter === "Active") return item.statusBadge === "Active" || item.status === "Active" || item.status === "Started" || item.status === "In Progress";
+    if (activeFilter === "Attention Required") return item.statusBadge === "Attention Required" || item.openIssuesCount > 0;
+    if (activeFilter === "Delayed") return item.status === "Delayed";
+    if (activeFilter === "Completed") return item.status === "Completed" || item.statusBadge === "Completed";
+    return true;
+  });
+
+  const getStatusBadgeStyle = (badge: string) => {
+    if (badge === "Attention Required") {
+      return {
+        bg: isDark ? "rgba(239, 68, 68, 0.2)" : "#FEE2E2",
+        text: "#DC2626",
+        dot: "#DC2626",
+        label: "Attention Required",
+      };
     }
+    if (badge === "Completed") {
+      return {
+        bg: isDark ? "rgba(100, 116, 139, 0.2)" : "#F1F5F9",
+        text: "#64748B",
+        dot: "#64748B",
+        label: "Completed",
+      };
+    }
+    return {
+      bg: isDark ? "rgba(16, 185, 129, 0.18)" : "#DCFCE7",
+      text: "#16A34A",
+      dot: "#16A34A",
+      label: "Active",
+    };
   };
 
-  const getProgressPercentage = (site: Site) => {
-    if (site.status === "Completed") return 100;
-    if (site.status === "Planning") return 0;
-    if (site.status === "Started") return 15;
-    if (site.status === "On Hold") return 40;
-    if (site.status === "In Progress") return 65;
-    if (site.status === "Delayed") return 50;
-    return site.currentProgress || 65;
-  };
-
-  const renderSiteCard = ({ item }: { item: Site }) => {
-    const statusColors = getStatusColors(item.status || "Active");
-    const progress = getProgressPercentage(item);
-
-    const totalWorkers = (item as any).totalWorkers || 8;
-    const presentWorkers = (item as any).presentWorkers || 7;
-    const morningPhoto = (item as any).morningPhoto || true;
-    const eveningPhoto = (item as any).eveningPhoto || true;
+  const renderSiteCard = ({ item }: { item: ContractorSiteCard }) => {
+    const badgeStyle = getStatusBadgeStyle(item.statusBadge);
 
     return (
       <View
         style={[
-          styles.siteOverviewCard,
+          styles.siteCard,
           {
             backgroundColor: theme.backgroundDefault,
-            borderColor: theme.border,
+            borderColor: item.statusBadge === "Attention Required" ? "#FCA5A5" : theme.border,
           },
         ]}
       >
-        {/* Top Header: Title, Description, and Three-Dot Menu (⋮) */}
-        <View style={styles.cardTopRow}>
+        {/* Card Header Row: Site Name & Options Menu */}
+        <View style={styles.cardHeaderRow}>
           <View style={{ flex: 1, paddingRight: 8 }}>
-            <ThemedText style={styles.cardSiteName} numberOfLines={1}>
-              🏠 {item.name}
-            </ThemedText>
-            <ThemedText style={styles.cardSiteType} numberOfLines={1}>
-              {item.projectType || item.description || "Duplex Row House"}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <ThemedText style={styles.cardSiteName} numberOfLines={1}>
+                🏗️ {item.name}
+              </ThemedText>
+            </View>
+            <ThemedText style={styles.cardSiteLocation} numberOfLines={1}>
+              📍 {item.address} {item.projectType ? `• ${item.projectType}` : ""}
             </ThemedText>
           </View>
 
@@ -229,122 +302,176 @@ export default function SiteControlDashboardScreen() {
             hitSlop={12}
             style={styles.threeDotBtn}
           >
-            <Feather
-              name="more-vertical"
-              size={20}
-              color={theme.textSecondary}
-            />
+            <Feather name="more-vertical" size={20} color={theme.textSecondary} />
           </Pressable>
         </View>
 
-        {/* Row 2: Status Badge & Progress Badge */}
-        <View style={styles.statusProgressRow}>
-          <View
-            style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}
-          >
-            <Text style={[styles.statusDot, { color: statusColors.text }]}>
-              ●
-            </Text>
-            <Text style={[styles.statusText, { color: statusColors.text }]}>
-              {t.translateSiteStatus(item.status || "ACTIVE")}
+        {/* Status Indicator Badge Row */}
+        <View style={styles.statusRow}>
+          <View style={[styles.statusPill, { backgroundColor: badgeStyle.bg }]}>
+            <View style={[styles.statusDot, { backgroundColor: badgeStyle.dot }]} />
+            <Text style={[styles.statusPillText, { color: badgeStyle.text }]}>
+              {badgeStyle.label}
             </Text>
           </View>
-          <Text style={[styles.progressPctBadgeText, { color: theme.primary }]}>
-            {progress}% {t("sites.complete", "Complete")}
-          </Text>
+
+          {item.supervisorName ? (
+            <ThemedText style={styles.supervisorText} numberOfLines={1}>
+              👤 {item.supervisorName}
+            </ThemedText>
+          ) : null}
         </View>
 
-        {/* Row 3: TODAY'S WORK Section */}
+        {/* Real-Time Metrics Chips Grid */}
         <View
           style={[
-            styles.todaysWorkBox,
+            styles.metricsGrid,
             {
               backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
               borderColor: theme.border,
             },
           ]}
         >
-          <ThemedText style={styles.todaysWorkHeaderTitle}>
-            {(t.sites?.todaysWork || "TODAY'S WORK").toUpperCase()}
-          </ThemedText>
-          <View style={styles.workDetailRow}>
-            <Text style={styles.workTypeTitle}>
-              🧱{" "}
-              {item.currentWork
-                ? t.translateWorkType(item.currentWork)
-                : t.translateWorkType("BRICK_WORK")}
-            </Text>
-            <Text style={styles.workProgressVal}>
-              {t.sites?.progress || "Progress"}:{" "}
-              {item.currentProgress || progress}%
-            </Text>
+          {/* Workforce Metric */}
+          <View style={styles.metricItem}>
+            <Text style={styles.metricItemIcon}>👷</Text>
+            <View>
+              <Text style={[styles.metricItemValue, { color: theme.text }]}>
+                {item.presentWorkers} / {item.totalWorkers}
+              </Text>
+              <Text style={styles.metricItemLabel}>Present</Text>
+            </View>
           </View>
+
+          {/* Divider */}
+          <View style={[styles.metricDivider, { backgroundColor: theme.border }]} />
+
+          {/* Updates Metric */}
+          <View style={styles.metricItem}>
+            <Text style={styles.metricItemIcon}>📸</Text>
+            <View>
+              <Text style={[styles.metricItemValue, { color: theme.text }]}>
+                {item.updatesCount}
+              </Text>
+              <Text style={styles.metricItemLabel}>Updates</Text>
+            </View>
+          </View>
+
+          {/* Divider */}
+          <View style={[styles.metricDivider, { backgroundColor: theme.border }]} />
+
+          {/* Issues Metric */}
+          <View style={styles.metricItem}>
+            <Text style={styles.metricItemIcon}>⚠️</Text>
+            <View>
+              <Text
+                style={[
+                  styles.metricItemValue,
+                  { color: item.openIssuesCount > 0 ? "#DC2626" : theme.text },
+                ]}
+              >
+                {item.openIssuesCount}
+              </Text>
+              <Text style={styles.metricItemLabel}>Issues</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Morning & Evening Work Updates Progress Pills */}
+        <View style={styles.workProgressRow}>
           <View
             style={[
-              styles.progressBarBg,
-              { backgroundColor: isDark ? "#334155" : "#E2E8F0" },
+              styles.workProgressPill,
+              {
+                backgroundColor:
+                  item.morningSubmitted > 0 && item.morningSubmitted >= item.totalWorkers && item.totalWorkers > 0
+                    ? isDark
+                      ? "rgba(16, 185, 129, 0.15)"
+                      : "#DCFCE7"
+                    : isDark
+                    ? "#1E293B"
+                    : "#F1F5F9",
+                borderColor: theme.border,
+              },
             ]}
           >
-            <View
+            <Text style={styles.workProgressEmoji}>🌅</Text>
+            <Text style={[styles.workProgressLabel, { color: theme.textSecondary }]}>Morning:</Text>
+            <Text
               style={[
-                styles.progressBarFill,
+                styles.workProgressValue,
                 {
-                  width: `${item.currentProgress || progress}%`,
-                  backgroundColor: theme.primary,
+                  color:
+                    item.morningSubmitted >= item.totalWorkers && item.totalWorkers > 0
+                      ? "#16A34A"
+                      : theme.text,
                 },
               ]}
-            />
+            >
+              {item.morningSubmitted}/{item.morningTotal}
+            </Text>
+            {item.morningSubmitted >= item.totalWorkers && item.totalWorkers > 0 ? (
+              <Feather name="check-circle" size={14} color="#16A34A" />
+            ) : null}
+          </View>
+
+          <View
+            style={[
+              styles.workProgressPill,
+              {
+                backgroundColor:
+                  item.eveningSubmitted > 0 && item.eveningSubmitted >= item.totalWorkers && item.totalWorkers > 0
+                    ? isDark
+                      ? "rgba(16, 185, 129, 0.15)"
+                      : "#DCFCE7"
+                    : isDark
+                    ? "#1E293B"
+                    : "#F1F5F9",
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <Text style={styles.workProgressEmoji}>🌆</Text>
+            <Text style={[styles.workProgressLabel, { color: theme.textSecondary }]}>Evening:</Text>
+            <Text
+              style={[
+                styles.workProgressValue,
+                {
+                  color:
+                    item.eveningSubmitted >= item.totalWorkers && item.totalWorkers > 0
+                      ? "#16A34A"
+                      : theme.text,
+                },
+              ]}
+            >
+              {item.eveningSubmitted}/{item.eveningTotal}
+            </Text>
+            {item.eveningSubmitted >= item.totalWorkers && item.totalWorkers > 0 ? (
+              <Feather name="check-circle" size={14} color="#16A34A" />
+            ) : null}
           </View>
         </View>
 
-        {/* Row 4: Workforce & Photo Status Row */}
-        <View style={styles.workforcePhotoRow}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text style={{ fontSize: 15 }}>👷</Text>
-            <Text
-              style={{ fontSize: 13, fontWeight: "800", color: theme.text }}
-            >
-              {totalWorkers} {t.workers?.title || "Workers"}
-            </Text>
-            <Text style={{ color: "#94A3B8", fontSize: 12 }}>•</Text>
-            <Text style={{ color: "#16A34A", fontSize: 13, fontWeight: "800" }}>
-              ✓ {presentWorkers} {t.summary?.present || "Present"}
-            </Text>
-          </View>
-
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text
-              style={{
-                fontSize: 12,
-                fontWeight: "800",
-                color: morningPhoto ? "#16A34A" : "#64748B",
-              }}
-            >
-              📷 {t.sites?.morning || "Morning"} {morningPhoto ? "✓" : "—"}
-            </Text>
-            <Text
-              style={{
-                fontSize: 12,
-                fontWeight: "800",
-                color: eveningPhoto ? "#16A34A" : "#64748B",
-              }}
-            >
-              {t.sites?.evening || "Evening"} {eveningPhoto ? "✓" : "—"}
-            </Text>
-          </View>
-        </View>
-
-        {/* Row 5: ONLY ONE MAIN ACTION BUTTON: [ Open Site ] */}
+        {/* Primary Single Action: [ VIEW SITE ] */}
         <Pressable
           onPress={() => {
             triggerHaptic();
-            navigation.navigate("SiteDetails", { siteId: item.id });
+            navigation.navigate("SiteDetailControl", {
+              siteId: item.id,
+              siteName: item.name,
+              initialTab: "updates",
+            });
           }}
-          style={[styles.openSiteMainBtn, { backgroundColor: theme.primary }]}
+          style={({ pressed }) => [
+            styles.viewSiteBtn,
+            {
+              backgroundColor: theme.primary,
+              opacity: pressed ? 0.9 : 1,
+              transform: [{ scale: pressed ? 0.99 : 1 }],
+            },
+          ]}
         >
-          <Text style={styles.openSiteMainBtnText}>
-            {t("sites.openSite", "Open Site")}
-          </Text>
+          <Text style={styles.viewSiteBtnText}>VIEW SITE</Text>
           <Feather name="arrow-right" size={16} color="#FFFFFF" />
         </Pressable>
       </View>
@@ -353,97 +480,168 @@ export default function SiteControlDashboardScreen() {
 
   const renderEmptyState = () => {
     if (isLoading) return null;
-
     return (
-      <View style={styles.emptyContainer}>
+      <View style={styles.emptyStateContainer}>
         <View
           style={[
             styles.emptyIconCircle,
-            { backgroundColor: theme.backgroundSecondary },
+            { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" },
           ]}
         >
-          <Feather name="layers" size={36} color={theme.primary} />
+          <Text style={{ fontSize: 36 }}>🏗️</Text>
         </View>
-        <ThemedText style={styles.emptyTitle}>
-          {t.sites?.noSites || "No Sites Yet"}
+        <ThemedText style={styles.emptyStateTitle}>No Sites Found</ThemedText>
+        <ThemedText style={styles.emptyStateSub}>
+          {search
+            ? `No sites match "${search}". Try adjusting your filters.`
+            : "Get started by creating your first construction site project."}
         </ThemedText>
-        <ThemedText style={styles.emptyDesc}>
-          {t.project?.noProjects ||
-            "Create your first construction site to start tracking work, workers and daily progress."}
-        </ThemedText>
-
-        <Pressable
-          onPress={() => {
-            triggerHaptic();
-            navigation.navigate("CreateSite");
-          }}
-          style={[
-            styles.createSiteEmptyBtn,
-            { backgroundColor: theme.primary },
-          ]}
-        >
-          <Feather
-            name="plus"
-            size={16}
-            color="#FFFFFF"
-            style={{ marginRight: 6 }}
-          />
-          <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 14 }}>
-            + {t.sites?.addSite || "Create Site"}
-          </Text>
-        </Pressable>
+        {!search && (
+          <Pressable
+            onPress={() => {
+              triggerHaptic();
+              navigation.navigate("CreateSite");
+            }}
+            style={[styles.emptyAddBtn, { backgroundColor: theme.primary }]}
+          >
+            <Feather name="plus" size={18} color="#FFFFFF" />
+            <Text style={styles.emptyAddBtnText}>Add First Site</Text>
+          </Pressable>
+        )}
       </View>
     );
   };
 
   return (
     <ThemedView
-      style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
+      style={[
+        styles.container,
+        {
+          paddingTop: Math.max(insets.top, 12),
+          backgroundColor: theme.backgroundRoot,
+        },
+      ]}
     >
-      {/* 1. HEADER SECTION */}
-      <View
-        style={[styles.header, { paddingTop: Math.max(insets.top + 12, 28) }]}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-          <Pressable
-            onPress={() => {
-              triggerHaptic();
-              DeviceEventEmitter.emit("OPEN_SETTINGS_DRAWER");
-            }}
-            style={{
-              padding: 6,
-              marginRight: 8,
-              borderRadius: 8,
-              backgroundColor: isDark
-                ? "rgba(255,255,255,0.08)"
-                : "rgba(0,0,0,0.05)",
-            }}
-          >
-            <Feather name="menu" size={20} color={theme.text} />
-          </Pressable>
-          <ThemedText style={styles.headerTitle}>
-            Site Control Center
+      {/* 1. TOP HEADER */}
+      <View style={styles.header}>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={{ fontSize: 24 }}>🏗️</Text>
+            <ThemedText style={styles.headerTitle}>Site Control</ThemedText>
+          </View>
+          <ThemedText style={styles.headerSubtitle}>
+            {getGreeting()}, {contractorName} • {getFormattedDate()}
           </ThemedText>
         </View>
+
         <Pressable
           onPress={() => {
             triggerHaptic();
             navigation.navigate("CreateSite");
           }}
-          style={[styles.topCreateSiteBtn, { backgroundColor: theme.primary }]}
+          style={[styles.addSiteHeaderBtn, { backgroundColor: theme.primary }]}
         >
-          <Feather
-            name="plus"
-            size={16}
-            color="#FFFFFF"
-            style={{ marginRight: 4 }}
-          />
-          <Text style={styles.topCreateSiteBtnText}>Create Site</Text>
+          <Feather name="plus" size={18} color="#FFFFFF" />
+          <Text style={styles.addSiteHeaderBtnText}>New Site</Text>
         </Pressable>
       </View>
 
-      {/* 2. FULL-WIDTH SEARCH BAR */}
-      <View style={styles.searchContainer}>
+      {/* 2. KPI SUMMARY METRIC CARDS (Active Sites, Workforce, Updates, Issues) */}
+      <View style={styles.kpiContainer}>
+        {/* Active Sites */}
+        <View
+          style={[
+            styles.kpiCard,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <View style={styles.kpiTopRow}>
+            <Text style={styles.kpiEmoji}>🏗️</Text>
+            <Text style={[styles.kpiValue, { color: theme.text }]}>
+              {metrics.activeSites}
+            </Text>
+          </View>
+          <Text style={styles.kpiLabel}>Active Sites</Text>
+        </View>
+
+        {/* Workforce */}
+        <View
+          style={[
+            styles.kpiCard,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <View style={styles.kpiTopRow}>
+            <Text style={styles.kpiEmoji}>👷</Text>
+            <Text style={[styles.kpiValue, { color: "#16A34A" }]}>
+              {metrics.workersPresent}
+              <Text style={{ fontSize: 13, color: theme.textSecondary }}>
+                /{metrics.totalWorkers}
+              </Text>
+            </Text>
+          </View>
+          <Text style={styles.kpiLabel}>Workers Present</Text>
+        </View>
+
+        {/* Updates */}
+        <View
+          style={[
+            styles.kpiCard,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <View style={styles.kpiTopRow}>
+            <Text style={styles.kpiEmoji}>📸</Text>
+            <Text style={[styles.kpiValue, { color: theme.text }]}>
+              {metrics.totalUpdates}
+            </Text>
+          </View>
+          <Text style={styles.kpiLabel}>Updates Today</Text>
+        </View>
+
+        {/* Issues */}
+        <View
+          style={[
+            styles.kpiCard,
+            {
+              backgroundColor: metrics.totalOpenIssues > 0 && !isDark ? "#FEF2F2" : theme.backgroundDefault,
+              borderColor: metrics.totalOpenIssues > 0 ? "#FCA5A5" : theme.border,
+            },
+          ]}
+        >
+          <View style={styles.kpiTopRow}>
+            <Text style={styles.kpiEmoji}>⚠️</Text>
+            <Text
+              style={[
+                styles.kpiValue,
+                { color: metrics.totalOpenIssues > 0 ? "#DC2626" : theme.text },
+              ]}
+            >
+              {metrics.totalOpenIssues}
+            </Text>
+          </View>
+          <Text
+            style={[
+              styles.kpiLabel,
+              metrics.totalOpenIssues > 0 ? { color: "#DC2626", fontWeight: "700" } : {},
+            ]}
+          >
+            Open Issues
+          </Text>
+        </View>
+      </View>
+
+      {/* 3. SEARCH BAR */}
+      <View style={styles.searchSection}>
         <View
           style={[
             styles.searchBar,
@@ -453,21 +651,14 @@ export default function SiteControlDashboardScreen() {
             },
           ]}
         >
-          <Feather
-            name="search"
-            size={16}
-            color={theme.textSecondary}
-            style={{ marginRight: 8 }}
-          />
+          <Feather name="search" size={18} color={theme.textSecondary} />
           <TextInput
-            placeholder={t(
-              "sites.searchPlaceholder",
-              "Search by site, client, supervisor...",
-            )}
-            placeholderTextColor={theme.textSecondary}
             value={search}
             onChangeText={setSearch}
+            placeholder="Search sites by name or location..."
+            placeholderTextColor={theme.textSecondary}
             style={[styles.searchInput, { color: theme.text }]}
+            returnKeyType="search"
           />
           {search ? (
             <Pressable onPress={() => setSearch("")} hitSlop={10}>
@@ -477,55 +668,41 @@ export default function SiteControlDashboardScreen() {
         </View>
       </View>
 
-      {/* 3. HORIZONTALLY SCROLLABLE FILTERS */}
-      <View style={styles.filtersScrollContainer}>
+      {/* 4. HORIZONTAL FILTER PILLS */}
+      <View style={styles.filterSection}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+          contentContainerStyle={styles.filterScrollContent}
         >
-          {FILTER_OPTIONS.map((opt) => {
-            const isActive = activeFilter === opt;
-            const label =
-              opt === "All"
-                ? t.common?.all || "All"
-                : t.translateSiteStatus(opt);
+          {FILTER_OPTIONS.map((filter) => {
+            const isSelected = activeFilter === filter;
             return (
               <Pressable
-                key={opt}
+                key={filter}
                 onPress={() => {
                   triggerHaptic();
-                  setActiveFilter(opt);
+                  setActiveFilter(filter);
                 }}
                 style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: isActive
-                      ? theme.primary
-                      : isDark
-                        ? "#1E293B"
-                        : "#F1F5F9",
-                    borderColor: isActive
-                      ? theme.primary
-                      : isDark
-                        ? "#334155"
-                        : "#E2E8F0",
-                  },
+                  styles.filterPill,
+                  isSelected
+                    ? { backgroundColor: theme.primary, borderColor: theme.primary }
+                    : {
+                        backgroundColor: theme.backgroundDefault,
+                        borderColor: theme.border,
+                      },
                 ]}
               >
                 <Text
                   style={[
-                    styles.filterChipText,
-                    {
-                      color: isActive
-                        ? "#FFFFFF"
-                        : isDark
-                          ? "#CBD5E1"
-                          : "#475569",
-                    },
+                    styles.filterPillText,
+                    isSelected
+                      ? { color: "#FFFFFF", fontWeight: "700" }
+                      : { color: theme.textSecondary },
                   ]}
                 >
-                  {label}
+                  {filter}
                 </Text>
               </Pressable>
             );
@@ -533,18 +710,18 @@ export default function SiteControlDashboardScreen() {
         </ScrollView>
       </View>
 
-      {/* 4. SKELETON LOADING OR SITE CARDS LIST */}
+      {/* 5. SITE CARDS LIST */}
       {isLoading && !isRefreshing ? (
-        <View style={{ paddingHorizontal: 16, gap: 16, paddingTop: 8 }}>
-          <SkeletonLoader width="100%" height={220} borderRadius={16} />
-          <SkeletonLoader width="100%" height={220} borderRadius={16} />
-          <SkeletonLoader width="100%" height={220} borderRadius={16} />
+        <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+          <SkeletonLoader width="100%" height={210} style={{ borderRadius: 16, marginBottom: 16 }} />
+          <SkeletonLoader width="100%" height={210} style={{ borderRadius: 16, marginBottom: 16 }} />
+          <SkeletonLoader width="100%" height={210} style={{ borderRadius: 16, marginBottom: 16 }} />
         </View>
       ) : (
         <FlatList
-          data={sites}
-          renderItem={renderSiteCard}
+          data={filteredSites}
           keyExtractor={(item) => item.id}
+          renderItem={renderSiteCard}
           contentContainerStyle={{
             paddingHorizontal: 16,
             paddingBottom: 120,
@@ -565,7 +742,7 @@ export default function SiteControlDashboardScreen() {
         />
       )}
 
-      {/* 5. THREE-DOT ACTION MENU MODAL (Edit Site, Manage Workforce, Archive Site, Delete Site) */}
+      {/* 6. THREE-DOT ACTION MENU MODAL */}
       <Modal
         visible={menuTargetSite !== null}
         transparent
@@ -586,7 +763,7 @@ export default function SiteControlDashboardScreen() {
             ]}
           >
             <View style={styles.menuHeader}>
-              <ThemedText style={styles.menuHeaderTitle}>
+              <ThemedText style={styles.menuHeaderTitle} numberOfLines={1}>
                 {menuTargetSite?.name}
               </ThemedText>
               <Pressable onPress={() => setMenuTargetSite(null)} hitSlop={10}>
@@ -606,7 +783,7 @@ export default function SiteControlDashboardScreen() {
             >
               <Feather name="edit-2" size={18} color="#2563EB" />
               <Text style={[styles.menuOptionText, { color: theme.text }]}>
-                Edit Site
+                Edit Site Details
               </Text>
             </Pressable>
 
@@ -629,21 +806,19 @@ export default function SiteControlDashboardScreen() {
               </Text>
             </Pressable>
 
-            {menuTargetSite &&
-              !menuTargetSite.isArchived &&
-              menuTargetSite.status !== "Completed" && (
-                <Pressable
-                  onPress={() =>
-                    menuTargetSite && handleArchiveSite(menuTargetSite)
-                  }
-                  style={styles.menuOptionBtn}
-                >
-                  <Feather name="archive" size={18} color="#D97706" />
-                  <Text style={[styles.menuOptionText, { color: theme.text }]}>
-                    Archive Site
-                  </Text>
-                </Pressable>
-              )}
+            {menuTargetSite && menuTargetSite.status !== "Completed" && (
+              <Pressable
+                onPress={() =>
+                  menuTargetSite && handleArchiveSite(menuTargetSite)
+                }
+                style={styles.menuOptionBtn}
+              >
+                <Feather name="archive" size={18} color="#D97706" />
+                <Text style={[styles.menuOptionText, { color: theme.text }]}>
+                  Archive Site
+                </Text>
+              </Pressable>
+            )}
 
             <Pressable
               onPress={() => menuTargetSite && handleDeleteSite(menuTargetSite)}
@@ -658,7 +833,7 @@ export default function SiteControlDashboardScreen() {
         </Pressable>
       </Modal>
 
-      {/* 6. CONFIRM DELETE DIALOG MODAL */}
+      {/* 7. CONFIRM DELETE DIALOG MODAL */}
       <Modal
         visible={deleteTargetSite !== null}
         transparent
@@ -700,7 +875,7 @@ export default function SiteControlDashboardScreen() {
                 onPress={confirmDeleteSite}
                 style={[styles.dialogBtn, { backgroundColor: "#DC2626" }]}
               >
-                <Text style={{ fontWeight: "800", color: "#FFFFFF" }}>
+                <Text style={{ fontWeight: "700", color: "#FFFFFF" }}>
                   Delete
                 </Text>
               </Pressable>
@@ -725,261 +900,352 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: "900",
+    fontWeight: "800",
+    letterSpacing: -0.3,
   },
-  topCreateSiteBtn: {
+  headerSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  addSiteHeaderBtn: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
+    gap: 6,
     paddingVertical: 8,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.lg,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  topCreateSiteBtnText: {
+  addSiteHeaderBtnText: {
     color: "#FFFFFF",
     fontSize: 13,
-    fontWeight: "800",
+    fontWeight: "700",
   },
 
-  /* Full Width Search Bar */
-  searchContainer: {
+  // KPI Grid
+  kpiContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 12,
+  },
+  kpiCard: {
+    flex: 1,
+    minWidth: "47%",
+    padding: 12,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  kpiTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  kpiEmoji: {
+    fontSize: 18,
+  },
+  kpiValue: {
+    fontSize: 19,
+    fontWeight: "800",
+  },
+  kpiLabel: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+
+  // Search Section
+  searchSection: {
     paddingHorizontal: 16,
     marginBottom: 10,
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
+    gap: 10,
+    paddingHorizontal: 14,
     height: 44,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
-    fontWeight: "600",
+    paddingVertical: 0,
   },
 
-  /* Filters Horizontal Scroll */
-  filtersScrollContainer: {
+  // Filter Section
+  filterSection: {
     marginBottom: 12,
   },
-  filterChip: {
+  filterScrollContent: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    gap: 8,
+  },
+  filterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.full,
     borderWidth: 1,
   },
-  filterChipText: {
+  filterPillText: {
     fontSize: 13,
-    fontWeight: "700",
-  },
-
-  /* Site Overview Card */
-  siteOverviewCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-  },
-  cardTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  cardSiteName: {
-    fontSize: 18,
-    fontWeight: "900",
-    marginBottom: 2,
-  },
-  cardSiteType: {
-    fontSize: 13,
-    color: "#64748B",
     fontWeight: "600",
   },
+
+  // Site Cards
+  siteCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 14,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  cardHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  cardSiteName: {
+    fontSize: 17,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
+  cardSiteLocation: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 2,
+  },
   threeDotBtn: {
-    padding: 6,
+    padding: 4,
     marginTop: -2,
   },
-  statusProgressRow: {
+
+  // Status Indicator
+  statusRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginVertical: 10,
+    marginBottom: 12,
   },
-  statusBadge: {
+  statusPill: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
+    borderRadius: BorderRadius.full,
   },
   statusDot: {
-    fontSize: 10,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  statusText: {
+  statusPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  supervisorText: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+
+  // Metrics Grid
+  metricsGrid: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  metricItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  metricItemIcon: {
+    fontSize: 16,
+  },
+  metricItemValue: {
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  metricItemLabel: {
+    fontSize: 11,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  metricDivider: {
+    width: 1,
+    height: 24,
+  },
+
+  // Work Progress
+  workProgressRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+  },
+  workProgressPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  workProgressEmoji: {
+    fontSize: 14,
+  },
+  workProgressLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  workProgressValue: {
     fontSize: 12,
     fontWeight: "800",
+    marginLeft: "auto",
   },
-  progressPctBadgeText: {
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  todaysWorkBox: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 12,
-    marginVertical: 6,
-  },
-  todaysWorkHeaderTitle: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#64748B",
-    letterSpacing: 0.5,
-    marginBottom: 6,
-  },
-  workDetailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  workTypeTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  workProgressVal: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#2563EB",
-  },
-  progressBarBg: {
-    height: 8,
-    borderRadius: 4,
-    overflow: "hidden",
-    marginTop: 8,
-  },
-  progressBarFill: {
-    height: "100%",
-    borderRadius: 4,
-  },
-  workforcePhotoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginVertical: 10,
-  },
-  openSiteMainBtn: {
-    height: 48,
-    borderRadius: 12,
+
+  // View Site Button
+  viewSiteBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    marginTop: 6,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.md,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
-  openSiteMainBtnText: {
+  viewSiteBtnText: {
     color: "#FFFFFF",
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "800",
+    letterSpacing: 0.5,
   },
 
-  /* Empty State */
-  emptyContainer: {
+  // Empty State
+  emptyStateContainer: {
     alignItems: "center",
     justifyContent: "center",
-    padding: 24,
-    marginTop: 40,
+    paddingVertical: 60,
+    paddingHorizontal: 24,
   },
   emptyIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    justifyContent: "center",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: "center",
+    justifyContent: "center",
     marginBottom: 16,
   },
-  emptyTitle: {
-    fontSize: 20,
+  emptyStateTitle: {
+    fontSize: 18,
     fontWeight: "800",
-    marginBottom: 8,
-    textAlign: "center",
+    marginBottom: 6,
   },
-  emptyDesc: {
-    fontSize: 14,
+  emptyStateSub: {
+    fontSize: 13,
     color: "#64748B",
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 19,
     marginBottom: 20,
   },
-  createSiteEmptyBtn: {
+  emptyAddBtn: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
+    gap: 8,
     paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 20,
+    borderRadius: BorderRadius.lg,
+  },
+  emptyAddBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 
-  /* Three Dot Sheet Menu Modal */
+  // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
   },
   menuSheetContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: BorderRadius.xl,
+    padding: 16,
     borderWidth: 1,
   },
   menuHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(100,116,139,0.2)",
     marginBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
   },
   menuHeaderTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "800",
+    flex: 1,
   },
   menuOptionBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(100,116,139,0.1)",
   },
   menuOptionText: {
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "600",
   },
-
-  /* Dialog Modal */
   dialogContent: {
-    width: "85%",
-    alignSelf: "center",
-    borderRadius: 20,
-    padding: 20,
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: BorderRadius.xl,
+    padding: 24,
     alignItems: "center",
   },
   dialogTitle: {
     fontSize: 18,
     fontWeight: "800",
     marginBottom: 8,
+    textAlign: "center",
   },
   dialogDesc: {
     fontSize: 13,
     color: "#64748B",
     textAlign: "center",
-    lineHeight: 18,
+    lineHeight: 19,
     marginBottom: 20,
   },
   dialogActions: {
@@ -989,9 +1255,9 @@ const styles = StyleSheet.create({
   },
   dialogBtn: {
     flex: 1,
-    height: 44,
-    borderRadius: 10,
-    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: BorderRadius.md,
     alignItems: "center",
+    justifyContent: "center",
   },
 });

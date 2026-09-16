@@ -27,6 +27,18 @@ import {
   getSitePhotos,
   addWorkPhoto
 } from "../controllers/photoController";
+import {
+  getContractorSitesControl,
+  getSiteControlCenter,
+  submitWorkUpdate,
+  startDailyWorkSession,
+  getWorkerTodayContext,
+  getWorkerSiteLogs,
+  reportSiteIssue,
+  resolveSiteIssue,
+  addSiteInstruction,
+  getWorkerSummaryStats
+} from "../controllers/siteActivityController";
 import { authenticateJWT } from "../middleware/auth";
 import { validateCreateSite, validateUpdateSite } from "../validators/siteValidator";
 import { checkPlanLimit } from "../middleware/subscription";
@@ -35,6 +47,16 @@ const router = Router();
 
 // Apply auth middleware to all site routes
 router.use(authenticateJWT as any);
+
+// Contractor Overview (must be before /:id)
+router.get("/control/summary", getContractorSitesControl as any);
+
+// Worker Context, Logs, Summary & Work Session (before /:id)
+router.get("/workers/me/today-context", getWorkerTodayContext as any);
+router.get("/workers/me/site-logs", getWorkerSiteLogs as any);
+router.get("/workers/me/summary", getWorkerSummaryStats as any);
+router.post("/session/start", startDailyWorkSession as any);
+router.patch("/issues/:issueId/resolve", resolveSiteIssue as any);
 
 router.get("/dashboard/stats", getSiteDashboardStats as any);
 router.post("/", checkPlanLimit("projects") as any, validateCreateSite as any, createSite as any);
@@ -66,5 +88,11 @@ router.post("/:siteId/daily-work/start", startDailyWork as any);
 router.post("/:siteId/daily-work/complete", completeDailyWork as any);
 router.get("/:siteId/daily-work/history", getDailyWorkHistory as any);
 router.get("/:siteId/daily-work/:updateId", getDailyWorkUpdateById as any);
+
+// Complete Site Control Center & Daily Site Activity endpoints
+router.get("/:siteId/control", getSiteControlCenter as any);
+router.post("/:siteId/work-updates", submitWorkUpdate as any);
+router.post("/:siteId/issues", reportSiteIssue as any);
+router.post("/:siteId/instructions", addSiteInstruction as any);
 
 export default router;
