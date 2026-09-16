@@ -12,7 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
@@ -23,6 +23,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { captureLocation } from "@/utils/gps";
 import { uploadImageToServer } from "@/utils/upload";
 import { siteActivityStorage, WorkerTodayContext } from "@/utils/storage";
+import { BorderRadius } from "@/constants/theme";
 
 type UpdateMode = "MORNING_WORK" | "EVENING_WORK" | "ISSUE";
 type IssueSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -44,14 +45,19 @@ export default function WorkerCameraUpdateScreen() {
     latitude: number;
     longitude: number;
     accuracy?: number;
+    address?: string;
   } | null>(null);
 
-  const [todayContext, setTodayContext] = useState<WorkerTodayContext | null>(
-    null,
-  );
+  const [todayContext, setTodayContext] = useState<WorkerTodayContext | null>(null);
   const [isLoadingContext, setIsLoadingContext] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const formattedCurrentTime = new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   // Fetch worker today context (detected site / active site)
   const loadContext = useCallback(async () => {
@@ -65,7 +71,7 @@ export default function WorkerCameraUpdateScreen() {
       setIsCapturingLocation(false);
 
       const ctx = await siteActivityStorage.getWorkerTodayContext(
-        loc ? { latitude: loc.latitude, longitude: loc.longitude } : undefined,
+        loc ? { latitude: loc.latitude, longitude: loc.longitude } : undefined
       );
       setTodayContext(ctx);
 
@@ -96,15 +102,13 @@ export default function WorkerCameraUpdateScreen() {
     todayContext?.defaultSite;
 
   const takePhoto = async () => {
+    setUploadError(null);
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(
-          t("camera.permissionDenied", "Camera Permission Required"),
-          t(
-            "camera.permissionDeniedDesc",
-            "Please grant camera permission to capture work proof photos.",
-          ),
+          "Camera Permission Required",
+          "Please grant camera permission to capture work proof photos."
         );
         return;
       }
@@ -112,7 +116,7 @@ export default function WorkerCameraUpdateScreen() {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.7,
+        quality: 0.7, // Good compression for mobile upload without quality loss
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -129,16 +133,13 @@ export default function WorkerCameraUpdateScreen() {
   };
 
   const pickFromGallery = async () => {
+    setUploadError(null);
     try {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(
-          t("camera.permissionDenied", "Gallery Permission Required"),
-          t(
-            "camera.galleryPermissionDesc",
-            "Please grant gallery permission to select photos.",
-          ),
+          "Gallery Permission Required",
+          "Please grant gallery permission to select photos."
         );
         return;
       }
@@ -161,38 +162,31 @@ export default function WorkerCameraUpdateScreen() {
   const handleSubmit = async () => {
     if (!activeSite?.id) {
       Alert.alert(
-        t("site.noSiteFound", "No Site Found"),
-        t(
-          "site.noSiteFoundDesc",
-          "Please connect with your contractor to assign a site.",
-        ),
+        "No Site Assigned",
+        "Please connect with your contractor to assign a site."
       );
       return;
     }
 
     if (!photoUri && mode !== "ISSUE") {
       Alert.alert(
-        t("camera.photoRequired", "Photo Required"),
-        t(
-          "camera.photoRequiredDesc",
-          "Please capture a photo to submit work proof.",
-        ),
+        "Photo Required",
+        "Please capture a work photo before submitting."
       );
       return;
     }
 
     if (mode === "ISSUE" && !description.trim()) {
       Alert.alert(
-        t("issue.descRequired", "Description Required"),
-        t(
-          "issue.descRequiredDesc",
-          "Please describe the issue encountered at the site.",
-        ),
+        "Description Required",
+        "Please describe the issue encountered at the site."
       );
       return;
     }
 
     setIsSubmitting(true);
+    setUploadError(null);
+
     try {
       let uploadedUrl = "";
       if (photoUri) {
@@ -225,14 +219,13 @@ export default function WorkerCameraUpdateScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSubmittedSuccess(true);
     } catch (err: any) {
-      Alert.alert(
-        t("common.error", "Error"),
-        err?.message ||
-          t(
-            "common.somethingWentWrong",
-            "Something went wrong, please try again",
-          ),
-      );
+      console.warn("Submit error:", err);
+      const friendlyMessage =
+        err?.message && !err.message.includes("500") && !err.message.includes("Multer")
+          ? err.message
+          : "Unable to upload photo. Please check your internet connection and try again.";
+      setUploadError(friendlyMessage);
+      Alert.alert("Unable to Upload", friendlyMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -242,12 +235,14 @@ export default function WorkerCameraUpdateScreen() {
     setPhotoUri(null);
     setDescription("");
     setSubmittedSuccess(false);
+    setUploadError(null);
     loadContext();
   };
 
   const cardBg = isDark ? "#1E293B" : "#FFFFFF";
   const borderCol = isDark ? "#334155" : "#E2E8F0";
 
+  // SUCCESS CONFIRMATION SCREEN
   if (submittedSuccess) {
     return (
       <View
@@ -277,13 +272,10 @@ export default function WorkerCameraUpdateScreen() {
             ]}
           >
             {mode === "ISSUE"
-              ? t("issue.reportedSuccess", "Issue Reported Successfully!")
+              ? "✓ Issue Reported Successfully!"
               : mode === "MORNING_WORK"
-                ? t("camera.morningSubmitted", "Morning Work Update Submitted!")
-                : t(
-                    "camera.eveningSubmitted",
-                    "Evening Work Update Submitted!",
-                  )}
+              ? "✓ Morning Work Update Uploaded!"
+              : "✓ Evening Work Update Uploaded!"}
           </Text>
 
           <Text
@@ -292,12 +284,9 @@ export default function WorkerCameraUpdateScreen() {
               { color: isDark ? "#94A3B8" : "#64748B" },
             ]}
           >
-            {activeSite?.name ? `📍 ${activeSite.name}` : ""}
+            {activeSite?.name ? `🏗️ ${activeSite.name}` : ""}
             {"\n"}
-            {t(
-              "camera.proofSavedMessage",
-              "Your photo, timestamp, and GPS location are recorded for the contractor.",
-            )}
+            Photo and GPS proof are now instantly visible to your contractor in Site Control.
           </Text>
 
           <View style={styles.successActions}>
@@ -312,9 +301,7 @@ export default function WorkerCameraUpdateScreen() {
               ]}
             >
               <Feather name="file-text" size={18} color="#FFFFFF" />
-              <Text style={styles.successBtnText}>
-                {t("nav.siteLogs", "View Site Logs")}
-              </Text>
+              <Text style={styles.successBtnText}>View Site Logs</Text>
             </Pressable>
 
             <Pressable
@@ -331,7 +318,7 @@ export default function WorkerCameraUpdateScreen() {
               <Text
                 style={[styles.successSecondaryText, { color: theme.primary }]}
               >
-                {t("camera.submitAnother", "Submit Another Update")}
+                Submit Another Update
               </Text>
             </Pressable>
           </View>
@@ -363,7 +350,7 @@ export default function WorkerCameraUpdateScreen() {
               { color: isDark ? "#F8FAFC" : "#0F172A" },
             ]}
           >
-            {t("camera.title", "📸 Work Photo Update")}
+            📸 Work Photo Update
           </Text>
           <Text
             style={[
@@ -371,15 +358,12 @@ export default function WorkerCameraUpdateScreen() {
               { color: isDark ? "#94A3B8" : "#64748B" },
             ]}
           >
-            {t(
-              "camera.subtitle",
-              "Capture photo proof to verify daily progress",
-            )}
+            Capture photo proof to verify daily site progress
           </Text>
         </View>
       </View>
 
-      {/* Detected / Working Site Badge */}
+      {/* Detected / Working Site Banner */}
       <View
         style={[
           styles.siteBanner,
@@ -399,7 +383,7 @@ export default function WorkerCameraUpdateScreen() {
               { color: isDark ? "#94A3B8" : "#64748B" },
             ]}
           >
-            {t("site.currentSite", "Current Site")}
+            Current Site
           </Text>
           <Text
             numberOfLines={1}
@@ -408,9 +392,7 @@ export default function WorkerCameraUpdateScreen() {
               { color: isDark ? "#F8FAFC" : "#0F172A" },
             ]}
           >
-            {activeSite
-              ? activeSite.name
-              : t("site.noSiteDetected", "Detecting site...")}
+            {activeSite ? activeSite.name : "Detecting site..."}
           </Text>
         </View>
         {isCapturingLocation && (
@@ -422,7 +404,7 @@ export default function WorkerCameraUpdateScreen() {
         )}
       </View>
 
-      {/* Mode Selector */}
+      {/* Mode Selector (Morning / Evening / Issue) */}
       <View style={styles.modeSelectorContainer}>
         <Pressable
           onPress={() => {
@@ -439,13 +421,7 @@ export default function WorkerCameraUpdateScreen() {
           <MaterialCommunityIcons
             name="weather-sunny"
             size={18}
-            color={
-              mode === "MORNING_WORK"
-                ? "#FFFFFF"
-                : isDark
-                  ? "#94A3B8"
-                  : "#64748B"
-            }
+            color={mode === "MORNING_WORK" ? "#FFFFFF" : isDark ? "#94A3B8" : "#64748B"}
           />
           <Text
             style={[
@@ -455,12 +431,12 @@ export default function WorkerCameraUpdateScreen() {
                   mode === "MORNING_WORK"
                     ? "#FFFFFF"
                     : isDark
-                      ? "#CBD5E1"
-                      : "#475569",
+                    ? "#CBD5E1"
+                    : "#475569",
               },
             ]}
           >
-            {t("camera.morning", "🌅 Morning Work")}
+            🌅 Morning
           </Text>
         </Pressable>
 
@@ -479,13 +455,7 @@ export default function WorkerCameraUpdateScreen() {
           <MaterialCommunityIcons
             name="weather-sunset"
             size={18}
-            color={
-              mode === "EVENING_WORK"
-                ? "#FFFFFF"
-                : isDark
-                  ? "#94A3B8"
-                  : "#64748B"
-            }
+            color={mode === "EVENING_WORK" ? "#FFFFFF" : isDark ? "#94A3B8" : "#64748B"}
           />
           <Text
             style={[
@@ -495,12 +465,12 @@ export default function WorkerCameraUpdateScreen() {
                   mode === "EVENING_WORK"
                     ? "#FFFFFF"
                     : isDark
-                      ? "#CBD5E1"
-                      : "#475569",
+                    ? "#CBD5E1"
+                    : "#475569",
               },
             ]}
           >
-            {t("camera.evening", "🌆 Evening Work")}
+            🌆 Evening
           </Text>
         </Pressable>
 
@@ -519,9 +489,7 @@ export default function WorkerCameraUpdateScreen() {
           <Feather
             name="alert-triangle"
             size={16}
-            color={
-              mode === "ISSUE" ? "#FFFFFF" : isDark ? "#94A3B8" : "#64748B"
-            }
+            color={mode === "ISSUE" ? "#FFFFFF" : isDark ? "#94A3B8" : "#64748B"}
           />
           <Text
             style={[
@@ -532,12 +500,12 @@ export default function WorkerCameraUpdateScreen() {
               },
             ]}
           >
-            {t("camera.reportIssue", "⚠️ Issue")}
+            ⚠️ Issue
           </Text>
         </Pressable>
       </View>
 
-      {/* Photo Capture Area */}
+      {/* Photo Capture & Structured Preview Area */}
       <View
         style={[
           styles.photoCard,
@@ -546,33 +514,59 @@ export default function WorkerCameraUpdateScreen() {
       >
         {photoUri ? (
           <View style={styles.imagePreviewContainer}>
+            <View style={styles.previewHeaderRow}>
+              <Text style={styles.previewHeaderTitle}>📸 WORK UPDATE</Text>
+              <Pressable onPress={() => setPhotoUri(null)} style={styles.retakeTopBtn}>
+                <Feather name="refresh-cw" size={14} color="#64748B" />
+                <Text style={styles.retakeTopBtnText}>Retake</Text>
+              </Pressable>
+            </View>
+
             <Image
               source={{ uri: photoUri }}
               style={styles.imagePreview}
               resizeMode="cover"
             />
 
-            {/* GPS Stamp Overlay */}
-            <View style={styles.gpsStampBadge}>
-              <Feather name="map-pin" size={12} color="#FFFFFF" />
-              <Text style={styles.gpsStampText}>
-                {activeSite?.name || "Site"} •{" "}
-                {new Date().toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </Text>
-            </View>
-
-            <Pressable
-              onPress={() => setPhotoUri(null)}
-              style={styles.retakeBtn}
+            {/* Structured Metadata Card */}
+            <View
+              style={[
+                styles.metadataContainer,
+                { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: borderCol },
+              ]}
             >
-              <Feather name="refresh-cw" size={16} color="#FFFFFF" />
-              <Text style={styles.retakeBtnText}>
-                {t("camera.retake", "Retake")}
-              </Text>
-            </Pressable>
+              {/* Site */}
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Site:</Text>
+                <Text style={[styles.metaVal, { color: theme.text }]}>
+                  🏗️ {activeSite?.name || "Site"}
+                </Text>
+              </View>
+
+              {/* Location */}
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Location:</Text>
+                <Text style={[styles.metaVal, { color: "#16A34A", fontWeight: "700" }]}>
+                  ✓ GPS Captured {gpsLocation?.accuracy ? `(±${Math.round(gpsLocation.accuracy)}m)` : ""}
+                </Text>
+              </View>
+
+              {/* Time */}
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Time:</Text>
+                <Text style={[styles.metaVal, { color: theme.text }]}>
+                  🕘 {formattedCurrentTime}
+                </Text>
+              </View>
+
+              {/* Worker */}
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Worker:</Text>
+                <Text style={[styles.metaVal, { color: theme.text }]}>
+                  👷 {user?.name || "Worker"} ({user?.workerCategory || "Labour"})
+                </Text>
+              </View>
+            </View>
           </View>
         ) : (
           <View style={styles.emptyCaptureArea}>
@@ -591,19 +585,10 @@ export default function WorkerCameraUpdateScreen() {
               ]}
             >
               {mode === "ISSUE"
-                ? t(
-                    "camera.captureIssuePhoto",
-                    "Capture site issue photo (Optional)",
-                  )
+                ? "Capture site issue photo (Optional)"
                 : mode === "MORNING_WORK"
-                  ? t(
-                      "camera.captureMorningPhoto",
-                      "Capture photo of work starting in the morning",
-                    )
-                  : t(
-                      "camera.captureEveningPhoto",
-                      "Capture photo of work completed by the evening",
-                    )}
+                ? "Capture photo of work starting in the morning"
+                : "Capture photo of work completed by the evening"}
             </Text>
 
             <View style={styles.captureButtonsRow}>
@@ -615,9 +600,7 @@ export default function WorkerCameraUpdateScreen() {
                 ]}
               >
                 <Feather name="camera" size={20} color="#FFFFFF" />
-                <Text style={styles.primaryCaptureBtnText}>
-                  {t("camera.openCamera", "Open Camera")}
-                </Text>
+                <Text style={styles.primaryCaptureBtnText}>Open Camera</Text>
               </Pressable>
 
               <Pressable
@@ -641,7 +624,7 @@ export default function WorkerCameraUpdateScreen() {
                     { color: isDark ? "#CBD5E1" : "#475569" },
                   ]}
                 >
-                  {t("camera.gallery", "Gallery")}
+                  Gallery
                 </Text>
               </Pressable>
             </View>
@@ -649,7 +632,7 @@ export default function WorkerCameraUpdateScreen() {
         )}
       </View>
 
-      {/* If reporting Issue: Severity Selector */}
+      {/* Severity Selector (if Issue) */}
       {mode === "ISSUE" && (
         <View
           style={[
@@ -663,7 +646,7 @@ export default function WorkerCameraUpdateScreen() {
               { color: isDark ? "#F8FAFC" : "#0F172A" },
             ]}
           >
-            {t("issue.severityLevel", "Issue Severity Level")}
+            Issue Severity Level
           </Text>
           <View style={styles.severityRow}>
             {(["LOW", "MEDIUM", "HIGH", "CRITICAL"] as IssueSeverity[]).map(
@@ -673,10 +656,10 @@ export default function WorkerCameraUpdateScreen() {
                   lvl === "LOW"
                     ? "#10B981"
                     : lvl === "MEDIUM"
-                      ? "#F59E0B"
-                      : lvl === "HIGH"
-                        ? "#F97316"
-                        : "#EF4444";
+                    ? "#F59E0B"
+                    : lvl === "HIGH"
+                    ? "#F97316"
+                    : "#EF4444";
                 return (
                   <Pressable
                     key={lvl}
@@ -691,8 +674,8 @@ export default function WorkerCameraUpdateScreen() {
                         backgroundColor: isActive
                           ? lvlColor + "20"
                           : isDark
-                            ? "#0F172A"
-                            : "#F8FAFC",
+                          ? "#0F172A"
+                          : "#F8FAFC",
                       },
                     ]}
                   >
@@ -703,8 +686,8 @@ export default function WorkerCameraUpdateScreen() {
                           color: isActive
                             ? lvlColor
                             : isDark
-                              ? "#94A3B8"
-                              : "#64748B",
+                            ? "#94A3B8"
+                            : "#64748B",
                         },
                       ]}
                     >
@@ -712,13 +695,13 @@ export default function WorkerCameraUpdateScreen() {
                     </Text>
                   </Pressable>
                 );
-              },
+              }
             )}
           </View>
         </View>
       )}
 
-      {/* Short Description Note */}
+      {/* Description Note */}
       <View
         style={[
           styles.sectionCard,
@@ -728,20 +711,15 @@ export default function WorkerCameraUpdateScreen() {
         <Text
           style={[styles.fieldLabel, { color: isDark ? "#F8FAFC" : "#0F172A" }]}
         >
-          {mode === "ISSUE"
-            ? t("issue.describeIssue", "Issue Description *")
-            : t("camera.workDetails", "Work Details (Optional)")}
+          {mode === "ISSUE" ? "Issue Description *" : "Description Note"}
         </Text>
         <TextInput
           value={description}
           onChangeText={setDescription}
           placeholder={
             mode === "ISSUE"
-              ? t("issue.placeholder", "e.g., Cement finished, work halted...")
-              : t(
-                  "camera.notesPlaceholder",
-                  "e.g., Completed first floor brickwork masonry...",
-                )
+              ? "e.g., Cement finished, work halted..."
+              : 'e.g., "आज plaster work शुरू किया."'
           }
           placeholderTextColor={isDark ? "#64748B" : "#94A3B8"}
           multiline
@@ -757,7 +735,15 @@ export default function WorkerCameraUpdateScreen() {
         />
       </View>
 
-      {/* Submit Button */}
+      {/* Error Message Display */}
+      {uploadError ? (
+        <View style={styles.errorBanner}>
+          <Feather name="alert-circle" size={16} color="#DC2626" />
+          <Text style={styles.errorBannerText}>{uploadError}</Text>
+        </View>
+      ) : null}
+
+      {/* SUBMIT BUTTON */}
       <Pressable
         onPress={handleSubmit}
         disabled={isSubmitting}
@@ -768,25 +754,24 @@ export default function WorkerCameraUpdateScreen() {
               mode === "ISSUE"
                 ? "#EF4444"
                 : mode === "MORNING_WORK"
-                  ? "#F59E0B"
-                  : "#10B981",
+                ? "#F59E0B"
+                : "#10B981",
             opacity: isSubmitting ? 0.7 : 1,
           },
         ]}
       >
         {isSubmitting ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <ActivityIndicator size="small" color="#FFFFFF" />
+            <Text style={styles.submitButtonText}>Uploading photo...</Text>
+          </View>
         ) : (
-          <>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <Feather name="send" size={20} color="#FFFFFF" />
             <Text style={styles.submitButtonText}>
-              {mode === "ISSUE"
-                ? t("issue.submitIssueBtn", "Report Issue")
-                : mode === "MORNING_WORK"
-                  ? t("camera.submitMorningBtn", "Submit Morning Work")
-                  : t("camera.submitEveningBtn", "Submit Evening Work")}
+              {uploadError ? "TRY AGAIN" : "SUBMIT UPDATE"}
             </Text>
-          </>
+          </View>
         )}
       </Pressable>
     </ScrollView>
@@ -799,80 +784,84 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: 16,
-    paddingBottom: 40,
   },
   headerRow: {
-    marginBottom: 14,
+    marginBottom: 12,
   },
   headerTitle: {
     fontSize: 22,
     fontWeight: "800",
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   headerSubtitle: {
     fontSize: 13,
-    marginTop: 3,
+    marginTop: 2,
   },
+
   siteBanner: {
     flexDirection: "row",
     alignItems: "center",
     padding: 12,
-    borderRadius: 14,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    marginBottom: 16,
+    marginBottom: 14,
+    gap: 10,
   },
   siteBannerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(59, 130, 246, 0.12)",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(37, 99, 235, 0.12)",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
   },
   siteBannerLabel: {
     fontSize: 11,
     fontWeight: "600",
-    textTransform: "uppercase",
   },
   siteBannerName: {
     fontSize: 14,
-    fontWeight: "700",
-    marginTop: 1,
+    fontWeight: "800",
   },
+
+  // Mode Selector
   modeSelectorContainer: {
     flexDirection: "row",
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   modeButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    borderWidth: 1,
     gap: 6,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
   },
   modeButtonActive: {
-    borderColor: "transparent",
+    borderWidth: 0,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   modeButtonText: {
     fontSize: 12,
     fontWeight: "700",
   },
+
+  // Photo Card
   photoCard: {
-    borderRadius: 18,
+    borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    overflow: "hidden",
-    marginBottom: 16,
+    padding: 14,
+    marginBottom: 14,
   },
   emptyCaptureArea: {
-    padding: 24,
     alignItems: "center",
-    justifyContent: "center",
+    paddingVertical: 24,
   },
   cameraIconCircle: {
     width: 72,
@@ -880,14 +869,14 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: 14,
   },
   capturePrompt: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
     textAlign: "center",
+    lineHeight: 18,
     marginBottom: 18,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
   },
   captureButtonsRow: {
     flexDirection: "row",
@@ -899,9 +888,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 12,
     gap: 8,
+    paddingVertical: 13,
+    borderRadius: BorderRadius.lg,
   },
   primaryCaptureBtnText: {
     color: "#FFFFFF",
@@ -913,68 +902,81 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
     gap: 6,
+    paddingVertical: 13,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
   },
   galleryCaptureBtnText: {
     fontSize: 13,
     fontWeight: "600",
   },
+
+  // Image Preview & Structured Metadata
   imagePreviewContainer: {
     width: "100%",
-    height: 280,
-    position: "relative",
+  },
+  previewHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  previewHeaderTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#64748B",
+  },
+  retakeTopBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    padding: 4,
+  },
+  retakeTopBtnText: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "600",
   },
   imagePreview: {
     width: "100%",
-    height: "100%",
+    height: 220,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: "#1E293B",
+    marginBottom: 12,
   },
-  gpsStampBadge: {
-    position: "absolute",
-    bottom: 12,
-    left: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 8,
+  metadataContainer: {
+    padding: 12,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
     gap: 6,
   },
-  gpsStampText: {
-    color: "#FFFFFF",
-    fontSize: 11,
+  metaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  metaLabel: {
+    fontSize: 12,
+    color: "#64748B",
     fontWeight: "600",
   },
-  retakeBtn: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 20,
-    gap: 6,
-  },
-  retakeBtnText: {
-    color: "#FFFFFF",
+  metaVal: {
     fontSize: 12,
     fontWeight: "600",
   },
+
+  // Severity & Notes
   sectionCard: {
-    padding: 16,
-    borderRadius: 16,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    marginBottom: 16,
+    padding: 14,
+    marginBottom: 14,
   },
   fieldLabel: {
     fontSize: 13,
     fontWeight: "700",
-    marginBottom: 10,
+    marginBottom: 8,
   },
   severityRow: {
     flexDirection: "row",
@@ -983,58 +985,73 @@ const styles = StyleSheet.create({
   severityChip: {
     flex: 1,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
     alignItems: "center",
-    justifyContent: "center",
   },
   severityChipText: {
     fontSize: 11,
     fontWeight: "700",
   },
   textInput: {
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderRadius: 12,
     padding: 12,
-    fontSize: 14,
+    fontSize: 13,
     textAlignVertical: "top",
-    minHeight: 80,
   },
+
+  // Error Banner
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FEE2E2",
+    padding: 12,
+    borderRadius: BorderRadius.md,
+    marginBottom: 14,
+  },
+  errorBannerText: {
+    color: "#DC2626",
+    fontSize: 12,
+    fontWeight: "600",
+    flex: 1,
+  },
+
+  // Submit Button
   submitButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 16,
-    gap: 8,
+    height: 50,
+    borderRadius: BorderRadius.lg,
+    elevation: 3,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-    marginBottom: 20,
+    shadowRadius: 6,
   },
   submitButtonText: {
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "800",
+    letterSpacing: 0.5,
   },
+
+  // Success Screen
   successCard: {
-    margin: 16,
-    padding: 24,
-    borderRadius: 24,
+    borderRadius: BorderRadius.xl || 24,
     borderWidth: 1,
+    padding: 24,
     alignItems: "center",
-    justifyContent: "center",
   },
   successIconCircle: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#10B981",
+    backgroundColor: "#16A34A",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: 18,
   },
   successTitle: {
     fontSize: 20,
@@ -1050,15 +1067,15 @@ const styles = StyleSheet.create({
   },
   successActions: {
     width: "100%",
-    gap: 10,
+    gap: 12,
   },
   successPrimaryBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 14,
     gap: 8,
+    paddingVertical: 14,
+    borderRadius: BorderRadius.lg,
   },
   successBtnText: {
     color: "#FFFFFF",
@@ -1069,10 +1086,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1.5,
     gap: 8,
+    paddingVertical: 14,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
   },
   successSecondaryText: {
     fontSize: 14,

@@ -56,7 +56,7 @@ export default function TeamConnectionWidget({
   // Mobile connect state
   const [mobileNumber, setMobileNumber] = useState("");
   const [workerName, setWorkerName] = useState("");
-  const [workerCategory, setWorkerCategory] = useState("labour");
+  const [workerCategory] = useState("labour");
   const [dailyWage, setDailyWage] = useState("0");
   const [isSubmittingMobile, setIsSubmittingMobile] = useState(false);
 
@@ -72,8 +72,8 @@ export default function TeamConnectionWidget({
 
   // Pending requests and connected team state
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
-  const [connectedSupervisors, setConnectedSupervisors] = useState<any[]>([]);
-  const [connectedWorkers, setConnectedWorkers] = useState<any[]>([]);
+  const [, setConnectedSupervisors] = useState<any[]>([]);
+  const [, setConnectedWorkers] = useState<any[]>([]);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(
     null,
   );

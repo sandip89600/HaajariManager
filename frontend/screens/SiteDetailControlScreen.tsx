@@ -22,6 +22,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useSocket } from "@/hooks/useSocket";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import {
   storage,
@@ -34,13 +35,13 @@ import {
 
 type ActiveTab =
   | "updates"
+  | "photos"
   | "overview"
   | "workers"
   | "materials"
   | "expenses"
   | "reports"
-  | "analytics"
-  | "photos";
+  | "analytics";
 
 type UpdateFilter = "ALL" | "MORNING" | "EVENING" | "ISSUES";
 
@@ -64,6 +65,7 @@ function getYesterdayStr() {
 export default function SiteDetailControlScreen() {
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
+  const { socket } = useSocket();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { siteId } = route.params || {};
@@ -77,7 +79,7 @@ export default function SiteDetailControlScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // ----------------------------------------------------
-  // SITE CONTROL & UPDATES STATE
+  // SITE CONTROL, UPDATES & PHOTOS STATE
   // ----------------------------------------------------
   const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
   const [updateFilter, setUpdateFilter] = useState<UpdateFilter>("ALL");
@@ -123,36 +125,8 @@ export default function SiteDetailControlScreen() {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [mbEntries, setMbEntries] = useState<any[]>([]);
 
-  const [skillFilter, setSkillFilter] = useState<string>("all");
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [selectedWorkerForTransfer, setSelectedWorkerForTransfer] = useState<Worker | null>(null);
-  const [allSitesForTransfer, setAllSitesForTransfer] = useState<Project[]>([]);
-
-  const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [expType, setExpType] = useState<"material" | "machinery" | "labour" | "vendor" | "other">("material");
-  const [expAmount, setExpAmount] = useState("");
-  const [expVendor, setExpVendor] = useState("");
-  const [expDesc, setExpDesc] = useState("");
-
   const [materials, setMaterials] = useState<any[]>([]);
   const [photos, setPhotos] = useState<any[]>([]);
-  const [searchMaterial, setSearchMaterial] = useState("");
-  const [showMaterialModal, setShowMaterialModal] = useState(false);
-  const [materialForm, setMaterialForm] = useState({
-    name: "",
-    unit: "bags",
-    required: "0",
-    minThreshold: "0",
-    id: "",
-  });
-  const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [photoForm, setPhotoForm] = useState({
-    workerId: "",
-    type: "before",
-    uri: "",
-  });
-  const [materialHistoryModal, setMaterialHistoryModal] = useState(false);
-  const [materialHistory, setMaterialHistory] = useState<any[]>([]);
 
   const triggerHaptic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -163,7 +137,7 @@ export default function SiteDetailControlScreen() {
     if (!siteId) return;
     if (showIndicator) setIsLoading(true);
     try {
-      // 1. Fetch site control center metrics & timeline
+      // 1. Fetch site control center metrics, timeline & photos
       try {
         const ctrl = await siteActivityStorage.getSiteControlCenter(siteId, selectedDate);
         if (ctrl && ctrl.success) {
@@ -185,31 +159,20 @@ export default function SiteDetailControlScreen() {
       const workersList = await storage.getWorkers();
       setAllWorkers(workersList);
 
-      // 4. Combined sites for transfer
-      const allSitesResult = await storage.getSites();
-      const allSites = allSitesResult.sites || [];
-      const combinedSites = [
-        ...allProjects,
-        ...allSites.map((s: any) => ({
-          id: s.id,
-          name: s.name,
-          location: s.address,
-          status: "active" as const,
-          createdAt: s.createdAt ? new Date(s.createdAt).getTime() : Date.now(),
-        })),
-      ];
-      setAllSitesForTransfer(combinedSites.filter((p) => p.id !== siteId));
-
-      // 5. Materials & photos
+      // 4. Materials & photos
       try {
         const matRes = await authenticatedFetch(`${API_URL}/sites/${siteId}/materials`);
         if (matRes.ok) setMaterials(await matRes.json());
 
-        const photRes = await authenticatedFetch(`${API_URL}/sites/${siteId}/photos`);
-        if (photRes.ok) setPhotos(await photRes.json());
+        const photRes = await siteActivityStorage.getSitePhotos(siteId, {
+          date: selectedDate,
+        });
+        if (photRes && photRes.photos) {
+          setPhotos(photRes.photos);
+        }
       } catch (e) {}
 
-      // 6. Analytics
+      // 5. Analytics
       try {
         const res = await authenticatedFetch(`${API_URL}/projects/${siteId}/dashboard`);
         if (res.ok) {
@@ -236,12 +199,30 @@ export default function SiteDetailControlScreen() {
     loadSiteData(true);
   }, [siteId, selectedDate]);
 
+  // Real-time Socket listener: updates automatically when worker uploads
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener("refreshData", () => {
       loadSiteData(false);
     });
+
+    if (socket) {
+      const handleActivity = (data: any) => {
+        if (!data || data.siteId === siteId || data.activity?.siteId === siteId) {
+          loadSiteData(false);
+        }
+      };
+      socket.on("site:activity_added", handleActivity);
+      socket.on("admin_dashboard_update", handleActivity);
+
+      return () => {
+        sub.remove();
+        socket.off("site:activity_added", handleActivity);
+        socket.off("admin_dashboard_update", handleActivity);
+      };
+    }
+
     return () => sub.remove();
-  }, [selectedDate]);
+  }, [socket, siteId, selectedDate]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -327,6 +308,49 @@ export default function SiteDetailControlScreen() {
     return items;
   }, [controlData, updateFilter, selectedWorkerFilter]);
 
+  // Filtered Photos List for 2-column gallery
+  const filteredPhotos = useMemo(() => {
+    const rawPhotos = controlData?.sitePhotos || photos || [];
+    let list = rawPhotos.map((p: any) => ({
+      id: p.id || p._id,
+      photoUrl: p.photo?.url || (typeof p.photo === "string" ? p.photo : p.photoUri || p.url || p),
+      workerName: p.workerName || p.workerId?.name || "Worker",
+      workerRole: p.workerRole || p.workerId?.category || "Labour",
+      activityType: p.activityType || p.photoType || "MORNING_WORK",
+      timeStr: p.timeStr || "Today",
+      dateStr: p.dateStr || selectedDate,
+      description: p.description,
+      location: p.location,
+    })).filter((p: any) => !!p.photoUrl);
+
+    if (updateFilter === "MORNING") {
+      list = list.filter((p: any) => p.activityType === "MORNING_WORK");
+    } else if (updateFilter === "EVENING") {
+      list = list.filter((p: any) => p.activityType === "EVENING_WORK");
+    } else if (updateFilter === "ISSUES") {
+      list = list.filter((p: any) => p.activityType === "ISSUE");
+    }
+
+    if (selectedWorkerFilter !== "ALL") {
+      list = list.filter(
+        (p: any) => p.workerName === selectedWorkerFilter || p.workerId === selectedWorkerFilter
+      );
+    }
+
+    return list;
+  }, [controlData, photos, updateFilter, selectedWorkerFilter, selectedDate]);
+
+  // Counts for photos
+  const morningPhotosCount = useMemo(() => {
+    const rawPhotos = controlData?.sitePhotos || photos || [];
+    return rawPhotos.filter((p: any) => (p.activityType || p.photoType) === "MORNING_WORK").length;
+  }, [controlData, photos]);
+
+  const eveningPhotosCount = useMemo(() => {
+    const rawPhotos = controlData?.sitePhotos || photos || [];
+    return rawPhotos.filter((p: any) => (p.activityType || p.photoType) === "EVENING_WORK").length;
+  }, [controlData, photos]);
+
   // Pending Workers helper
   const pendingMorningWorkers = useMemo(() => {
     if (!controlData?.workers) return [];
@@ -337,17 +361,6 @@ export default function SiteDetailControlScreen() {
     if (!controlData?.workers) return [];
     return controlData.workers.filter((w: any) => w.eveningStatus === "pending");
   }, [controlData]);
-
-  const getProgressPercentage = (project: Project) => {
-    if (project.phases && project.phases.length > 0) {
-      const sumWeight = project.phases.reduce((sum, p) => sum + (p.weight || 0), 0);
-      const achievedWeight = project.phases.reduce((sum, p) => {
-        return sum + ((p.percentDone || 0) * (p.weight || 0)) / 100;
-      }, 0);
-      return Math.round(sumWeight > 0 ? (achievedWeight / sumWeight) * 100 : 0);
-    }
-    return 0;
-  };
 
   if (!site && !controlData) {
     return (
@@ -406,12 +419,12 @@ export default function SiteDetailControlScreen() {
           {(
             [
               { id: "updates", label: "🏗️ Updates & Feed" },
+              { id: "photos", label: "📸 Site Photos" },
               { id: "overview", label: t("sites.timelineStages", "Timeline & Stages") },
               { id: "workers", label: t("sites.workersWages", "Workers & Wages") },
               { id: "materials", label: t("sites.materials", "Materials") },
               { id: "reports", label: t("sites.reportsDocs", "Reports & Docs") },
               { id: "analytics", label: t("sites.analytics", "Analytics") },
-              { id: "photos", label: t("sites.photos", "Photos") },
             ] as const
           ).map((tab) => {
             const isActive = activeTab === tab.id;
@@ -1017,7 +1030,202 @@ export default function SiteDetailControlScreen() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: OVERVIEW & STAGES                                                  */}
+        {/* TAB 2: SITE PHOTOS (Clean 2-Column Mobile Photo Gallery)                   */}
+        {/* ========================================================================= */}
+        {activeTab === "photos" && (
+          <View>
+            {/* Header & Date / Counts */}
+            <View style={styles.photosHeaderSection}>
+              <View>
+                <ThemedText style={styles.photosMainTitle}>📸 Site Photos</ThemedText>
+                <ThemedText style={styles.photosSubTitle}>
+                  {selectedDate === getTodayStr() ? "Today" : selectedDate} • {filteredPhotos.length} Photos
+                  {morningPhotosCount > 0 ? ` (${morningPhotosCount} Morning` : ""}
+                  {eveningPhotosCount > 0 ? `, ${eveningPhotosCount} Evening)` : morningPhotosCount > 0 ? ")" : ""}
+                </ThemedText>
+              </View>
+
+              {/* Date selector */}
+              <View style={styles.datePillsGroup}>
+                <Pressable
+                  onPress={() => {
+                    triggerHaptic();
+                    setSelectedDate(getTodayStr());
+                  }}
+                  style={[
+                    styles.datePill,
+                    selectedDate === getTodayStr()
+                      ? { backgroundColor: theme.primary, borderColor: theme.primary }
+                      : { backgroundColor: theme.backgroundDefault, borderColor: theme.border },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.datePillText,
+                      selectedDate === getTodayStr()
+                        ? { color: "#FFFFFF", fontWeight: "700" }
+                        : { color: theme.textSecondary },
+                    ]}
+                  >
+                    Today
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    triggerHaptic();
+                    setSelectedDate(getYesterdayStr());
+                  }}
+                  style={[
+                    styles.datePill,
+                    selectedDate === getYesterdayStr()
+                      ? { backgroundColor: theme.primary, borderColor: theme.primary }
+                      : { backgroundColor: theme.backgroundDefault, borderColor: theme.border },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.datePillText,
+                      selectedDate === getYesterdayStr()
+                        ? { color: "#FFFFFF", fontWeight: "700" }
+                        : { color: theme.textSecondary },
+                    ]}
+                  >
+                    Yesterday
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Filter Pills */}
+            <View style={[styles.segmentedFilterContainer, { marginTop: 8 }]}>
+              {(["ALL", "MORNING", "EVENING", "ISSUES"] as UpdateFilter[]).map((filter) => {
+                const isSelected = updateFilter === filter;
+                return (
+                  <Pressable
+                    key={filter}
+                    onPress={() => {
+                      triggerHaptic();
+                      setUpdateFilter(filter);
+                    }}
+                    style={[
+                      styles.segmentedFilterBtn,
+                      isSelected
+                        ? { backgroundColor: theme.primary }
+                        : { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentedFilterText,
+                        isSelected
+                          ? { color: "#FFFFFF", fontWeight: "800" }
+                          : { color: theme.textSecondary },
+                      ]}
+                    >
+                      {filter === "ALL" && "ALL"}
+                      {filter === "MORNING" && "🌅 MORNING"}
+                      {filter === "EVENING" && "🌆 EVENING"}
+                      {filter === "ISSUES" && "⚠️ ISSUES"}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* 2-Column Mobile Photo Grid */}
+            {filteredPhotos.length === 0 ? (
+              <View
+                style={[
+                  styles.emptyTimelineBox,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: theme.border,
+                    marginTop: 12,
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 36, marginBottom: 8 }}>📸</Text>
+                <ThemedText style={styles.emptyTimelineTitle}>
+                  No Site Photos Yet
+                </ThemedText>
+                <ThemedText style={styles.emptyTimelineDesc}>
+                  Worker work updates submitted from this site will appear here automatically.
+                </ThemedText>
+              </View>
+            ) : (
+              <View style={styles.twoColumnGrid}>
+                {filteredPhotos.map((item: any) => {
+                  const isMorning = item.activityType === "MORNING_WORK";
+                  const isEvening = item.activityType === "EVENING_WORK";
+
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => {
+                        triggerHaptic();
+                        setSelectedPhotoModal({
+                          photoUrl: item.photoUrl,
+                          workerName: item.workerName,
+                          siteName: siteDisplayName,
+                          activityType: item.activityType,
+                          timeStr: item.timeStr,
+                          dateStr: item.dateStr,
+                          description: item.description,
+                          location: item.location,
+                        });
+                      }}
+                      style={[
+                        styles.photoGridCard,
+                        {
+                          backgroundColor: theme.backgroundDefault,
+                          borderColor: theme.border,
+                        },
+                      ]}
+                    >
+                      <Image
+                        source={{ uri: item.photoUrl }}
+                        style={styles.gridCardImage}
+                        resizeMode="cover"
+                      />
+
+                      {/* Tag Overlay */}
+                      <View
+                        style={[
+                          styles.gridCardBadge,
+                          isMorning
+                            ? { backgroundColor: "#F59E0B" }
+                            : isEvening
+                            ? { backgroundColor: "#2563EB" }
+                            : { backgroundColor: "#DC2626" },
+                        ]}
+                      >
+                        <Text style={styles.gridCardBadgeText}>
+                          {isMorning ? "🌅 Morning" : isEvening ? "🌆 Evening" : "⚠️ Issue"}
+                        </Text>
+                      </View>
+
+                      {/* Card Bottom Details */}
+                      <View style={styles.gridCardFooter}>
+                        <ThemedText numberOfLines={1} style={styles.gridCardWorkerName}>
+                          👷 {item.workerName}
+                        </ThemedText>
+                        <View style={styles.gridCardMetaRow}>
+                          <Text style={styles.gridCardTime}>{item.timeStr}</Text>
+                          {item.location?.latitude ? (
+                            <Text style={styles.gridCardGps}>📍 GPS</Text>
+                          ) : null}
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 3: OVERVIEW & STAGES                                                  */}
         {/* ========================================================================= */}
         {activeTab === "overview" && site && (
           <View>
@@ -1052,7 +1260,7 @@ export default function SiteDetailControlScreen() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 3: WORKERS & WAGES                                                    */}
+        {/* TAB 4: WORKERS & WAGES                                                    */}
         {/* ========================================================================= */}
         {activeTab === "workers" && (
           <View>
@@ -1090,7 +1298,7 @@ export default function SiteDetailControlScreen() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 4: MATERIALS                                                          */}
+        {/* TAB 5: MATERIALS                                                          */}
         {/* ========================================================================= */}
         {activeTab === "materials" && (
           <View>
@@ -1120,7 +1328,7 @@ export default function SiteDetailControlScreen() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 5: REPORTS & DOCS                                                     */}
+        {/* TAB 6: REPORTS & DOCS                                                     */}
         {/* ========================================================================= */}
         {activeTab === "reports" && (
           <View>
@@ -1143,7 +1351,7 @@ export default function SiteDetailControlScreen() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 6: ANALYTICS                                                          */}
+        {/* TAB 7: ANALYTICS                                                          */}
         {/* ========================================================================= */}
         {activeTab === "analytics" && (
           <View>
@@ -1161,39 +1369,6 @@ export default function SiteDetailControlScreen() {
               <ThemedText style={styles.analyticsStat}>
                 ₹{spentAmount.toLocaleString("en-IN")}
               </ThemedText>
-            </View>
-          </View>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 7: PHOTOS                                                             */}
-        {/* ========================================================================= */}
-        {activeTab === "photos" && (
-          <View>
-            <ThemedText style={styles.sectionHeading}>Site Gallery</ThemedText>
-            <View style={styles.photoGrid}>
-              {(controlData?.sitePhotos || photos).map((p: any, idx: number) => {
-                const uri = p.photo?.url || p.photo || p.url || p;
-                return (
-                  <Pressable
-                    key={idx}
-                    onPress={() => {
-                      triggerHaptic();
-                      setSelectedPhotoModal({
-                        photoUrl: uri,
-                        workerName: p.workerName || "Worker",
-                        siteName: siteDisplayName,
-                        activityType: p.activityType || "Site Photo",
-                        timeStr: p.timeStr,
-                        description: p.description,
-                      });
-                    }}
-                    style={styles.galleryPhotoItem}
-                  >
-                    <Image source={{ uri }} style={styles.galleryPhoto} />
-                  </Pressable>
-                );
-              })}
             </View>
           </View>
         )}
@@ -1408,7 +1583,7 @@ export default function SiteDetailControlScreen() {
                   : "📸 Site Photo"}
               </Text>
               <Text style={styles.photoViewerSub}>
-                {selectedPhotoModal?.workerName} • {selectedPhotoModal?.timeStr || selectedPhotoModal?.dateStr || "Today"}
+                👷 {selectedPhotoModal?.workerName} • 🕘 {selectedPhotoModal?.timeStr || selectedPhotoModal?.dateStr || "Today"}
               </Text>
             </View>
             <Pressable
@@ -1430,6 +1605,9 @@ export default function SiteDetailControlScreen() {
 
           {/* Footer Metadata Overlay */}
           <View style={styles.photoViewerFooter}>
+            <Text style={styles.photoViewerSiteTitle}>
+              🏗️ {selectedPhotoModal?.siteName || siteDisplayName}
+            </Text>
             {selectedPhotoModal?.description ? (
               <Text style={styles.photoViewerDesc}>
                 "{selectedPhotoModal.description}"
@@ -1605,6 +1783,81 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
 
+  // Photos Header & 2-Column Grid
+  photosHeaderSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  photosMainTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  photosSubTitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  twoColumnGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 8,
+  },
+  photoGridCard: {
+    width: "48%",
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: 4,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  gridCardImage: {
+    width: "100%",
+    height: 120,
+    backgroundColor: "#1E293B",
+  },
+  gridCardBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.sm,
+  },
+  gridCardBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  gridCardFooter: {
+    padding: 8,
+  },
+  gridCardWorkerName: {
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  gridCardMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  gridCardTime: {
+    fontSize: 10,
+    color: "#64748B",
+  },
+  gridCardGps: {
+    fontSize: 10,
+    color: "#16A34A",
+    fontWeight: "700",
+  },
+
   // Progress Section Card
   progressSectionCard: {
     padding: 14,
@@ -1689,6 +1942,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#64748B",
     textAlign: "center",
+    lineHeight: 18,
   },
 
   // Timeline Card
@@ -1918,21 +2172,6 @@ const styles = StyleSheet.create({
     color: "#64748B",
     marginVertical: 12,
   },
-  photoGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  galleryPhotoItem: {
-    width: "31%",
-    aspectRatio: 1,
-    borderRadius: BorderRadius.md,
-    overflow: "hidden",
-  },
-  galleryPhoto: {
-    width: "100%",
-    height: "100%",
-  },
 
   // Modals
   modalOverlay: {
@@ -2053,10 +2292,16 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     backgroundColor: "rgba(0,0,0,0.7)",
   },
-  photoViewerDesc: {
+  photoViewerSiteTitle: {
     color: "#FFFFFF",
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  photoViewerDesc: {
+    color: "#E2E8F0",
+    fontSize: 13,
+    lineHeight: 19,
     marginBottom: 8,
   },
   photoViewerLocation: {

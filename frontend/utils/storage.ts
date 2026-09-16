@@ -2003,6 +2003,26 @@ export const siteActivityStorage = {
     return await res.json();
   },
 
+  async getSitePhotos(
+    siteId: string,
+    params?: { date?: string; activityType?: string; workerId?: string },
+  ) {
+    const query = new URLSearchParams();
+    if (params?.date) query.append("date", params.date);
+    if (params?.activityType) query.append("activityType", params.activityType);
+    if (params?.workerId) query.append("workerId", params.workerId);
+
+    const qs = query.toString();
+    const url = qs
+      ? `${API_URL}/sites/${siteId}/photos?${qs}`
+      : `${API_URL}/sites/${siteId}/photos`;
+    const res = await authenticatedFetch(url);
+    if (!res.ok) {
+      throw new Error(`Failed to load site photos: ${res.status}`);
+    }
+    return await res.json();
+  },
+
   async submitWorkUpdate(
     siteId: string,
     payload: {

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { WorkPhoto, AuditLog } from "../models";
+import { WorkPhoto, AuditLog, DailySiteActivity, Site } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { broadcastAdminActivity } from "../utils/socket";
 
@@ -7,13 +7,67 @@ export const getSitePhotos = async (req: AuthenticatedRequest, res: Response) =>
   try {
     const tenantId = req.user?.tenantId;
     const { siteId } = req.params;
+    const { date, activityType, workerId, limit = 100 } = req.query;
 
-    const list = await WorkPhoto.find({ tenantId, siteId })
-      .populate("workerId", "name category phone")
-      .sort({ timestamp: -1 });
+    if (!tenantId) return res.status(401).json({ error: "Unauthorized" });
 
-    res.json(list);
+    // Validate site ownership by tenant
+    const site = await Site.findOne({ _id: siteId, tenantId, isDeleted: false });
+    if (!site) return res.status(404).json({ error: "Site not found" });
+
+    // Query DailySiteActivity for all photos with strict tenant and site isolation
+    const activityQuery: any = {
+      tenantId,
+      siteId,
+      photo: { $exists: true, $ne: "" },
+    };
+
+    if (date) {
+      activityQuery.dateStr = date;
+    }
+
+    if (activityType && activityType !== "ALL" && activityType !== "all") {
+      activityQuery.activityType = activityType;
+    }
+
+    if (workerId && workerId !== "ALL" && workerId !== "all") {
+      activityQuery.$or = [{ workerId }, { userId: workerId }];
+    }
+
+    const activities = await DailySiteActivity.find(activityQuery)
+      .sort({ createdAt: -1 })
+      .limit(Number(limit))
+      .lean();
+
+    const structuredPhotos = activities.map((a) => ({
+      id: a._id,
+      photo: a.photo,
+      workerId: a.workerId || a.userId,
+      workerName: a.userName,
+      workerRole: a.workerRole || "Labour",
+      activityType: a.activityType,
+      description: a.description,
+      dateStr: a.dateStr,
+      timeStr: a.timeStr,
+      location: a.location,
+      capturedAt: a.capturedAt || a.createdAt,
+    }));
+
+    // Calculate metrics
+    const morningCount = activities.filter((a) => a.activityType === "MORNING_WORK").length;
+    const eveningCount = activities.filter((a) => a.activityType === "EVENING_WORK").length;
+    const issueCount = activities.filter((a) => a.activityType === "ISSUE").length;
+
+    return res.json({
+      success: true,
+      total: structuredPhotos.length,
+      morningCount,
+      eveningCount,
+      issueCount,
+      photos: structuredPhotos,
+    });
   } catch (error: any) {
+    console.error("getSitePhotos error:", error);
     res.status(500).json({ error: error.message });
   }
 };
