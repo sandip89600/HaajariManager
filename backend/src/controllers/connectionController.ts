@@ -400,8 +400,8 @@ export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Respo
     await targetUser.save();
 
     // If target is worker / labor, ensure a corresponding Worker record exists in the tenant
+    let existingWorker: any = null;
     if (targetUser.role === "labor" || (targetUser.role as string) === "worker") {
-      let existingWorker = null;
       if (connectionReq.workerId) {
         existingWorker = await Worker.findById(connectionReq.workerId);
       }
@@ -442,8 +442,8 @@ export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Respo
           uniqueId: targetUser.uniqueId,
           name: targetUser.name,
           phone: targetUser.phone,
-          category: targetUser.workerCategory || "Labour",
-          dailyRate: targetUser.dailyWage || 500,
+          category: targetUser.workerCategory || "labour",
+          dailyRate: targetUser.dailyWage || 0,
           skillCategory: "skilled",
           paymentType: "daily",
           isArchived: false,
@@ -484,6 +484,13 @@ export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Respo
         role: targetUser.role,
         connectionStatus: "connected",
       },
+      worker: existingWorker ? {
+        id: existingWorker._id,
+        name: existingWorker.name,
+        uniqueId: existingWorker.uniqueId,
+        dailyRate: existingWorker.dailyRate,
+        category: existingWorker.category,
+      } : undefined,
     });
   } catch (error: any) {
     console.error("verifyConnectionCode error:", error);
@@ -571,9 +578,9 @@ export const acceptConnectionRequest = async (req: AuthenticatedRequest, res: Re
     }
 
     // If member is worker/labor, link or create Worker profile in contractor's tenant
+    let existingWorker: any = null;
     if (member.role === "labor" || (member.role as string) === "worker") {
       try {
-        let existingWorker = null;
         if (connectionReq.workerId) {
           existingWorker = await Worker.findById(connectionReq.workerId);
         }
@@ -615,8 +622,8 @@ export const acceptConnectionRequest = async (req: AuthenticatedRequest, res: Re
             uniqueId: member.uniqueId,
             name: member.name || "Worker",
             phone: member.phone || "",
-            category: member.workerCategory || "Labour",
-            dailyRate: member.dailyWage || 500,
+            category: member.workerCategory || "labour",
+            dailyRate: member.dailyWage || 0,
             skillCategory: "skilled",
             paymentType: "daily",
             isArchived: false,
@@ -652,6 +659,13 @@ export const acceptConnectionRequest = async (req: AuthenticatedRequest, res: Re
       success: true,
       message: "Connection request accepted successfully.",
       connection: connectionReq,
+      worker: existingWorker ? {
+        id: existingWorker._id,
+        name: existingWorker.name,
+        uniqueId: existingWorker.uniqueId,
+        dailyRate: existingWorker.dailyRate,
+        category: existingWorker.category,
+      } : undefined,
     });
   } catch (error: any) {
     console.error("acceptConnectionRequest error:", error);

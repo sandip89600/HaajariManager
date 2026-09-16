@@ -202,8 +202,8 @@ export default function WorkerDashboardScreen() {
   const activeUniqueId =
     workerInfo?.uniqueId || uniqueId || user?.uniqueId || "HM-W-PENDING";
   const activeName = workerInfo?.name || user?.name || "Worker";
-  const activeCategory =
-    workerInfo?.category || user?.workerCategory || "Labour";
+  const rawCategory = workerInfo?.category || user?.workerCategory || "labour";
+  const activeCategory = t.translateCategory(rawCategory);
 
   const copyUniqueId = async () => {
     if (activeUniqueId && activeUniqueId !== "HM-W-PENDING") {

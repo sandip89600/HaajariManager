@@ -3308,14 +3308,14 @@ export const registerLabor = async (req: AuthenticatedRequest, res: Response) =>
     let contractorName: string | undefined = undefined;
     let contractorCompany: string | undefined = undefined;
     let connectionStatus: "connected" | "not_connected" = "not_connected";
-    let finalCategory = workerCategory ? workerCategory.trim() : "Labour";
-    let finalWage = dailyWage ? Number(dailyWage) : 500;
+    let finalCategory = workerCategory ? workerCategory.trim() : "labour";
+    let finalWage = dailyWage !== undefined && dailyWage !== null ? Number(dailyWage) : 0;
 
     if (matchingWorkers.length > 0) {
       const primaryWorker = matchingWorkers[0];
       assignedTenantId = primaryWorker.tenantId;
       finalCategory = primaryWorker.category || finalCategory;
-      finalWage = primaryWorker.dailyRate || finalWage;
+      finalWage = primaryWorker.dailyRate !== undefined && primaryWorker.dailyRate !== null ? primaryWorker.dailyRate : finalWage;
 
       const contractorUser = await User.findOne({
         tenantId: primaryWorker.tenantId,

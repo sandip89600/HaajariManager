@@ -45,101 +45,46 @@ type UserRole = "contractor" | "labor" | "supervisor";
 
 const WORKER_CATEGORIES = [
   {
-    id: "Plaster Mistri",
-    label: "Plaster Mistri",
-    hiLabel: "प्लास्टर मिस्त्री",
-    icon: "🪜",
+    id: "labour",
+    label: "Labour",
+    hiLabel: "मजदूर (Labour)",
+    icon: "👷‍♂️",
   },
   {
-    id: "Bandhkam Mistri",
-    label: "Bandhkam Mistri",
-    hiLabel: "बांधकाम मिस्त्री (Brick & Block Masonry)",
-    icon: "🧱",
+    id: "bai",
+    label: "Bai",
+    hiLabel: "महिला मजदूर (Bai)",
+    icon: "👩",
   },
   {
-    id: "Rajmistri",
-    label: "Rajmistri / Mason",
-    hiLabel: "राजमिस्त्री (General Mason)",
-    icon: "🏗️",
-  },
-  {
-    id: "Tile & Marble Mistri",
-    label: "Tile & Marble Mistri",
-    hiLabel: "टाइल / मार्बल मिस्त्री",
-    icon: "🔲",
-  },
-  {
-    id: "Centering / Shuttering",
-    label: "Centering / Shuttering",
-    hiLabel: "सेंटरिंग / शटरिंग मिस्त्री",
-    icon: "🪵",
-  },
-  {
-    id: "Bar Bender",
-    label: "Bar Bender / Steel Fitter",
-    hiLabel: "सरिया कारीगर / लोहार",
-    icon: "🔩",
-  },
-  {
-    id: "Electrician",
-    label: "Electrician",
-    hiLabel: "इलेक्ट्रीशियन",
-    icon: "⚡",
-  },
-  { id: "Plumber", label: "Plumber", hiLabel: "प्लम्बर", icon: "🔧" },
-  {
-    id: "Painter",
-    label: "Painter / Polisher",
-    hiLabel: "पेंटर / रंगाई कारीगर",
-    icon: "🎨",
-  },
-  {
-    id: "Carpenter",
-    label: "Carpenter / Woodwork",
-    hiLabel: "बढ़ई / कारपेंटर",
-    icon: "🪚",
-  },
-  {
-    id: "Welder",
-    label: "Welder / Fabricator",
-    hiLabel: "वेल्डर / फैब्रिकेटर",
-    icon: "🔥",
-  },
-  {
-    id: "POP / False Ceiling",
-    label: "POP / False Ceiling",
-    hiLabel: "पीओपी / फॉल्स सीलिंग",
-    icon: "🏛️",
-  },
-  {
-    id: "Flooring / Granite",
-    label: "Flooring & Granite",
-    hiLabel: "फ्लोरिंग / ग्रेनाइट कारीगर",
+    id: "mistri",
+    label: "Mistri",
+    hiLabel: "मिस्त्री / मास्टर (Mistri)",
     icon: "📐",
   },
   {
-    id: "Helper",
-    label: "Helper / Beldar",
-    hiLabel: "हेल्पर / बेलदार",
-    icon: "👷",
+    id: "bandkam",
+    label: "Bandkam",
+    hiLabel: "बांधकाम मिस्त्री (Bandkam)",
+    icon: "🧱",
   },
   {
-    id: "Labour",
-    label: "General Labour",
-    hiLabel: "साधारण मजदूर",
-    icon: "⛏️",
+    id: "plaster",
+    label: "Plaster",
+    hiLabel: "प्लास्टर कारीगर (Plaster)",
+    icon: "🌫️",
   },
   {
-    id: "Driver / Operator",
-    label: "JCB / Crane / Driver",
-    hiLabel: "ड्राइवर / ऑपरेटर",
-    icon: "🚜",
+    id: "tiles",
+    label: "Tiles",
+    hiLabel: "टाइल्स कारीगर (Tiles)",
+    icon: "🔲",
   },
   {
-    id: "Other",
-    label: "Other Trade",
-    hiLabel: "अन्य कार्य (Custom Trade)",
-    icon: "✨",
+    id: "sutar",
+    label: "Sutar",
+    hiLabel: "सुथार / कारपेंटर (Sutar)",
+    icon: "🪚",
   },
 ];
 
@@ -161,7 +106,7 @@ export default function SignupScreen() {
   const [companyName, setCompanyName] = useState("");
   const [contractorName, setContractorName] = useState("");
   const [contractorCompany, setContractorCompany] = useState("");
-  const [workerCategory, setWorkerCategory] = useState("Plaster Mistri");
+  const [workerCategory, setWorkerCategory] = useState("labour");
   const [customWorkerCategory, setCustomWorkerCategory] = useState("");
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
@@ -494,7 +439,7 @@ export default function SignupScreen() {
         contractorName.trim(),
         contractorCompany.trim(),
         selectedRole === "labor" ? finalWorkerCategory : undefined,
-        undefined,
+        selectedRole === "labor" ? 0 : undefined,
       );
 
       if (result.success) {

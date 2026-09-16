@@ -49,6 +49,8 @@ export default function UserProfileScreen() {
 
   const SCREEN_HEIGHT = Dimensions.get("window").height;
   const [user, setUser] = useState<User | null>(authUser || null);
+  const isWorker =
+    user?.role === "labor" || (user?.role as string) === "worker";
   const [showEditModal, setShowEditModal] = useState(false);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
@@ -896,6 +898,58 @@ export default function UserProfileScreen() {
               </ThemedText>
             </View>
           </View>
+
+          {isWorker && (
+            <>
+              <View style={styles.infoRow}>
+                <View style={styles.infoIconWrapper}>
+                  <Feather
+                    name="briefcase"
+                    size={16}
+                    color={theme.textSecondary}
+                  />
+                </View>
+                <View style={styles.infoTextWrapper}>
+                  <ThemedText
+                    type="small"
+                    style={{ color: theme.textSecondary }}
+                  >
+                    {t("workers.category", "व्यापार / श्रेणी (Trade)")}
+                  </ThemedText>
+                  <ThemedText type="body" style={styles.infoValue}>
+                    {t.translateCategory(user.workerCategory || "Labour")}
+                  </ThemedText>
+                </View>
+              </View>
+
+              <View style={styles.infoRow}>
+                <View style={styles.infoIconWrapper}>
+                  <Feather
+                    name="dollar-sign"
+                    size={16}
+                    color={theme.textSecondary}
+                  />
+                </View>
+                <View style={styles.infoTextWrapper}>
+                  <ThemedText
+                    type="small"
+                    style={{ color: theme.textSecondary }}
+                  >
+                    {t("workers.dailyWage", "दैनिक मजदूरी दर (Daily Wage)")}
+                  </ThemedText>
+                  <ThemedText
+                    type="body"
+                    style={[
+                      styles.infoValue,
+                      { color: "#10B981", fontWeight: "700" },
+                    ]}
+                  >
+                    ₹{user.dailyWage || 0} / {t("common.day", "दिन")}
+                  </ThemedText>
+                </View>
+              </View>
+            </>
+          )}
         </View>
 
         {/* ── PRIMARY ACTIONS ── */}

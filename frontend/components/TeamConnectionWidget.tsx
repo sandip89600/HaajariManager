@@ -14,6 +14,7 @@ import {
   Platform,
 } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 
@@ -35,6 +36,7 @@ export default function TeamConnectionWidget({
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
   const { user, uniqueId, refreshUserProfile } = useAuth();
+  const navigation = useNavigation<any>();
 
   const isContractor =
     user?.role === "contractor" ||
@@ -55,7 +57,7 @@ export default function TeamConnectionWidget({
   const [mobileNumber, setMobileNumber] = useState("");
   const [workerName, setWorkerName] = useState("");
   const [workerCategory, setWorkerCategory] = useState("labour");
-  const [dailyWage, setDailyWage] = useState("500");
+  const [dailyWage, setDailyWage] = useState("0");
   const [isSubmittingMobile, setIsSubmittingMobile] = useState(false);
 
   // ID connect state
@@ -197,25 +199,29 @@ export default function TeamConnectionWidget({
         body: JSON.stringify({
           name: workerName.trim(),
           category: workerCategory,
-          dailyRate: parseFloat(dailyWage) || 500,
+          dailyRate: parseFloat(dailyWage) || 0,
           phone: cleanPhone,
         }),
       });
 
       if (res.ok) {
+        const data = await safeParseResponse(res);
+        const createdWorkerId =
+          data?._id || data?.id || data?.worker?._id || data?.worker?.id;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          t("common.success", "Worker Added & Linked!"),
-          t(
-            "connection.mobileConnectSuccess",
-            "Worker profile has been created. When the worker signs up with this phone number, their profile will be linked automatically!",
-          ),
-        );
         setConnectModalVisible(false);
         setMobileNumber("");
         setWorkerName("");
         loadConnectionData();
         onRefreshParent?.();
+
+        if (createdWorkerId) {
+          try {
+            navigation.navigate("AddWorker", { workerId: createdWorkerId });
+          } catch (navErr) {
+            console.warn("Navigation to AddWorker error:", navErr);
+          }
+        }
       } else {
         const errData = await safeParseResponse(res);
         Alert.alert(
@@ -340,13 +346,27 @@ export default function TeamConnectionWidget({
         setPendingRequests((prev) =>
           prev.filter((r) => (r.requestId || r._id || r.id) !== reqId),
         );
-        Alert.alert(
-          t("common.success", "Connected!"),
-          t("connection.connectedSuccess", "Connection accepted successfully!"),
-        );
         await refreshUserProfile();
         loadConnectionData();
         onRefreshParent?.();
+
+        const acceptedWorkerId =
+          data?.worker?.id || data?.worker?._id || data?.connection?.workerId;
+        if (isContractor && acceptedWorkerId) {
+          try {
+            navigation.navigate("AddWorker", { workerId: acceptedWorkerId });
+          } catch (navErr) {
+            console.warn("Navigation to AddWorker error:", navErr);
+          }
+        } else {
+          Alert.alert(
+            t("common.success", "Connected!"),
+            t(
+              "connection.connectedSuccess",
+              "Connection accepted successfully!",
+            ),
+          );
+        }
       } else {
         Alert.alert(
           t("common.error", "Error"),
