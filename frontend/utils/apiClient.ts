@@ -38,9 +38,19 @@ export async function authenticatedFetch(
     ...deviceHeaders,
     ...((options.headers || {}) as Record<string, string>),
   };
-  if (!headers["Content-Type"] && !(options.body instanceof FormData)) {
+
+  const isFormData =
+    options.body instanceof FormData ||
+    (typeof options.body === "object" &&
+      options.body !== null &&
+      (options.body as any)._parts !== undefined);
+
+  if (!headers["Content-Type"] && !isFormData) {
     headers["Content-Type"] = "application/json";
+  } else if (isFormData) {
+    delete headers["Content-Type"];
   }
+
   if (auth?.token) {
     headers["Authorization"] = `Bearer ${auth.token}`;
   }

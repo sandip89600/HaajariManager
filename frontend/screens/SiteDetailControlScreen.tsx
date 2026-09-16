@@ -533,91 +533,55 @@ export default function SiteDetailControlScreen() {
               </ThemedText>
             </View>
 
-            {/* B. TOP KPI SUMMARY METRIC CARDS */}
-            <View style={styles.kpiGrid}>
+            {/* B. TOP COMMAND CENTER KPI STATS STRIP */}
+            <View
+              style={[
+                styles.commandCenterStrip,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
               {/* Workers Present */}
-              <View
-                style={[
-                  styles.kpiCard,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <View style={styles.kpiCardTop}>
-                  <Text style={styles.kpiEmoji}>👷</Text>
-                  <Text style={[styles.kpiVal, { color: "#16A34A" }]}>
-                    {controlData?.metrics?.presentCount || 0}
-                    <Text style={{ fontSize: 13, color: theme.textSecondary }}>
-                      /{controlData?.metrics?.totalWorkers || 0}
-                    </Text>
+              <View style={styles.stripCol}>
+                <Text style={[styles.stripVal, { color: "#16A34A" }]}>
+                  {controlData?.metrics?.presentCount || 0}
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, fontWeight: "600" }}>
+                    /{controlData?.metrics?.totalWorkers || 0}
                   </Text>
-                </View>
-                <Text style={styles.kpiTitle}>Workers Present</Text>
+                </Text>
+                <Text style={styles.stripLabel}>PRESENT</Text>
               </View>
+
+              <View style={[styles.stripDivider, { backgroundColor: theme.border }]} />
 
               {/* Total Updates */}
-              <View
-                style={[
-                  styles.kpiCard,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <View style={styles.kpiCardTop}>
-                  <Text style={styles.kpiEmoji}>📸</Text>
-                  <Text style={[styles.kpiVal, { color: theme.text }]}>
-                    {controlData?.metrics?.workUpdatesCount || 0}
-                  </Text>
-                </View>
-                <Text style={styles.kpiTitle}>Total Updates</Text>
+              <View style={styles.stripCol}>
+                <Text style={[styles.stripVal, { color: theme.text }]}>
+                  {controlData?.metrics?.workUpdatesCount || 0}
+                </Text>
+                <Text style={styles.stripLabel}>UPDATES</Text>
               </View>
+
+              <View style={[styles.stripDivider, { backgroundColor: theme.border }]} />
 
               {/* Morning Progress */}
-              <View
-                style={[
-                  styles.kpiCard,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <View style={styles.kpiCardTop}>
-                  <Text style={styles.kpiEmoji}>🌅</Text>
-                  <Text style={[styles.kpiVal, { color: theme.text }]}>
-                    {controlData?.morningProgress?.submittedCount || 0}/
-                    {controlData?.morningProgress?.totalWorkers || 0}
-                  </Text>
-                </View>
-                <Text style={styles.kpiTitle}>
-                  Morning ({controlData?.morningProgress?.percentage || 0}%)
+              <View style={styles.stripCol}>
+                <Text style={[styles.stripVal, { color: theme.text }]}>
+                  {controlData?.morningProgress?.submittedCount || 0}/{controlData?.morningProgress?.totalWorkers || 0}
                 </Text>
+                <Text style={styles.stripLabel}>MORNING</Text>
               </View>
 
+              <View style={[styles.stripDivider, { backgroundColor: theme.border }]} />
+
               {/* Evening Progress */}
-              <View
-                style={[
-                  styles.kpiCard,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <View style={styles.kpiCardTop}>
-                  <Text style={styles.kpiEmoji}>🌆</Text>
-                  <Text style={[styles.kpiVal, { color: theme.text }]}>
-                    {controlData?.eveningProgress?.submittedCount || 0}/
-                    {controlData?.eveningProgress?.totalWorkers || 0}
-                  </Text>
-                </View>
-                <Text style={styles.kpiTitle}>
-                  Evening ({controlData?.eveningProgress?.percentage || 0}%)
+              <View style={styles.stripCol}>
+                <Text style={[styles.stripVal, { color: theme.text }]}>
+                  {controlData?.eveningProgress?.submittedCount || 0}/{controlData?.eveningProgress?.totalWorkers || 0}
                 </Text>
+                <Text style={styles.stripLabel}>EVENING</Text>
               </View>
             </View>
 
@@ -1716,37 +1680,35 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // KPI Grid
-  kpiGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 12,
-  },
-  kpiCard: {
-    flex: 1,
-    minWidth: "47%",
-    padding: 12,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-  },
-  kpiCardTop: {
+  // Command Center KPI Stats Strip
+  commandCenterStrip: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
+    marginBottom: 12,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingVertical: 10,
   },
-  kpiEmoji: {
-    fontSize: 18,
+  stripCol: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  kpiVal: {
-    fontSize: 17,
+  stripVal: {
+    fontSize: 16,
     fontWeight: "800",
+    lineHeight: 20,
   },
-  kpiTitle: {
-    fontSize: 11,
+  stripLabel: {
+    fontSize: 9,
+    fontWeight: "700",
     color: "#64748B",
-    fontWeight: "600",
+    marginTop: 2,
+    letterSpacing: 0.4,
+  },
+  stripDivider: {
+    width: 1,
+    height: 24,
   },
 
   // Open Issues Alert Strip

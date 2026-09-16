@@ -1982,45 +1982,102 @@ export interface WorkerTodayContext {
 // Extended storage methods for Site Activity & Workforce
 export const siteActivityStorage = {
   async getContractorSitesControl(date?: string) {
-    const url = date
-      ? `${API_URL}/sites/control/summary?date=${date}`
-      : `${API_URL}/sites/control/summary`;
-    const res = await authenticatedFetch(url);
-    if (!res.ok) {
-      throw new Error(`Failed to load contractor sites control: ${res.status}`);
+    const cacheKey = `@haajari_cache_contractor_sites_control_${date || "today"}`;
+    try {
+      const url = date
+        ? `${API_URL}/sites/control/summary?date=${date}`
+        : `${API_URL}/sites/control/summary`;
+      const res = await authenticatedFetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        AsyncStorage.setItem(cacheKey, JSON.stringify(data)).catch(() => {});
+        return data;
+      }
+    } catch (e) {
+      console.warn("getContractorSitesControl offline fallback:", e);
     }
-    return await res.json();
+    const cached = await AsyncStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (_) {}
+    }
+    return {
+      success: true,
+      metrics: {
+        totalSites: 0,
+        activeSites: 0,
+        totalWorkers: 0,
+        workersPresent: 0,
+        totalUpdates: 0,
+        totalOpenIssues: 0,
+      },
+      sites: [],
+    };
   },
 
   async getSiteControlCenter(siteId: string, date?: string) {
-    const url = date
-      ? `${API_URL}/sites/${siteId}/control?date=${date}`
-      : `${API_URL}/sites/${siteId}/control`;
-    const res = await authenticatedFetch(url);
-    if (!res.ok) {
-      throw new Error(`Failed to load site control center: ${res.status}`);
+    const cacheKey = `@haajari_cache_site_control_${siteId}_${date || "today"}`;
+    try {
+      const url = date
+        ? `${API_URL}/sites/${siteId}/control?date=${date}`
+        : `${API_URL}/sites/${siteId}/control`;
+      const res = await authenticatedFetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        AsyncStorage.setItem(cacheKey, JSON.stringify(data)).catch(() => {});
+        return data;
+      }
+    } catch (e) {
+      console.warn("getSiteControlCenter offline fallback:", e);
     }
-    return await res.json();
+    const cached = await AsyncStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (_) {}
+    }
+    return null;
   },
 
   async getSitePhotos(
     siteId: string,
     params?: { date?: string; activityType?: string; workerId?: string },
   ) {
-    const query = new URLSearchParams();
-    if (params?.date) query.append("date", params.date);
-    if (params?.activityType) query.append("activityType", params.activityType);
-    if (params?.workerId) query.append("workerId", params.workerId);
+    const cacheKey = `@haajari_cache_site_photos_${siteId}_${params?.date || "today"}`;
+    try {
+      const query = new URLSearchParams();
+      if (params?.date) query.append("date", params.date);
+      if (params?.activityType) query.append("activityType", params.activityType);
+      if (params?.workerId) query.append("workerId", params.workerId);
 
-    const qs = query.toString();
-    const url = qs
-      ? `${API_URL}/sites/${siteId}/photos?${qs}`
-      : `${API_URL}/sites/${siteId}/photos`;
-    const res = await authenticatedFetch(url);
-    if (!res.ok) {
-      throw new Error(`Failed to load site photos: ${res.status}`);
+      const qs = query.toString();
+      const url = qs
+        ? `${API_URL}/sites/${siteId}/photos?${qs}`
+        : `${API_URL}/sites/${siteId}/photos`;
+      const res = await authenticatedFetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        AsyncStorage.setItem(cacheKey, JSON.stringify(data)).catch(() => {});
+        return data;
+      }
+    } catch (e) {
+      console.warn("getSitePhotos offline fallback:", e);
     }
-    return await res.json();
+    const cached = await AsyncStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (_) {}
+    }
+    return {
+      success: true,
+      total: 0,
+      morningCount: 0,
+      eveningCount: 0,
+      issueCount: 0,
+      photos: [],
+    };
   },
 
   async submitWorkUpdate(
