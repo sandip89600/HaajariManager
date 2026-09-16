@@ -114,7 +114,7 @@ export default function WorkerCameraUpdateScreen() {
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         allowsEditing: false,
         quality: 0.7, // Good compression for mobile upload without quality loss
       });
@@ -145,7 +145,7 @@ export default function WorkerCameraUpdateScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         allowsEditing: false,
         quality: 0.7,
       });
@@ -205,7 +205,7 @@ export default function WorkerCameraUpdateScreen() {
         });
       } else {
         await siteActivityStorage.submitWorkUpdate(activeSite.id, {
-          type: mode,
+          activityType: mode,
           photoUrl: uploadedUrl,
           description: description.trim() || undefined,
           latitude: gpsLocation?.latitude,

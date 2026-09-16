@@ -2083,7 +2083,7 @@ export const siteActivityStorage = {
   async submitWorkUpdate(
     siteId: string,
     payload: {
-      type: "MORNING_WORK" | "EVENING_WORK";
+      activityType: "MORNING_WORK" | "EVENING_WORK";
       photoUrl: string;
       description?: string;
       latitude?: number;
