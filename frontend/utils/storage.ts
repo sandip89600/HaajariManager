@@ -1930,6 +1930,7 @@ export interface WorkerTodayContext {
     category: string;
     dailyWage: number;
     profileImage?: string;
+    contractorName?: string;
   };
   hasActiveSession: boolean;
   activeSession: any;

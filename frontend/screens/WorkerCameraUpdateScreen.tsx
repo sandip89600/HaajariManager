@@ -246,9 +246,9 @@ export default function WorkerCameraUpdateScreen() {
               { color: isDark ? "#F8FAFC" : "#0F172A" },
             ]}
           >
-            {activeSite?.name || "Detecting Site..."}
+            {activeSite?.name || (isLoading ? "Detecting Site..." : (todayContext?.worker?.contractorName ? "No Site Assigned" : "No Contractor Connected"))}
           </Text>
-          {activeSite?.address && (
+          {activeSite?.address ? (
             <Text
               numberOfLines={1}
               style={[
@@ -258,7 +258,17 @@ export default function WorkerCameraUpdateScreen() {
             >
               {activeSite.address}
             </Text>
-          )}
+          ) : todayContext?.worker?.contractorName ? (
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.siteBannerAddress,
+                { color: isDark ? "#64748B" : "#94A3B8" },
+              ]}
+            >
+              Contractor: {todayContext.worker.contractorName}
+            </Text>
+          ) : null}
         </View>
       </View>
 
