@@ -64,6 +64,7 @@ export type MainTabParamList = {
   SiteLogsTab?: undefined;
   ScanQRTab?: undefined;
   SummaryTab: undefined;
+  ProfileTab?: undefined;
   SiteControlTab?: undefined;
 
   // Legacy tab aliases
@@ -255,21 +256,21 @@ function MainTabs() {
           options={{ headerShown: false }}
         />
 
-        {/* WORKER SITE LOGS TAB */}
-        {isWorker && (
-          <Tab.Screen
-            name="SiteLogsTab"
-            component={WorkerSiteLogsScreen}
-            options={{ headerShown: false }}
-          />
-        )}
-
         {/* Summary Tab (Worker uses WorkerSummaryScreen, Contractor/Supervisor uses SummaryScreen) */}
         <Tab.Screen
           name="SummaryTab"
           component={isWorker ? WorkerSummaryScreen : SummaryScreen}
           options={{ headerShown: false }}
         />
+
+        {/* Worker Profile Tab */}
+        {isWorker && (
+          <Tab.Screen
+            name="ProfileTab"
+            component={UserProfileScreen}
+            options={{ headerShown: false }}
+          />
+        )}
 
         {/* Site Control (Contractor & Supervisor only) */}
         {!isWorker && (

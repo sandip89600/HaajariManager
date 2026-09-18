@@ -9,6 +9,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Modal,
+  DeviceEventEmitter,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -30,15 +31,39 @@ export default function WorkerSiteLogsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Fullscreen photo modal
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  // Fullscreen photo detail modal state
+  const [selectedPhotoDetail, setSelectedPhotoDetail] = useState<{
+    url: string;
+    workerName?: string;
+    activityType?: string;
+    timeStr?: string;
+    dateStr?: string;
+    description?: string;
+    location?: any;
+    status?: string;
+  } | null>(null);
 
   const fetchLogs = useCallback(async () => {
     try {
       const data = await siteActivityStorage.getWorkerSiteLogs(filter);
-      if (data.activities) {
-        setLogs(data.activities);
-      }
+      const rawLogs = data?.logs || data?.activities || [];
+      const normalized = rawLogs.map((item: any) => ({
+        id: item._id || item.id,
+        type: item.activityType || item.type,
+        activityType: item.activityType || item.type,
+        userName: item.userName || item.worker?.name || item.user?.name || "Worker",
+        workerRole: item.workerRole || item.worker?.category || "Labour",
+        description: item.description || "",
+        photo: typeof item.photo === "string" ? { url: item.photo } : item.photo,
+        photoUrl: typeof item.photo === "string" ? item.photo : item.photo?.url,
+        location: item.location,
+        dateStr: item.dateStr || "",
+        timeStr: item.timeStr || "",
+        status: item.status,
+        site: item.siteId && typeof item.siteId === "object" ? item.siteId : item.site,
+        createdAt: item.createdAt,
+      }));
+      setLogs(normalized);
     } catch (e) {
       console.warn("Failed to fetch worker site logs:", e);
     } finally {
@@ -50,6 +75,13 @@ export default function WorkerSiteLogsScreen() {
   useEffect(() => {
     setIsLoading(true);
     fetchLogs();
+  }, [fetchLogs]);
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("refreshData", () => {
+      fetchLogs();
+    });
+    return () => sub.remove();
   }, [fetchLogs]);
 
   const onRefresh = () => {
@@ -177,13 +209,24 @@ export default function WorkerSiteLogsScreen() {
         ) : null}
 
         {/* Photo Preview */}
-        {item.photo?.url ? (
+        {(item.photo?.url || (item as any).photoUrl) ? (
           <Pressable
-            onPress={() => setSelectedImage(item.photo?.url || null)}
+            onPress={() =>
+              setSelectedPhotoDetail({
+                url: item.photo?.url || (item as any).photoUrl,
+                workerName: (item as any).userName || "Worker",
+                activityType: item.type,
+                timeStr: item.timeStr,
+                dateStr: item.dateStr,
+                description: item.description,
+                location: item.location,
+                status: item.status,
+              })
+            }
             style={styles.imageThumbnailContainer}
           >
             <Image
-              source={{ uri: item.photo.url }}
+              source={{ uri: item.photo?.url || (item as any).photoUrl }}
               style={styles.imageThumbnail}
               resizeMode="cover"
             />
@@ -360,26 +403,79 @@ export default function WorkerSiteLogsScreen() {
         />
       )}
 
-      {/* Photo Fullscreen Modal */}
+      {/* Photo Fullscreen & Metadata Modal */}
       <Modal
-        visible={!!selectedImage}
+        visible={!!selectedPhotoDetail}
         transparent
         animationType="fade"
-        onRequestClose={() => setSelectedImage(null)}
+        onRequestClose={() => setSelectedPhotoDetail(null)}
       >
         <View style={styles.modalBackdrop}>
           <Pressable
-            onPress={() => setSelectedImage(null)}
+            onPress={() => setSelectedPhotoDetail(null)}
             style={styles.modalCloseBtn}
           >
             <Feather name="x" size={24} color="#FFFFFF" />
           </Pressable>
-          {selectedImage && (
-            <Image
-              source={{ uri: selectedImage }}
-              style={styles.fullscreenImage}
-              resizeMode="contain"
-            />
+
+          {selectedPhotoDetail && (
+            <View style={styles.modalInnerContainer}>
+              <Image
+                source={{ uri: selectedPhotoDetail.url }}
+                style={styles.fullscreenImage}
+                resizeMode="contain"
+              />
+
+              <View
+                style={[
+                  styles.modalMetaCard,
+                  {
+                    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                    borderColor: isDark ? "#334155" : "#E2E8F0",
+                  },
+                ]}
+              >
+                <View style={styles.modalMetaHeaderRow}>
+                  <Text
+                    style={[
+                      styles.modalMetaType,
+                      { color: isDark ? "#F8FAFC" : "#0F172A" },
+                    ]}
+                  >
+                    {selectedPhotoDetail.activityType === "MORNING_WORK"
+                      ? "🌅 Morning Work Update"
+                      : selectedPhotoDetail.activityType === "EVENING_WORK"
+                      ? "🌆 Evening Work Update"
+                      : selectedPhotoDetail.activityType === "ISSUE"
+                      ? "⚠️ Site Issue"
+                      : "📋 Contractor Instruction"}
+                  </Text>
+                  <Text style={styles.modalMetaTime}>
+                    {selectedPhotoDetail.timeStr}
+                  </Text>
+                </View>
+
+                {selectedPhotoDetail.description ? (
+                  <Text
+                    style={[
+                      styles.modalMetaDesc,
+                      { color: isDark ? "#CBD5E1" : "#475569" },
+                    ]}
+                  >
+                    "{selectedPhotoDetail.description}"
+                  </Text>
+                ) : null}
+
+                <View style={styles.modalMetaDetailsRow}>
+                  <Text style={styles.modalMetaLabel}>
+                    👷 {selectedPhotoDetail.workerName || "Worker"}
+                  </Text>
+                  <Text style={styles.modalMetaLabel}>
+                    📍 GPS {selectedPhotoDetail.location?.accuracy ? `(±${Math.round(selectedPhotoDetail.location.accuracy)}m)` : "Captured"}
+                  </Text>
+                </View>
+              </View>
+            </View>
           )}
         </View>
       </Modal>
@@ -562,9 +658,10 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.92)",
+    backgroundColor: "rgba(0, 0, 0, 0.94)",
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 16,
   },
   modalCloseBtn: {
     position: "absolute",
@@ -578,8 +675,55 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  modalInnerContainer: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 40,
+  },
   fullscreenImage: {
-    width: "95%",
-    height: "80%",
+    width: "100%",
+    height: 340,
+    borderRadius: 16,
+    backgroundColor: "#0F172A",
+    marginBottom: 16,
+  },
+  modalMetaCard: {
+    width: "100%",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    gap: 8,
+  },
+  modalMetaHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  modalMetaType: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  modalMetaTime: {
+    fontSize: 12,
+    color: "#94A3B8",
+    fontWeight: "600",
+  },
+  modalMetaDesc: {
+    fontSize: 13,
+    fontStyle: "italic",
+    lineHeight: 18,
+  },
+  modalMetaDetailsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(148, 163, 184, 0.2)",
+  },
+  modalMetaLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
   },
 });

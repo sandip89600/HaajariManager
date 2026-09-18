@@ -346,8 +346,10 @@ export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Respo
     }
 
     const connectionReq = await ConnectionRequest.findOne({
-      senderId: contractorId,
-      receiverId: targetUser._id,
+      $or: [
+        { senderId: contractorId, receiverId: targetUser._id },
+        { senderId: targetUser._id, receiverId: contractorId },
+      ],
       status: "pending",
     });
 
@@ -861,6 +863,28 @@ export const disconnectConnection = async (req: AuthenticatedRequest, res: Respo
     targetUser.contractorName = undefined;
     targetUser.contractorCompany = undefined;
     await targetUser.save();
+
+    // If target was worker, unclaim Worker record without deleting attendance/payroll
+    if (targetUser.role === "labor" || (targetUser.role as string) === "worker") {
+      await Worker.updateMany(
+        { userId: targetUser._id },
+        { $set: { isClaimed: false, userId: null } }
+      );
+    }
+
+    // Broadcast socket event to both parties
+    try {
+      const io = getIO();
+      io.to(`user_${targetUser._id}`).emit("connection:disconnected", {
+        disconnectedWith: currentUserId,
+      });
+      io.to(`user_${currentUserId}`).emit("connection:disconnected", {
+        disconnectedWith: targetUser._id,
+      });
+      io.emit("admin_dashboard_update");
+    } catch (sErr) {
+      console.warn("Socket broadcast error in disconnectConnection:", sErr);
+    }
 
     return res.json({
       success: true,

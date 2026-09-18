@@ -27,7 +27,10 @@ export const getSitePhotos = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     if (activityType && activityType !== "ALL" && activityType !== "all") {
-      activityQuery.activityType = activityType;
+      let normType = String(activityType).toUpperCase();
+      if (normType === "MORNING") normType = "MORNING_WORK";
+      if (normType === "EVENING") normType = "EVENING_WORK";
+      activityQuery.activityType = normType;
     }
 
     if (workerId && workerId !== "ALL" && workerId !== "all") {

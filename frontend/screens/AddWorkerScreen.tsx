@@ -96,6 +96,7 @@ export default function AddWorkerScreen() {
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<WorkerCategory>("labour");
+  const [dailyRateInput, setDailyRateInput] = useState("");
   const [existingDailyRate, setExistingDailyRate] = useState<number>(0);
   const [skillCategory, setSkillCategory] = useState<
     "skilled" | "semi_skilled" | "unskilled"
@@ -151,6 +152,7 @@ export default function AddWorkerScreen() {
     if (worker) {
       setName(worker.name);
       setCategory(worker.category);
+      setDailyRateInput((worker.dailyRate || "").toString());
       setExistingDailyRate(worker.dailyRate || 0);
       setSkillCategory(worker.skillCategory || "unskilled");
       setPaymentType(worker.paymentType || "daily");
@@ -240,6 +242,11 @@ export default function AddWorkerScreen() {
         }
       }
 
+      const finalDailyRate =
+        dailyRateInput.trim() !== ""
+          ? parseFloat(dailyRateInput) || 0
+          : existingDailyRate || 0;
+
       if (isEditing && workerId) {
         const workers = await storage.getWorkers();
         const existingWorker = workers.find((w) => w.id === workerId);
@@ -248,7 +255,7 @@ export default function AddWorkerScreen() {
             ...existingWorker,
             name: name.trim(),
             category,
-            dailyRate: existingWorker.dailyRate ?? existingDailyRate ?? 0,
+            dailyRate: finalDailyRate,
             skillCategory,
             paymentType,
             pieceRateAmount: parseFloat(pieceRateAmount) || 0,
@@ -266,7 +273,7 @@ export default function AddWorkerScreen() {
           id: generateId(),
           name: name.trim(),
           category,
-          dailyRate: existingDailyRate || 0,
+          dailyRate: finalDailyRate,
           skillCategory,
           paymentType,
           pieceRateAmount: parseFloat(pieceRateAmount) || 0,
@@ -562,6 +569,30 @@ export default function AddWorkerScreen() {
             })}
           </View>
         </View>
+
+        {/* Daily Wage (Daily Rate) */}
+        {paymentType === "daily" && (
+          <View style={styles.formGroup}>
+            <ThemedText type="h4" style={styles.label}>
+              Daily Wage ({t.common.currency} / Day)
+            </ThemedText>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+              value={dailyRateInput}
+              onChangeText={setDailyRateInput}
+              placeholder="e.g. 500"
+              placeholderTextColor={theme.textSecondary}
+              keyboardType="numeric"
+            />
+          </View>
+        )}
 
         {/* Piece Rate Amount (Conditional) */}
         {paymentType === "piece_rate" && (

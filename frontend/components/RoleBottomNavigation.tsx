@@ -152,9 +152,12 @@ export default function RoleBottomNavigation({
   // Compute curved notch path if center action exists; otherwise flat bar
   const w = barWidth || Dimensions.get("window").width;
   const h = barHeight;
-  const cx = w / 2;
-  const cr = 40;
-  const notchDepth = 30;
+  const centerIndex = navItems.findIndex((i) => i.isCenterAction);
+  const totalItems = navItems.length || 5;
+  const cx =
+    centerIndex !== -1 ? (w / totalItems) * (centerIndex + 0.5) : w / 2;
+  const cr = 38;
+  const notchDepth = 26;
 
   // Smooth SVG Path for the bottom bar background
   const bgPath = hasCenterAction
@@ -364,15 +367,15 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   centerQrButton: {
-    width: 58,
-    height: 58,
+    width: 56,
+    height: 56,
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: -62,
+    marginTop: -48,
     elevation: 12,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
   },
 });

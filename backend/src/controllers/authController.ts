@@ -3,7 +3,7 @@ import axios from "axios";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import { User, Tenant, AuditLog, Worker, Attendance, Payment, WageHistory, Project, OtpCode, RecoverySession, SecurityEvent } from "../models";
+import { User, Tenant, AuditLog, Worker, Attendance, Payment, WageHistory, Project, OtpCode, RecoverySession, SecurityEvent, ConnectionRequest } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { sendPasswordResetEmail, sendWelcomeEmail, sendPasswordResetSuccessEmail, sendNewLoginAlertEmail } from "../utils/mail";
 import { sendPushNotification } from "../utils/notifications";
@@ -1899,6 +1899,24 @@ export const deleteAccount = async (req: AuthenticatedRequest, res: Response) =>
     const tenantId = user.tenantId;
 
     if (user.role === "contractor" || user.role === "builder") {
+      // Unlink connected workers
+      await User.updateMany(
+        { contractorId: user._id },
+        {
+          $set: {
+            connectionStatus: "not_connected",
+            contractorId: null,
+            contractorName: null,
+            contractorCompany: null,
+          },
+        }
+      );
+
+      // Clean up connection requests
+      await ConnectionRequest.deleteMany({
+        $or: [{ senderId: user._id }, { receiverId: user._id }, { tenantId }],
+      });
+
       // Delete all tenant data
       await Attendance.deleteMany({ tenantId });
       await Payment.deleteMany({ tenantId });
@@ -1909,7 +1927,17 @@ export const deleteAccount = async (req: AuthenticatedRequest, res: Response) =>
       await User.deleteMany({ tenantId });
       await Tenant.findByIdAndDelete(tenantId);
     } else {
-      // Supervisor: just delete their user record
+      // Member (Worker / Labor / Supervisor) account deletion
+      await ConnectionRequest.deleteMany({
+        $or: [{ senderId: userId }, { receiverId: userId }],
+      });
+
+      // Unlink worker profile from tenant if claimed
+      await Worker.updateMany(
+        { userId: user._id },
+        { $set: { userId: null, isClaimed: false } }
+      );
+
       await User.findByIdAndDelete(userId);
     }
 

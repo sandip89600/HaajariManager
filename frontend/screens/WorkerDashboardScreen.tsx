@@ -445,7 +445,7 @@ export default function WorkerDashboardScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + 80 },
+          { paddingBottom: insets.bottom + 100 },
         ]}
         refreshControl={
           <RefreshControl
@@ -536,42 +536,6 @@ export default function WorkerDashboardScreen() {
           </View>
         )}
 
-        {/* 2. CONTRACTOR INSTRUCTION BANNER */}
-        {todayContext?.latestInstruction && (
-          <View
-            style={[
-              styles.instructionBanner,
-              {
-                backgroundColor: isDark ? "#312E81" : "#EEF2FF",
-                borderColor: "#6366F1",
-              },
-            ]}
-          >
-            <View style={styles.instructionBannerHeader}>
-              <MaterialCommunityIcons
-                name="bullhorn"
-                size={18}
-                color="#6366F1"
-              />
-              <Text style={styles.instructionBannerTitle}>
-                {t("site.contractorInstruction", "Contractor Instruction")}
-              </Text>
-              {todayContext.latestInstruction.timeStr && (
-                <Text style={styles.instructionTimeTag}>
-                  {todayContext.latestInstruction.timeStr}
-                </Text>
-              )}
-            </View>
-            <Text
-              style={[
-                styles.instructionBannerDesc,
-                { color: isDark ? "#E0E7FF" : "#312E81" },
-              ]}
-            >
-              "{todayContext.latestInstruction.description}"
-            </Text>
-          </View>
-        )}
 
         {/* 3. PROMINENT CTA: SUBMIT WORK UPDATE */}
         <Pressable
@@ -1451,6 +1415,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "500",
+  },
+  instructionActionBtn: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: "rgba(99, 102, 241, 0.15)",
+  },
+  instructionActionBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#6366F1",
   },
   prominentWorkUpdateBtn: {
     flexDirection: "row",

@@ -452,19 +452,33 @@ export const submitWorkUpdate = async (
     const {
       activityType,
       photo,
-      description,
       location,
       clientRequestId,
+      description,
     } = req.body;
 
-    if (!activityType || !["MORNING_WORK", "EVENING_WORK"].includes(activityType)) {
+    let normalizedType = (activityType || "").toUpperCase().trim();
+    if (normalizedType === "MORNING") normalizedType = "MORNING_WORK";
+    if (normalizedType === "EVENING") normalizedType = "EVENING_WORK";
+
+    if (!["MORNING_WORK", "EVENING_WORK"].includes(normalizedType)) {
       return res.status(400).json({
-        error: "activityType must be MORNING_WORK or EVENING_WORK",
+        error: "Photo type must be MORNING or EVENING",
       });
     }
 
     if (!photo) {
       return res.status(400).json({ error: "Photo is required for work update." });
+    }
+
+    if (
+      !location ||
+      typeof location.latitude !== "number" ||
+      typeof location.longitude !== "number"
+    ) {
+      return res.status(400).json({
+        error: "Location permission and GPS coordinates are required for work photos.",
+      });
     }
 
     // Check idempotency with clientRequestId
@@ -501,7 +515,7 @@ export const submitWorkUpdate = async (
       tenantId,
       siteId: site._id,
       dateStr,
-      activityType,
+      activityType: normalizedType,
     };
     if (worker) {
       duplicateQuery.workerId = worker._id;
@@ -511,12 +525,16 @@ export const submitWorkUpdate = async (
 
     const duplicate = await DailySiteActivity.findOne(duplicateQuery);
     if (duplicate) {
+      const isMorning = normalizedType === "MORNING_WORK";
       return res.status(400).json({
-        error: `You have already submitted ${
-          activityType === "MORNING_WORK" ? "Morning" : "Evening"
-        } Update for today.`,
+        error: `${isMorning ? "Morning" : "Evening"} photo already uploaded for today.`,
       });
     }
+
+    const defaultDesc =
+      normalizedType === "MORNING_WORK"
+        ? "Morning Work Photo"
+        : "Evening Work Photo";
 
     const activity = new DailySiteActivity({
       tenantId,
@@ -525,17 +543,15 @@ export const submitWorkUpdate = async (
       userId: user._id,
       userName: user.name,
       workerRole: user.workerCategory || worker?.category || user.role,
-      activityType,
+      activityType: normalizedType,
       photo,
-      description: (description || "").trim() || (activityType === "MORNING_WORK" ? "Work started" : "Work completed"),
-      location: location
-        ? {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            accuracy: location.accuracy,
-            address: location.address,
-          }
-        : undefined,
+      description: (description || "").trim() || defaultDesc,
+      location: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: location.accuracy,
+        address: location.address || site.address,
+      },
       dateStr,
       timeStr,
       clientRequestId,

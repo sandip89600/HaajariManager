@@ -28,6 +28,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
 import {
   storage,
+  siteActivityStorage,
   Worker,
   AttendanceRecord,
   PaymentRecord,
@@ -234,6 +235,7 @@ export default function WorkerSummaryScreen() {
 
   // State data
   const [summary, setSummary] = useState<WorkerSummary | null>(null);
+  const [workProofStats, setWorkProofStats] = useState<any>(null);
   const [expandedDetails, setExpandedDetails] = useState(false);
 
   const monthNames = [
@@ -260,6 +262,16 @@ export default function WorkerSummaryScreen() {
       if (!silent) setIsLoading(true);
 
       try {
+        // Fetch Work Proof & Attendance summary
+        try {
+          const stats = await siteActivityStorage.getWorkerSummaryStats();
+          if (stats && stats.success) {
+            setWorkProofStats(stats);
+          }
+        } catch (sErr) {
+          console.log("Failed to load worker summary stats:", sErr);
+        }
+
         const currentWorker: Worker = {
           id: user?.id || "worker_self",
           uniqueId: user?.uniqueId,
@@ -443,6 +455,64 @@ export default function WorkerSummaryScreen() {
 
     return (
       <View style={styles.headerContent}>
+        {/* Work Proof & Attendance Summary Card (Part 28) */}
+        {workProofStats && (
+          <View
+            style={[
+              styles.workProofSummaryCard,
+              {
+                backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                borderColor: isDark ? "#334155" : "#E2E8F0",
+              },
+            ]}
+          >
+            <View style={styles.workProofSectionHeader}>
+              <Feather name="activity" size={15} color={theme.primary} />
+              <ThemedText type="small" style={{ fontWeight: "800", color: theme.primary, letterSpacing: 0.5 }}>
+                TODAY & THIS WEEK SUMMARY
+              </ThemedText>
+            </View>
+
+            <View style={styles.workProofGrid}>
+              {/* Today Attendance */}
+              <View style={styles.workProofCol}>
+                <ThemedText type="small" style={styles.workProofLabel}>Today Attendance</ThemedText>
+                <ThemedText style={[styles.workProofVal, { color: workProofStats.today?.attendance === "P" || workProofStats.today?.attendance === "OT" ? "#10B981" : "#64748B" }]}>
+                  {workProofStats.today?.attendance === "P" ? "✓ Present" : workProofStats.today?.attendance === "OT" ? "✓ Overtime" : workProofStats.today?.attendance === "H" ? "Half Day" : "Unmarked"}
+                </ThemedText>
+              </View>
+
+              {/* Morning Update */}
+              <View style={styles.workProofCol}>
+                <ThemedText type="small" style={styles.workProofLabel}>🌅 Morning</ThemedText>
+                <ThemedText style={[styles.workProofVal, { color: workProofStats.today?.morningUpdate === "submitted" ? "#10B981" : "#F59E0B" }]}>
+                  {workProofStats.today?.morningUpdate === "submitted" ? `✓ ${workProofStats.today.morningTime || "Done"}` : "Pending"}
+                </ThemedText>
+              </View>
+
+              {/* Evening Update */}
+              <View style={styles.workProofCol}>
+                <ThemedText type="small" style={styles.workProofLabel}>🌆 Evening</ThemedText>
+                <ThemedText style={[styles.workProofVal, { color: workProofStats.today?.eveningUpdate === "submitted" ? "#10B981" : "#F59E0B" }]}>
+                  {workProofStats.today?.eveningUpdate === "submitted" ? `✓ ${workProofStats.today.eveningTime || "Done"}` : "Pending"}
+                </ThemedText>
+              </View>
+            </View>
+
+            <View style={styles.workProofDivider} />
+
+            {/* This Week Stats */}
+            <View style={styles.workProofWeekRow}>
+              <ThemedText type="small" style={{ color: isDark ? "#94A3B8" : "#64748B", fontWeight: "600" }}>
+                📅 This Week: <ThemedText type="small" style={{ fontWeight: "800", color: isDark ? "#F8FAFC" : "#0F172A" }}>{workProofStats.thisWeek?.attendanceDays || 0} days</ThemedText>
+              </ThemedText>
+              <ThemedText type="small" style={{ color: isDark ? "#94A3B8" : "#64748B", fontWeight: "600" }}>
+                📸 Work Proofs: <ThemedText type="small" style={{ fontWeight: "800", color: isDark ? "#F8FAFC" : "#0F172A" }}>{workProofStats.thisWeek?.totalUpdates || 0} ({workProofStats.thisWeek?.morningCount || 0}🌅 / {workProofStats.thisWeek?.eveningCount || 0}🌆)</ThemedText>
+              </ThemedText>
+            </View>
+          </View>
+        )}
+
         {/* Floating Month & Export Controls */}
         <View style={styles.topRow}>
           <Pressable
@@ -2335,6 +2405,51 @@ const styles = StyleSheet.create({
   },
   paymentCancelBtn: {
     borderWidth: 1,
+  },
+  workProofSummaryCard: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  workProofSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+  },
+  workProofGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  workProofCol: {
+    flex: 1,
+  },
+  workProofLabel: {
+    fontSize: 11,
+    color: "#64748B",
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  workProofVal: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  workProofDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(148, 163, 184, 0.2)",
+    marginVertical: 10,
+  },
+  workProofWeekRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
 });
 

@@ -2084,12 +2084,14 @@ export const siteActivityStorage = {
     siteId: string,
     payload: {
       activityType: "MORNING_WORK" | "EVENING_WORK";
-      photoUrl: string;
+      photo: string;
       description?: string;
-      latitude?: number;
-      longitude?: number;
-      accuracy?: number;
-      address?: string;
+      location?: {
+        latitude?: number;
+        longitude?: number;
+        accuracy?: number;
+        address?: string;
+      };
       clientRequestId?: string;
     },
   ) {
@@ -2161,12 +2163,14 @@ export const siteActivityStorage = {
     siteId: string,
     payload: {
       description: string;
-      photoUrl?: string;
+      photo?: string;
       severity?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-      latitude?: number;
-      longitude?: number;
-      accuracy?: number;
-      address?: string;
+      location?: {
+        latitude?: number;
+        longitude?: number;
+        accuracy?: number;
+        address?: string;
+      };
     },
   ) {
     const res = await authenticatedFetch(`${API_URL}/sites/${siteId}/issues`, {
