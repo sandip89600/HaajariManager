@@ -2141,7 +2141,7 @@ export const siteActivityStorage = {
   }): Promise<WorkerTodayContext> {
     let url = `${API_URL}/sites/workers/me/today-context`;
     if (coords?.latitude && coords?.longitude) {
-      url += `?lat=${coords.latitude}&lon=${coords.longitude}`;
+      url += `?lat=${coords.latitude}&lng=${coords.longitude}&lon=${coords.longitude}`;
     }
     const res = await authenticatedFetch(url);
     if (!res.ok) {

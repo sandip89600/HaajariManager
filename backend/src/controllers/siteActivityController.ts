@@ -9,6 +9,7 @@ import {
   DailySiteActivity,
   DailySiteSession,
   Tenant,
+  Project,
 } from "../models";
 import { getIO } from "../utils/socket";
 
@@ -443,11 +444,10 @@ export const submitWorkUpdate = async (
   res: Response
 ) => {
   try {
-    const tenantId = req.user?.tenantId;
     const userId = req.user?.id;
     const { siteId } = req.params;
 
-    if (!tenantId || !userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const {
       activityType,
@@ -492,19 +492,45 @@ export const submitWorkUpdate = async (
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const site = await Site.findOne({ _id: siteId, tenantId, isDeleted: false });
-    if (!site) return res.status(404).json({ error: "Site not found" });
+    const phoneDigits = user.phone ? user.phone.replace(/\D/g, "") : "";
+    const clean10 = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : "";
 
     // Link corresponding Worker record if available
     let worker = await Worker.findOne({
-      tenantId,
       $or: [
         { userId: user._id },
         ...(user.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
-        ...(user.phone ? [{ phone: new RegExp(user.phone.replace(/\D/g, "").slice(-10) + "$") }] : []),
+        ...(clean10 ? [{ phone: new RegExp(clean10 + "$") }] : []),
+        ...(user.phone ? [{ phone: user.phone }] : []),
       ],
       isArchived: false,
-    });
+    }).sort({ updatedAt: -1, createdAt: -1 });
+
+    let effectiveTenantId = worker?.tenantId || user.tenantId || req.user?.tenantId;
+    if (user.contractorId) {
+      const contractor = await User.findById(user.contractorId);
+      if (contractor?.tenantId) effectiveTenantId = contractor.tenantId;
+    }
+
+    let site = await Site.findOne({ _id: siteId, isDeleted: false });
+    if (!site) {
+      const proj = await Project.findOne({ _id: siteId, isDeleted: { $ne: true } });
+      if (proj) {
+        site = await Site.findOne({ name: proj.name, tenantId: effectiveTenantId, isDeleted: false });
+        if (!site) {
+          site = new Site({
+            tenantId: effectiveTenantId,
+            name: proj.name,
+            address: proj.location || "Site Address",
+            projectType: "Residential Project",
+            status: "Active",
+            createdBy: user.contractorId || user._id,
+          });
+          await site.save();
+        }
+      }
+    }
+    if (!site) return res.status(404).json({ error: "Site not found" });
 
     const now = new Date();
     const dateStr = getTodayDateStr(now);
@@ -512,7 +538,6 @@ export const submitWorkUpdate = async (
 
     // Prevent duplicate morning/evening submission for same worker & same date
     const duplicateQuery: any = {
-      tenantId,
       siteId: site._id,
       dateStr,
       activityType: normalizedType,
@@ -536,8 +561,10 @@ export const submitWorkUpdate = async (
         ? "Morning Work Photo"
         : "Evening Work Photo";
 
+    const activityTenantId = site.tenantId || effectiveTenantId;
+
     const activity = new DailySiteActivity({
-      tenantId,
+      tenantId: activityTenantId,
       siteId: site._id,
       workerId: worker ? worker._id : undefined,
       userId: user._id,
@@ -563,10 +590,10 @@ export const submitWorkUpdate = async (
     // Auto-record or update DailySiteSession for today
     if (worker) {
       await DailySiteSession.findOneAndUpdate(
-        { tenantId, workerId: worker._id, dateStr },
+        { workerId: worker._id, dateStr },
         {
           $setOnInsert: {
-            tenantId,
+            tenantId: activityTenantId,
             workerId: worker._id,
             userId: user._id,
             siteId: site._id,
@@ -585,7 +612,7 @@ export const submitWorkUpdate = async (
     // Real-time socket broadcast
     try {
       const io = getIO();
-      io.to(`tenant_${tenantId}`).emit("site:activity_added", {
+      io.to(`tenant_${activityTenantId}`).emit("site:activity_added", {
         siteId: site._id,
         activity,
       });
@@ -601,7 +628,7 @@ export const submitWorkUpdate = async (
     return res.status(201).json({
       success: true,
       message: `${
-        activityType === "MORNING_WORK" ? "Morning" : "Evening"
+        normalizedType === "MORNING_WORK" ? "Morning" : "Evening"
       } update submitted successfully!`,
       activity,
     });
@@ -610,6 +637,8 @@ export const submitWorkUpdate = async (
     return res.status(500).json({ error: error.message });
   }
 };
+
+
 
 /**
  * 3. START TODAY'S WORK SESSION (1-Tap Zero Friction)
@@ -620,35 +649,59 @@ export const startDailyWorkSession = async (
   res: Response
 ) => {
   try {
-    const tenantId = req.user?.tenantId;
     const userId = req.user?.id;
-
-    if (!tenantId || !userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const { siteId, location, source } = req.body;
-
     if (!siteId) return res.status(400).json({ error: "siteId is required" });
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const site = await Site.findOne({ _id: siteId, tenantId, isDeleted: false });
-    if (!site) return res.status(404).json({ error: "Site not found" });
+    const phoneDigits = user.phone ? user.phone.replace(/\D/g, "") : "";
+    const clean10 = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : "";
 
     let worker = await Worker.findOne({
-      tenantId,
       $or: [
         { userId: user._id },
         ...(user.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
-        ...(user.phone ? [{ phone: new RegExp(user.phone.replace(/\D/g, "").slice(-10) + "$") }] : []),
+        ...(clean10 ? [{ phone: new RegExp(clean10 + "$") }] : []),
+        ...(user.phone ? [{ phone: user.phone }] : []),
       ],
       isArchived: false,
-    });
+    }).sort({ updatedAt: -1, createdAt: -1 });
+
+    let effectiveTenantId = worker?.tenantId || user.tenantId || req.user?.tenantId;
+    if (user.contractorId) {
+      const contractor = await User.findById(user.contractorId);
+      if (contractor?.tenantId) effectiveTenantId = contractor.tenantId;
+    }
+
+    let site = await Site.findOne({ _id: siteId, isDeleted: false });
+    if (!site) {
+      const proj = await Project.findOne({ _id: siteId, isDeleted: { $ne: true } });
+      if (proj) {
+        site = await Site.findOne({ name: proj.name, tenantId: effectiveTenantId, isDeleted: false });
+        if (!site) {
+          site = new Site({
+            tenantId: effectiveTenantId,
+            name: proj.name,
+            address: proj.location || "Site Address",
+            projectType: "Residential Project",
+            status: "Active",
+            createdBy: user.contractorId || user._id,
+          });
+          await site.save();
+        }
+      }
+    }
+    if (!site) return res.status(404).json({ error: "Site not found" });
+
+    const sessionTenantId = site.tenantId || effectiveTenantId;
 
     if (!worker) {
-      // Auto-create local worker representation if claimed
       worker = new Worker({
-        tenantId,
+        tenantId: sessionTenantId,
         userId: user._id,
         uniqueId: user.uniqueId,
         name: user.name,
@@ -665,8 +718,9 @@ export const startDailyWorkSession = async (
     const dateStr = getTodayDateStr(now);
 
     const session = await DailySiteSession.findOneAndUpdate(
-      { tenantId, workerId: worker._id, dateStr },
+      { workerId: worker._id, dateStr },
       {
+        tenantId: sessionTenantId,
         siteId: site._id,
         userId: user._id,
         startTime: now,
@@ -703,24 +757,54 @@ export const getWorkerTodayContext = async (
   res: Response
 ) => {
   try {
-    const tenantId = req.user?.tenantId;
     const userId = req.user?.id;
-    const { lat, lng } = req.query;
+    const { lat, lng, lon } = req.query;
 
-    if (!tenantId || !userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const worker = await Worker.findOne({
-      tenantId,
+    const phoneDigits = user.phone ? user.phone.replace(/\D/g, "") : "";
+    const clean10 = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : "";
+
+    // 1. Locate Worker record across tenants
+    let worker = await Worker.findOne({
       $or: [
         { userId: user._id },
         ...(user.uniqueId ? [{ uniqueId: user.uniqueId }] : []),
-        ...(user.phone ? [{ phone: new RegExp(user.phone.replace(/\D/g, "").slice(-10) + "$") }] : []),
+        ...(clean10 ? [{ phone: new RegExp(clean10 + "$") }] : []),
+        ...(user.phone ? [{ phone: user.phone }] : []),
       ],
       isArchived: false,
-    });
+    }).sort({ updatedAt: -1, createdAt: -1 });
+
+    // 2. Resolve effective contractor and tenantId
+    let effectiveTenantId = worker?.tenantId || user.tenantId || req.user?.tenantId;
+    let contractorUser: any = null;
+
+    if (user.contractorId) {
+      contractorUser = await User.findById(user.contractorId);
+      if (contractorUser?.tenantId) {
+        effectiveTenantId = contractorUser.tenantId;
+      }
+    } else if (worker?.tenantId) {
+      contractorUser = await User.findOne({
+        tenantId: worker.tenantId,
+        role: { $in: ["contractor", "builder", "admin"] },
+      });
+      if (contractorUser) {
+        user.contractorId = contractorUser._id as any;
+        user.contractorName = contractorUser.name;
+        user.contractorCompany = contractorUser.companyName || contractorUser.name;
+        user.connectionStatus = "connected";
+      }
+    }
+
+    if (effectiveTenantId && user.tenantId?.toString() !== effectiveTenantId.toString()) {
+      user.tenantId = effectiveTenantId as any;
+      await user.save();
+    }
 
     const now = new Date();
     const dateStr = getTodayDateStr(now);
@@ -728,36 +812,102 @@ export const getWorkerTodayContext = async (
     const todayMonth = now.getMonth() + 1;
     const todayDay = now.getDate();
 
-    // 1. Fetch active session today if already started
+    // 3. Fetch active session today if already started
     let activeSession = null;
     if (worker) {
       activeSession = await DailySiteSession.findOne({
-        tenantId,
         workerId: worker._id,
         dateStr,
       }).populate("siteId", "name address location projectType status");
     }
 
-    // 2. Fetch default assigned site
-    let defaultSite = null;
+    // 4. Fetch default assigned site
+    let defaultSite: any = null;
     if (worker?.projectId) {
       defaultSite = await Site.findOne({
         _id: worker.projectId,
-        tenantId,
         isDeleted: false,
       });
+      if (!defaultSite) {
+        const proj = await Project.findOne({ _id: worker.projectId, isDeleted: { $ne: true } });
+        if (proj) {
+          defaultSite = await Site.findOne({ name: proj.name, tenantId: effectiveTenantId, isDeleted: false });
+          if (!defaultSite) {
+            defaultSite = new Site({
+              tenantId: effectiveTenantId,
+              name: proj.name,
+              address: proj.location || "Site Address",
+              projectType: "Residential Project",
+              status: "Active",
+              createdBy: user.contractorId || user._id,
+            });
+            await defaultSite.save();
+          }
+        }
+      }
     }
 
-    // Fallback: first active site in tenant if no default explicitly set
+    // Fallback A: Active site in effectiveTenantId
     if (!defaultSite) {
-      defaultSite = await Site.findOne({ tenantId, isDeleted: false, isArchived: false });
+      defaultSite = await Site.findOne({
+        tenantId: effectiveTenantId,
+        isDeleted: false,
+        isArchived: false,
+      }).sort({ updatedAt: -1, createdAt: -1 });
     }
 
-    // 3. Smart GPS Detection against all registered sites in tenant
-    const allSites = await Site.find({ tenantId, isDeleted: false, isArchived: false }).lean();
+    // Fallback B: Site created by contractor
+    if (!defaultSite && contractorUser) {
+      defaultSite = await Site.findOne({
+        createdBy: contractorUser._id,
+        isDeleted: false,
+        isArchived: false,
+      }).sort({ updatedAt: -1, createdAt: -1 });
+    }
+
+    // Fallback C: Active Project in effectiveTenantId
+    if (!defaultSite) {
+      const proj = await Project.findOne({
+        tenantId: effectiveTenantId,
+        status: "active",
+        isDeleted: { $ne: true },
+      }).sort({ updatedAt: -1, createdAt: -1 });
+
+      if (proj) {
+        defaultSite = await Site.findOne({ name: proj.name, tenantId: effectiveTenantId, isDeleted: false });
+        if (!defaultSite) {
+          defaultSite = new Site({
+            tenantId: effectiveTenantId,
+            name: proj.name,
+            address: proj.location || "Site Address",
+            projectType: "Residential Project",
+            status: "Active",
+            createdBy: user.contractorId || user._id,
+          });
+          await defaultSite.save();
+        }
+      }
+    }
+
+    // Fallback D: Any active site in system
+    if (!defaultSite) {
+      defaultSite = await Site.findOne({ isDeleted: false, isArchived: false }).sort({ updatedAt: -1 });
+    }
+
+    // 5. Smart GPS Detection against all registered sites
+    const allSites = await Site.find({
+      $or: [
+        { tenantId: effectiveTenantId },
+        ...(contractorUser ? [{ createdBy: contractorUser._id }] : []),
+      ],
+      isDeleted: false,
+      isArchived: false,
+    }).lean();
+
     let detectedNearbySite: any = null;
     const clientLat = lat ? parseFloat(lat as string) : null;
-    const clientLng = lng ? parseFloat(lng as string) : null;
+    const rawLng = lng || lon;
+    const clientLng = rawLng ? parseFloat(rawLng as string) : null;
 
     if (clientLat !== null && clientLng !== null && !isNaN(clientLat) && !isNaN(clientLng)) {
       for (const s of allSites) {
@@ -777,49 +927,54 @@ export const getWorkerTodayContext = async (
       }
     }
 
-    // 4. Current working site resolution
+    // 6. Current working site resolution
     let activeWorkingSite = activeSession?.siteId || defaultSite;
 
-    // 5. Today's attendance status
+    // 7. Today's attendance status
     let todayAttendance = null;
-    if (worker) {
+    if (worker || user._id) {
       todayAttendance = await Attendance.findOne({
-        tenantId,
-        workerId: worker._id,
+        $or: [
+          ...(worker ? [{ workerId: worker._id }] : []),
+          { userId: user._id },
+        ],
         year: todayYear,
         month: todayMonth,
         day: todayDay,
       });
     }
 
-    // 6. Today's work update status
+    // 8. Today's work update status
     let morningUpdate = null;
     let eveningUpdate = null;
     if (activeWorkingSite) {
       const siteIdToQuery = (activeWorkingSite._id || activeWorkingSite.id || activeWorkingSite);
       morningUpdate = await DailySiteActivity.findOne({
-        tenantId,
         siteId: siteIdToQuery,
         dateStr,
         activityType: "MORNING_WORK",
-        ...(worker ? { workerId: worker._id } : { userId: user._id }),
+        $or: [
+          ...(worker ? [{ workerId: worker._id }] : []),
+          { userId: user._id },
+        ],
       });
 
       eveningUpdate = await DailySiteActivity.findOne({
-        tenantId,
         siteId: siteIdToQuery,
         dateStr,
         activityType: "EVENING_WORK",
-        ...(worker ? { workerId: worker._id } : { userId: user._id }),
+        $or: [
+          ...(worker ? [{ workerId: worker._id }] : []),
+          { userId: user._id },
+        ],
       });
     }
 
-    // 7. Latest active instruction for today's site
+    // 9. Latest active instruction for today's site
     let latestInstruction = null;
     if (activeWorkingSite) {
       const siteIdToQuery = (activeWorkingSite._id || activeWorkingSite.id || activeWorkingSite);
       latestInstruction = await DailySiteActivity.findOne({
-        tenantId,
         siteId: siteIdToQuery,
         activityType: "INSTRUCTION",
         status: "ACTIVE",
@@ -835,6 +990,7 @@ export const getWorkerTodayContext = async (
         category: user.workerCategory || worker?.category || "Labour",
         dailyWage: user.dailyWage || worker?.dailyRate || 0,
         profileImage: user.profileImage,
+        contractorName: user.contractorName || contractorUser?.name,
       },
       hasActiveSession: !!activeSession,
       activeSession,
