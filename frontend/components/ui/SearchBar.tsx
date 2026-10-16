@@ -30,7 +30,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   // Update fade animation based on value length
   React.useEffect(() => {
     fadeAnim.value = withTiming(value.length > 0 ? 1 : 0, { duration: 200 });
-  }, [value]);
+  }, [value, fadeAnim]);
 
   const handleFocus = () => {
     setIsFocused(true);

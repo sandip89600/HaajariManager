@@ -17,10 +17,21 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 
+import * as Font from "expo-font";
+import {
+  Feather,
+  Ionicons,
+  MaterialCommunityIcons,
+  MaterialIcons,
+} from "@expo/vector-icons";
+
 LogBox.ignoreLogs([
   "[MISSING_TRANSLATION]",
   "MISSING_TRANSLATION",
   "Non-serializable values were found in the navigation state",
+  "ExpoAsset.downloadAsync",
+  "Unable to download asset",
+  "Error: Call to function 'ExpoAsset.downloadAsync' has been rejected",
 ]);
 
 import * as Linking from "expo-linking";
@@ -102,6 +113,19 @@ function AppInner() {
 
   React.useEffect(() => {
     const cleanup = networkManager.init();
+    async function preloadFonts() {
+      try {
+        await Font.loadAsync({
+          ...Feather.font,
+          ...Ionicons.font,
+          ...MaterialCommunityIcons.font,
+          ...MaterialIcons.font,
+        });
+      } catch (e) {
+        // Non-fatal font load warning in dev
+      }
+    }
+    preloadFonts();
     return cleanup;
   }, []);
 

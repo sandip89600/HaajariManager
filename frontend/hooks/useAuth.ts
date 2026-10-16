@@ -15,7 +15,6 @@ import {
   API_URL,
   authenticatedFetch,
 } from "@/utils/storage";
-import { registerExpoPushToken } from "@/utils/notifications";
 import { getDeviceHeaders } from "@/utils/device";
 
 interface AuthContextType {
@@ -175,18 +174,6 @@ export function useAuthProvider() {
         // Run sync on launch if logged in
         if (auth.token) {
           storage.syncWithBackend();
-          registerExpoPushToken().then(async (pushToken) => {
-            if (pushToken) {
-              await fetch(`${API_URL}/auth/push-token`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${auth.token}`,
-                },
-                body: JSON.stringify({ pushToken }),
-              }).catch(() => {});
-            }
-          });
         }
       }
     } finally {
@@ -305,19 +292,6 @@ export function useAuthProvider() {
 
           // Trigger background sync
           storage.syncWithBackend();
-
-          registerExpoPushToken().then(async (pushToken) => {
-            if (pushToken) {
-              await fetch(`${API_URL}/auth/push-token`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${data.token}`,
-                },
-                body: JSON.stringify({ pushToken }),
-              }).catch(() => {});
-            }
-          });
 
           return true;
         } else {
@@ -490,19 +464,6 @@ export function useAuthProvider() {
 
           // Trigger sync
           storage.syncWithBackend();
-
-          registerExpoPushToken().then(async (pushToken) => {
-            if (pushToken) {
-              await fetch(`${API_URL}/auth/push-token`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${data.token}`,
-                },
-                body: JSON.stringify({ pushToken }),
-              }).catch(() => {});
-            }
-          });
 
           return { success: true };
         } else {
@@ -788,6 +749,7 @@ export function useAuthProvider() {
     setUserId("");
     setUserType("user");
     setUser(null);
+    setNewDeviceAlert(null);
   }, []);
 
   useEffect(() => {

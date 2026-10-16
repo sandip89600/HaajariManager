@@ -32,7 +32,7 @@ import {
 } from "@/utils/storage";
 
 type ControlTab =
-  | "BANDHKAM"
+  | "Bandhkam"
   | "RCC"
   | "PLASTER"
   | "TILES"
@@ -87,7 +87,7 @@ export default function SiteDetailControlScreen() {
 
   const [site, setSite] = useState<Project | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
-  const [activeTab, setActiveTab] = useState<ControlTab>("BANDHKAM");
+  const [activeTab, setActiveTab] = useState<ControlTab>("Bandhkam");
   const [photoFilter, setPhotoFilter] = useState<PhotoFilter>("ALL");
   const [controlData, setControlData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -182,7 +182,7 @@ export default function SiteDetailControlScreen() {
         cat.includes("brick") ||
         cat.includes("mistri") ||
         cat.includes("bandhkam") ||
-        cat.includes("BANDHKAM") ||
+        cat.includes("Bandhkam") ||
         cat.includes("कारिगीर")
       );
     });
@@ -469,7 +469,7 @@ export default function SiteDetailControlScreen() {
   };
 
   const tabs: { id: ControlTab; label: string; icon: string; count?: number }[] = [
-    { id: "BANDHKAM", label: "BANDHKAM", icon: "wall", count: bandhkamWorkers.length },
+    { id: "Bandhkam", label: "Bandhkam", icon: "wall", count: bandhkamWorkers.length },
     { id: "RCC", label: "RCC", icon: "shield-home", count: rccWorkers.length },
     { id: "PLASTER", label: "Plaster", icon: "format-paint", count: plasterWorkers.length },
     { id: "TILES", label: "Tiles", icon: "view-grid", count: tilesWorkers.length },
@@ -631,18 +631,18 @@ export default function SiteDetailControlScreen() {
           />
         }
       >
-        {/* TAB 1: BANDHKAM (Bandhkam / Masonry) */}
-        {activeTab === "BANDHKAM" && (
+        {/* TAB 1: Bandhkam (Bandhkam / Masonry) */}
+        {activeTab === "Bandhkam" && (
           <View>
             <View style={styles.sectionHeaderRow}>
-              <ThemedText style={styles.sectionTitle}>🧱 BANDHKAM (Masonry Workers)</ThemedText>
+              <ThemedText style={styles.sectionTitle}>🧱 Bandhkam (Masonry Workers)</ThemedText>
               <Text style={styles.sectionCountText}>{bandhkamWorkers.length} Workers</Text>
             </View>
             {bandhkamWorkers.length === 0 ? (
               <View style={[styles.emptyBox, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
                 <Text style={{ fontSize: 36, marginBottom: 8 }}>🧱</Text>
                 <ThemedText style={styles.emptyTitle}>No Masonry Workers Assigned</ThemedText>
-                <ThemedText style={styles.emptyDesc}>Workers tagged under BANDHKAM or Masonry will appear here.</ThemedText>
+                <ThemedText style={styles.emptyDesc}>Workers tagged under Bandhkam or Masonry will appear here.</ThemedText>
               </View>
             ) : (
               bandhkamWorkers.map((w) => renderWorkerCard(w))

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -69,7 +69,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
   const [locationError, setLocationError] = useState("");
 
   // Track initial values to detect changes (unsaved changes check)
-  const getInitialStates = () => {
+  const getInitialStates = useCallback(() => {
     if (!initialRecord) {
       return {
         status: "",
@@ -104,7 +104,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
       otWage,
       location: initialRecord.location || null,
     };
-  };
+  }, [initialRecord]);
 
   // Initialize values when modal opens
   useEffect(() => {
@@ -146,10 +146,22 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
       }
       setLocationError("");
     }
-  }, [visible, initialRecord]);
+  }, [visible, initialRecord, getInitialStates]);
+
+  // Helper check for overtime change
+  const overtimeHoursChanged = useCallback(() => {
+    const initials = getInitialStates();
+    if (modalStatus === "OT") {
+      return (
+        modalOvertimeHours !== initials.otHours ||
+        modalOvertimeWage !== initials.otWage
+      );
+    }
+    return false;
+  }, [getInitialStates, modalStatus, modalOvertimeHours, modalOvertimeWage]);
 
   // Detect unsaved changes
-  const checkIsModified = () => {
+  const checkIsModified = useCallback(() => {
     const initials = getInitialStates();
     const statusChanged = modalStatus !== initials.status;
     const advanceChanged = modalAdvance !== initials.advance;
@@ -169,21 +181,17 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
       overtimeHoursChanged() ||
       locationChanged
     );
-  };
+  }, [
+    getInitialStates,
+    modalStatus,
+    modalAdvance,
+    modalOvertimeHours,
+    modalOvertimeWage,
+    location,
+    overtimeHoursChanged,
+  ]);
 
-  // Helper check for overtime change
-  const overtimeHoursChanged = () => {
-    const initials = getInitialStates();
-    if (modalStatus === "OT") {
-      return (
-        modalOvertimeHours !== initials.otHours ||
-        modalOvertimeWage !== initials.otWage
-      );
-    }
-    return false;
-  };
-
-  const handleDismiss = () => {
+  const handleDismiss = useCallback(() => {
     if (checkIsModified()) {
       Alert.alert("Discard Changes", "Discard unsaved changes?", [
         { text: "Cancel", style: "cancel" },
@@ -196,7 +204,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
     } else {
       onClose();
     }
-  };
+  }, [checkIsModified, onClose]);
 
   // Intercept hardware back button on Android
   useEffect(() => {
@@ -213,14 +221,7 @@ export const AttendanceEditorModal: React.FC<AttendanceEditorModalProps> = ({
       onBackPress,
     );
     return () => subscription.remove();
-  }, [
-    visible,
-    modalStatus,
-    modalAdvance,
-    modalOvertimeHours,
-    modalOvertimeWage,
-    location,
-  ]);
+  }, [visible, handleDismiss]);
 
   const handleCaptureLocation = async () => {
     setLocationLoading(true);

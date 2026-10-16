@@ -31,17 +31,27 @@ export default function WorkerCameraUpdateScreen() {
   const [todayContext, setTodayContext] = useState<WorkerTodayContext | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState<"MORNING" | "EVENING" | null>(null);
 
   const loadContext = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
     try {
-      const loc = await captureLocation().catch(() => null);
+      let loc = null;
+      try {
+        loc = await captureLocation();
+      } catch (gpsErr) {
+        console.warn("GPS capture non-fatal:", gpsErr);
+      }
       const ctx = await siteActivityStorage.getWorkerTodayContext(
         loc ? { latitude: loc.latitude, longitude: loc.longitude } : undefined
       );
       setTodayContext(ctx);
-    } catch (err) {
-      console.warn("Failed to load worker today context:", err);
+    } catch (err: any) {
+      const msg = err?.message || err?.toString() || "Failed to load worker site context";
+      console.error("Worker today context error:", err);
+      setLoadError(msg);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -271,6 +281,22 @@ export default function WorkerCameraUpdateScreen() {
           ) : null}
         </View>
       </View>
+
+      {/* Error Banner with Retry */}
+      {loadError && !isLoading ? (
+        <View style={[styles.errorBanner, { backgroundColor: isDark ? "#451A1A" : "#FEF2F2", borderColor: "#FCA5A5" }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+            <Feather name="alert-circle" size={18} color="#EF4444" />
+            <Text style={[styles.errorBannerText, { color: isDark ? "#FCA5A5" : "#991B1B" }]} numberOfLines={3}>
+              {loadError}
+            </Text>
+          </View>
+          <Pressable onPress={loadContext} style={styles.retryBtn}>
+            <Feather name="refresh-cw" size={13} color="#FFFFFF" />
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {isLoading ? (
         <View style={styles.loadingArea}>
@@ -558,6 +584,35 @@ const styles = StyleSheet.create({
   submittedBadgeText: {
     color: "#15803D",
     fontSize: 13,
+    fontWeight: "700",
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 8,
+  },
+  errorBannerText: {
+    fontSize: 12,
+    fontWeight: "600",
+    flex: 1,
+  },
+  retryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  retryBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
     fontWeight: "700",
   },
 });

@@ -37,7 +37,7 @@ export const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
 
   useEffect(() => {
     progress.value = withRepeat(withTiming(1, { duration: 1500 }), -1, false);
-  }, []);
+  }, [progress]);
 
   const animatedStyle = useAnimatedStyle(() => {
     const translateX = interpolate(

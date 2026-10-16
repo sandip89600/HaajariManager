@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet, Pressable, Animated } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
@@ -30,7 +30,7 @@ export default function ContextualTooltip({
 }: ContextualTooltipProps) {
   const { theme } = useTheme();
   const [visible, setVisible] = useState(false);
-  const fadeAnim = useState(new Animated.Value(0))[0];
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     AsyncStorage.getItem(`@haajari/tooltip_${tooltipKey}`).then((val) => {
@@ -43,7 +43,7 @@ export default function ContextualTooltip({
         }).start();
       }
     });
-  }, [tooltipKey]);
+  }, [tooltipKey, fadeAnim]);
 
   const handleDismiss = async () => {
     Animated.timing(fadeAnim, {

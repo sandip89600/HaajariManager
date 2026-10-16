@@ -5,15 +5,31 @@ const env = { ...process.env };
 
 function getLocalIpAddress() {
   const interfaces = os.networkInterfaces();
+  // 1. First priority: Wi-Fi / Wireless adapter
   for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-      if (iface.family === "IPv4" && !iface.internal) {
-        if (iface.address.startsWith("192.168.")) {
+    const lower = name.toLowerCase();
+    if (lower.includes("wi-fi") || lower.includes("wifi") || lower.includes("wireless") || lower.includes("wlan")) {
+      for (const iface of interfaces[name]) {
+        if (iface.family === "IPv4" && !iface.internal) {
           return iface.address;
         }
       }
     }
   }
+  // 2. Second priority: Standard 192.168.x.x or 10.x.x.x LAN IPs
+  for (const name of Object.keys(interfaces)) {
+    const lower = name.toLowerCase();
+    if (!lower.includes("vethernet") && !lower.includes("wsl") && !lower.includes("docker") && !lower.includes("vmware")) {
+      for (const iface of interfaces[name]) {
+        if (iface.family === "IPv4" && !iface.internal) {
+          if (iface.address.startsWith("192.168.") || iface.address.startsWith("10.")) {
+            return iface.address;
+          }
+        }
+      }
+    }
+  }
+  // 3. Any non-internal IPv4
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]) {
       if (iface.family === "IPv4" && !iface.internal) {

@@ -30,7 +30,7 @@ const AnimatedNumber: React.FC<{ value: number; color?: string }> = ({
 
   useEffect(() => {
     animatedValue.value = withTiming(value, { duration: 1000 });
-  }, [value]);
+  }, [value, animatedValue]);
 
   useAnimatedStyle(() => {
     runOnJS(setDisplayValue)(Math.round(animatedValue.value));

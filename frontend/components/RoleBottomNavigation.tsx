@@ -11,7 +11,7 @@ import {
   Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
@@ -27,6 +27,226 @@ import {
 interface RoleBottomNavigationProps extends BottomTabBarProps {
   role?: string | null;
   onOpenQrScanner: () => void;
+}
+
+/**
+ * Render active (filled/solid) vs inactive (outline) icon variants
+ */
+function renderNavIcon(
+  item: NavItemConfig,
+  isFocused: boolean,
+  color: string,
+  size: number = 22,
+) {
+  const id = (item.id || "").toLowerCase();
+  const name = (item.name || "").toLowerCase();
+
+  // 1. Dashboard / Home
+  if (id === "dashboard" || name === "dashboardtab") {
+    if (id === "home") {
+      return (
+        <Ionicons
+          name={isFocused ? "home" : "home-outline"}
+          size={size}
+          color={color}
+        />
+      );
+    }
+    return (
+      <Ionicons
+        name={isFocused ? "grid" : "grid-outline"}
+        size={size}
+        color={color}
+      />
+    );
+  }
+
+  // 2. Camera / Work Photos
+  if (id === "camera" || name === "workercameratab") {
+    return (
+      <Ionicons
+        name={isFocused ? "camera" : "camera-outline"}
+        size={size}
+        color={color}
+      />
+    );
+  }
+
+  // 3. Workers
+  if (id === "workers" || name === "workerstab") {
+    return (
+      <Ionicons
+        name={isFocused ? "people" : "people-outline"}
+        size={size}
+        color={color}
+      />
+    );
+  }
+
+  // 4. Summary / Reports
+  if (id === "summary" || name === "summarytab") {
+    return (
+      <Ionicons
+        name={isFocused ? "stats-chart" : "stats-chart-outline"}
+        size={size}
+        color={color}
+      />
+    );
+  }
+
+  // 5. Site Control
+  if (id === "sitecontrol" || name === "sitecontroltab") {
+    return (
+      <Ionicons
+        name={isFocused ? "business" : "business-outline"}
+        size={size}
+        color={color}
+      />
+    );
+  }
+
+  // 6. Profile
+  if (id === "profile" || name === "profiletab") {
+    return (
+      <Ionicons
+        name={isFocused ? "person" : "person-outline"}
+        size={size}
+        color={color}
+      />
+    );
+  }
+
+  // Generic Fallback
+  return (
+    <Ionicons
+      name={(isFocused ? item.iconName : `${item.iconName}-outline`) as any}
+      size={size}
+      color={color}
+    />
+  );
+}
+
+/**
+ * Single Animated Navigation Tab Item with LinkedIn-Style 3° Tilt, Subtle Lift, Scale, & Straight Label
+ */
+interface TabItemProps {
+  item: NavItemConfig;
+  isFocused: boolean;
+  label: string;
+  theme: any;
+  isDark: boolean;
+  onPress: () => void;
+  onLongPress: () => void;
+}
+
+function BottomTabItem({
+  item,
+  isFocused,
+  label,
+  theme,
+  isDark,
+  onPress,
+  onLongPress,
+}: TabItemProps) {
+  const focusAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(focusAnim, {
+      toValue: isFocused ? 1 : 0,
+      duration: 200,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [isFocused, focusAnim]);
+
+  const activeColor = theme.primary;
+  const inactiveColor = isDark
+    ? "#94A3B8"
+    : theme.tabIconDefault || theme.textSecondary || "#94A3B8";
+  const iconColor = isFocused ? activeColor : inactiveColor;
+
+  // LinkedIn-style active interaction:
+  // - Subtle scale increase (1.0 -> 1.10)
+  // - Subtle upward movement (0 -> -3.5px)
+  // - Subtle 3-degree rotation/tilt (0deg -> 3deg)
+  const iconScale = focusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.1],
+  });
+
+  const iconTranslateY = focusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -3.5],
+  });
+
+  const iconRotate = focusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "3deg"],
+  });
+
+  const dotScale = focusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const dotOpacity = focusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: isFocused }}
+      accessibilityLabel={label}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+      style={styles.tabItem}
+    >
+      {/* Icon with LinkedIn-style tilt, lift, and scale */}
+      <Animated.View
+        style={[
+          styles.iconWrapper,
+          {
+            transform: [
+              { translateY: iconTranslateY },
+              { scale: iconScale },
+              { rotate: iconRotate },
+            ],
+          },
+        ]}
+      >
+        {renderNavIcon(item, isFocused, iconColor, 22)}
+      </Animated.View>
+
+      {/* Label remains straight without rotation */}
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.tabLabel,
+          {
+            color: iconColor,
+            fontWeight: isFocused ? "700" : "500",
+          },
+        ]}
+      >
+        {label}
+      </Text>
+
+      {/* Subtle micro active dot */}
+      <Animated.View
+        style={[
+          styles.activeDot,
+          {
+            backgroundColor: activeColor,
+            opacity: dotOpacity,
+            transform: [{ scale: dotScale }],
+          },
+        ]}
+      />
+    </Pressable>
+  );
 }
 
 /**
@@ -69,11 +289,11 @@ function FloatingCenterQrButton({
       return;
     }
 
-    // 1.8s total cycle: 900ms float up (-4px) + 900ms float down (0px) with smooth sine easing
+    // 1.8s total cycle: 900ms float up (-3.5px) + 900ms float down (0px) with smooth sine easing
     const animation = Animated.loop(
       Animated.sequence([
         Animated.timing(translateY, {
-          toValue: -4,
+          toValue: -3.5,
           duration: 900,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
@@ -115,12 +335,12 @@ function FloatingCenterQrButton({
           styles.centerQrButton,
           {
             backgroundColor: theme.primary,
-            transform: [{ scale: pressed ? 0.93 : 1 }],
+            transform: [{ scale: pressed ? 0.92 : 1 }],
             shadowColor: theme.primary,
           },
         ]}
       >
-        <Feather name="maximize" size={26} color="#FFFFFF" />
+        <Ionicons name="qr-code-outline" size={26} color="#FFFFFF" />
       </Pressable>
     </Animated.View>
   );
@@ -145,7 +365,7 @@ export default function RoleBottomNavigation({
     insets.bottom,
     Platform.OS === "android" ? 6 : 0,
   );
-  const barHeight = (Platform.OS === "ios" ? 56 : 60) + bottomInset;
+  const barHeight = (Platform.OS === "ios" ? 58 : 62) + bottomInset;
 
   const hasCenterAction = navItems.some((i) => i.isCenterAction);
 
@@ -156,46 +376,37 @@ export default function RoleBottomNavigation({
   const totalItems = navItems.length || 5;
   const cx =
     centerIndex !== -1 ? (w / totalItems) * (centerIndex + 0.5) : w / 2;
-  const cr = 38;
-  const notchDepth = 26;
+  const cr = 36;
+  const notchDepth = 24;
 
   // Smooth SVG Path for the bottom bar background
-  const bgPath = hasCenterAction
-    ? `
-    M 0,0
-    L ${cx - cr - 10},0
-    C ${cx - cr + 4},0 ${cx - cr + 6},${notchDepth} ${cx - 18},${notchDepth}
-    C ${cx - 8},${notchDepth + 2} ${cx + 8},${notchDepth + 2} ${cx + 18},${notchDepth}
-    C ${cx + cr - 6},${notchDepth} ${cx + cr - 4},0 ${cx + cr + 10},0
-    L ${w},0
-    L ${w},${h}
-    L 0,${h}
-    Z
-  `
+  const bgPath = !hasCenterAction
+    ? `M 0,0 L ${w},0 L ${w},${h} L 0,${h} Z`
     : `
-    M 0,0
-    L ${w},0
-    L ${w},${h}
-    L 0,${h}
-    Z
-  `;
+      M 0,0
+      L ${cx - cr - 10},0
+      C ${cx - cr + 4},0 ${cx - cr + 6},${notchDepth} ${cx - 18},${notchDepth}
+      C ${cx - 8},${notchDepth + 2} ${cx + 8},${notchDepth + 2} ${cx + 18},${notchDepth}
+      C ${cx + cr - 6},${notchDepth} ${cx + cr - 4},0 ${cx + cr + 10},0
+      L ${w},0
+      L ${w},${h}
+      L 0,${h}
+      Z
+    `;
 
   // Stroke path for the top border
-  const borderPath = hasCenterAction
-    ? `
-    M 0,0
-    L ${cx - cr - 10},0
-    C ${cx - cr + 4},0 ${cx - cr + 6},${notchDepth} ${cx - 18},${notchDepth}
-    C ${cx - 8},${notchDepth + 2} ${cx + 8},${notchDepth + 2} ${cx + 18},${notchDepth}
-    C ${cx + cr - 6},${notchDepth} ${cx + cr - 4},0 ${cx + cr + 10},0
-    L ${w},0
-  `
+  const borderPath = !hasCenterAction
+    ? `M 0,0 L ${w},0`
     : `
-    M 0,0
-    L ${w},0
-  `;
+      M 0,0
+      L ${cx - cr - 10},0
+      C ${cx - cr + 4},0 ${cx - cr + 6},${notchDepth} ${cx - 18},${notchDepth}
+      C ${cx - 8},${notchDepth + 2} ${cx + 8},${notchDepth + 2} ${cx + 18},${notchDepth}
+      C ${cx + cr - 6},${notchDepth} ${cx + cr - 4},0 ${cx + cr + 10},0
+      L ${w},0
+    `;
 
-  const borderColor = isDark ? "rgba(255, 255, 255, 0.12)" : theme.border;
+  const borderColor = isDark ? "rgba(255, 255, 255, 0.10)" : theme.border;
   const barBgColor = theme.backgroundSecondary;
 
   return (
@@ -221,7 +432,7 @@ export default function RoleBottomNavigation({
           <Path
             d={borderPath}
             stroke={borderColor}
-            strokeWidth={1.5}
+            strokeWidth={1.2}
             fill="none"
           />
         </Svg>
@@ -242,7 +453,7 @@ export default function RoleBottomNavigation({
             );
           }
 
-          // Regular Tab Item
+          // Regular Tab Item - derived strictly from current route state
           const routeIndex = state.routes.findIndex(
             (r) => r.name === item.name,
           );
@@ -277,40 +488,17 @@ export default function RoleBottomNavigation({
             });
           };
 
-          const activeColor = theme.primary;
-          const inactiveColor = theme.tabIconDefault || theme.textSecondary;
-          const iconColor = isFocused ? activeColor : inactiveColor;
-
           return (
-            <Pressable
+            <BottomTabItem
               key={item.id}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: isFocused }}
-              accessibilityLabel={label}
+              item={item}
+              isFocused={isFocused}
+              label={label}
+              theme={theme}
+              isDark={isDark}
               onPress={onPress}
               onLongPress={onLongPress}
-              style={styles.tabItem}
-            >
-              <View style={styles.iconWrapper}>
-                <Feather
-                  name={item.iconName as any}
-                  size={22}
-                  color={iconColor}
-                />
-              </View>
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.tabLabel,
-                  {
-                    color: iconColor,
-                    fontWeight: isFocused ? "700" : "500",
-                  },
-                ]}
-              >
-                {label}
-              </Text>
-            </Pressable>
+            />
           );
         })}
       </View>
@@ -338,14 +526,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
     overflow: "visible",
   },
   tabItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 4,
+    paddingVertical: 3,
     minHeight: 48,
   },
   iconWrapper: {
@@ -357,6 +545,13 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     marginTop: 2,
     textAlign: "center",
+    letterSpacing: -0.2,
+  },
+  activeDot: {
+    width: 3.5,
+    height: 3.5,
+    borderRadius: 2,
+    marginTop: 2,
   },
   centerItemSlot: {
     flex: 1,
@@ -367,15 +562,15 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   centerQrButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: -48,
-    elevation: 12,
+    marginTop: -44,
+    elevation: 10,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    shadowOpacity: 0.32,
+    shadowRadius: 7,
   },
 });

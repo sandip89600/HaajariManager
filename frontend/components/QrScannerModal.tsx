@@ -57,7 +57,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
         });
       }
     }
-  }, [visible]);
+  }, [visible, permission?.granted, requestPermission]);
 
   const resetState = () => {
     setInputCode("");

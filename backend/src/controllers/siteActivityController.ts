@@ -897,10 +897,10 @@ export const getWorkerTodayContext = async (
       if (!defaultSite) {
         const proj = await Project.findOne({ _id: worker.projectId, isDeleted: { $ne: true } });
         if (proj) {
-          defaultSite = await Site.findOne({ name: proj.name, tenantId: effectiveTenantId, isDeleted: false });
+          defaultSite = await Site.findOne({ name: proj.name, isDeleted: false });
           if (!defaultSite) {
             defaultSite = new Site({
-              tenantId: effectiveTenantId,
+              tenantId: effectiveTenantId || user.tenantId,
               name: proj.name,
               address: proj.location || "Site Address",
               projectType: "Residential Project",
@@ -913,48 +913,51 @@ export const getWorkerTodayContext = async (
       }
     }
 
-    // Fallback A: Active site in contractor's tenant
-    if (!defaultSite && effectiveTenantId) {
+    // Fallback A: Active site in contractor's tenant, created by contractor, or in user's tenant
+    if (!defaultSite) {
+      const siteQueryOr: any[] = [];
+      if (effectiveTenantId) siteQueryOr.push({ tenantId: effectiveTenantId });
+      if (contractorUser) {
+        siteQueryOr.push({ createdBy: contractorUser._id });
+        if (contractorUser.tenantId) siteQueryOr.push({ tenantId: contractorUser.tenantId });
+      }
+      if (user.tenantId) siteQueryOr.push({ tenantId: user.tenantId });
+      siteQueryOr.push({ createdBy: user._id });
+
       defaultSite = await Site.findOne({
-        tenantId: effectiveTenantId,
+        $or: siteQueryOr,
         isDeleted: false,
         isArchived: false,
         status: { $ne: "Completed" },
       }).sort({ updatedAt: -1, createdAt: -1 });
+
+      if (!defaultSite) {
+        defaultSite = await Site.findOne({
+          $or: siteQueryOr,
+          isDeleted: false,
+          isArchived: false,
+        }).sort({ updatedAt: -1, createdAt: -1 });
+      }
     }
 
-    // Fallback B: Site created by contractor
-    if (!defaultSite && contractorUser) {
-      defaultSite = await Site.findOne({
-        createdBy: contractorUser._id,
-        isDeleted: false,
-        isArchived: false,
-        status: { $ne: "Completed" },
-      }).sort({ updatedAt: -1, createdAt: -1 });
-    }
+    // Fallback B: Active Project in effectiveTenantId / contractor / user
+    if (!defaultSite) {
+      const projOr: any[] = [];
+      if (effectiveTenantId) projOr.push({ tenantId: effectiveTenantId });
+      if (user.tenantId) projOr.push({ tenantId: user.tenantId });
+      if (contractorUser) projOr.push({ createdBy: contractorUser._id });
 
-    // Fallback C: Any site with matching tenant (including Completed if only one exists)
-    if (!defaultSite && effectiveTenantId) {
-      defaultSite = await Site.findOne({
-        tenantId: effectiveTenantId,
-        isDeleted: false,
-        isArchived: false,
-      }).sort({ updatedAt: -1, createdAt: -1 });
-    }
-
-    // Fallback D: Active Project in effectiveTenantId
-    if (!defaultSite && effectiveTenantId) {
       const proj = await Project.findOne({
-        tenantId: effectiveTenantId,
+        $or: projOr.length > 0 ? projOr : [{ isDeleted: { $ne: true } }],
         status: "active",
         isDeleted: { $ne: true },
       }).sort({ updatedAt: -1, createdAt: -1 });
 
       if (proj) {
-        defaultSite = await Site.findOne({ name: proj.name, tenantId: effectiveTenantId, isDeleted: false });
+        defaultSite = await Site.findOne({ name: proj.name, isDeleted: false });
         if (!defaultSite) {
           defaultSite = new Site({
-            tenantId: effectiveTenantId,
+            tenantId: effectiveTenantId || user.tenantId,
             name: proj.name,
             address: proj.location || "Site Address",
             projectType: "Residential Project",
@@ -966,7 +969,7 @@ export const getWorkerTodayContext = async (
       }
     }
 
-    // Fallback E: Any active site in system (for dev / single-contractor setups)
+    // Fallback C: Any active site in system
     if (!defaultSite) {
       defaultSite = await Site.findOne({ isDeleted: false, isArchived: false, status: { $ne: "Completed" } }).sort({ updatedAt: -1 });
       if (!defaultSite) {
@@ -974,10 +977,23 @@ export const getWorkerTodayContext = async (
       }
     }
 
-    // Auto-link worker to this default site if not linked yet
-    if (worker && defaultSite && !worker.projectId) {
-      worker.projectId = defaultSite._id as any;
-      await worker.save();
+    // Auto-link worker & user contractor if found
+    if (defaultSite) {
+      if (worker && !worker.projectId) {
+        worker.projectId = defaultSite._id as any;
+        await worker.save();
+      }
+      if (!contractorUser && defaultSite.createdBy) {
+        const creator = await User.findById(defaultSite.createdBy);
+        if (creator) {
+          contractorUser = creator;
+          user.contractorId = creator._id as any;
+          user.contractorName = creator.name;
+          user.contractorCompany = (creator as any).companyName || creator.name;
+          user.connectionStatus = "connected";
+          await user.save();
+        }
+      }
     }
 
     // 5. Smart GPS Detection against all registered sites
