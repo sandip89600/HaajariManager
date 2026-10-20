@@ -1751,6 +1751,14 @@ export const storage = {
     }
   },
 
+  assignWorkersToSite(siteId: string, workerIds: string[]) {
+    return siteActivityStorage.assignWorkersToSite(siteId, workerIds);
+  },
+
+  unassignWorkersFromSite(siteId: string, workerIds: string[]) {
+    return siteActivityStorage.unassignWorkersFromSite(siteId, workerIds);
+  },
+
   async clearAll(): Promise<void> {
     try {
       await AsyncStorage.multiRemove([
@@ -2205,9 +2213,16 @@ export const siteActivityStorage = {
   async addSiteInstruction(
     siteId: string,
     payload: {
-      description: string;
+      instruction?: string;
+      description?: string;
+      title?: string;
       voiceNoteUrl?: string;
+      instructionType?: "TEXT" | "VOICE" | "CALL_LOG" | "SPEC" | "MESSAGE";
+      trade?: string;
       priority?: "NORMAL" | "HIGH" | "URGENT";
+      duration?: string;
+      recipientName?: string;
+      recipientPhone?: string;
     },
   ) {
     const res = await authenticatedFetch(
@@ -2217,6 +2232,7 @@ export const siteActivityStorage = {
         body: JSON.stringify(payload),
       },
     );
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `Failed to add instruction: ${res.status}`);
@@ -2232,4 +2248,113 @@ export const siteActivityStorage = {
     }
     return await res.json();
   },
+
+  async assignWorkersToSite(siteId: string, workerIds: string[]) {
+    const ids = Array.isArray(workerIds) ? workerIds : [workerIds];
+    if (ids.length === 0) return { success: true, count: 0 };
+
+    // 1. Try server batch assign endpoint first
+    let batchOk = false;
+    try {
+      const res = await authenticatedFetch(
+        `${API_URL}/sites/${siteId}/workers/assign`,
+        {
+          method: "POST",
+          body: JSON.stringify({ workerIds: ids }),
+        },
+      );
+      if (res.ok) {
+        batchOk = true;
+      }
+    } catch (_) {}
+
+    // 2. Resilient Fallback: If batch endpoint returned 404 (e.g. cloud backend running previous build),
+    // update each worker via the universal PUT /workers/:id endpoint supported across all backend versions!
+    if (!batchOk) {
+      await Promise.allSettled(
+        ids.map(async (wId) => {
+          try {
+            await authenticatedFetch(`${API_URL}/workers/${wId}`, {
+              method: "PUT",
+              body: JSON.stringify({ projectId: siteId }),
+            });
+          } catch (err) {
+            console.warn(`Fallback assign failed for worker ${wId}:`, err);
+          }
+        }),
+      );
+    }
+
+    // 3. Always update local AsyncStorage and memory cache so UI updates instantly
+    try {
+      const localWorkers = await storage.getWorkers();
+      const updatedLocal = localWorkers.map((w) =>
+        ids.includes(w.id) ? { ...w, projectId: siteId } : w,
+      );
+      await storage.setWorkers(updatedLocal);
+      setMemoryCache("workers", updatedLocal);
+    } catch (err) {
+      console.warn("Failed updating local workers cache:", err);
+    }
+
+    invalidateMemoryCache();
+    DeviceEventEmitter.emit("refreshData");
+    DeviceEventEmitter.emit("site:workforce_updated", { siteId, workerIds: ids });
+    return { success: true, count: ids.length, siteId };
+  },
+
+  async unassignWorkersFromSite(siteId: string, workerIds: string[]) {
+    const ids = Array.isArray(workerIds) ? workerIds : [workerIds];
+    if (ids.length === 0) return { success: true, count: 0 };
+
+    // 1. Try server batch unassign endpoint first
+    let batchOk = false;
+    try {
+      const res = await authenticatedFetch(
+        `${API_URL}/sites/${siteId}/workers/unassign`,
+        {
+          method: "POST",
+          body: JSON.stringify({ workerIds: ids }),
+        },
+      );
+      if (res.ok) {
+        batchOk = true;
+      }
+    } catch (_) {}
+
+    // 2. Resilient Fallback: If batch endpoint returned 404,
+    // update each worker via the universal PUT /workers/:id endpoint with projectId: null
+    if (!batchOk) {
+      await Promise.allSettled(
+        ids.map(async (wId) => {
+          try {
+            await authenticatedFetch(`${API_URL}/workers/${wId}`, {
+              method: "PUT",
+              body: JSON.stringify({ projectId: null }),
+            });
+          } catch (err) {
+            console.warn(`Fallback unassign failed for worker ${wId}:`, err);
+          }
+        }),
+      );
+    }
+
+    // 3. Update local AsyncStorage and memory cache
+    try {
+      const localWorkers = await storage.getWorkers();
+      const updatedLocal = localWorkers.map((w) =>
+        ids.includes(w.id) ? { ...w, projectId: undefined } : w,
+      );
+      await storage.setWorkers(updatedLocal);
+      setMemoryCache("workers", updatedLocal);
+    } catch (err) {
+      console.warn("Failed updating local workers cache:", err);
+    }
+
+    invalidateMemoryCache();
+    DeviceEventEmitter.emit("refreshData");
+    DeviceEventEmitter.emit("site:workforce_updated", { siteId, workerIds: ids });
+    return { success: true, count: ids.length, siteId };
+  },
 };
+

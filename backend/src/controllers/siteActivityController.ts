@@ -169,6 +169,7 @@ export const getContractorSitesControl = async (
           totalWorkers,
           presentWorkers: presentCount,
           updatesCount,
+          imageCount: updatesCount,
           openIssuesCount: openIssues.length,
           morningSubmitted: morningUpdates.length,
           morningTotal: totalWorkers,
@@ -187,6 +188,9 @@ export const getContractorSitesControl = async (
     const workersPresent = siteCards.reduce((sum, s) => sum + s.presentWorkers, 0);
     const totalUpdates = siteCards.reduce((sum, s) => sum + s.updatesCount, 0);
     const totalOpenIssues = siteCards.reduce((sum, s) => sum + s.openIssuesCount, 0);
+    const totalPhotos = siteCards.reduce((sum, s) => sum + (s.imageCount || s.updatesCount || 0), 0);
+    const morningPhotos = siteCards.reduce((sum, s) => sum + (s.morningSubmitted || 0), 0);
+    const eveningPhotos = siteCards.reduce((sum, s) => sum + (s.eveningSubmitted || 0), 0);
 
     return res.json({
       success: true,
@@ -199,6 +203,9 @@ export const getContractorSitesControl = async (
         workersPresent,
         totalUpdates,
         totalOpenIssues,
+        totalPhotos,
+        morningPhotos,
+        eveningPhotos,
       },
       sites: siteCards,
     });
@@ -317,10 +324,14 @@ export const getSiteControlCenter = async (
       .filter((a) => !!a.photo)
       .map((a) => ({
         id: a._id,
+        siteId: site._id.toString(),
+        siteName: site.name,
         workerName: a.userName,
+        workerRole: a.workerRole || "Labour",
         photo: a.photo,
         activityType: a.activityType,
         timeStr: a.timeStr,
+        dateStr: a.dateStr,
         description: a.description,
         location: a.location,
         createdAt: a.createdAt,
@@ -389,6 +400,11 @@ export const getSiteControlCenter = async (
         status: site.status,
         location: site.location,
         startDate: site.startDate,
+        supervisor: site.supervisor,
+        clientName: site.clientName,
+        contractorName: contractor?.name || "Rajesh Patil",
+        contractorCompany: (contractor as any)?.companyName || (contractor as any)?.businessName || "Patil Infra Pvt Ltd",
+        description: site.description || "G+4 RCC frame with brick bond and vitrified tile flooring.",
       },
       dateStr: targetDateStr,
       metrics: {
@@ -1349,11 +1365,22 @@ export const addSiteInstruction = async (
 
     if (!tenantId || !userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { instruction, description } = req.body;
-    const finalContent = (instruction || description || "").trim();
+    const {
+      instruction,
+      description,
+      title,
+      voiceNoteUrl,
+      instructionType = "TEXT",
+      trade,
+      priority = "NORMAL",
+      duration,
+      recipientName,
+      recipientPhone,
+    } = req.body;
+    const finalContent = (instruction || description || title || "").trim();
 
-    if (!finalContent) {
-      return res.status(400).json({ error: "Instruction content is required." });
+    if (!finalContent && !voiceNoteUrl) {
+      return res.status(400).json({ error: "Instruction content or voice note is required." });
     }
 
     const user = await User.findById(userId);
@@ -1373,7 +1400,15 @@ export const addSiteInstruction = async (
       userName: user.name,
       workerRole: user.role === "contractor" ? "Contractor" : "Supervisor",
       activityType: "INSTRUCTION",
-      description: finalContent,
+      description: finalContent || (instructionType === "VOICE" ? "Audio Voice Instruction" : "Site Instruction"),
+      title: title?.trim(),
+      instructionType,
+      voiceNoteUrl,
+      trade: trade?.trim(),
+      priority,
+      duration,
+      recipientName: recipientName?.trim(),
+      recipientPhone: recipientPhone?.trim(),
       dateStr,
       timeStr,
       status: "ACTIVE",
@@ -1381,6 +1416,7 @@ export const addSiteInstruction = async (
     });
 
     await instructionActivity.save();
+
 
     // Broadcast socket
     try {

@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   Linking,
+  DeviceEventEmitter,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -21,6 +22,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { authenticatedFetch, API_URL } from "@/utils/storage";
 import { parseConnectPayload } from "@/utils/qrCodeGenerator";
 import { Spacing } from "@/constants/theme";
+import { navigateToUpdateWorker } from "@/navigation/navigationRef";
 
 interface QrScannerModalProps {
   visible: boolean;
@@ -58,6 +60,16 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
       }
     }
   }, [visible, permission?.granted, requestPermission]);
+
+  // Listen for programmatic close event (e.g. on successful connection navigation)
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("CLOSE_QR_SCANNER", () => {
+      handleClose();
+    });
+    return () => {
+      sub.remove();
+    };
+  }, []);
 
   const resetState = () => {
     setInputCode("");
@@ -161,6 +173,11 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
         }),
       });
 
+      const isContractor =
+        user?.role === "contractor" ||
+        user?.role === "builder" ||
+        user?.role === "admin";
+
       const data = await res.json();
       if (!res.ok || !data.success) {
         Alert.alert(
@@ -169,20 +186,28 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
         );
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          "Request Sent!",
-          data.message ||
-            `Connection request sent to ${foundAccount.name}. They will be connected once approved.`,
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                handleClose();
-                onSuccess?.();
+        const acceptedWorkerId =
+          data.workerId || data.worker?.id || data.worker?._id;
+        if (isContractor && acceptedWorkerId) {
+          handleClose();
+          onSuccess?.();
+          navigateToUpdateWorker(acceptedWorkerId);
+        } else {
+          Alert.alert(
+            "Request Sent!",
+            data.message ||
+              `Connection request sent to ${foundAccount.name}. They will be connected once approved.`,
+            [
+              {
+                text: "OK",
+                onPress: () => {
+                  handleClose();
+                  onSuccess?.();
+                },
               },
-            },
-          ],
-        );
+            ],
+          );
+        }
       }
     } catch (e: any) {
       Alert.alert(

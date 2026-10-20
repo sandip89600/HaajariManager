@@ -137,7 +137,7 @@ export const WORKER_NAV: NavItemConfig[] = [
     id: "camera",
     name: "WorkerCameraTab",
     titleKey: "nav.camera",
-    defaultTitle: "Work Photos",
+    defaultTitle: "Site Cam",
     iconName: "camera",
     iconFamily: "Feather",
   },

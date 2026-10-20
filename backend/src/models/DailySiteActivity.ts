@@ -22,6 +22,14 @@ export interface IDailySiteActivity extends Document {
   clientRequestId?: string;
   resolvedBy?: mongoose.Types.ObjectId;
   resolvedAt?: Date;
+  title?: string;
+  instructionType?: "TEXT" | "VOICE" | "CALL_LOG" | "SPEC" | "MESSAGE";
+  voiceNoteUrl?: string;
+  duration?: string;
+  priority?: "NORMAL" | "HIGH" | "URGENT";
+  trade?: string;
+  recipientName?: string;
+  recipientPhone?: string;
   capturedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -62,12 +70,29 @@ const DailySiteActivitySchema = new Schema<IDailySiteActivity>(
     clientRequestId: { type: String, trim: true },
     resolvedBy: { type: Schema.Types.ObjectId, ref: "User" },
     resolvedAt: { type: Date },
+    title: { type: String, trim: true },
+    instructionType: {
+      type: String,
+      enum: ["TEXT", "VOICE", "CALL_LOG", "SPEC", "MESSAGE"],
+      default: "TEXT",
+    },
+    voiceNoteUrl: { type: String, trim: true },
+    duration: { type: String, trim: true },
+    priority: {
+      type: String,
+      enum: ["NORMAL", "HIGH", "URGENT"],
+      default: "NORMAL",
+    },
+    trade: { type: String, trim: true },
+    recipientName: { type: String, trim: true },
+    recipientPhone: { type: String, trim: true },
     capturedAt: { type: Date, default: Date.now },
   },
   {
     timestamps: true,
   }
 );
+
 
 DailySiteActivitySchema.index({ tenantId: 1, siteId: 1, dateStr: 1, createdAt: -1 });
 DailySiteActivitySchema.index({ tenantId: 1, workerId: 1, dateStr: 1, activityType: 1 });

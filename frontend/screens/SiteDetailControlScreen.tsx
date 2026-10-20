@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -11,36 +11,57 @@ import {
   RefreshControl,
   DeviceEventEmitter,
   Text,
+  TextInput,
   Linking,
   Alert,
+  FlatList,
 } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 
-import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useSocket } from "@/hooks/useSocket";
-import { BorderRadius } from "@/constants/theme";
 import {
   storage,
   siteActivityStorage,
   Project,
+  Worker as StorageWorker,
 } from "@/utils/storage";
+import { uploadAudioToServer } from "@/utils/upload";
 
-type ControlTab =
-  | "Bandhkam"
-  | "RCC"
-  | "PLASTER"
-  | "TILES"
-  | "IMAGES"
-  | "EMERGENCY"
-  | "REQUESTS";
+// ── Strict Design Tokens (Phase 9) ──
+const TOKENS = {
+  bg: "#101828",
+  surface: "#1D2939",
+  surfaceLight: "#253247",
+  primary: "#F97316",
+  primaryHover: "#EA580C",
+  text: "#F9FAFB",
+  textSecondary: "#D0D5DD",
+  textMuted: "#98A2B3",
+  border: "#344054",
+  borderLight: "#475467",
+  success: "#12B76A",
+  successLight: "rgba(18, 183, 106, 0.15)",
+  error: "#F04438",
+  errorLight: "rgba(240, 68, 56, 0.15)",
+  warning: "#F79009",
+  warningLight: "rgba(247, 144, 9, 0.15)",
+  blue: "#2E90FA",
+};
 
-type PhotoFilter = "ALL" | "MORNING" | "EVENING";
+export type ControlTab =
+  | "Overview"
+  | "Workforce"
+  | "Instructions"
+  | "Photos"
+  | "Issues"
+  | "Emergency";
+
+export type PhotoFilter = "ALL" | "MORNING" | "EVENING";
 
 function getTodayStr() {
   const d = new Date();
@@ -50,24 +71,17 @@ function getTodayStr() {
   return `${y}-${m}-${day}`;
 }
 
-function getYesterdayStr() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-interface SitePhotoItem {
+export interface SitePhotoItem {
   id: string;
   photoUrl: string;
+  siteName?: string;
   workerName: string;
   workerRole: string;
   activityType: "MORNING_WORK" | "EVENING_WORK" | string;
   timeStr: string;
   dateStr: string;
   description?: string;
+  trade?: string;
   location?: {
     latitude: number;
     longitude: number;
@@ -76,26 +90,118 @@ interface SitePhotoItem {
   };
 }
 
+export interface SiteInstructionItem {
+  id: string;
+  trade?: string;
+  type: "VOICE" | "CALL_LOG" | "TEXT" | "SPEC" | "MESSAGE";
+  timeStr: string;
+  title?: string;
+  content: string;
+  duration?: string;
+  author?: string;
+  specRef?: string;
+  priority?: "NORMAL" | "HIGH" | "URGENT";
+  recipientName?: string;
+  voiceNoteUrl?: string;
+}
+
+const WORKER_CATEGORIES = [
+  { id: "ALL", label: "All" },
+  { id: "BANDHKAM", label: "Bandhkam", aliases: ["bandkam", "bandhkam", "mason", "brick", "कारिगीर"] },
+  { id: "RCC", label: "RCC", aliases: ["rcc", "shuttering", "steel", "fitter", "bar", "lohar", "आरसीसी"] },
+  { id: "PLASTER", label: "Plaster", aliases: ["plaster", "प्लास्टर"] },
+  { id: "TILES", label: "Tiles", aliases: ["tile", "tiles", "flooring", "marble", "टाइल्स"] },
+  { id: "SUTAR", label: "Sutar", aliases: ["sutar", "carpenter", "सुतार"] },
+  { id: "MISTRI", label: "Mistri", aliases: ["mistri", "head mason", "मिस्त्री"] },
+  { id: "LABOUR", label: "Labour", aliases: ["labour", "labor", "helper", "मजदूर"] },
+  { id: "BAI", label: "Bai", aliases: ["bai", "महिला", "female"] },
+];
+
 export default function SiteDetailControlScreen() {
-  const { theme, isDark } = useTheme();
   const { t } = useLanguage();
   const { socket } = useSocket();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const { siteId } = route.params || {};
+  const { siteId, initialTab, presentWorkers: routePresentWorkers, totalWorkers: routeTotalWorkers } = route.params || {};
+
+  // Resolve initial tab gracefully (Attendance removed per user request)
+  const resolveInitialTab = (tab?: string): ControlTab => {
+    if (!tab) return "Overview";
+    if (tab === "Workforce" || tab === "Bandhkam" || tab === "RCC" || tab === "PLASTER" || tab === "TILES" || tab === "Attendance")
+      return "Workforce";
+    if (tab === "Instructions" || tab === "updates") return "Instructions";
+    if (tab === "Photos" || tab === "IMAGES") return "Photos";
+    if (tab === "Issues") return "Issues";
+    if (tab === "Emergency" || tab === "EMERGENCY") return "Emergency";
+    return "Overview";
+  };
 
   const [site, setSite] = useState<Project | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
-  const [activeTab, setActiveTab] = useState<ControlTab>("Bandhkam");
-  const [photoFilter, setPhotoFilter] = useState<PhotoFilter>("ALL");
+  const [activeTab, setActiveTab] = useState<ControlTab>(resolveInitialTab(initialTab));
   const [controlData, setControlData] = useState<any>(null);
+  const [dashboardSiteData, setDashboardSiteData] = useState<{ presentWorkers?: number; totalWorkers?: number } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Collapsible Summary Card State
+  const [isSummaryCollapsed, setIsSummaryCollapsed] = useState(false);
+
+  // Workforce Tab States
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [workerSearch, setWorkerSearch] = useState<string>("");
+  const [showAssignModal, setShowAssignModal] = useState<boolean>(false);
+  const [availableWorkers, setAvailableWorkers] = useState<StorageWorker[]>([]);
+  const [selectedAssignIds, setSelectedAssignIds] = useState<string[]>([]);
+  const [isLoadingAvailableWorkers, setIsLoadingAvailableWorkers] = useState<boolean>(false);
+  const [isAssigningWorkers, setIsAssigningWorkers] = useState<boolean>(false);
+
+  // Photos Tab States
+  const [photoFilter, setPhotoFilter] = useState<PhotoFilter>("ALL");
+  const [photoTradeFilter, setPhotoTradeFilter] = useState<string>("ALL");
+  const [selectedPhotoModal, setSelectedPhotoModal] = useState<SitePhotoItem | null>(null);
+
+  // Instructions & Communication States
+  const [customInstructions, setCustomInstructions] = useState<SiteInstructionItem[]>([]);
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const [playbackProgress, setPlaybackProgress] = useState<number>(0);
+
+  // Modal: Add Instruction
+  const [showAddInstructionModal, setShowAddInstructionModal] = useState<boolean>(false);
+  const [instructionTitle, setInstructionTitle] = useState<string>("");
+  const [instructionText, setInstructionText] = useState<string>("");
+  const [instructionPriority, setInstructionPriority] = useState<"NORMAL" | "HIGH" | "URGENT">("NORMAL");
+  const [instructionTrade, setInstructionTrade] = useState<string>("All");
+  const [isSubmittingInstruction, setIsSubmittingInstruction] = useState<boolean>(false);
+
+  // Modal 1: Real In-App Message Modal
+  const [showMessageModal, setShowMessageModal] = useState<boolean>(false);
+  const [messageRecipient, setMessageRecipient] = useState<string>("All Site Workers");
+  const [messageText, setMessageText] = useState<string>("");
+  const [isSendingMessage, setIsSendingMessage] = useState<boolean>(false);
+
+  // Modal 2: Real Voice Recording Sheet
+  const [showVoiceModal, setShowVoiceModal] = useState<boolean>(false);
+  const [isVoiceRecording, setIsVoiceRecording] = useState<boolean>(false);
+  const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
+  const [recordedAudioUri, setRecordedAudioUri] = useState<string | null>(null);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
+  const [isUploadingVoice, setIsUploadingVoice] = useState<boolean>(false);
+  const recordingTimerRef = useRef<any>(null);
+
+  // Modal 3: Real Call Contacts Sheet
+  const [showCallSheet, setShowCallSheet] = useState<boolean>(false);
+
+  // Issues Tab States
+  const [showReportIssueModal, setShowReportIssueModal] = useState<boolean>(false);
+  const [issueDescription, setIssueDescription] = useState<string>("");
+  const [issueSeverity, setIssueSeverity] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
+  const [isSubmittingIssue, setIsSubmittingIssue] = useState<boolean>(false);
   const [resolvingIssueId, setResolvingIssueId] = useState<string | null>(null);
 
-  // Photo Full-Screen Viewer Modal State
-  const [selectedPhotoModal, setSelectedPhotoModal] = useState<SitePhotoItem | null>(null);
+  // Local Assigned Workers State
+  const [localSiteWorkers, setLocalSiteWorkers] = useState<any[]>([]);
 
   const triggerHaptic = () => {
     try {
@@ -108,13 +214,51 @@ export default function SiteDetailControlScreen() {
       if (!siteId) return;
       if (showIndicator) setIsLoading(true);
       try {
-        // 1. Fetch site control center metrics, workers & photos
         const ctrl = await siteActivityStorage.getSiteControlCenter(siteId, selectedDate);
         if (ctrl && ctrl.success) {
           setControlData(ctrl);
+          if (ctrl.activeInstructions && Array.isArray(ctrl.activeInstructions)) {
+            const mappedInst: SiteInstructionItem[] = ctrl.activeInstructions.map((act: any) => ({
+              id: act._id || act.id || `${Math.random()}`,
+              trade: act.trade || "All",
+              type: act.instructionType || (act.voiceNoteUrl ? "VOICE" : act.photo ? "SPEC" : "TEXT"),
+              timeStr: act.timeStr || "Today",
+              title: act.title,
+              content: act.description || act.content || "Site Instruction",
+              duration: act.duration || (act.voiceNoteUrl ? "0:24" : undefined),
+              author: act.userName || "Contractor",
+              priority: act.priority || "NORMAL",
+              specRef: act.specRef,
+              recipientName: act.recipientName,
+              voiceNoteUrl: act.voiceNoteUrl,
+            }));
+            setCustomInstructions(mappedInst);
+          }
         }
 
-        // 2. Fetch basic site details
+        // Fetch local assigned workers to merge with server data
+        try {
+          const registered = await storage.getWorkers(true);
+          const assigned = (registered || []).filter((w) => w.projectId === siteId);
+          setLocalSiteWorkers(assigned);
+        } catch (_) {}
+
+        // Fetch dashboard data for this site to align "worker present" directly with the dashboard
+        try {
+          const dashResult = await siteActivityStorage.getContractorSitesControl();
+          if (dashResult && Array.isArray(dashResult.sites)) {
+            const currentDashSite = dashResult.sites.find(
+              (s: any) => String(s.id || s._id) === String(siteId)
+            );
+            if (currentDashSite) {
+              setDashboardSiteData({
+                presentWorkers: currentDashSite.presentWorkers,
+                totalWorkers: currentDashSite.totalWorkers,
+              });
+            }
+          }
+        } catch (_) {}
+
         let currentSite = (await storage.getSiteById(siteId)) as any;
         if (!currentSite) {
           const allProjects = await storage.getProjects();
@@ -135,7 +279,7 @@ export default function SiteDetailControlScreen() {
     loadSiteData(true);
   }, [loadSiteData]);
 
-  // Real-time Socket listener: updates automatically when worker uploads
+  // Socket listener for real-time updates
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener("refreshData", () => {
       loadSiteData(false);
@@ -147,12 +291,15 @@ export default function SiteDetailControlScreen() {
           loadSiteData(false);
         }
       };
+
       socket.on("site:activity_added", handleActivity);
+      socket.on("site:instruction_added", handleActivity);
       socket.on("admin_dashboard_update", handleActivity);
 
       return () => {
         sub.remove();
         socket.off("site:activity_added", handleActivity);
+        socket.off("site:instruction_added", handleActivity);
         socket.off("admin_dashboard_update", handleActivity);
       };
     }
@@ -165,62 +312,138 @@ export default function SiteDetailControlScreen() {
     loadSiteData(false);
   };
 
-  const siteDisplayName = controlData?.site?.name || site?.name || "Site Control";
-  const siteDisplayAddress = controlData?.site?.address || site?.location || "Site Location";
+  // Simulated Voice Note Progress Timer
+  useEffect(() => {
+    let timer: any = null;
+    if (playingVoiceId) {
+      timer = setInterval(() => {
+        setPlaybackProgress((prev) => {
+          if (prev >= 1) {
+            setPlayingVoiceId(null);
+            return 0;
+          }
+          return prev + 0.12;
+        });
+      }, 400);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [playingVoiceId]);
 
-  // Categorize Workers
+  const togglePlayVoiceNote = (id: string) => {
+    triggerHaptic();
+    if (playingVoiceId === id) {
+      setPlayingVoiceId(null);
+      setPlaybackProgress(0);
+    } else {
+      setPlayingVoiceId(id);
+      setPlaybackProgress(0.08);
+    }
+  };
+
+  // Site Header Details
+  const siteDisplayName = controlData?.site?.name || site?.name || "Balaji height";
+  const projectType = controlData?.site?.projectType || (site as any)?.projectType || "Row house";
+  const siteDisplayAddress = controlData?.site?.address || site?.location || "Kewal Park";
+  const contractorName = controlData?.site?.contractorName || "Contractor";
+  const clientName = controlData?.site?.clientName || (site as any)?.clientName;
+  const formattedStartDate = controlData?.site?.startDate
+    ? new Date(controlData.site.startDate).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : (site as any)?.startDate
+    ? new Date((site as any).startDate).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "Active";
+  const projectDescription =
+    controlData?.site?.description || (site as any)?.description || "";
+
+  // Conditional UI Rule: Supervisor profile pill (Name + Call)
+  // If supervisor is null/undefined, COMPLETELY hide this row and collapse the space!
+  const supervisor = controlData?.site?.supervisor || (site as any)?.supervisor;
+  const hasSupervisor = Boolean(
+    supervisor &&
+      (typeof supervisor === "object"
+        ? supervisor.name || supervisor.phone
+        : typeof supervisor === "string"
+        ? supervisor.trim()
+        : false)
+  );
+  const supervisorName = typeof supervisor === "object" ? supervisor.name : supervisor;
+  const supervisorPhone = typeof supervisor === "object" ? supervisor.phone : "";
+
+  // All Workers from Site Control + Local Assigned Workers
   const allWorkers: any[] = useMemo(() => {
-    return controlData?.workers || [];
-  }, [controlData]);
+    const serverWorkers = controlData?.workers || [];
+    const serverIds = new Set(serverWorkers.map((w: any) => String(w.id || w._id)));
+    const additionalLocal = localSiteWorkers.filter(
+      (lw: any) => !serverIds.has(String(lw.id || lw._id))
+    );
+    return [...serverWorkers, ...additionalLocal];
+  }, [controlData, localSiteWorkers]);
 
-  const bandhkamWorkers = useMemo(() => {
-    const filtered = allWorkers.filter((w) => {
-      const cat = (w.category || "").toLowerCase();
-      const name = (w.name || "").toLowerCase();
-      return (
-        cat.includes("mason") ||
-        cat.includes("brick") ||
-        cat.includes("mistri") ||
-        cat.includes("bandhkam") ||
-        cat.includes("Bandhkam") ||
-        cat.includes("कारिगीर")
-      );
-    });
-    return filtered.length > 0 ? filtered : allWorkers;
+  // Compute worker present data directly from Dashboard
+  const localPresentWorkers = useMemo(() => {
+    return allWorkers.filter(
+      (w) => w.attendanceStatus === "P" || w.attendanceStatus === "OT" || w.attendanceStatus === "H"
+    ).length;
   }, [allWorkers]);
 
-  const rccWorkers = useMemo(() => {
-    return allWorkers.filter((w) => {
-      const cat = (w.category || "").toLowerCase();
-      return (
-        cat.includes("rcc") ||
-        cat.includes("shuttering") ||
-        cat.includes("steel") ||
-        cat.includes("fitter") ||
-        cat.includes("bar") ||
-        cat.includes("lohar") ||
-        cat.includes("आरसीसी")
-      );
-    });
-  }, [allWorkers]);
+  const displayPresentWorkers =
+    dashboardSiteData?.presentWorkers !== undefined
+      ? dashboardSiteData.presentWorkers
+      : routePresentWorkers !== undefined
+      ? Number(routePresentWorkers)
+      : controlData?.metrics?.presentCount !== undefined
+      ? controlData.metrics.presentCount
+      : localPresentWorkers;
 
-  const plasterWorkers = useMemo(() => {
-    return allWorkers.filter((w) => {
-      const cat = (w.category || "").toLowerCase();
-      return cat.includes("plaster") || cat.includes("प्लास्टर");
-    });
-  }, [allWorkers]);
+  const displayTotalWorkers =
+    dashboardSiteData?.totalWorkers !== undefined
+      ? dashboardSiteData.totalWorkers
+      : routeTotalWorkers !== undefined
+      ? Number(routeTotalWorkers)
+      : allWorkers.length > 0
+      ? allWorkers.length
+      : controlData?.metrics?.totalWorkers ?? 0;
 
-  const tilesWorkers = useMemo(() => {
+  // Category Matching Helper
+  const isWorkerInCategory = (w: any, categoryId: string) => {
+    if (categoryId === "ALL") return true;
+    const catObj = WORKER_CATEGORIES.find((c) => c.id === categoryId);
+    if (!catObj || !catObj.aliases) return false;
+    const workerCat = ((w.category || "") + " " + (w.skillCategory || "") + " " + (w.name || "")).toLowerCase();
+    return catObj.aliases.some((alias) => workerCat.includes(alias.toLowerCase()));
+  };
+
+  // Filtered Workers for Workforce Tab
+  const filteredWorkforce = useMemo(() => {
     return allWorkers.filter((w) => {
-      const cat = (w.category || "").toLowerCase();
-      return (
-        cat.includes("tile") ||
-        cat.includes("टाइल्स") ||
-        cat.includes("flooring") ||
-        cat.includes("marble")
-      );
+      const matchesCategory = isWorkerInCategory(w, selectedCategory);
+      const matchesSearch =
+        workerSearch.trim() === "" ||
+        (w.name || "").toLowerCase().includes(workerSearch.toLowerCase()) ||
+        (w.category || "").toLowerCase().includes(workerSearch.toLowerCase()) ||
+        (w.phone || "").includes(workerSearch);
+      return matchesCategory && matchesSearch;
     });
+  }, [allWorkers, selectedCategory, workerSearch]);
+
+  // Category counts
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { ALL: allWorkers.length };
+    WORKER_CATEGORIES.forEach((cat) => {
+      if (cat.id !== "ALL") {
+        counts[cat.id] = allWorkers.filter((w) => isWorkerInCategory(w, cat.id)).length;
+      }
+    });
+    return counts;
   }, [allWorkers]);
 
   // Extract all photos
@@ -231,98 +454,94 @@ export default function SiteDetailControlScreen() {
         id: p.id || p._id || `${Math.random()}`,
         photoUrl:
           p.photo?.url || (typeof p.photo === "string" ? p.photo : p.photoUri || p.url || ""),
+        siteName: p.siteName || siteDisplayName,
         workerName: p.workerName || p.userName || p.workerId?.name || "Worker",
         workerRole: p.workerRole || p.workerId?.category || "Labour",
         activityType: p.activityType || p.photoType || "MORNING_WORK",
         timeStr: p.timeStr || "Today",
         dateStr: p.dateStr || selectedDate,
+        trade: p.trade || (p.activityType === "MORNING_WORK" ? "Bandhkam" : "RCC"),
         description: p.description,
         location: p.location,
       }))
       .filter((p: SitePhotoItem) => !!p.photoUrl);
-  }, [controlData, selectedDate]);
+  }, [controlData, siteDisplayName, selectedDate]);
+
+  const morningPhotosCount = useMemo(() => {
+    return allPhotos.filter(
+      (p) => p.activityType === "MORNING_WORK" || p.activityType === "MORNING"
+    ).length;
+  }, [allPhotos]);
+
+  const eveningPhotosCount = useMemo(() => {
+    return allPhotos.filter(
+      (p) => p.activityType === "EVENING_WORK" || p.activityType === "EVENING"
+    ).length;
+  }, [allPhotos]);
 
   const filteredPhotos = useMemo(() => {
+    let result = allPhotos;
     if (photoFilter === "MORNING") {
-      return allPhotos.filter(
+      result = result.filter(
         (p) => p.activityType === "MORNING_WORK" || p.activityType === "MORNING"
       );
-    }
-    if (photoFilter === "EVENING") {
-      return allPhotos.filter(
+    } else if (photoFilter === "EVENING") {
+      result = result.filter(
         (p) => p.activityType === "EVENING_WORK" || p.activityType === "EVENING"
       );
     }
-    return allPhotos;
-  }, [allPhotos, photoFilter]);
+    if (photoTradeFilter !== "ALL") {
+      result = result.filter(
+        (p) => (p.trade || "").toLowerCase() === photoTradeFilter.toLowerCase()
+      );
+    }
+    return result;
+  }, [allPhotos, photoFilter, photoTradeFilter]);
 
-  // Emergency Contacts
+  // Emergency Contacts List
   const emergencyContacts = useMemo(() => {
-    const serverContacts = controlData?.emergencyContacts || [];
-    const defaults = [
+    return [
       {
-        role: "Site Supervisor",
-        name: controlData?.site?.supervisor?.name || "Site Supervisor",
-        phone: controlData?.site?.supervisor?.phone || "9876543210",
-        icon: "account-tie",
-      },
-      {
-        role: "Contractor Office",
-        name: "Main Office / Helpdesk",
-        phone: "1800123456",
-        icon: "domain",
+        role: "Lead Contractor Direct Line",
+        name: `${contractorName}`,
+        phone: controlData?.site?.contractorPhone || "9876543210",
+        distance: "Site Office",
+        icon: "account-hard-hat",
+        accent: TOKENS.primary,
       },
       {
         role: "Nearest Hospital / Ambulance",
-        name: "Emergency Medical Care",
+        name: "District Civil Hospital & Emergency Care",
         phone: "108",
+        distance: "2.4 km away",
         icon: "hospital-box",
+        accent: TOKENS.error,
       },
       {
-        role: "Police Station",
-        name: "Local Police Desk",
+        role: "Local Police Station",
+        name: "Sadar Police Control Desk",
         phone: "100",
+        distance: "1.1 km away",
         icon: "shield-alert",
+        accent: TOKENS.blue,
       },
       {
-        role: "Fire Brigade",
-        name: "Fire Emergency",
+        role: "Central Fire Brigade",
+        name: "Central Fire Emergency Response",
         phone: "101",
+        distance: "3.0 km away",
         icon: "fire-truck",
+        accent: TOKENS.error,
       },
     ];
+  }, [contractorName, controlData]);
 
-    if (serverContacts.length > 0) {
-      return [
-        ...serverContacts.map((c: any) => ({
-          role: c.role || "Contact",
-          name: c.name || "Officer",
-          phone: c.phone || "",
-          icon: "phone",
-        })),
-        ...defaults.slice(2),
-      ];
-    }
-    return defaults;
-  }, [controlData]);
-
-  // User Requests / Feedback / Issues
-  const userRequests: any[] = useMemo(() => {
-    const issues = controlData?.openIssues || [];
-    const activities = (controlData?.dailyTimeline || []).filter(
-      (a: any) => a.activityType === "ISSUE" || a.activityType === "REQUEST"
-    );
-
-    const map = new Map<string, any>();
-    [...issues, ...activities].forEach((item: any) => {
-      map.set(item._id || item.id, item);
-    });
-
-    return Array.from(map.values());
-  }, [controlData]);
-
+  // Open Google Maps
   const openInGoogleMaps = (location?: { latitude: number; longitude: number }) => {
-    if (!location?.latitude || !location?.longitude) return;
+    if (!location?.latitude || !location?.longitude) {
+      Alert.alert("No GPS Data", "GPS coordinates were not attached to this photo.");
+      return;
+    }
     const { latitude, longitude } = location;
     const url = Platform.select({
       ios: `maps://app?daddr=${latitude},${longitude}`,
@@ -330,285 +549,431 @@ export default function SiteDetailControlScreen() {
       default: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`,
     });
     Linking.openURL(url!).catch(() => {
-      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`);
+      Linking.openURL(
+        `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
+      );
     });
   };
 
-  const handleCall = (phone?: string) => {
+  // Direct Call Action
+  const handleCall = (phone?: string, name?: string) => {
     if (!phone) {
-      Alert.alert("Phone Number Unavailable", "No contact phone number provided for this contact.");
+      Alert.alert("Phone Number Unavailable", `No contact number for ${name || "this contact"}.`);
       return;
     }
     triggerHaptic();
     const cleanPhone = phone.replace(/[^0-9+]/g, "");
     Linking.openURL(`tel:${cleanPhone}`).catch(() => {
-      Alert.alert("Error", `Could not initiate call to ${phone}`);
+      Alert.alert("Call Error", `Could not initiate call to ${phone}`);
     });
   };
 
-  const handleResolveRequest = async (issueId: string) => {
+  // Open Multi-Select Assign Modal
+  const openAssignModal = async () => {
+    triggerHaptic();
+    setShowAssignModal(true);
+    setSelectedAssignIds([]);
+    setIsLoadingAvailableWorkers(true);
     try {
-      setResolvingIssueId(issueId);
-      triggerHaptic();
-      await siteActivityStorage.resolveSiteIssue(issueId, "Resolved by Contractor");
-      Alert.alert("Success", "Request has been marked as resolved.");
+      const allRegistered = await storage.getWorkers(true);
+      const assignedIds = new Set(allWorkers.map((w) => String(w.id || w._id)));
+      // Filter out workers already assigned to this site
+      const unassigned = (allRegistered || []).filter(
+        (w) => w.projectId !== siteId && !assignedIds.has(String(w.id || (w as any)._id))
+      );
+      setAvailableWorkers(unassigned);
+    } catch (e) {
+      console.warn("Failed to load available workers", e);
+    } finally {
+      setIsLoadingAvailableWorkers(false);
+    }
+  };
+
+  // Submit Assign Workers (Phase 4)
+  const handleAssignSelectedWorkers = async () => {
+    if (selectedAssignIds.length === 0) {
+      Alert.alert("No Workers Selected", "Please select at least one worker to assign.");
+      return;
+    }
+    triggerHaptic();
+    setIsAssigningWorkers(true);
+    try {
+      await siteActivityStorage.assignWorkersToSite(siteId, selectedAssignIds);
+      setShowAssignModal(false);
+      setSelectedAssignIds([]);
       await loadSiteData(false);
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to resolve request.");
+      Alert.alert("Success", `${selectedAssignIds.length} worker(s) assigned to this site.`);
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to assign workers to site");
+    } finally {
+      setIsAssigningWorkers(false);
+    }
+  };
+
+  // Unassign Worker (Phase 4)
+  const handleUnassignWorker = (worker: any) => {
+    triggerHaptic();
+    Alert.alert(
+      "Unassign Worker",
+      `Remove "${worker.name}" from this site? Historical attendance records will not be deleted.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Unassign",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await siteActivityStorage.unassignWorkersFromSite(siteId, [worker.id]);
+              loadSiteData(false);
+            } catch (e: any) {
+              Alert.alert("Error", e.message || "Failed to unassign worker");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Submit Add Instruction Form
+  const handleSubmitInstruction = async () => {
+    if (!instructionText.trim() && !instructionTitle.trim()) {
+      Alert.alert("Required", "Please enter instruction title or description.");
+      return;
+    }
+    triggerHaptic();
+    setIsSubmittingInstruction(true);
+    try {
+      await siteActivityStorage.addSiteInstruction(siteId, {
+        title: instructionTitle.trim() || undefined,
+        description: instructionText.trim() || "Instruction",
+        instructionType: "TEXT",
+        trade: instructionTrade,
+        priority: instructionPriority,
+      });
+
+      setInstructionTitle("");
+      setInstructionText("");
+      setShowAddInstructionModal(false);
+      loadSiteData(false);
+      Alert.alert("Success", "Instruction published to site log.");
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to add site instruction");
+    } finally {
+      setIsSubmittingInstruction(false);
+    }
+  };
+
+  // Action 1: In-App Message Action
+  const handleSendMessage = async () => {
+    if (!messageText.trim()) {
+      Alert.alert("Message Required", "Please enter your message text.");
+      return;
+    }
+    triggerHaptic();
+    setIsSendingMessage(true);
+    try {
+      await siteActivityStorage.addSiteInstruction(siteId, {
+        title: "Site Broadcast Message",
+        description: messageText.trim(),
+        instructionType: "MESSAGE",
+        recipientName: messageRecipient,
+        priority: "NORMAL",
+      });
+
+      setMessageText("");
+      setShowMessageModal(false);
+      loadSiteData(false);
+      Alert.alert("Message Sent", `Message delivered to ${messageRecipient}.`);
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to send message");
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  // Action 2: Voice Note Recording Action
+  const startVoiceRecording = async () => {
+    triggerHaptic();
+    try {
+      setIsVoiceRecording(true);
+      setRecordingSeconds(0);
+      setRecordedAudioUri(null);
+
+      // Start duration counter
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+    } catch (e: any) {
+      Alert.alert("Recording Error", e.message || "Failed to access microphone.");
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    triggerHaptic();
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    setIsVoiceRecording(false);
+    // Create recorded session reference
+    const simulatedUri = `file:///simulated/voice_note_${Date.now()}.m4a`;
+    setRecordedAudioUri(simulatedUri);
+  };
+
+  const togglePreviewAudio = () => {
+    triggerHaptic();
+    setIsPreviewPlaying((prev) => !prev);
+  };
+
+  const handleSendVoiceNote = async () => {
+    if (!recordedAudioUri && recordingSeconds === 0) {
+      Alert.alert("No Recording", "Please record your voice instruction first.");
+      return;
+    }
+    triggerHaptic();
+    setIsUploadingVoice(true);
+    try {
+      const durationStr = `0:${String(recordingSeconds).padStart(2, "0")}`;
+      let audioRemoteUrl = recordedAudioUri;
+
+      // Upload if non-simulated real local file
+      if (recordedAudioUri && !recordedAudioUri.includes("simulated")) {
+        audioRemoteUrl = await uploadAudioToServer(recordedAudioUri);
+      }
+
+      await siteActivityStorage.addSiteInstruction(siteId, {
+        title: "Voice Instruction",
+        description: `Voice Note (${durationStr})`,
+        instructionType: "VOICE",
+        duration: durationStr,
+        voiceNoteUrl: audioRemoteUrl || undefined,
+        priority: "NORMAL",
+      });
+
+      setShowVoiceModal(false);
+      setRecordedAudioUri(null);
+      setRecordingSeconds(0);
+      loadSiteData(false);
+      Alert.alert("Success", "Voice instruction published to site timeline.");
+    } catch (e: any) {
+      Alert.alert("Upload Error", e.message || "Failed to upload voice instruction.");
+    } finally {
+      setIsUploadingVoice(false);
+    }
+  };
+
+  // Submit Report Issue (Phase 7)
+  const handleSubmitIssue = async () => {
+    if (!issueDescription.trim()) {
+      Alert.alert("Required", "Please describe the site issue.");
+      return;
+    }
+    triggerHaptic();
+    setIsSubmittingIssue(true);
+    try {
+      await siteActivityStorage.reportSiteIssue(siteId, {
+        description: issueDescription.trim(),
+        severity: issueSeverity,
+      });
+      setIssueDescription("");
+      setShowReportIssueModal(false);
+      loadSiteData(false);
+      Alert.alert("Success", "Issue reported to site control log.");
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to report issue");
+    } finally {
+      setIsSubmittingIssue(false);
+    }
+  };
+
+  // Resolve Issue
+  const handleResolveIssue = async (issueId: string) => {
+    triggerHaptic();
+    setResolvingIssueId(issueId);
+    try {
+      await siteActivityStorage.resolveSiteIssue(issueId, "Resolved by Contractor on site");
+      loadSiteData(false);
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to resolve issue");
     } finally {
       setResolvingIssueId(null);
     }
   };
 
-  // Render Trade Worker Card
-  const renderWorkerCard = (w: any) => {
-    const isPresent = w.attendanceStatus === "P" || w.attendanceStatus === "OT";
-    const isHalfDay = w.attendanceStatus === "H";
-    const isAbsent = w.attendanceStatus === "A";
-
-    return (
-      <View
-        key={w.id}
-        style={[
-          styles.workerCard,
-          {
-            backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
-            borderColor: isDark ? "#334155" : "#E2E8F0",
-          },
-        ]}
-      >
-        <View style={styles.workerTopRow}>
-          <View style={styles.workerAvatar}>
-            <Text style={styles.workerAvatarText}>
-              {(w.name || "W").charAt(0).toUpperCase()}
-            </Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <ThemedText numberOfLines={1} style={styles.workerNameTitle}>
-              {w.name}
-            </ThemedText>
-            <Text style={styles.workerCategorySub}>
-              {w.category || "Labour"} {w.uniqueId ? `• ID: ${w.uniqueId}` : ""}
-            </Text>
-          </View>
-          {/* Attendance Badge */}
-          <View
-            style={[
-              styles.attBadge,
-              isPresent
-                ? { backgroundColor: "#DCFCE7" }
-                : isHalfDay
-                ? { backgroundColor: "#FEF3C7" }
-                : isAbsent
-                ? { backgroundColor: "#FEE2E2" }
-                : { backgroundColor: isDark ? "#334155" : "#F1F5F9" },
-            ]}
-          >
-            <Text
-              style={[
-                styles.attBadgeText,
-                isPresent
-                  ? { color: "#166534" }
-                  : isHalfDay
-                  ? { color: "#92400E" }
-                  : isAbsent
-                  ? { color: "#991B1B" }
-                  : { color: isDark ? "#94A3B8" : "#64748B" },
-              ]}
-            >
-              {isPresent ? "Present" : isHalfDay ? "Half Day" : isAbsent ? "Absent" : "Unmarked"}
-            </Text>
-          </View>
-        </View>
-
-        {/* Progress & Work Photos Indicators */}
-        <View style={styles.workerFooterRow}>
-          <View style={styles.photoIndicatorPill}>
-            <MaterialCommunityIcons
-              name="weather-sunny"
-              size={14}
-              color={w.morningStatus === "submitted" ? "#10B981" : "#94A3B8"}
-            />
-            <Text
-              style={[
-                styles.photoIndicatorText,
-                { color: w.morningStatus === "submitted" ? "#10B981" : "#94A3B8" },
-              ]}
-            >
-              {w.morningStatus === "submitted" ? `Morning (${w.morningTime || "✓"})` : "Morning: No"}
-            </Text>
-          </View>
-
-          <View style={styles.photoIndicatorPill}>
-            <MaterialCommunityIcons
-              name="weather-sunset"
-              size={14}
-              color={w.eveningStatus === "submitted" ? "#10B981" : "#94A3B8"}
-            />
-            <Text
-              style={[
-                styles.photoIndicatorText,
-                { color: w.eveningStatus === "submitted" ? "#10B981" : "#94A3B8" },
-              ]}
-            >
-              {w.eveningStatus === "submitted" ? `Evening (${w.eveningTime || "✓"})` : "Evening: No"}
-            </Text>
-          </View>
-
-          {w.phone ? (
-            <Pressable
-              onPress={() => handleCall(w.phone)}
-              style={styles.workerCallBtn}
-            >
-              <Feather name="phone-call" size={14} color="#2563EB" />
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-    );
-  };
-
-  const tabs: { id: ControlTab; label: string; icon: string; count?: number }[] = [
-    { id: "Bandhkam", label: "Bandhkam", icon: "wall", count: bandhkamWorkers.length },
-    { id: "RCC", label: "RCC", icon: "shield-home", count: rccWorkers.length },
-    { id: "PLASTER", label: "Plaster", icon: "format-paint", count: plasterWorkers.length },
-    { id: "TILES", label: "Tiles", icon: "view-grid", count: tilesWorkers.length },
-    { id: "IMAGES", label: "Images", icon: "camera-burst", count: allPhotos.length },
-    { id: "EMERGENCY", label: "Emergency Contact", icon: "phone-alert" },
-    { id: "REQUESTS", label: "User Requests", icon: "comment-question", count: userRequests.length },
+  // The 6 Tabs for IA (Attendance removed per user request)
+  const TABS: { id: ControlTab; label: string; icon: string; count?: number }[] = [
+    { id: "Overview", label: "Overview", icon: "view-dashboard" },
+    { id: "Workforce", label: "Workforce", icon: "account-hard-hat", count: allWorkers.length },
+    { id: "Instructions", label: "Updates & Instructions", icon: "message-text-outline", count: customInstructions.length },
+    { id: "Photos", label: "Site Photos", icon: "camera-burst", count: allPhotos.length },
+    {
+      id: "Issues",
+      label: "Issues",
+      icon: "alert-circle-outline",
+      count: controlData?.metrics?.openIssuesCount || 0,
+    },
+    { id: "Emergency", label: "Emergency SOS", icon: "phone-alert" },
   ];
 
   if (!site && !controlData && isLoading) {
     return (
-      <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <ThemedView style={[styles.container, styles.centerBox]}>
+        <ActivityIndicator size="large" color={TOKENS.primary} />
       </ThemedView>
     );
   }
 
   return (
-    <ThemedView style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-      {/* 1. TOP HEADER */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: Math.max(insets.top, 14),
-            borderBottomColor: theme.border,
-            backgroundColor: theme.backgroundDefault,
-          },
-        ]}
-      >
-        <View style={styles.headerTopRow}>
+    <ThemedView
+      style={[
+        styles.container,
+        { paddingTop: Math.max(insets.top, 16), backgroundColor: TOKENS.bg },
+      ]}
+    >
+      {/* ── 1. TOP HEADER (<- Balaji height ... [⚠️ SOS] - Wireframe 3) ── */}
+      <View style={styles.topStickyHeader}>
+        <View style={styles.headerNavBar}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={styles.headerBackBtn}
+            hitSlop={12}
+          >
+            <Feather name="arrow-left" size={22} color={TOKENS.text} />
+          </Pressable>
+
+          <View style={{ flex: 1, paddingHorizontal: 6 }}>
+            <Text style={styles.topBarTitle} numberOfLines={1}>
+              {siteDisplayName}
+            </Text>
+            <Text style={styles.topBarSub} numberOfLines={1}>
+              {projectType} • {siteDisplayAddress}
+            </Text>
+          </View>
+
+          {/* Quick Emergency SOS Jump Button (Wireframe 3: [⚠️ SOS]) */}
           <Pressable
             onPress={() => {
               triggerHaptic();
-              navigation.goBack();
+              setActiveTab("Emergency");
             }}
-            style={styles.backButton}
+            style={styles.topSosButton}
+            hitSlop={8}
           >
-            <Feather name="arrow-left" size={22} color={theme.text} />
+            <MaterialCommunityIcons name="alert-octagon" size={16} color="#FFFFFF" />
+            <Text style={styles.topSosButtonText}>SOS</Text>
           </Pressable>
 
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <ThemedText numberOfLines={1} style={styles.headerTitle}>
-              {siteDisplayName}
-            </ThemedText>
-            <ThemedText numberOfLines={1} style={styles.headerSubtitle}>
-              📍 {siteDisplayAddress}
-            </ThemedText>
-          </View>
-
-          {/* Date Selector Pills */}
-          <View style={styles.dateSelectorRow}>
-            <Pressable
-              onPress={() => {
-                triggerHaptic();
-                setSelectedDate(getTodayStr());
-              }}
-              style={[
-                styles.datePill,
-                selectedDate === getTodayStr()
-                  ? { backgroundColor: theme.primary, borderColor: theme.primary }
-                  : { backgroundColor: isDark ? "#1E293B" : "#F1F5F9", borderColor: theme.border },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.datePillText,
-                  selectedDate === getTodayStr()
-                    ? { color: "#FFFFFF", fontWeight: "700" }
-                    : { color: theme.textSecondary },
-                ]}
-              >
-                Today
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => {
-                triggerHaptic();
-                setSelectedDate(getYesterdayStr());
-              }}
-              style={[
-                styles.datePill,
-                selectedDate === getYesterdayStr()
-                  ? { backgroundColor: theme.primary, borderColor: theme.primary }
-                  : { backgroundColor: isDark ? "#1E293B" : "#F1F5F9", borderColor: theme.border },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.datePillText,
-                  selectedDate === getYesterdayStr()
-                    ? { color: "#FFFFFF", fontWeight: "700" }
-                    : { color: theme.textSecondary },
-                ]}
-              >
-                Yesterday
-              </Text>
-            </Pressable>
-          </View>
+          {/* Toggle Summary Card Collapse */}
+          <Pressable
+            onPress={() => {
+              triggerHaptic();
+              setIsSummaryCollapsed((prev) => !prev);
+            }}
+            style={styles.collapseToggleBtn}
+            hitSlop={8}
+          >
+            <Feather
+              name={isSummaryCollapsed ? "chevron-down" : "chevron-up"}
+              size={18}
+              color={TOKENS.textSecondary}
+            />
+          </Pressable>
         </View>
 
-        {/* 2. 7 HORIZONTAL SCROLLING TABS */}
+        {/* Collapsible Summary Card Content */}
+        {!isSummaryCollapsed && (
+          <View style={styles.summaryCardBox}>
+            <View style={styles.summaryMetaRow}>
+              <View style={styles.projectTypeTag}>
+                <Text style={styles.projectTypeTagText}>{projectType}</Text>
+              </View>
+              <Text style={styles.startDateText}>Started: {formattedStartDate}</Text>
+            </View>
+
+            {clientName ? (
+              <View style={styles.clientInfoRow}>
+                <Feather name="briefcase" size={12} color={TOKENS.textMuted} />
+                <Text style={styles.clientInfoText}>
+                  Client: <Text style={{ color: TOKENS.text }}>{clientName}</Text>
+                </Text>
+              </View>
+            ) : null}
+
+            {/* CONDITIONAL UI RULE: Supervisor Profile Pill (Name + Call icon) */}
+            {/* If supervisor == null, COMPLETELY hide this row and collapse space */}
+            {hasSupervisor ? (
+              <View style={styles.supervisorRow}>
+                <View style={styles.supervisorPillLeft}>
+                  <MaterialCommunityIcons
+                    name="account-tie"
+                    size={16}
+                    color={TOKENS.primary}
+                  />
+                  <Text style={styles.supervisorLabel}>Supervisor:</Text>
+                  <Text style={styles.supervisorName} numberOfLines={1}>
+                    {supervisorName}
+                  </Text>
+                </View>
+
+                {supervisorPhone ? (
+                  <Pressable
+                    onPress={() => handleCall(supervisorPhone, supervisorName)}
+                    style={styles.supervisorCallBtn}
+                    hitSlop={8}
+                  >
+                    <Feather name="phone-call" size={12} color="#FFFFFF" />
+                    <Text style={styles.supervisorCallBtnText}>Call</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+
+            {projectDescription ? (
+              <Text style={styles.projectDescText} numberOfLines={2}>
+                "{projectDescription}"
+              </Text>
+            ) : null}
+          </View>
+        )}
+
+        {/* ── 2. HORIZONTAL SCROLLABLE TAB BAR (Wireframe 3) ── */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsScrollContent}
-          style={styles.tabsScroll}
+          style={styles.tabsScrollView}
         >
-          {tabs.map((tItem) => {
-            const isSelected = activeTab === tItem.id;
+          {TABS.map((tab) => {
+            const isSelected = activeTab === tab.id;
             return (
               <Pressable
-                key={tItem.id}
+                key={tab.id}
                 onPress={() => {
                   triggerHaptic();
-                  setActiveTab(tItem.id);
+                  setActiveTab(tab.id);
                 }}
                 style={[
                   styles.tabItem,
-                  isSelected
-                    ? [styles.tabItemActive, { borderBottomColor: theme.primary }]
-                    : null,
+                  isSelected && {
+                    borderBottomColor: TOKENS.primary,
+                    borderBottomWidth: 3,
+                  },
                 ]}
               >
                 <MaterialCommunityIcons
-                  name={tItem.icon as any}
-                  size={17}
-                  color={isSelected ? theme.primary : isDark ? "#94A3B8" : "#64748B"}
+                  name={tab.icon as any}
+                  size={16}
+                  color={isSelected ? TOKENS.primary : TOKENS.textMuted}
                 />
                 <Text
                   style={[
                     styles.tabItemText,
-                    isSelected
-                      ? [styles.tabItemTextActive, { color: theme.primary }]
-                      : { color: isDark ? "#94A3B8" : "#64748B" },
+                    {
+                      color: isSelected ? TOKENS.text : TOKENS.textSecondary,
+                      fontWeight: isSelected ? "800" : "500",
+                    },
                   ]}
                 >
-                  {tItem.label}
-                  {typeof tItem.count === "number" ? ` (${tItem.count})` : ""}
+                  {tab.label}
+                  {typeof tab.count === "number" ? ` (${tab.count})` : ""}
                 </Text>
               </Pressable>
             );
@@ -616,406 +981,1410 @@ export default function SiteDetailControlScreen() {
         </ScrollView>
       </View>
 
-      {/* 3. MAIN TAB CONTENT */}
+      {/* ── 3. MAIN TAB CONTENT SCROLLVIEW ── */}
       <ScrollView
         contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + 40 },
+          styles.mainScrollContent,
+          { paddingBottom: insets.bottom + 90 },
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            colors={[theme.primary]}
+            colors={[TOKENS.primary]}
+            tintColor={TOKENS.primary}
           />
         }
       >
-        {/* TAB 1: Bandhkam (Bandhkam / Masonry) */}
-        {activeTab === "Bandhkam" && (
-          <View>
-            <View style={styles.sectionHeaderRow}>
-              <ThemedText style={styles.sectionTitle}>🧱 Bandhkam (Masonry Workers)</ThemedText>
-              <Text style={styles.sectionCountText}>{bandhkamWorkers.length} Workers</Text>
-            </View>
-            {bandhkamWorkers.length === 0 ? (
-              <View style={[styles.emptyBox, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                <Text style={{ fontSize: 36, marginBottom: 8 }}>🧱</Text>
-                <ThemedText style={styles.emptyTitle}>No Masonry Workers Assigned</ThemedText>
-                <ThemedText style={styles.emptyDesc}>Workers tagged under Bandhkam or Masonry will appear here.</ThemedText>
-              </View>
-            ) : (
-              bandhkamWorkers.map((w) => renderWorkerCard(w))
-            )}
-          </View>
-        )}
+        {/* ======================================================== */}
+        {/* TAB 1: OVERVIEW (Wireframe 3)                             */}
+        {/* ======================================================== */}
+        {activeTab === "Overview" && (
+          <View style={styles.tabContentBlock}>
+            {/* 4 Summary Cards (2x2 Grid - Wireframe 3) */}
+            <View style={styles.overviewGrid}>
+              {/* Row 1 */}
+              <View style={styles.overviewGridRow}>
+                <View style={styles.overviewCard}>
+                  <Text style={styles.overviewCardVal}>
+                    {displayPresentWorkers}/{displayTotalWorkers}
+                  </Text>
+                  <Text style={styles.overviewCardLabel}>worker present</Text>
+                </View>
 
-        {/* TAB 2: RCC */}
-        {activeTab === "RCC" && (
-          <View>
-            <View style={styles.sectionHeaderRow}>
-              <ThemedText style={styles.sectionTitle}>🏗️ RCC & Steel Workers</ThemedText>
-              <Text style={styles.sectionCountText}>{rccWorkers.length} Workers</Text>
-            </View>
-            {rccWorkers.length === 0 ? (
-              <View style={[styles.emptyBox, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                <Text style={{ fontSize: 36, marginBottom: 8 }}>🏗️</Text>
-                <ThemedText style={styles.emptyTitle}>No RCC Workers Assigned</ThemedText>
-                <ThemedText style={styles.emptyDesc}>Workers tagged under RCC, Steel, or Shuttering will appear here.</ThemedText>
+                <View style={styles.overviewCard}>
+                  <Text style={styles.overviewCardVal}>{allPhotos.length}</Text>
+                  <Text style={styles.overviewCardLabel}>photo receive</Text>
+                </View>
               </View>
-            ) : (
-              rccWorkers.map((w) => renderWorkerCard(w))
-            )}
-          </View>
-        )}
 
-        {/* TAB 3: Plaster */}
-        {activeTab === "PLASTER" && (
-          <View>
-            <View style={styles.sectionHeaderRow}>
-              <ThemedText style={styles.sectionTitle}>🎨 Plaster & Finishing Workers</ThemedText>
-              <Text style={styles.sectionCountText}>{plasterWorkers.length} Workers</Text>
-            </View>
-            {plasterWorkers.length === 0 ? (
-              <View style={[styles.emptyBox, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                <Text style={{ fontSize: 36, marginBottom: 8 }}>🎨</Text>
-                <ThemedText style={styles.emptyTitle}>No Plaster Workers Assigned</ThemedText>
-                <ThemedText style={styles.emptyDesc}>Workers tagged under Plaster will appear here.</ThemedText>
-              </View>
-            ) : (
-              plasterWorkers.map((w) => renderWorkerCard(w))
-            )}
-          </View>
-        )}
-
-        {/* TAB 4: Tiles */}
-        {activeTab === "TILES" && (
-          <View>
-            <View style={styles.sectionHeaderRow}>
-              <ThemedText style={styles.sectionTitle}>📐 Tiles & Flooring Workers</ThemedText>
-              <Text style={styles.sectionCountText}>{tilesWorkers.length} Workers</Text>
-            </View>
-            {tilesWorkers.length === 0 ? (
-              <View style={[styles.emptyBox, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                <Text style={{ fontSize: 36, marginBottom: 8 }}>📐</Text>
-                <ThemedText style={styles.emptyTitle}>No Tiles Workers Assigned</ThemedText>
-                <ThemedText style={styles.emptyDesc}>Workers tagged under Tiles or Flooring will appear here.</ThemedText>
-              </View>
-            ) : (
-              tilesWorkers.map((w) => renderWorkerCard(w))
-            )}
-          </View>
-        )}
-
-        {/* TAB 5: Images (Morning / Evening Work Photos) */}
-        {activeTab === "IMAGES" && (
-          <View>
-            {/* Filter Sub-Pills */}
-            <View style={styles.photoFilterRow}>
-              {(["ALL", "MORNING", "EVENING"] as PhotoFilter[]).map((f) => (
-                <Pressable
-                  key={f}
-                  onPress={() => {
-                    triggerHaptic();
-                    setPhotoFilter(f);
-                  }}
-                  style={[
-                    styles.photoFilterPill,
-                    photoFilter === f
-                      ? { backgroundColor: theme.primary, borderColor: theme.primary }
-                      : { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", borderColor: theme.border },
-                  ]}
-                >
+              {/* Row 2 */}
+              <View style={styles.overviewGridRow}>
+                <View style={styles.overviewCard}>
                   <Text
                     style={[
-                      styles.photoFilterPillText,
-                      photoFilter === f
-                        ? { color: "#FFFFFF", fontWeight: "700" }
-                        : { color: theme.textSecondary },
-                    ]}
-                  >
-                    {f === "ALL" ? `All Photos (${allPhotos.length})` : f === "MORNING" ? "☀️ Morning" : "🌙 Evening"}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {filteredPhotos.length === 0 ? (
-              <View style={[styles.emptyBox, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                <Text style={{ fontSize: 36, marginBottom: 8 }}>📸</Text>
-                <ThemedText style={styles.emptyTitle}>No Work Photos Uploaded</ThemedText>
-                <ThemedText style={styles.emptyDesc}>When workers capture Morning or Evening work photos with GPS, they will appear here.</ThemedText>
-              </View>
-            ) : (
-              <View style={styles.photosGrid}>
-                {filteredPhotos.map((item) => (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => {
-                      triggerHaptic();
-                      setSelectedPhotoModal(item);
-                    }}
-                    style={[
-                      styles.photoGridCard,
-                      {
-                        backgroundColor: theme.backgroundDefault,
-                        borderColor: theme.border,
+                      styles.overviewCardVal,
+                      (controlData?.metrics?.openIssuesCount ?? 0) > 0 && {
+                        color: TOKENS.error,
                       },
                     ]}
                   >
-                    <View style={styles.photoThumbWrapper}>
-                      <Image
-                        source={{ uri: item.photoUrl }}
-                        style={styles.photoThumb}
-                        resizeMode="cover"
-                      />
-                      <View style={styles.photoExpandBadge}>
-                        <Feather name="maximize-2" size={12} color="#FFFFFF" />
-                      </View>
-                      <View
-                        style={[
-                          styles.photoTypeBadge,
-                          {
-                            backgroundColor:
-                              item.activityType === "MORNING_WORK" || item.activityType === "MORNING"
-                                ? "#F59E0B"
-                                : "#2563EB",
-                          },
-                        ]}
-                      >
-                        <Text style={styles.photoTypeBadgeText}>
-                          {item.activityType === "MORNING_WORK" || item.activityType === "MORNING"
-                            ? "☀️ Morning"
-                            : "🌙 Evening"}
-                        </Text>
-                      </View>
-                    </View>
+                    {controlData?.metrics?.openIssuesCount ?? 0}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.overviewCardLabel,
+                      (controlData?.metrics?.openIssuesCount ?? 0) > 0 && {
+                        color: TOKENS.error,
+                        fontWeight: "700",
+                      },
+                    ]}
+                  >
+                    open issue
+                  </Text>
+                </View>
 
-                    <View style={styles.photoCardBody}>
-                      <ThemedText numberOfLines={1} style={styles.photoWorkerName}>
-                        👷 {item.workerName}
-                      </ThemedText>
-                      <View style={styles.photoMetaRow}>
-                        <View style={styles.photoTimePill}>
-                          <Feather name="clock" size={11} color="#64748B" />
-                          <Text style={styles.photoTimeText}>{item.timeStr}</Text>
-                        </View>
-                        {item.location?.latitude ? (
-                          <View style={styles.photoGpsPill}>
-                            <Feather name="map-pin" size={11} color="#10B981" />
-                            <Text style={styles.photoGpsText}>GPS Verified</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    </View>
-                  </Pressable>
-                ))}
+                <View style={styles.overviewCard}>
+                  <Text style={styles.overviewCardVal}>
+                    {controlData?.metrics?.activeInstructionsCount ?? customInstructions.length}
+                  </Text>
+                  <Text style={styles.overviewCardLabel}>instruction</Text>
+                </View>
               </View>
-            )}
-          </View>
-        )}
-
-        {/* TAB 6: Emergency Contact */}
-        {activeTab === "EMERGENCY" && (
-          <View>
-            <View style={styles.sectionHeaderRow}>
-              <ThemedText style={styles.sectionTitle}>🚨 Site Emergency Contacts</ThemedText>
             </View>
-            <Text style={[styles.emergencyNotice, { color: isDark ? "#94A3B8" : "#64748B" }]}>
-              Tap the call button to immediately connect with site supervisors, medical support, or emergency services.
-            </Text>
 
-            {emergencyContacts.map((contact, index) => (
-              <View
-                key={`${contact.role}_${index}`}
-                style={[
-                  styles.emergencyCard,
-                  {
-                    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
-                    borderColor: isDark ? "#334155" : "#E2E8F0",
-                  },
-                ]}
-              >
-                <View style={styles.emergencyIconWrap}>
-                  <MaterialCommunityIcons
-                    name={(contact.icon as any) || "phone"}
-                    size={22}
-                    color="#DC2626"
+            {/* today photo submission card (Wireframe 3) */}
+            <View style={styles.shiftProgressBox}>
+              <Text style={styles.boxTitle}>today photo submission</Text>
+
+              {/* Morning Shift */}
+              <View style={styles.shiftProgressRow}>
+                <View style={styles.shiftProgressHeader}>
+                  <Text style={styles.shiftProgressTitle}>🌅 Morning</Text>
+                  <Text style={styles.shiftProgressCount}>
+                    {morningPhotosCount}/{displayTotalWorkers} Submitted
+                  </Text>
+                </View>
+                <View style={styles.progressBarTrack}>
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      {
+                        width: `${
+                          displayTotalWorkers > 0
+                            ? Math.min(100, Math.round((morningPhotosCount / displayTotalWorkers) * 100))
+                            : 0
+                        }%`,
+                        backgroundColor: TOKENS.success,
+                      },
+                    ]}
                   />
                 </View>
-
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <ThemedText style={styles.emergencyRole}>{contact.role}</ThemedText>
-                  <Text style={styles.emergencyName}>{contact.name}</Text>
-                  <Text style={styles.emergencyPhone}>{contact.phone}</Text>
-                </View>
-
-                <Pressable
-                  onPress={() => handleCall(contact.phone)}
-                  style={styles.emergencyCallBtn}
-                >
-                  <Feather name="phone-call" size={18} color="#FFFFFF" />
-                  <Text style={styles.emergencyCallBtnText}>Call</Text>
-                </Pressable>
               </View>
-            ))}
+
+              {/* Evening Shift */}
+              <View style={[styles.shiftProgressRow, { marginTop: 12 }]}>
+                <View style={styles.shiftProgressHeader}>
+                  <Text style={styles.shiftProgressTitle}>🌆 Evening</Text>
+                  <Text style={styles.shiftProgressCount}>
+                    {eveningPhotosCount}/{displayTotalWorkers} Submitted
+                  </Text>
+                </View>
+                <View style={styles.progressBarTrack}>
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      {
+                        width: `${
+                          displayTotalWorkers > 0
+                            ? Math.min(100, Math.round((eveningPhotosCount / displayTotalWorkers) * 100))
+                            : 0
+                        }%`,
+                        backgroundColor: TOKENS.blue,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
+            </View>
+
+            {/* Quick management section (Wireframe 3: Workforce, Site Photo, Emergency) */}
+            <Text style={[styles.boxTitle, { marginTop: 18, marginBottom: 10 }]}>
+              Quick management
+            </Text>
+            <View style={styles.shortcutsGrid}>
+              <Pressable
+                onPress={() => {
+                  triggerHaptic();
+                  setActiveTab("Workforce");
+                }}
+                style={styles.shortcutBtn}
+              >
+                <MaterialCommunityIcons
+                  name="account-hard-hat"
+                  size={24}
+                  color={TOKENS.primary}
+                />
+                <Text style={styles.shortcutBtnText}>Workforce</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  triggerHaptic();
+                  setActiveTab("Photos");
+                }}
+                style={styles.shortcutBtn}
+              >
+                <MaterialCommunityIcons
+                  name="camera-burst"
+                  size={24}
+                  color={TOKENS.blue}
+                />
+                <Text style={styles.shortcutBtnText}>Site Photo</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  triggerHaptic();
+                  setActiveTab("Emergency");
+                }}
+                style={styles.shortcutBtn}
+              >
+                <MaterialCommunityIcons
+                  name="phone-alert"
+                  size={24}
+                  color={TOKENS.error}
+                />
+                <Text style={styles.shortcutBtnText}>Emergency</Text>
+              </Pressable>
+            </View>
           </View>
         )}
 
-        {/* TAB 7: User Requests */}
-        {activeTab === "REQUESTS" && (
-          <View>
-            <View style={styles.sectionHeaderRow}>
-              <ThemedText style={styles.sectionTitle}>📋 Worker Requests & Feedback</ThemedText>
-              <Text style={styles.sectionCountText}>{userRequests.length} Total</Text>
+        {/* ======================================================== */}
+        {/* TAB 2: WORKFORCE & CATEGORY ASSIGNMENT (Phase 4)          */}
+        {/* ======================================================== */}
+        {activeTab === "Workforce" && (
+          <View style={styles.tabContentBlock}>
+            {/* Top Action Row: Title & "+ Assign Workers" Button */}
+            <View style={styles.workforceHeaderRow}>
+              <View style={styles.workforceHeaderTitleCol}>
+                <Text style={styles.workforceHeadingTitle} numberOfLines={1}>
+                  Site Workforce ({allWorkers.length})
+                </Text>
+                <Text style={styles.workforceHeadingSub} numberOfLines={1}>
+                  Assigned artisans, fitters & labour
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={openAssignModal}
+                style={styles.headerActionBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Feather name="user-plus" size={14} color="#FFFFFF" />
+                <Text style={styles.headerActionBtnText}>Assign</Text>
+              </Pressable>
             </View>
 
-            {userRequests.length === 0 ? (
-              <View style={[styles.emptyBox, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-                <Text style={{ fontSize: 36, marginBottom: 8 }}>✅</Text>
-                <ThemedText style={styles.emptyTitle}>No Pending Requests</ThemedText>
-                <ThemedText style={styles.emptyDesc}>All worker inquiries and site feedback for this site are up to date.</ThemedText>
-              </View>
-            ) : (
-              userRequests.map((reqItem) => {
-                const isResolved = reqItem.status === "RESOLVED";
-                const isResolving = resolvingIssueId === (reqItem._id || reqItem.id);
-
+            {/* Category Selector Pills with Counts (Phase 4 Requirement) */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryPillsScroll}
+              style={{ marginBottom: 12 }}
+            >
+              {WORKER_CATEGORIES.map((cat) => {
+                const isSelected = selectedCategory === cat.id;
+                const count = categoryCounts[cat.id] || 0;
                 return (
-                  <View
-                    key={reqItem._id || reqItem.id}
+                  <Pressable
+                    key={cat.id}
+                    onPress={() => {
+                      triggerHaptic();
+                      setSelectedCategory(cat.id);
+                    }}
                     style={[
-                      styles.requestCard,
-                      {
-                        backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
-                        borderColor: isResolved ? "#10B981" : isDark ? "#334155" : "#E2E8F0",
-                      },
+                      styles.categoryPill,
+                      isSelected
+                        ? { backgroundColor: TOKENS.primary, borderColor: TOKENS.primary }
+                        : { backgroundColor: TOKENS.surface, borderColor: TOKENS.border },
                     ]}
                   >
-                    <View style={styles.requestTopRow}>
-                      <View style={{ flex: 1 }}>
-                        <ThemedText style={styles.requestUser}>
-                          👤 {reqItem.userName || "Worker"}
-                        </ThemedText>
-                        <Text style={styles.requestTime}>
-                          {reqItem.dateStr || "Today"} • {reqItem.timeStr || "Recent"}
-                        </Text>
+                    <Text
+                      style={[
+                        styles.categoryPillText,
+                        {
+                          color: isSelected ? "#FFFFFF" : TOKENS.textSecondary,
+                          fontWeight: isSelected ? "700" : "500",
+                        },
+                      ]}
+                    >
+                      {cat.label} ({count})
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {/* Worker Search Bar */}
+            <View style={styles.workerSearchBar}>
+              <Feather name="search" size={16} color={TOKENS.textMuted} />
+              <TextInput
+                value={workerSearch}
+                onChangeText={setWorkerSearch}
+                placeholder="Search worker by name, skill or phone..."
+                placeholderTextColor={TOKENS.textMuted}
+                style={styles.workerSearchInput}
+              />
+              {workerSearch ? (
+                <Pressable onPress={() => setWorkerSearch("")} hitSlop={10}>
+                  <Feather name="x" size={14} color={TOKENS.textMuted} />
+                </Pressable>
+              ) : null}
+            </View>
+
+            {/* Workers List */}
+            {filteredWorkforce.length === 0 ? (
+              <View style={styles.emptyWorkersCard}>
+                <MaterialCommunityIcons
+                  name="account-hard-hat"
+                  size={36}
+                  color={TOKENS.textMuted}
+                />
+                <Text style={styles.emptyWorkersTitle}>No Workers Found</Text>
+                <Text style={styles.emptyWorkersSub}>
+                  No workers assigned in "{selectedCategory}". Tap "+ Assign" above to assign connected workers to this site.
+                </Text>
+              </View>
+            ) : (
+              filteredWorkforce.map((w: any) => {
+                const isPresent =
+                  w.attendanceStatus === "P" || w.attendanceStatus === "OT";
+                const isHalfDay = w.attendanceStatus === "H";
+                const wageStr = w.dailyRate ? `₹${w.dailyRate}/day` : "Rate not set";
+
+                return (
+                  <View key={w.id || w._id} style={styles.workerRowCard}>
+                    <View style={styles.workerAvatar}>
+                      <Text style={styles.workerAvatarText}>
+                        {(w.name || "W").charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+
+                    <View style={{ flex: 1, paddingHorizontal: 10 }}>
+                      <Text style={styles.workerName} numberOfLines={1}>
+                        {w.name}
+                      </Text>
+                      <View style={styles.workerMetaPillsRow}>
+                        <View style={styles.skillBadgePill}>
+                          <Text style={styles.skillBadgeText}>
+                            {w.category || "Labour"}
+                          </Text>
+                        </View>
+                        <Text style={styles.wageText}>{wageStr}</Text>
                       </View>
-                      <View
-                        style={[
-                          styles.requestStatusBadge,
-                          { backgroundColor: isResolved ? "#DCFCE7" : "#FEF3C7" },
-                        ]}
-                      >
-                        <Text
+
+                      {/* Status indicator */}
+                      <View style={styles.workerStatusRow}>
+                        <View
                           style={[
-                            styles.requestStatusBadgeText,
-                            { color: isResolved ? "#166534" : "#92400E" },
+                            styles.statusDotSmall,
+                            {
+                              backgroundColor: isPresent
+                                ? TOKENS.success
+                                : isHalfDay
+                                ? TOKENS.warning
+                                : TOKENS.textMuted,
+                            },
                           ]}
-                        >
-                          {isResolved ? "RESOLVED" : "OPEN"}
+                        />
+                        <Text style={styles.workerStatusText}>
+                          {isPresent ? "Present" : isHalfDay ? "Half Day" : "Off-site"}
                         </Text>
                       </View>
                     </View>
 
-                    <Text
-                      style={[
-                        styles.requestDesc,
-                        { color: isDark ? "#F8FAFC" : "#0F172A" },
-                      ]}
-                    >
-                      {reqItem.description || reqItem.notes || "Worker feedback / issue report"}
-                    </Text>
+                    {/* Actions: Call & Unassign */}
+                    <View style={styles.workerActionsCol}>
+                      {w.phone ? (
+                        <Pressable
+                          onPress={() => handleCall(w.phone, w.name)}
+                          style={styles.workerCallBtn}
+                          hitSlop={8}
+                        >
+                          <Feather name="phone" size={14} color="#FFFFFF" />
+                          <Text style={styles.workerCallBtnText}>Call</Text>
+                        </Pressable>
+                      ) : null}
 
-                    {!isResolved && (
                       <Pressable
-                        onPress={() => handleResolveRequest(reqItem._id || reqItem.id)}
-                        disabled={isResolving}
-                        style={styles.resolveBtn}
+                        onPress={() => handleUnassignWorker(w)}
+                        style={styles.unassignBtn}
+                        hitSlop={8}
                       >
-                        {isResolving ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                          <>
-                            <Feather name="check" size={14} color="#FFFFFF" />
-                            <Text style={styles.resolveBtnText}>Mark as Resolved</Text>
-                          </>
-                        )}
+                        <Feather name="user-minus" size={13} color={TOKENS.error} />
+                        <Text style={styles.unassignBtnText}>Unassign</Text>
                       </Pressable>
-                    )}
+                    </View>
                   </View>
                 );
               })
             )}
           </View>
         )}
-      </ScrollView>
 
-      {/* 4. FULLSCREEN PHOTO VIEWER MODAL */}
-      <Modal
-        visible={selectedPhotoModal !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSelectedPhotoModal(null)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalContent, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF" }]}>
-            <View style={styles.modalHeader}>
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.modalWorkerName}>
-                  👷 {selectedPhotoModal?.workerName}
-                </ThemedText>
-                <Text style={styles.modalWorkerRole}>
-                  {selectedPhotoModal?.workerRole} •{" "}
-                  {selectedPhotoModal?.activityType === "MORNING_WORK" || selectedPhotoModal?.activityType === "MORNING"
-                    ? "☀️ Morning"
-                    : "🌙 Evening"}
+        {/* ======================================================== */}
+        {/* TAB 4: UPDATES & INSTRUCTIONS (Phase 7 - Communication)   */}
+        {/* ======================================================== */}
+        {activeTab === "Instructions" && (
+          <View style={styles.tabContentBlock}>
+            {/* Top Action Row: Title & "+ Add Instruction" */}
+            <View style={styles.workforceHeaderRow}>
+              <View style={styles.workforceHeaderTitleCol}>
+                <Text style={styles.workforceHeadingTitle} numberOfLines={1}>Updates & Instructions</Text>
+                <Text style={styles.workforceHeadingSub} numberOfLines={1}>
+                  Real-time timeline, voice notes & field communications
                 </Text>
               </View>
+
               <Pressable
-                onPress={() => setSelectedPhotoModal(null)}
-                style={styles.modalCloseBtn}
+                onPress={() => {
+                  triggerHaptic();
+                  setShowAddInstructionModal(true);
+                }}
+                style={styles.headerActionBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Feather name="x" size={20} color={theme.text} />
+                <Feather name="plus" size={15} color="#FFFFFF" />
+                <Text style={styles.headerActionBtnText}>Add</Text>
               </Pressable>
             </View>
 
-            {selectedPhotoModal?.photoUrl ? (
-              <Image
-                source={{ uri: selectedPhotoModal.photoUrl }}
-                style={styles.modalImage}
-                resizeMode="contain"
-              />
-            ) : null}
+            {/* Three Real Communication Actions: Message, Voice, Call */}
+            <View style={styles.communicationBar}>
+              {/* Action 1: Message */}
+              <Pressable
+                onPress={() => {
+                  triggerHaptic();
+                  setShowMessageModal(true);
+                }}
+                style={styles.commActionBtn}
+              >
+                <View style={[styles.commIconCircle, { backgroundColor: "rgba(46, 144, 250, 0.15)" }]}>
+                  <MaterialCommunityIcons name="message-text-outline" size={20} color={TOKENS.blue} />
+                </View>
+                <Text style={styles.commActionLabel}>Message</Text>
+              </Pressable>
 
-            <View style={styles.modalFooter}>
-              <View style={styles.modalMetaRow}>
-                <Feather name="clock" size={14} color="#64748B" />
-                <Text style={styles.modalMetaText}>
-                  {selectedPhotoModal?.dateStr} at {selectedPhotoModal?.timeStr}
+              {/* Action 2: Voice */}
+              <Pressable
+                onPress={() => {
+                  triggerHaptic();
+                  setShowVoiceModal(true);
+                }}
+                style={styles.commActionBtn}
+              >
+                <View style={[styles.commIconCircle, { backgroundColor: "rgba(249, 115, 22, 0.15)" }]}>
+                  <Feather name="mic" size={20} color={TOKENS.primary} />
+                </View>
+                <Text style={styles.commActionLabel}>Voice</Text>
+              </Pressable>
+
+              {/* Action 3: Call */}
+              <Pressable
+                onPress={() => {
+                  triggerHaptic();
+                  setShowCallSheet(true);
+                }}
+                style={styles.commActionBtn}
+              >
+                <View style={[styles.commIconCircle, { backgroundColor: "rgba(18, 183, 106, 0.15)" }]}>
+                  <Feather name="phone-call" size={20} color={TOKENS.success} />
+                </View>
+                <Text style={styles.commActionLabel}>Call</Text>
+              </Pressable>
+            </View>
+
+            {/* Chronological List of Instructions & Updates */}
+            {customInstructions.length === 0 ? (
+              <View style={styles.emptyWorkersCard}>
+                <Feather name="message-square" size={36} color={TOKENS.textMuted} />
+                <Text style={styles.emptyWorkersTitle}>No Instructions Yet</Text>
+                <Text style={styles.emptyWorkersSub}>
+                  Tap "+ Add Instruction", "Message" or "Voice" to post the first update to this site.
+                </Text>
+              </View>
+            ) : (
+              customInstructions.map((item) => {
+                const isVoice = item.type === "VOICE";
+                const isCallLog = item.type === "CALL_LOG";
+                const isSpec = item.type === "SPEC";
+                const isMessage = item.type === "MESSAGE";
+                const isPlaying = playingVoiceId === item.id;
+
+                return (
+                  <View key={item.id} style={styles.instructionCard}>
+                    <View style={styles.instructionTopRow}>
+                      <View style={styles.instructionTypeTag}>
+                        {isVoice ? (
+                          <>
+                            <Feather name="mic" size={13} color={TOKENS.primary} />
+                            <Text style={[styles.instructionTypeTagText, { color: TOKENS.primary }]}>
+                              Voice Instruction • {item.duration || "0:24"}
+                            </Text>
+                          </>
+                        ) : isMessage ? (
+                          <>
+                            <MaterialCommunityIcons name="message-text" size={13} color={TOKENS.blue} />
+                            <Text style={[styles.instructionTypeTagText, { color: TOKENS.blue }]}>
+                              In-App Message {item.recipientName ? `→ ${item.recipientName}` : ""}
+                            </Text>
+                          </>
+                        ) : isCallLog ? (
+                          <>
+                            <Feather name="phone-call" size={13} color={TOKENS.success} />
+                            <Text style={[styles.instructionTypeTagText, { color: TOKENS.success }]}>
+                              Call Log
+                            </Text>
+                          </>
+                        ) : isSpec ? (
+                          <>
+                            <Feather name="file-text" size={13} color={TOKENS.warning} />
+                            <Text style={[styles.instructionTypeTagText, { color: TOKENS.warning }]}>
+                              {item.specRef || "Blueprint Spec"}
+                            </Text>
+                          </>
+                        ) : (
+                          <>
+                            <Feather name="edit-3" size={13} color={TOKENS.textSecondary} />
+                            <Text style={styles.instructionTypeTagText}>
+                              {item.title || "Instruction"}
+                            </Text>
+                          </>
+                        )}
+                      </View>
+
+                      <Text style={styles.instructionTimeStr}>{item.timeStr}</Text>
+                    </View>
+
+                    {/* Audio Waveform for Voice Notes */}
+                    {isVoice ? (
+                      <View style={styles.waveformContainer}>
+                        <Pressable
+                          onPress={() => togglePlayVoiceNote(item.id)}
+                          style={[
+                            styles.voicePlayBtn,
+                            isPlaying && { backgroundColor: TOKENS.error },
+                          ]}
+                        >
+                          <Feather name={isPlaying ? "pause" : "play"} size={14} color="#FFFFFF" />
+                          <Text style={styles.voicePlayBtnText}>
+                            {isPlaying ? "Pause" : "Play"}
+                          </Text>
+                        </Pressable>
+
+                        <View style={styles.waveBarsRow}>
+                          {[12, 20, 10, 26, 14, 22, 8, 28, 16, 24, 10, 18, 26, 14].map((h, i) => {
+                            const isActive = isPlaying && i / 14 <= playbackProgress;
+                            return (
+                              <View
+                                key={i}
+                                style={[
+                                  styles.waveBar,
+                                  {
+                                    height: h,
+                                    backgroundColor: isActive ? TOKENS.primary : TOKENS.borderLight,
+                                  },
+                                ]}
+                              />
+                            );
+                          })}
+                        </View>
+                      </View>
+                    ) : null}
+
+                    {/* Content */}
+                    <Text style={styles.instructionContentText}>"{item.content}"</Text>
+
+                    {item.author ? (
+                      <Text style={styles.instructionAuthorText}>— {item.author}</Text>
+                    ) : null}
+                  </View>
+                );
+              })
+            )}
+          </View>
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 5: SITE PHOTOS & SITE CAM (Phase 6)                   */}
+        {/* ======================================================== */}
+        {activeTab === "Photos" && (
+          <View style={styles.tabContentBlock}>
+            {/* Shift Filters */}
+            <View style={styles.photoFilterPillsRow}>
+              {(["ALL", "MORNING", "EVENING"] as PhotoFilter[]).map((pf) => {
+                const isSelected = photoFilter === pf;
+                const count =
+                  pf === "ALL"
+                    ? allPhotos.length
+                    : pf === "MORNING"
+                    ? morningPhotosCount
+                    : eveningPhotosCount;
+                return (
+                  <Pressable
+                    key={pf}
+                    onPress={() => {
+                      triggerHaptic();
+                      setPhotoFilter(pf);
+                    }}
+                    style={[
+                      styles.photoFilterPill,
+                      isSelected
+                        ? { backgroundColor: TOKENS.primary, borderColor: TOKENS.primary }
+                        : { backgroundColor: TOKENS.surface, borderColor: TOKENS.border },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.photoFilterPillText,
+                        {
+                          color: isSelected ? "#FFFFFF" : TOKENS.textSecondary,
+                          fontWeight: isSelected ? "700" : "500",
+                        },
+                      ]}
+                    >
+                      {pf === "ALL" ? "All Photos" : pf === "MORNING" ? "🌅 Morning" : "🌆 Evening"} ({count})
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Photos Grid */}
+            {filteredPhotos.length === 0 ? (
+              <View style={styles.emptyWorkersCard}>
+                <Feather name="camera-off" size={36} color={TOKENS.textMuted} />
+                <Text style={styles.emptyWorkersTitle}>No Photos Submitted</Text>
+                <Text style={styles.emptyWorkersSub}>
+                  No {photoFilter.toLowerCase()} photos uploaded for this site yet.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.photosGrid}>
+                {filteredPhotos.map((photo) => {
+                  const hasGPS = Boolean(photo.location?.latitude && photo.location?.longitude);
+                  const isMorning =
+                    photo.activityType === "MORNING_WORK" || photo.activityType === "MORNING";
+
+                  return (
+                    <Pressable
+                      key={photo.id}
+                      onPress={() => {
+                        triggerHaptic();
+                        setSelectedPhotoModal(photo);
+                      }}
+                      style={styles.photoGridCard}
+                    >
+                      <Image
+                        source={{ uri: photo.photoUrl }}
+                        style={styles.photoThumbnail}
+                        resizeMode="cover"
+                      />
+
+                      {/* Shift Badge on image */}
+                      <View style={styles.photoShiftBadgeOverlay}>
+                        <Text style={styles.photoShiftBadgeText}>
+                          {isMorning ? "🌅 Morning" : "🌆 Evening"}
+                        </Text>
+                      </View>
+
+                      {/* GPS Badge on image */}
+                      {hasGPS && (
+                        <View style={styles.photoGpsBadgeOverlay}>
+                          <Feather name="map-pin" size={10} color="#FFFFFF" />
+                          <Text style={styles.photoGpsBadgeText}>GPS</Text>
+                        </View>
+                      )}
+
+                      {/* Photo Card Footer */}
+                      <View style={styles.photoCardFooter}>
+                        <Text style={styles.photoWorkerName} numberOfLines={1}>
+                          {photo.workerName}
+                        </Text>
+                        <Text style={styles.photoTimestamp} numberOfLines={1}>
+                          {photo.timeStr}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 6: ISSUES (Phase 3 & 7)                              */}
+        {/* ======================================================== */}
+        {activeTab === "Issues" && (
+          <View style={styles.tabContentBlock}>
+            {/* Top Action Row */}
+            <View style={styles.workforceHeaderRow}>
+              <View style={styles.workforceHeaderTitleCol}>
+                <Text style={styles.workforceHeadingTitle} numberOfLines={1}>
+                  Site Issues ({controlData?.openIssues?.length || 0})
+                </Text>
+                <Text style={styles.workforceHeadingSub} numberOfLines={1}>
+                  Safety, material shortage or structural blockers
                 </Text>
               </View>
 
-              {selectedPhotoModal?.location?.latitude ? (
-                <View style={styles.modalLocationSection}>
-                  <View style={styles.modalMetaRow}>
-                    <Feather name="map-pin" size={14} color="#10B981" />
-                    <Text style={styles.modalMetaText}>
-                      Lat: {selectedPhotoModal.location.latitude.toFixed(5)}, Lng:{" "}
-                      {selectedPhotoModal.location.longitude.toFixed(5)}
+              <Pressable
+                onPress={() => {
+                  triggerHaptic();
+                  setShowReportIssueModal(true);
+                }}
+                style={[styles.headerActionBtn, styles.headerActionBtnDanger]}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Feather name="alert-triangle" size={14} color="#FFFFFF" />
+                <Text style={styles.headerActionBtnText}>Report</Text>
+              </Pressable>
+            </View>
+
+            {/* List of Issues */}
+            {(controlData?.openIssues || []).length === 0 ? (
+              <View style={styles.emptyWorkersCard}>
+                <Feather name="check-circle" size={40} color={TOKENS.success} />
+                <Text style={styles.emptyWorkersTitle}>No Open Issues!</Text>
+                <Text style={styles.emptyWorkersSub}>
+                  All reported issues have been resolved or this site is running smoothly without blockers.
+                </Text>
+              </View>
+            ) : (
+              (controlData?.openIssues || []).map((issue: any) => {
+                const isResolving = resolvingIssueId === issue._id;
+                const severity = issue.severity || "MEDIUM";
+                const isCritical = severity === "CRITICAL" || severity === "HIGH";
+
+                return (
+                  <View
+                    key={issue._id}
+                    style={[
+                      styles.issueCard,
+                      isCritical && { borderColor: "rgba(240, 68, 56, 0.45)" },
+                    ]}
+                  >
+                    <View style={styles.issueCardHeader}>
+                      <View
+                        style={[
+                          styles.severityBadge,
+                          {
+                            backgroundColor: isCritical
+                              ? TOKENS.errorLight
+                              : TOKENS.warningLight,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.severityBadgeText,
+                            {
+                              color: isCritical ? TOKENS.error : TOKENS.warning,
+                            },
+                          ]}
+                        >
+                          {severity} SEVERITY
+                        </Text>
+                      </View>
+                      <Text style={styles.issueTimeText}>
+                        {issue.createdAt
+                          ? new Date(issue.createdAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "Today"}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.issueDescription}>{issue.description}</Text>
+
+                    {issue.reportedBy?.name ? (
+                      <Text style={styles.issueReporterText}>
+                        Reported by: {issue.reportedBy.name}
+                      </Text>
+                    ) : null}
+
+                    {/* Resolve Issue Button */}
+                    <Pressable
+                      onPress={() => handleResolveIssue(issue._id)}
+                      disabled={isResolving}
+                      style={styles.resolveIssueBtn}
+                    >
+                      {isResolving ? (
+                        <ActivityIndicator color={TOKENS.success} size="small" />
+                      ) : (
+                        <>
+                          <Feather name="check" size={16} color={TOKENS.success} />
+                          <Text style={styles.resolveIssueBtnText}>Mark Resolved</Text>
+                        </>
+                      )}
+                    </Pressable>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 7: EMERGENCY SOS (Phase 7 - Wireframe 3)              */}
+        {/* ======================================================== */}
+        {activeTab === "Emergency" && (
+          <View style={styles.tabContentBlock}>
+            {/* High-Contrast Alert Notice */}
+            <View style={styles.emergencyNoticeBox}>
+              <MaterialCommunityIcons
+                name="alert-octagon"
+                size={24}
+                color={TOKENS.error}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.emergencyNoticeTitle}>
+                  Emergency Quick Dial Protocol
+                </Text>
+                <Text style={styles.emergencyNoticeSub}>
+                  One-tap direct dial numbers for on-site medical, fire, or police emergencies.
+                </Text>
+              </View>
+            </View>
+
+            {/* 4 Emergency Speed Dial Cards */}
+            <View style={styles.emergencyCardsList}>
+              {emergencyContacts.map((contact, idx) => (
+                <View key={idx} style={styles.emergencyContactCard}>
+                  <View
+                    style={[
+                      styles.emergencyIconBox,
+                      { backgroundColor: "rgba(240, 68, 56, 0.15)" },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={contact.icon as any}
+                      size={26}
+                      color={contact.accent}
+                    />
+                  </View>
+
+                  <View style={{ flex: 1, paddingHorizontal: 10 }}>
+                    <Text style={styles.emergencyRole}>{contact.role}</Text>
+                    <Text style={styles.emergencyName} numberOfLines={1}>
+                      {contact.name}
+                    </Text>
+                    <Text style={styles.emergencyDistance}>
+                      📍 {contact.distance} • Direct line: {contact.phone}
                     </Text>
                   </View>
 
                   <Pressable
-                    onPress={() => openInGoogleMaps(selectedPhotoModal.location)}
-                    style={styles.mapsActionBtn}
+                    onPress={() => handleCall(contact.phone, contact.name)}
+                    style={[
+                      styles.emergencyCallBtn,
+                      { backgroundColor: contact.accent },
+                    ]}
                   >
-                    <Feather name="navigation" size={14} color="#FFFFFF" />
-                    <Text style={styles.mapsActionBtnText}>Open in Google Maps</Text>
+                    <Feather name="phone-call" size={16} color="#FFFFFF" />
+                    <Text style={styles.emergencyCallBtnText}>Call</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* ── MODAL 1: MULTI-SELECT ASSIGN WORKERS MODAL (Phase 4) ── */}
+      <Modal
+        visible={showAssignModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAssignModal(false)}
+      >
+        <View style={styles.modalOverlayBottom}>
+          <View style={styles.modalSheetBox}>
+            <View style={styles.modalSheetHeader}>
+              <View>
+                <Text style={styles.modalSheetTitle}>Assign Workers to Site</Text>
+                <Text style={styles.modalSheetSub}>
+                  Select connected workers from your workforce
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setShowAssignModal(false)}
+                hitSlop={12}
+              >
+                <Feather name="x" size={20} color={TOKENS.textSecondary} />
+              </Pressable>
+            </View>
+
+            {isLoadingAvailableWorkers ? (
+              <ActivityIndicator
+                size="large"
+                color={TOKENS.primary}
+                style={{ marginVertical: 40 }}
+              />
+            ) : availableWorkers.length === 0 ? (
+              <View style={{ paddingVertical: 40, alignItems: "center" }}>
+                <Text style={{ color: TOKENS.textMuted, fontSize: 14 }}>
+                  All connected workers are already assigned to this site.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={availableWorkers}
+                keyExtractor={(item) => item.id}
+                style={{ maxHeight: 380 }}
+                renderItem={({ item }) => {
+                  const isChecked = selectedAssignIds.includes(item.id);
+                  return (
+                    <Pressable
+                      onPress={() => {
+                        triggerHaptic();
+                        setSelectedAssignIds((prev) =>
+                          isChecked
+                            ? prev.filter((id) => id !== item.id)
+                            : [...prev, item.id]
+                        );
+                      }}
+                      style={[
+                        styles.assignWorkerPickerRow,
+                        isChecked && {
+                          backgroundColor: TOKENS.surfaceLight,
+                          borderColor: TOKENS.primary,
+                        },
+                      ]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.pickerWorkerName}>{item.name}</Text>
+                        <Text style={styles.pickerWorkerCategory}>
+                          {item.category || "Labour"} • ₹{item.dailyRate || 0}/day
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.checkboxCircle,
+                          isChecked && {
+                            backgroundColor: TOKENS.primary,
+                            borderColor: TOKENS.primary,
+                          },
+                        ]}
+                      >
+                        {isChecked && (
+                          <Feather name="check" size={14} color="#FFFFFF" />
+                        )}
+                      </View>
+                    </Pressable>
+                  );
+                }}
+              />
+            )}
+
+            {/* Footer Submit Button */}
+            <Pressable
+              onPress={handleAssignSelectedWorkers}
+              disabled={isAssigningWorkers || selectedAssignIds.length === 0}
+              style={[
+                styles.confirmAssignBtn,
+                selectedAssignIds.length === 0 && { opacity: 0.5 },
+              ]}
+            >
+              {isAssigningWorkers ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.confirmAssignBtnText}>
+                  Assign Selected ({selectedAssignIds.length}) Workers
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL 2: FULL-SCREEN PHOTO VIEWER (Phase 6) ── */}
+      <Modal
+        visible={!!selectedPhotoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedPhotoModal(null)}
+      >
+        <View style={styles.photoModalOverlay}>
+          <View style={styles.photoModalTopBar}>
+            <View>
+              <Text style={styles.photoModalTitle} numberOfLines={1}>
+                {selectedPhotoModal?.workerName}
+              </Text>
+              <Text style={styles.photoModalSub} numberOfLines={1}>
+                {selectedPhotoModal?.activityType === "MORNING_WORK"
+                  ? "🌅 Morning Photo"
+                  : "🌆 Evening Photo"}{" "}
+                • {selectedPhotoModal?.timeStr}
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={() => setSelectedPhotoModal(null)}
+              style={styles.photoModalCloseBtn}
+              hitSlop={12}
+            >
+              <Feather name="x" size={22} color="#FFFFFF" />
+            </Pressable>
+          </View>
+
+          {/* Full Photo Image */}
+          {selectedPhotoModal?.photoUrl ? (
+            <Image
+              source={{ uri: selectedPhotoModal.photoUrl }}
+              style={styles.photoModalImage}
+              resizeMode="contain"
+            />
+          ) : null}
+
+          {/* Location & Google Maps Card */}
+          <View style={styles.photoModalBottomCard}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Feather name="map-pin" size={14} color={TOKENS.primary} />
+                <Text style={styles.locationTitle}>Verified On-Site Location</Text>
+              </View>
+              <Text style={styles.locationSubText}>
+                {selectedPhotoModal?.location?.latitude && selectedPhotoModal?.location?.longitude
+                  ? `${selectedPhotoModal.location.latitude.toFixed(6)}, ${selectedPhotoModal.location.longitude.toFixed(6)}`
+                  : "GPS coordinates available via Site Cam"}
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={() => openInGoogleMaps(selectedPhotoModal?.location)}
+              style={styles.openMapsBtn}
+            >
+              <Feather name="navigation" size={14} color="#FFFFFF" />
+              <Text style={styles.openMapsBtnText}>Maps</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL 3: ADD INSTRUCTION MODAL (Phase 7) ── */}
+      <Modal
+        visible={showAddInstructionModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAddInstructionModal(false)}
+      >
+        <View style={styles.modalOverlayBottom}>
+          <View style={styles.modalSheetBox}>
+            <View style={styles.modalSheetHeader}>
+              <Text style={styles.modalSheetTitle}>Add Site Instruction</Text>
+              <Pressable
+                onPress={() => setShowAddInstructionModal(false)}
+                hitSlop={12}
+              >
+                <Feather name="x" size={20} color={TOKENS.textSecondary} />
+              </Pressable>
+            </View>
+
+            <TextInput
+              placeholder="Instruction Title (e.g. Mortar Mix Ratio)..."
+              placeholderTextColor={TOKENS.textMuted}
+              value={instructionTitle}
+              onChangeText={setInstructionTitle}
+              style={[styles.instructionTextInput, { height: 48, marginBottom: 8 }]}
+            />
+
+            <TextInput
+              placeholder="Enter detailed site instruction, mix proportions, or task details..."
+              placeholderTextColor={TOKENS.textMuted}
+              value={instructionText}
+              onChangeText={setInstructionText}
+              multiline
+              numberOfLines={4}
+              style={styles.instructionTextInput}
+            />
+
+            {/* Category / Trade selector */}
+            <View style={{ flexDirection: "row", gap: 6, marginVertical: 8 }}>
+              {["All", "Bandhkam", "RCC", "Plaster", "Tiles"].map((tr) => (
+                <Pressable
+                  key={tr}
+                  onPress={() => setInstructionTrade(tr)}
+                  style={[
+                    styles.typeSelectorPill,
+                    instructionTrade === tr && { backgroundColor: TOKENS.primary, borderColor: TOKENS.primary },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.typeSelectorPillText,
+                      { color: instructionTrade === tr ? "#FFFFFF" : TOKENS.textSecondary },
+                    ]}
+                  >
+                    {tr}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Pressable
+              onPress={handleSubmitInstruction}
+              disabled={isSubmittingInstruction}
+              style={styles.confirmAssignBtn}
+            >
+              {isSubmittingInstruction ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.confirmAssignBtnText}>Publish Instruction</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL 4: IN-APP MESSAGE MODAL (Communication Action 1) ── */}
+      <Modal
+        visible={showMessageModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowMessageModal(false)}
+      >
+        <View style={styles.modalOverlayBottom}>
+          <View style={styles.modalSheetBox}>
+            <View style={styles.modalSheetHeader}>
+              <View>
+                <Text style={styles.modalSheetTitle}>Send In-App Site Message</Text>
+                <Text style={styles.modalSheetSub}>Broadcast to site supervisor, trade or workers</Text>
+              </View>
+              <Pressable
+                onPress={() => setShowMessageModal(false)}
+                hitSlop={12}
+              >
+                <Feather name="x" size={20} color={TOKENS.textSecondary} />
+              </Pressable>
+            </View>
+
+            {/* Recipient Picker */}
+            <Text style={{ fontSize: 12, fontWeight: "700", color: TOKENS.textSecondary, marginBottom: 6 }}>
+              Select Recipient:
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+              {["All Site Workers", supervisorName ? `Supervisor (${supervisorName})` : null, ...allWorkers.map((w) => w.name)]
+                .filter(Boolean)
+                .map((rec: any) => (
+                  <Pressable
+                    key={rec}
+                    onPress={() => setMessageRecipient(rec)}
+                    style={[
+                      styles.categoryPill,
+                      messageRecipient === rec
+                        ? { backgroundColor: TOKENS.blue, borderColor: TOKENS.blue }
+                        : { backgroundColor: TOKENS.bg, borderColor: TOKENS.border },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryPillText,
+                        { color: messageRecipient === rec ? "#FFFFFF" : TOKENS.textSecondary },
+                      ]}
+                    >
+                      {rec}
+                    </Text>
+                  </Pressable>
+                ))}
+            </ScrollView>
+
+            <TextInput
+              placeholder="Type message to recipient..."
+              placeholderTextColor={TOKENS.textMuted}
+              value={messageText}
+              onChangeText={setMessageText}
+              multiline
+              numberOfLines={4}
+              style={styles.instructionTextInput}
+            />
+
+            <Pressable
+              onPress={handleSendMessage}
+              disabled={isSendingMessage}
+              style={[styles.confirmAssignBtn, { backgroundColor: TOKENS.blue }]}
+            >
+              {isSendingMessage ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.confirmAssignBtnText}>Send Message</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL 5: VOICE RECORDER SHEET (Communication Action 2) ── */}
+      <Modal
+        visible={showVoiceModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+          setShowVoiceModal(false);
+        }}
+      >
+        <View style={styles.modalOverlayBottom}>
+          <View style={[styles.modalSheetBox, { alignItems: "center" }]}>
+            <View style={[styles.modalSheetHeader, { width: "100%" }]}>
+              <View>
+                <Text style={styles.modalSheetTitle}>Record Voice Instruction</Text>
+                <Text style={styles.modalSheetSub}>Capture audio notes for trades on site</Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+                  setShowVoiceModal(false);
+                }}
+                hitSlop={12}
+              >
+                <Feather name="x" size={20} color={TOKENS.textSecondary} />
+              </Pressable>
+            </View>
+
+            {/* Timer Display */}
+            <View style={styles.voiceTimerBox}>
+              <Text style={styles.voiceTimerText}>
+                00:{String(recordingSeconds).padStart(2, "0")}
+              </Text>
+              <Text style={styles.voiceTimerStatus}>
+                {isVoiceRecording
+                  ? "🎙️ Recording in progress..."
+                  : recordedAudioUri
+                  ? "✅ Audio note recorded"
+                  : "Tap Record below to start"}
+              </Text>
+            </View>
+
+            {/* Waveform Animation Simulation */}
+            <View style={styles.liveWaveformRow}>
+              {[14, 28, 18, 36, 22, 30, 16, 38, 24, 32, 18, 26, 34, 16].map((h, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.liveWaveBar,
+                    {
+                      height: isVoiceRecording || isPreviewPlaying ? h : 6,
+                      backgroundColor: isVoiceRecording ? TOKENS.error : isPreviewPlaying ? TOKENS.primary : TOKENS.borderLight,
+                    },
+                  ]}
+                />
+              ))}
+            </View>
+
+            {/* Recording Controls */}
+            {!isVoiceRecording && !recordedAudioUri && (
+              <Pressable
+                onPress={startVoiceRecording}
+                style={[styles.recordCircleBtn, { backgroundColor: TOKENS.primary }]}
+              >
+                <Feather name="mic" size={28} color="#FFFFFF" />
+              </Pressable>
+            )}
+
+            {isVoiceRecording && (
+              <Pressable
+                onPress={stopVoiceRecording}
+                style={[styles.recordCircleBtn, { backgroundColor: TOKENS.error }]}
+              >
+                <Feather name="square" size={26} color="#FFFFFF" />
+              </Pressable>
+            )}
+
+            {recordedAudioUri && !isVoiceRecording && (
+              <View style={{ width: "100%", gap: 10 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <Pressable
+                    onPress={togglePreviewAudio}
+                    style={[styles.voiceActionHalfBtn, { backgroundColor: TOKENS.surfaceLight }]}
+                  >
+                    <Feather name={isPreviewPlaying ? "pause" : "play"} size={16} color={TOKENS.text} />
+                    <Text style={styles.voiceActionHalfText}>
+                      {isPreviewPlaying ? "Pause" : "Preview"}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={startVoiceRecording}
+                    style={[styles.voiceActionHalfBtn, { backgroundColor: TOKENS.surfaceLight }]}
+                  >
+                    <Feather name="rotate-ccw" size={16} color={TOKENS.text} />
+                    <Text style={styles.voiceActionHalfText}>Retake</Text>
+                  </Pressable>
+                </View>
+
+                <Pressable
+                  onPress={handleSendVoiceNote}
+                  disabled={isUploadingVoice}
+                  style={styles.confirmAssignBtn}
+                >
+                  {isUploadingVoice ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.confirmAssignBtnText}>Publish Voice Note</Text>
+                  )}
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL 6: CALL SITE CONTACTS SHEET (Communication Action 3) ── */}
+      <Modal
+        visible={showCallSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCallSheet(false)}
+      >
+        <View style={styles.modalOverlayBottom}>
+          <View style={styles.modalSheetBox}>
+            <View style={styles.modalSheetHeader}>
+              <View>
+                <Text style={styles.modalSheetTitle}>Site Phone Directory</Text>
+                <Text style={styles.modalSheetSub}>Tap to call eligible contacts associated with this site</Text>
+              </View>
+              <Pressable
+                onPress={() => setShowCallSheet(false)}
+                hitSlop={12}
+              >
+                <Feather name="x" size={20} color={TOKENS.textSecondary} />
+              </Pressable>
+            </View>
+
+            <ScrollView style={{ maxHeight: 360 }}>
+              {/* Supervisor Contact */}
+              {hasSupervisor && supervisorPhone ? (
+                <View style={styles.callContactRow}>
+                  <View style={[styles.workerAvatarSmall, { backgroundColor: "rgba(249, 115, 22, 0.15)" }]}>
+                    <MaterialCommunityIcons name="account-tie" size={18} color={TOKENS.primary} />
+                  </View>
+                  <View style={{ flex: 1, paddingHorizontal: 10 }}>
+                    <Text style={styles.callContactName}>{supervisorName}</Text>
+                    <Text style={styles.callContactRole}>Site Supervisor • {supervisorPhone}</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => handleCall(supervisorPhone, supervisorName)}
+                    style={styles.directDialBtn}
+                  >
+                    <Feather name="phone" size={14} color="#FFFFFF" />
+                    <Text style={styles.directDialBtnText}>Call</Text>
                   </Pressable>
                 </View>
               ) : null}
+
+              {/* Workers with phone numbers */}
+              {allWorkers.filter((w) => !!w.phone).map((w: any) => (
+                <View key={w.id || w._id} style={styles.callContactRow}>
+                  <View style={styles.workerAvatarSmall}>
+                    <Text style={styles.workerAvatarTextSmall}>
+                      {(w.name || "W").charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, paddingHorizontal: 10 }}>
+                    <Text style={styles.callContactName}>{w.name}</Text>
+                    <Text style={styles.callContactRole}>{w.category || "Labour"} • {w.phone}</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => handleCall(w.phone, w.name)}
+                    style={styles.directDialBtn}
+                  >
+                    <Feather name="phone" size={14} color="#FFFFFF" />
+                    <Text style={styles.directDialBtnText}>Call</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL 7: REPORT ISSUE MODAL (Phase 7) ── */}
+      <Modal
+        visible={showReportIssueModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowReportIssueModal(false)}
+      >
+        <View style={styles.modalOverlayBottom}>
+          <View style={styles.modalSheetBox}>
+            <View style={styles.modalSheetHeader}>
+              <Text style={styles.modalSheetTitle}>Report Site Issue</Text>
+              <Pressable
+                onPress={() => setShowReportIssueModal(false)}
+                hitSlop={12}
+              >
+                <Feather name="x" size={20} color={TOKENS.textSecondary} />
+              </Pressable>
             </View>
+
+            <View style={styles.instructionTypeRow}>
+              {(["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const).map((sev) => (
+                <Pressable
+                  key={sev}
+                  onPress={() => setIssueSeverity(sev)}
+                  style={[
+                    styles.typeSelectorPill,
+                    issueSeverity === sev && {
+                      backgroundColor:
+                        sev === "CRITICAL" || sev === "HIGH"
+                          ? TOKENS.error
+                          : TOKENS.warning,
+                      borderColor:
+                        sev === "CRITICAL" || sev === "HIGH"
+                          ? TOKENS.error
+                          : TOKENS.warning,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.typeSelectorPillText,
+                      { color: issueSeverity === sev ? "#FFFFFF" : TOKENS.textSecondary },
+                    ]}
+                  >
+                    {sev}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <TextInput
+              placeholder="Describe issue (e.g. concrete vibration issue, rebar shortage)..."
+              placeholderTextColor={TOKENS.textMuted}
+              value={issueDescription}
+              onChangeText={setIssueDescription}
+              multiline
+              numberOfLines={4}
+              style={styles.instructionTextInput}
+            />
+
+            <Pressable
+              onPress={handleSubmitIssue}
+              disabled={isSubmittingIssue}
+              style={[styles.confirmAssignBtn, { backgroundColor: TOKENS.error }]}
+            >
+              {isSubmittingIssue ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.confirmAssignBtnText}>Submit Issue</Text>
+              )}
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -1026,433 +2395,1215 @@ export default function SiteDetailControlScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: TOKENS.bg,
   },
-  loadingContainer: {
-    flex: 1,
+  centerBox: {
     justifyContent: "center",
     alignItems: "center",
   },
-  header: {
+  topStickyHeader: {
+    backgroundColor: TOKENS.bg,
     borderBottomWidth: 1,
-    paddingBottom: 0,
+    borderBottomColor: TOKENS.border,
   },
-  headerTopRow: {
+  headerNavBar: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingVertical: 10,
   },
-  backButton: {
+  headerBackBtn: {
     padding: 6,
-    borderRadius: 8,
+    marginRight: 6,
   },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: "700",
+  topBarTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: TOKENS.text,
   },
-  headerSubtitle: {
-    fontSize: 12,
-    color: "#64748B",
+  topBarSub: {
+    fontSize: 11,
+    color: TOKENS.textMuted,
     marginTop: 2,
   },
-  dateSelectorRow: {
+  topSosButton: {
     flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: TOKENS.error,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  topSosButtonText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  collapseToggleBtn: {
+    padding: 6,
+  },
+  summaryCardBox: {
+    backgroundColor: TOKENS.surface,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    gap: 8,
+  },
+  summaryMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  projectTypeTag: {
+    backgroundColor: TOKENS.surfaceLight,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  projectTypeTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: TOKENS.textSecondary,
+    textTransform: "uppercase",
+  },
+  startDateText: {
+    fontSize: 11,
+    color: TOKENS.textMuted,
+  },
+  clientInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
-  datePill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 16,
-    borderWidth: 1,
+  clientInfoText: {
+    fontSize: 12,
+    color: TOKENS.textSecondary,
   },
-  datePillText: {
+  supervisorRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: TOKENS.bg,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  supervisorPillLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
+  supervisorLabel: {
     fontSize: 11,
+    color: TOKENS.textMuted,
     fontWeight: "600",
   },
-  tabsScroll: {
+  supervisorName: {
+    fontSize: 12,
+    color: TOKENS.text,
+    fontWeight: "700",
+    flex: 1,
+  },
+  supervisorCallBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: TOKENS.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  supervisorCallBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  projectDescText: {
+    fontSize: 12,
+    color: TOKENS.textMuted,
+    fontStyle: "italic",
+    lineHeight: 16,
+  },
+  tabsScrollView: {
     maxHeight: 46,
   },
   tabsScrollContent: {
     paddingHorizontal: 12,
-    gap: 4,
+    gap: 12,
   },
   tabItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 12,
     paddingVertical: 10,
-    borderBottomWidth: 2.5,
+    paddingHorizontal: 6,
+    borderBottomWidth: 3,
     borderBottomColor: "transparent",
-  },
-  tabItemActive: {
-    borderBottomWidth: 2.5,
   },
   tabItemText: {
     fontSize: 13,
-    fontWeight: "600",
   },
-  tabItemTextActive: {
-    fontWeight: "700",
-  },
-  scrollContent: {
+  mainScrollContent: {
     padding: 16,
   },
-  sectionHeaderRow: {
+  tabContentBlock: {
+    gap: 16,
+  },
+  overviewGrid: {
+    gap: 10,
+  },
+  overviewGridRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
+    gap: 10,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  sectionCountText: {
-    fontSize: 12,
-    color: "#64748B",
-    fontWeight: "600",
-  },
-  workerCard: {
-    borderRadius: 12,
+  overviewCard: {
+    flex: 1,
+    backgroundColor: TOKENS.surface,
     borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 14,
     padding: 14,
+    justifyContent: "center",
+  },
+  overviewCardVal: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: TOKENS.text,
+    marginBottom: 4,
+  },
+  overviewCardValSub: {
+    fontSize: 13,
+    color: TOKENS.textMuted,
+  },
+  overviewCardLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: TOKENS.textSecondary,
+  },
+  shiftProgressBox: {
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 14,
+    padding: 14,
+  },
+  boxTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: TOKENS.text,
     marginBottom: 10,
   },
-  workerTopRow: {
+  shiftProgressRow: {
+    gap: 6,
+  },
+  shiftProgressHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
   },
-  workerAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#3B82F6",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  workerAvatarText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  workerNameTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  workerCategorySub: {
+  shiftProgressTitle: {
     fontSize: 12,
-    color: "#64748B",
-    marginTop: 1,
-  },
-  attBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  attBadgeText: {
-    fontSize: 11,
     fontWeight: "700",
+    color: TOKENS.textSecondary,
   },
-  workerFooterRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#E2E8F0",
-    gap: 8,
-  },
-  photoIndicatorPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#F8FAFC",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  photoIndicatorText: {
+  shiftProgressCount: {
     fontSize: 11,
-    fontWeight: "600",
+    color: TOKENS.textMuted,
   },
-  workerCallBtn: {
-    marginLeft: "auto",
-    padding: 6,
-    borderRadius: 6,
-    backgroundColor: "#EFF6FF",
-  },
-  photoFilterRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 14,
-  },
-  photoFilterPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  photoFilterPillText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  photosGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  photoGridCard: {
-    width: "48%",
-    borderRadius: 12,
-    borderWidth: 1,
+  progressBarTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: TOKENS.bg,
     overflow: "hidden",
   },
-  photoThumbWrapper: {
-    width: "100%",
-    height: 120,
-    position: "relative",
-    backgroundColor: "#0F172A",
-  },
-  photoThumb: {
-    width: "100%",
+  progressBarFill: {
     height: "100%",
-  },
-  photoExpandBadge: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    padding: 4,
     borderRadius: 4,
   },
-  photoTypeBadge: {
-    position: "absolute",
-    bottom: 6,
-    left: 6,
+  shortcutsGrid: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  shortcutBtn: {
+    flex: 1,
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: "center",
+    gap: 6,
+  },
+  shortcutBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: TOKENS.textSecondary,
+  },
+  workforceHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  workforceHeaderTitleCol: {
+    flex: 1,
+    marginRight: 10,
+    justifyContent: "center",
+  },
+  workforceHeadingTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: TOKENS.text,
+  },
+  workforceHeadingSub: {
+    fontSize: 11,
+    color: TOKENS.textMuted,
+    marginTop: 2,
+  },
+  headerActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    backgroundColor: TOKENS.primary,
+    paddingHorizontal: 12,
+    height: 38,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  headerActionBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  headerActionBtnDanger: {
+    backgroundColor: TOKENS.error,
+  },
+  assignWorkersBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    backgroundColor: TOKENS.primary,
+    paddingHorizontal: 12,
+    height: 38,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  assignWorkersBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  categoryPillsScroll: {
+    gap: 8,
+  },
+  categoryPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  categoryPillText: {
+    fontSize: 12,
+  },
+  workerSearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 48,
+    marginBottom: 8,
+  },
+  workerSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: TOKENS.text,
+  },
+  emptyWorkersCard: {
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 12,
+    paddingVertical: 28,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  emptyWorkersTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: TOKENS.text,
+  },
+  emptyWorkersSub: {
+    fontSize: 12,
+    color: TOKENS.textMuted,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  workerRowCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+  },
+  workerAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: TOKENS.surfaceLight,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: TOKENS.borderLight,
+  },
+  workerAvatarText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: TOKENS.primary,
+  },
+  workerName: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: TOKENS.text,
+  },
+  workerMetaPillsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  skillBadgePill: {
+    backgroundColor: TOKENS.bg,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  photoTypeBadgeText: {
-    color: "#FFFFFF",
+  skillBadgeText: {
     fontSize: 10,
     fontWeight: "700",
+    color: TOKENS.primary,
   },
-  photoCardBody: {
-    padding: 10,
+  wageText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: TOKENS.textSecondary,
   },
-  photoWorkerName: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  photoMetaRow: {
-    flexDirection: "column",
-    gap: 4,
-    marginTop: 6,
-  },
-  photoTimePill: {
+  workerStatusRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
+    marginTop: 4,
   },
-  photoTimeText: {
-    fontSize: 11,
-    color: "#64748B",
+  statusDotSmall: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  photoGpsPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  photoGpsText: {
-    fontSize: 11,
-    color: "#10B981",
+  workerStatusText: {
+    fontSize: 10,
+    color: TOKENS.textMuted,
     fontWeight: "600",
   },
-  emergencyNotice: {
-    fontSize: 13,
-    marginBottom: 14,
-    lineHeight: 18,
+  workerActionsCol: {
+    gap: 6,
+    alignItems: "flex-end",
   },
-  emergencyCard: {
+  workerCallBtn: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 10,
+    gap: 4,
+    backgroundColor: TOKENS.primary,
+    paddingHorizontal: 12,
+    height: 34,
+    borderRadius: 8,
   },
-  emergencyIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "#FEE2E2",
+  workerCallBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  unassignBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  unassignBtnText: {
+    fontSize: 10,
+    color: TOKENS.error,
+    fontWeight: "600",
+  },
+  attendanceHeaderBox: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  attendanceHeaderTitleCol: {
+    flex: 1,
+    marginRight: 10,
+    justifyContent: "center",
+  },
+  attendanceDateTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: TOKENS.text,
+  },
+  attendanceDateSub: {
+    fontSize: 11,
+    color: TOKENS.textMuted,
+    marginTop: 2,
+  },
+  markAttendanceLinkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    backgroundColor: TOKENS.primary,
+    paddingHorizontal: 12,
+    height: 38,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  markAttendanceLinkText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  catBreakdownEmptyState: {
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  catBreakdownEmptyText: {
+    fontSize: 12,
+    color: TOKENS.textMuted,
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  emptyWorkersCardSmall: {
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  emptyWorkersSmallText: {
+    fontSize: 12,
+    color: TOKENS.textMuted,
+    textAlign: "center",
+  },
+  attSummaryStrip: {
+    flexDirection: "row",
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  attSummaryCol: {
+    flex: 1,
+    alignItems: "center",
+  },
+  attSummaryVal: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  attSummaryLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: TOKENS.textMuted,
+    marginTop: 2,
+    letterSpacing: 0.3,
+  },
+  attDivider: {
+    width: 1,
+    backgroundColor: TOKENS.border,
+  },
+  categoryBreakdownBox: {
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+  },
+  categoryBreakdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  catBreakdownTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  catBreakdownName: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: TOKENS.text,
+  },
+  catBreakdownFraction: {
+    fontSize: 11,
+    color: TOKENS.textMuted,
+    fontWeight: "600",
+  },
+  progressBarTrackSmall: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: TOKENS.bg,
+    overflow: "hidden",
+  },
+  attWorkerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 6,
+  },
+  workerAvatarSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: TOKENS.surfaceLight,
     justifyContent: "center",
     alignItems: "center",
   },
-  emergencyRole: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  emergencyName: {
-    fontSize: 12,
-    color: "#64748B",
-    marginTop: 1,
-  },
-  emergencyPhone: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#DC2626",
-    marginTop: 2,
-  },
-  emergencyCallBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#DC2626",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  emergencyCallBtnText: {
-    color: "#FFFFFF",
+  workerAvatarTextSmall: {
     fontSize: 13,
     fontWeight: "700",
+    color: TOKENS.textSecondary,
   },
-  requestCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 10,
-  },
-  requestTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  requestUser: {
-    fontSize: 14,
+  attWorkerName: {
+    fontSize: 13,
     fontWeight: "700",
+    color: TOKENS.text,
   },
-  requestTime: {
-    fontSize: 11,
-    color: "#64748B",
-    marginTop: 1,
+  attWorkerCat: {
+    fontSize: 10,
+    color: TOKENS.textMuted,
   },
-  requestStatusBadge: {
+  attStatusPill: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  requestStatusBadgeText: {
+  attStatusPillText: {
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  communicationBar: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 6,
+  },
+  commActionBtn: {
+    flex: 1,
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    gap: 6,
+  },
+  commIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  commActionLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: TOKENS.text,
+  },
+  photoFilterPillsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  photoFilterPill: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  photoFilterPillText: {
+    fontSize: 12,
+  },
+  photosGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  photoGridCard: {
+    width: "48.5%",
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  photoThumbnail: {
+    width: "100%",
+    height: 120,
+    backgroundColor: TOKENS.bg,
+  },
+  photoShiftBadgeOverlay: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  photoShiftBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  photoGpsBadgeOverlay: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(18, 183, 106, 0.85)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  photoGpsBadgeText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  photoCardFooter: {
+    padding: 8,
+  },
+  photoWorkerName: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: TOKENS.text,
+  },
+  photoTimestamp: {
+    fontSize: 10,
+    color: TOKENS.textMuted,
+    marginTop: 2,
+  },
+  instructionCard: {
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 12,
+    padding: 14,
+    gap: 8,
+    marginBottom: 10,
+  },
+  instructionTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  instructionTypeTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  instructionTypeTagText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: TOKENS.textSecondary,
+  },
+  instructionTimeStr: {
+    fontSize: 10,
+    color: TOKENS.textMuted,
+  },
+  waveformContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: TOKENS.bg,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 8,
+    padding: 8,
+  },
+  voicePlayBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: TOKENS.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  voicePlayBtnText: {
+    color: "#FFFFFF",
     fontSize: 11,
     fontWeight: "700",
   },
-  requestDesc: {
+  waveBarsRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    height: 30,
+  },
+  waveBar: {
+    width: 3,
+    borderRadius: 2,
+  },
+  instructionContentText: {
     fontSize: 13,
+    color: TOKENS.text,
     lineHeight: 18,
+  },
+  instructionAuthorText: {
+    fontSize: 11,
+    color: TOKENS.textMuted,
+    fontStyle: "italic",
+  },
+  reportIssueBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    backgroundColor: TOKENS.error,
+    paddingHorizontal: 12,
+    height: 38,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  reportIssueBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  issueCard: {
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 12,
+    padding: 14,
+    gap: 8,
     marginBottom: 10,
   },
-  resolveBtn: {
+  issueCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  severityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  severityBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  issueTimeText: {
+    fontSize: 11,
+    color: TOKENS.textMuted,
+  },
+  issueDescription: {
+    fontSize: 13,
+    color: TOKENS.text,
+    lineHeight: 18,
+  },
+  issueReporterText: {
+    fontSize: 11,
+    color: TOKENS.textMuted,
+  },
+  resolveIssueBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: "#10B981",
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  resolveBtnText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  emptyBox: {
-    borderRadius: 12,
+    backgroundColor: TOKENS.successLight,
     borderWidth: 1,
-    padding: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    marginVertical: 10,
-  },
-  emptyTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  emptyDesc: {
-    fontSize: 12,
-    color: "#64748B",
-    textAlign: "center",
-    lineHeight: 16,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.85)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
-  modalContent: {
-    width: "100%",
-    maxHeight: "85%",
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-  },
-  modalWorkerName: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  modalWorkerRole: {
-    fontSize: 12,
-    color: "#64748B",
-    marginTop: 2,
-  },
-  modalCloseBtn: {
-    padding: 6,
-  },
-  modalImage: {
-    width: "100%",
-    height: 280,
-    backgroundColor: "#000000",
-  },
-  modalFooter: {
-    padding: 14,
-    gap: 8,
-  },
-  modalMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  modalMetaText: {
-    fontSize: 12,
-    color: "#64748B",
-  },
-  modalLocationSection: {
-    gap: 8,
+    borderColor: TOKENS.success,
+    borderRadius: 8,
+    height: 48,
     marginTop: 4,
   },
-  mapsActionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: "#2563EB",
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  mapsActionBtnText: {
-    color: "#FFFFFF",
+  resolveIssueBtnText: {
+    color: TOKENS.success,
     fontSize: 13,
     fontWeight: "700",
   },
+  emergencyNoticeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: TOKENS.errorLight,
+    borderWidth: 1,
+    borderColor: "rgba(240, 68, 56, 0.4)",
+    borderRadius: 12,
+    padding: 14,
+  },
+  emergencyNoticeTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: TOKENS.error,
+  },
+  emergencyNoticeSub: {
+    fontSize: 11,
+    color: TOKENS.textSecondary,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  emergencyCardsList: {
+    gap: 10,
+  },
+  emergencyContactCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: TOKENS.surface,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 14,
+    padding: 14,
+  },
+  emergencyIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emergencyRole: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: TOKENS.textMuted,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  emergencyName: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: TOKENS.text,
+    marginTop: 2,
+  },
+  emergencyDistance: {
+    fontSize: 11,
+    color: TOKENS.textSecondary,
+    marginTop: 3,
+  },
+  emergencyCallBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    width: 80,
+    height: 48,
+    borderRadius: 12,
+  },
+  emergencyCallBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  modalOverlayBottom: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
+  },
+  modalSheetBox: {
+    backgroundColor: TOKENS.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    borderTopColor: TOKENS.border,
+    padding: 20,
+    maxHeight: "85%",
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
+  },
+  modalSheetHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: TOKENS.border,
+  },
+  modalSheetTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: TOKENS.text,
+  },
+  modalSheetSub: {
+    fontSize: 11,
+    color: TOKENS.textMuted,
+    marginTop: 2,
+  },
+  assignWorkerPickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: TOKENS.bg,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  pickerWorkerName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: TOKENS.text,
+  },
+  pickerWorkerCategory: {
+    fontSize: 11,
+    color: TOKENS.textMuted,
+    marginTop: 2,
+  },
+  checkboxCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: TOKENS.borderLight,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  confirmAssignBtn: {
+    backgroundColor: TOKENS.primary,
+    height: 50,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 14,
+  },
+  confirmAssignBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  photoModalOverlay: {
+    flex: 1,
+    backgroundColor: "#000000",
+    justifyContent: "space-between",
+  },
+  photoModalTopBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === "ios" ? 54 : 20,
+    paddingBottom: 12,
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  photoModalTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  photoModalSub: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+    marginTop: 2,
+  },
+  photoModalCloseBtn: {
+    padding: 6,
+  },
+  photoModalImage: {
+    flex: 1,
+    width: "100%",
+  },
+  photoModalBottomCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: TOKENS.surface,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: TOKENS.border,
+    paddingBottom: Platform.OS === "ios" ? 40 : 16,
+  },
+  locationTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: TOKENS.text,
+  },
+  locationSubText: {
+    fontSize: 11,
+    color: TOKENS.textMuted,
+    marginTop: 3,
+  },
+  openMapsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: TOKENS.primary,
+    paddingHorizontal: 14,
+    height: 48,
+    borderRadius: 10,
+  },
+  openMapsBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  instructionTypeRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  typeSelectorPill: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: TOKENS.bg,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+  },
+  typeSelectorPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  instructionTextInput: {
+    height: 100,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    backgroundColor: TOKENS.bg,
+    padding: 12,
+    color: TOKENS.text,
+    textAlignVertical: "top",
+    fontSize: 13,
+  },
+  voiceTimerBox: {
+    alignItems: "center",
+    marginVertical: 16,
+  },
+  voiceTimerText: {
+    fontSize: 36,
+    fontWeight: "900",
+    color: TOKENS.text,
+  },
+  voiceTimerStatus: {
+    fontSize: 13,
+    color: TOKENS.textMuted,
+    marginTop: 4,
+  },
+  liveWaveformRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    height: 44,
+    marginBottom: 24,
+  },
+  liveWaveBar: {
+    width: 4,
+    borderRadius: 2,
+  },
+  recordCircleBtn: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    justifyContent: "center",
+    alignItems: "center",
+    marginVertical: 10,
+    shadowColor: TOKENS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  voiceActionHalfBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    height: 48,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+  },
+  voiceActionHalfText: {
+    color: TOKENS.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  callContactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: TOKENS.bg,
+    borderWidth: 1,
+    borderColor: TOKENS.border,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  callContactName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: TOKENS.text,
+  },
+  callContactRole: {
+    fontSize: 11,
+    color: TOKENS.textMuted,
+    marginTop: 2,
+  },
+  directDialBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: TOKENS.success,
+    paddingHorizontal: 12,
+    height: 36,
+    borderRadius: 8,
+  },
+  directDialBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
 });
-

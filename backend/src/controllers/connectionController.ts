@@ -459,18 +459,36 @@ export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Respo
     }
 
     // Real-time socket notification
+    const verifiedWorkerId = existingWorker?._id?.toString() || connectionReq.workerId?.toString();
+    const verifiedWorkerData = existingWorker ? {
+      id: existingWorker._id.toString(),
+      name: existingWorker.name,
+      uniqueId: existingWorker.uniqueId,
+      dailyRate: existingWorker.dailyRate,
+      category: existingWorker.category,
+      phone: existingWorker.phone,
+    } : undefined;
+
     try {
       const io = getIO();
-      io.to(`user_${targetUser._id}`).emit("connection:verified", {
+      const verifiedPayload = {
+        contractorId: contractorId?.toString(),
         contractorName: contractor?.name,
         companyName: tenant?.name,
-        connectedAt: connectionReq.connectedAt,
-      });
-      io.to(`user_${contractorId}`).emit("connection:verified", {
+        targetUserId: targetUser._id.toString(),
         targetUserName: targetUser.name,
         uniqueId: targetUser.uniqueId,
+        workerId: verifiedWorkerId,
+        worker: verifiedWorkerData,
         connectedAt: connectionReq.connectedAt,
-      });
+      };
+
+      io.to(`user_${targetUser._id}`).emit("connection:verified", verifiedPayload);
+      io.to(`user_${contractorId}`).emit("connection:verified", verifiedPayload);
+      io.to(`user_${contractorId}`).emit("connection:accepted", verifiedPayload);
+      if (tenantId) {
+        io.to(`tenant_${tenantId}`).emit("connection:accepted", verifiedPayload);
+      }
       io.emit("admin_dashboard_update");
     } catch (socketErr) {
       console.warn("Socket broadcast failed:", socketErr);
@@ -486,13 +504,8 @@ export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Respo
         role: targetUser.role,
         connectionStatus: "connected",
       },
-      worker: existingWorker ? {
-        id: existingWorker._id,
-        name: existingWorker.name,
-        uniqueId: existingWorker.uniqueId,
-        dailyRate: existingWorker.dailyRate,
-        category: existingWorker.category,
-      } : undefined,
+      workerId: verifiedWorkerId,
+      worker: verifiedWorkerData,
     });
   } catch (error: any) {
     console.error("verifyConnectionCode error:", error);
@@ -642,16 +655,35 @@ export const acceptConnectionRequest = async (req: AuthenticatedRequest, res: Re
     }
 
     // Broadcast socket
+    const acceptedWorkerId = existingWorker?._id?.toString() || connectionReq.workerId?.toString();
+    const acceptedWorkerData = existingWorker ? {
+      id: existingWorker._id.toString(),
+      name: existingWorker.name,
+      uniqueId: existingWorker.uniqueId,
+      dailyRate: existingWorker.dailyRate,
+      category: existingWorker.category,
+      phone: existingWorker.phone,
+    } : undefined;
+
     try {
       const io = getIO();
-      io.to(`user_${sender._id}`).emit("connection:accepted", {
-        member: { id: member._id, name: member.name, uniqueId: member.uniqueId },
-        contractor: { id: contractor._id, name: contractor.name },
-      });
-      io.to(`user_${receiver._id}`).emit("connection:accepted", {
-        member: { id: member._id, name: member.name, uniqueId: member.uniqueId },
-        contractor: { id: contractor._id, name: contractor.name },
-      });
+      const acceptedPayload = {
+        member: { id: member._id.toString(), name: member.name, uniqueId: member.uniqueId },
+        contractor: { id: contractor._id.toString(), name: contractor.name },
+        contractorId: contractor._id.toString(),
+        contractorName: contractor.name,
+        memberId: member._id.toString(),
+        memberName: member.name,
+        workerId: acceptedWorkerId,
+        worker: acceptedWorkerData,
+        connectedAt: connectionReq.connectedAt,
+      };
+
+      io.to(`user_${sender._id}`).emit("connection:accepted", acceptedPayload);
+      io.to(`user_${receiver._id}`).emit("connection:accepted", acceptedPayload);
+      if (contractorTenantId) {
+        io.to(`tenant_${contractorTenantId}`).emit("connection:accepted", acceptedPayload);
+      }
       io.emit("admin_dashboard_update");
     } catch (socketErr) {
       console.warn("Socket broadcast failed:", socketErr);
@@ -661,13 +693,8 @@ export const acceptConnectionRequest = async (req: AuthenticatedRequest, res: Re
       success: true,
       message: "Connection request accepted successfully.",
       connection: connectionReq,
-      worker: existingWorker ? {
-        id: existingWorker._id,
-        name: existingWorker.name,
-        uniqueId: existingWorker.uniqueId,
-        dailyRate: existingWorker.dailyRate,
-        category: existingWorker.category,
-      } : undefined,
+      workerId: acceptedWorkerId,
+      worker: acceptedWorkerData,
     });
   } catch (error: any) {
     console.error("acceptConnectionRequest error:", error);

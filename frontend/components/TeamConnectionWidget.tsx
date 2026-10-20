@@ -25,6 +25,7 @@ import { authenticatedFetch, API_URL } from "@/utils/storage";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { QrScannerModal } from "@/components/QrScannerModal";
 import { MyQrCodeModal } from "@/components/MyQrCodeModal";
+import { navigateToUpdateWorker } from "@/navigation/navigationRef";
 
 interface TeamConnectionWidgetProps {
   onRefreshParent?: () => void;
@@ -216,11 +217,7 @@ export default function TeamConnectionWidget({
         onRefreshParent?.();
 
         if (createdWorkerId) {
-          try {
-            navigation.navigate("AddWorker", { workerId: createdWorkerId });
-          } catch (navErr) {
-            console.warn("Navigation to AddWorker error:", navErr);
-          }
+          navigateToUpdateWorker(createdWorkerId);
         }
       } else {
         const errData = await safeParseResponse(res);
@@ -351,13 +348,9 @@ export default function TeamConnectionWidget({
         onRefreshParent?.();
 
         const acceptedWorkerId =
-          data?.worker?.id || data?.worker?._id || data?.connection?.workerId;
+          data?.workerId || data?.worker?.id || data?.worker?._id || data?.connection?.workerId;
         if (isContractor && acceptedWorkerId) {
-          try {
-            navigation.navigate("AddWorker", { workerId: acceptedWorkerId });
-          } catch (navErr) {
-            console.warn("Navigation to AddWorker error:", navErr);
-          }
+          navigateToUpdateWorker(acceptedWorkerId);
         } else {
           Alert.alert(
             t("common.success", "Connected!"),

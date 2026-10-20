@@ -32,6 +32,7 @@ import {
   generateId,
   API_URL,
   Project,
+  authenticatedFetch,
 } from "@/utils/storage";
 import ContextualTooltip from "@/components/ContextualTooltip";
 import { uploadImageToServer } from "@/utils/upload";
@@ -147,13 +148,33 @@ export default function AddWorkerScreen() {
   };
 
   const loadWorker = async () => {
-    const workers = await storage.getWorkers();
-    const worker = workers.find((w) => w.id === workerId);
+    let worker: any = null;
+    try {
+      const res = await authenticatedFetch(`${API_URL}/workers/${workerId}`);
+      if (res.ok) {
+        const data = await res.json();
+        worker = data.worker || data;
+      }
+    } catch (e) {
+      console.warn("Direct backend worker fetch error, falling back:", e);
+    }
+
+    if (!worker) {
+      const workers = await storage.getWorkers(true);
+      worker = workers.find(
+        (w) =>
+          w.id === workerId ||
+          (w as any)._id === workerId ||
+          (w as any).uniqueId === workerId
+      );
+    }
+
     if (worker) {
-      setName(worker.name);
-      setCategory(worker.category);
-      setDailyRateInput((worker.dailyRate || "").toString());
-      setExistingDailyRate(worker.dailyRate || 0);
+      setName(worker.name || "");
+      setCategory(worker.category || "labour");
+      const currentRate = worker.dailyRate !== undefined && worker.dailyRate !== null ? worker.dailyRate : 0;
+      setDailyRateInput(currentRate.toString());
+      setExistingDailyRate(currentRate);
       setSkillCategory(worker.skillCategory || "unskilled");
       setPaymentType(worker.paymentType || "daily");
       setPieceRateAmount((worker.pieceRateAmount || 0).toString());
@@ -249,25 +270,24 @@ export default function AddWorkerScreen() {
 
       if (isEditing && workerId) {
         const workers = await storage.getWorkers();
-        const existingWorker = workers.find((w) => w.id === workerId);
-        if (existingWorker) {
-          const updatedWorker: Worker = {
-            ...existingWorker,
-            name: name.trim(),
-            category,
-            dailyRate: finalDailyRate,
-            skillCategory,
-            paymentType,
-            pieceRateAmount: parseFloat(pieceRateAmount) || 0,
-            subContractorName: subContractorName.trim() || undefined,
-            phone: phone.trim() || undefined,
-            address: address.trim() || undefined,
-            notes: notes.trim() || undefined,
-            photoUri: finalPhotoUri,
-            projectId: selectedProjectId,
-          };
-          await storage.updateWorker(updatedWorker);
-        }
+        let existingWorker = workers.find((w) => w.id === workerId || (w as any)._id === workerId);
+        const updatedWorker: Worker = {
+          ...(existingWorker || { id: workerId, createdAt: Date.now() }),
+          id: existingWorker?.id || workerId,
+          name: name.trim(),
+          category,
+          dailyRate: finalDailyRate,
+          skillCategory,
+          paymentType,
+          pieceRateAmount: parseFloat(pieceRateAmount) || 0,
+          subContractorName: subContractorName.trim() || undefined,
+          phone: phone.trim() || undefined,
+          address: address.trim() || undefined,
+          notes: notes.trim() || undefined,
+          photoUri: finalPhotoUri,
+          projectId: selectedProjectId,
+        };
+        await storage.updateWorker(updatedWorker);
       } else {
         const newWorker: Worker = {
           id: generateId(),

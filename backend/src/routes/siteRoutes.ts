@@ -42,6 +42,8 @@ import {
 import { authenticateJWT } from "../middleware/auth";
 import { validateCreateSite, validateUpdateSite } from "../validators/siteValidator";
 import { checkPlanLimit } from "../middleware/subscription";
+import { assignWorkersToSite, unassignWorkersFromSite } from "../controllers/workerController";
+
 
 const router = Router();
 
@@ -95,4 +97,9 @@ router.post("/:siteId/work-updates", submitWorkUpdate as any);
 router.post("/:siteId/issues", reportSiteIssue as any);
 router.post("/:siteId/instructions", addSiteInstruction as any);
 
+// Workforce Assignment endpoints
+router.post("/:siteId/workers/assign", assignWorkersToSite as any);
+router.post("/:siteId/workers/unassign", unassignWorkersFromSite as any);
+
 export default router;
+

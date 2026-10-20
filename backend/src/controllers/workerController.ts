@@ -1,4 +1,5 @@
 import { Response } from "express";
+import mongoose from "mongoose";
 import { Worker, WageHistory, AuditLog, User } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { broadcastAdminActivity, getIO } from "../utils/socket";
@@ -39,6 +40,63 @@ export const getWorkers = async (req: AuthenticatedRequest, res: Response) => {
 
     const workers = await Worker.find(query).sort({ createdAt: -1 }).lean();
     res.json(workers);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getWorkerById = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    const userId = req.user?.id;
+    const role = req.user?.role;
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: "Worker ID is required." });
+    }
+
+    const isMongoId = mongoose.Types.ObjectId.isValid(id);
+    const searchConditions: any[] = [];
+    if (isMongoId) {
+      searchConditions.push({ _id: id });
+    }
+    searchConditions.push({ uniqueId: id.toUpperCase() });
+
+    let worker = await Worker.findOne({
+      $or: searchConditions,
+      isArchived: false,
+      ...(tenantId ? { tenantId } : {}),
+    }).lean();
+
+    // If not found with tenant filter (e.g. newly connected or worker viewing self), try broader lookup
+    if (!worker) {
+      worker = await Worker.findOne({
+        $or: searchConditions,
+        isArchived: false,
+      }).lean();
+    }
+
+    if (!worker) {
+      return res.status(404).json({ error: "Worker not found" });
+    }
+
+    // Role-based authorization
+    if (role === "labor" || role === "worker") {
+      const userUniqueId = (req.user as any)?.uniqueId;
+      const isOwner =
+        worker.userId?.toString() === userId ||
+        (userUniqueId && worker.uniqueId === userUniqueId);
+      if (!isOwner) {
+        return res.status(403).json({ error: "Forbidden: Cannot access other worker's profile." });
+      }
+    }
+
+    res.json({
+      success: true,
+      worker,
+      ...worker,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -353,4 +411,95 @@ export const deleteWorker = async (req: AuthenticatedRequest, res: Response) => 
     res.status(500).json({ error: error.message });
   }
 };
+
+export const assignWorkersToSite = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const role = req.user?.role;
+    if (role === "labor" || role === "worker") {
+      return res.status(403).json({ error: "Forbidden: Workers cannot assign workers." });
+    }
+
+    const tenantId = req.user?.tenantId;
+    const { siteId } = req.params;
+    const { workerIds } = req.body;
+
+    if (!siteId) {
+      return res.status(400).json({ error: "siteId parameter is required" });
+    }
+
+    const idsToAssign = Array.isArray(workerIds) ? workerIds : [workerIds].filter(Boolean);
+    if (idsToAssign.length === 0) {
+      return res.status(400).json({ error: "workerIds array cannot be empty" });
+    }
+
+    const validObjectIds = idsToAssign
+      .filter((id: string) => mongoose.Types.ObjectId.isValid(id))
+      .map((id: string) => new mongoose.Types.ObjectId(id));
+
+    const result = await Worker.updateMany(
+      {
+        _id: { $in: validObjectIds },
+        tenantId,
+        isArchived: false,
+      },
+      {
+        $set: { projectId: siteId },
+      }
+    );
+
+    res.json({
+      success: true,
+      modifiedCount: result.modifiedCount,
+      siteId,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const unassignWorkersFromSite = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const role = req.user?.role;
+    if (role === "labor" || role === "worker") {
+      return res.status(403).json({ error: "Forbidden: Workers cannot unassign workers." });
+    }
+
+    const tenantId = req.user?.tenantId;
+    const { siteId } = req.params;
+    const { workerIds } = req.body;
+
+    if (!siteId) {
+      return res.status(400).json({ error: "siteId parameter is required" });
+    }
+
+    const idsToUnassign = Array.isArray(workerIds) ? workerIds : [workerIds].filter(Boolean);
+    if (idsToUnassign.length === 0) {
+      return res.status(400).json({ error: "workerIds array cannot be empty" });
+    }
+
+    const validObjectIds = idsToUnassign
+      .filter((id: string) => mongoose.Types.ObjectId.isValid(id))
+      .map((id: string) => new mongoose.Types.ObjectId(id));
+
+    const result = await Worker.updateMany(
+      {
+        _id: { $in: validObjectIds },
+        tenantId,
+        projectId: siteId,
+      },
+      {
+        $unset: { projectId: 1 },
+      }
+    );
+
+    res.json({
+      success: true,
+      modifiedCount: result.modifiedCount,
+      siteId,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 

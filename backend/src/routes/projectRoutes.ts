@@ -14,10 +14,14 @@ import {
 } from "../controllers/projectController";
 import { authenticateJWT } from "../middleware/auth";
 import { checkPlanLimit } from "../middleware/subscription";
+import { assignWorkersToSite, unassignWorkersFromSite } from "../controllers/workerController";
 
 const router = Router();
 
 router.use(authenticateJWT as any);
+
+router.post("/:siteId/workers/assign", assignWorkersToSite as any);
+router.post("/:siteId/workers/unassign", unassignWorkersFromSite as any);
 
 router.get("/", getProjects as any);
 router.post("/", checkPlanLimit("projects") as any, createProject as any);

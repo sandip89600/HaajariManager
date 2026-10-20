@@ -56,6 +56,7 @@ import SecureAccountScreen from "@/screens/SecureAccountScreen";
 import NotificationScreen from "@/screens/NotificationScreen";
 import RoleBottomNavigation from "@/components/RoleBottomNavigation";
 import { getNormalizedRole } from "@/navigation/navigationConfig";
+import { navigateToUpdateWorker } from "@/navigation/navigationRef";
 
 export type MainTabParamList = {
   DashboardTab: undefined;
@@ -92,7 +93,13 @@ export type RootStackParamList = {
   PrivacySettings: undefined;
   DeviceManagement: undefined;
   SiteManagement: undefined;
-  SiteDetailControl: { siteId: string };
+  SiteDetailControl: {
+    siteId: string;
+    siteName?: string;
+    initialTab?: string;
+    presentWorkers?: number;
+    totalWorkers?: number;
+  };
   SiteList: undefined;
   CreateSite: undefined;
   AddSite: undefined;
@@ -202,9 +209,13 @@ function MainTabs() {
     const subScanner = DeviceEventEmitter.addListener("OPEN_QR_SCANNER", () => {
       setIsScannerOpen(true);
     });
+    const subCloseScanner = DeviceEventEmitter.addListener("CLOSE_QR_SCANNER", () => {
+      setIsScannerOpen(false);
+    });
     return () => {
       subDrawer.remove();
       subScanner.remove();
+      subCloseScanner.remove();
     };
   }, []);
 
@@ -339,7 +350,28 @@ export default function MainTabNavigator() {
         }
       };
 
+      const handleConnectionAccepted = (data: any) => {
+        const isContractor =
+          user?.role === "contractor" ||
+          user?.role === "builder" ||
+          user?.role === "admin";
+        const targetWorkerId =
+          data?.workerId || data?.worker?.id || data?.worker?._id;
+        if (isContractor && targetWorkerId) {
+          DeviceEventEmitter.emit("CLOSE_QR_SCANNER");
+          navigateToUpdateWorker(targetWorkerId);
+        }
+        DeviceEventEmitter.emit("refreshData");
+      };
+
       socket.on("new_device_login", handleNewDeviceLogin);
+      socket.on("connection:accepted", handleConnectionAccepted);
+      socket.on("connection:verified", handleConnectionAccepted);
+      const subConnAccepted = DeviceEventEmitter.addListener(
+        "connection:accepted",
+        handleConnectionAccepted,
+      );
+
       return () => {
         socket.off("attendance:recorded", handleAttendanceUpdate);
         socket.off("attendance:updated", handleAttendanceUpdate);
@@ -347,9 +379,12 @@ export default function MainTabNavigator() {
         socket.off("attendance:deleted", handleAttendanceUpdate);
         socket.off("admin_dashboard_update", handleAttendanceUpdate);
         socket.off("new_device_login", handleNewDeviceLogin);
+        socket.off("connection:accepted", handleConnectionAccepted);
+        socket.off("connection:verified", handleConnectionAccepted);
+        subConnAccepted.remove();
       };
     }
-  }, [socket, userId, uniqueId, user?.uniqueId, user?.tenantId]);
+  }, [socket, userId, uniqueId, user?.uniqueId, user?.tenantId, user?.role]);
 
   return (
     <>

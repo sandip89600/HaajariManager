@@ -12,16 +12,16 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // limit size to 10MB
+    fileSize: 15 * 1024 * 1024, // limit size to 15MB
   },
   fileFilter: (req, file, cb) => {
-    const filetypes = /jpeg|jpg|png|webp/;
+    const filetypes = /jpeg|jpg|png|webp|m4a|mp3|wav|aac|ogg|caf|3gp|webm/;
     const mimetype = filetypes.test(file.mimetype);
     const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
     if (mimetype || extname) {
       return cb(null, true);
     }
-    cb(new Error("Only JPEG, JPG, PNG, and WebP images are allowed"));
+    cb(new Error("Only image and audio files are allowed"));
   },
 });
 
@@ -33,7 +33,7 @@ router.post(
     if (contentType.includes("application/json")) {
       return next();
     }
-    upload.single("image")(req, res, (err) => {
+    upload.any()(req, res, (err) => {
       if (err) {
         return res.status(400).json({ error: err.message || "Failed to process uploaded file" });
       }
@@ -46,11 +46,13 @@ router.post(
       let originalName = "upload.jpg";
       let mimeType = "image/jpeg";
 
-      if (req.file) {
-        fileBuffer = req.file.buffer;
-        originalName = req.file.originalname || "upload.jpg";
-        mimeType = req.file.mimetype || "image/jpeg";
+      const uploadedFile = req.file || (req.files && (req.files as any)[0]);
+      if (uploadedFile) {
+        fileBuffer = uploadedFile.buffer;
+        originalName = uploadedFile.originalname || "upload.jpg";
+        mimeType = uploadedFile.mimetype || "image/jpeg";
       } else if (req.body?.imageBase64 || req.body?.image || req.body?.photo) {
+
         const rawBase64 = req.body.imageBase64 || req.body.image || req.body.photo;
         const matches = typeof rawBase64 === "string" ? rawBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/) : null;
         if (matches && matches.length === 3) {

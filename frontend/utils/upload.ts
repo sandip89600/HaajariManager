@@ -110,3 +110,59 @@ export async function uploadImageToServer(localUri: string): Promise<string> {
 
   return data.url;
 }
+
+export async function uploadAudioToServer(localUri: string): Promise<string> {
+  if (!localUri) throw new Error("No local audio URI provided");
+  if (localUri.startsWith("http://") || localUri.startsWith("https://")) {
+    return localUri;
+  }
+  const uploadEndpoint = `${API_URL}/upload`;
+  const authDataRaw = await AsyncStorage.getItem("@haajari/auth").catch(() => null);
+  const auth = authDataRaw ? JSON.parse(authDataRaw) : null;
+  const token = auth?.token || "";
+  const deviceHeaders = await getDeviceHeaders().catch(() => ({}) as Record<string, string>);
+
+  if (Platform.OS !== "web") {
+    try {
+      const uploadRes = await FileSystem.uploadAsync(uploadEndpoint, localUri, {
+        httpMethod: "POST",
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: "audio",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...deviceHeaders,
+        },
+      });
+
+      if (uploadRes.status >= 200 && uploadRes.status < 300) {
+        const body = JSON.parse(uploadRes.body || "{}");
+        if (body.url) return body.url;
+      }
+    } catch (fsErr: any) {
+      console.warn("Audio uploadAsync failed, trying FormData fallback:", fsErr?.message || fsErr);
+    }
+  }
+
+  const formData = new FormData();
+  const filename = localUri.split("/").pop() || "recording.m4a";
+  formData.append("audio", {
+    uri: localUri,
+    name: filename,
+    type: "audio/m4a",
+  } as any);
+
+  const res = await authenticatedFetch(uploadEndpoint, {
+    method: "POST",
+    body: formData,
+    timeoutMs: 30000,
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || `Audio upload failed with status ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.url || localUri;
+}
+

@@ -45,6 +45,8 @@ export const getSitePhotos = async (req: AuthenticatedRequest, res: Response) =>
     const structuredPhotos = activities.map((a) => ({
       id: a._id,
       photo: a.photo,
+      siteId: site._id.toString(),
+      siteName: site.name,
       workerId: a.workerId || a.userId,
       workerName: a.userName,
       workerRole: a.workerRole || "Labour",
