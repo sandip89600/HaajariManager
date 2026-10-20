@@ -8,6 +8,8 @@ export interface AuthenticatedRequest extends Request {
     tenantId?: string;
     role: "contractor" | "builder" | "supervisor" | "labor" | "admin" | "worker";
   };
+  file?: any;
+  files?: any;
 }
 
 export const authenticateJWT = (
@@ -25,7 +27,7 @@ export const authenticateJWT = (
       return res.status(500).json({ error: "Server configuration error" });
     }
 
-    jwt.verify(token, secret, async (err, decodedUser: any) => {
+    jwt.verify(token, secret, async (err: any, decodedUser: any) => {
       if (err) {
         console.warn("[Auth Middleware] JWT Verification failed:", err.message);
         return res.status(401).json({ error: "Invalid or expired token" });
@@ -70,7 +72,7 @@ export const optionalAuthenticateJWT = (
     const token = authHeader.split(" ")[1];
     const secret = process.env.JWT_SECRET;
     if (secret) {
-      jwt.verify(token, secret, (err, decodedUser: any) => {
+      jwt.verify(token, secret, (err: any, decodedUser: any) => {
         if (!err && decodedUser) {
           req.user = {
             id: decodedUser.id,

@@ -14,7 +14,7 @@ const upload = multer({
   limits: {
     fileSize: 15 * 1024 * 1024, // limit size to 15MB
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (req: any, file: any, cb: any) => {
     const filetypes = /jpeg|jpg|png|webp|m4a|mp3|wav|aac|ogg|caf|3gp|webm/;
     const mimetype = filetypes.test(file.mimetype);
     const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
@@ -33,7 +33,7 @@ router.post(
     if (contentType.includes("application/json")) {
       return next();
     }
-    upload.any()(req, res, (err) => {
+    upload.any()(req, res, (err: any) => {
       if (err) {
         return res.status(400).json({ error: err.message || "Failed to process uploaded file" });
       }
@@ -46,7 +46,7 @@ router.post(
       let originalName = "upload.jpg";
       let mimeType = "image/jpeg";
 
-      const uploadedFile = req.file || (req.files && (req.files as any)[0]);
+      const uploadedFile = (req as any).file || ((req as any).files && (req as any).files[0]);
       if (uploadedFile) {
         fileBuffer = uploadedFile.buffer;
         originalName = uploadedFile.originalname || "upload.jpg";

@@ -52,14 +52,14 @@ function getBaseUrl(): string {
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@haajari.com";
 const APP_NAME = "Haajari Manager";
 
-let transporter: nodemailer.Transporter | null = null;
+let transporter: any = null;
 
 /**
  * Initializes the Nodemailer SMTP transporter.
  * In production: Only connects to configured SMTP servers (never uses Ethereal test accounts).
  * In development: Uses Ethereal test account or console fallback.
  */
-async function getTransporter(): Promise<nodemailer.Transporter | null> {
+async function getTransporter(): Promise<any> {
   if (transporter) return transporter;
 
   const isProd = process.env.NODE_ENV === "production";

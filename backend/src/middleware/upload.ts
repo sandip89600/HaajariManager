@@ -8,7 +8,7 @@ export const uploadAudio = multer({
   limits: {
     fileSize: 10 * 1024 * 1024, // limit size to 10MB
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (req: any, file: any, cb: any) => {
     const filetypes = /mp3|mp4|mpeg|mpga|m4a|wav|webm|ogg/;
     const mimetype = filetypes.test(file.mimetype);
     const extname = filetypes.test(path.extname(file.originalname).toLowerCase());

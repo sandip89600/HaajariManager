@@ -623,9 +623,10 @@ ${JSON.stringify(workerDetails)}
     if (req.body.text) {
       transcriptText = req.body.text;
     } else {
-      if (req.file) {
-        audioBuffer = req.file.buffer;
-        mimeType = req.file.mimetype;
+      const uploadedFile = (req as any).file;
+      if (uploadedFile) {
+        audioBuffer = uploadedFile.buffer;
+        mimeType = uploadedFile.mimetype;
       } else if (req.body.audio && req.body.mimeType) {
         audioBuffer = Buffer.from(req.body.audio, "base64");
         mimeType = req.body.mimeType;
