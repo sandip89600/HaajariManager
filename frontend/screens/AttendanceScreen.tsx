@@ -62,8 +62,8 @@ export default function AttendanceScreen() {
   const passedSiteId = route.params?.siteId;
 
   // Refs for Scroll Sync
-  const leftScrollRef = useRef<ScrollView>(null);
-  const rightScrollRef = useRef<ScrollView>(null);
+  const leftScrollRef = useRef<any>(null);
+  const rightScrollRef = useRef<any>(null);
   const isScrollingRef = useRef<"left" | "right" | null>(null);
 
   // States

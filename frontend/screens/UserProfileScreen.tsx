@@ -984,6 +984,36 @@ export default function UserProfileScreen() {
           </Pressable>
         </View>
 
+        {/* ── LOGOUT BUTTON ── */}
+        <View style={{ marginTop: 16 }}>
+          <Pressable
+            onPress={async () => {
+              try {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              } catch {}
+              await logout();
+            }}
+            style={[
+              styles.actionButton,
+              {
+                borderColor: "#EF4444",
+                borderWidth: 1,
+                backgroundColor: isDark ? "rgba(239, 68, 68, 0.1)" : "#FEF2F2",
+              },
+            ]}
+          >
+            <Feather name="log-out" size={16} color="#EF4444" />
+            <ThemedText
+              style={[
+                styles.actionButtonText,
+                { color: "#EF4444", fontWeight: "700" },
+              ]}
+            >
+              {t.settings?.logout || "Log Out"}
+            </ThemedText>
+          </Pressable>
+        </View>
+
         {/* ── DANGER ZONE (DELETE ACCOUNT) ── */}
         <View
           style={{

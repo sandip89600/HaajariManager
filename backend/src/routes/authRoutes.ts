@@ -1,10 +1,58 @@
 import { Router } from "express";
-import { signup, login, refresh, forgotPassword, resetPassword, renderResetPasswordPage, getProfile, updateProfile, changePassword, upgradePlan, deleteAccount, sendOtp, verifyOtpLogin, registerBiometric, biometricLogin, updatePrivacySettings, toggleOtpSetting, toggleBiometricsSetting, getUserSessions, logoutDevice, logoutAllDevices, savePushToken, validateSignupField, sendPhoneVerificationOtp, verifyPhoneOtp, trustDevice, reportSuspicious, getSecurityEvents, googleAuth, registerContractor, registerSupervisor, registerLabor } from "../controllers/authController";
-import { authenticateJWT } from "../middleware/auth";
+import {
+  signup,
+  login,
+  refresh,
+  forgotPassword,
+  resetPassword,
+  renderResetPasswordPage,
+  getProfile,
+  updateProfile,
+  changePassword,
+  upgradePlan,
+  deleteAccount,
+  sendOtp,
+  verifyOtpLogin,
+  registerBiometric,
+  biometricLogin,
+  updatePrivacySettings,
+  toggleOtpSetting,
+  toggleBiometricsSetting,
+  getUserSessions,
+  logoutDevice,
+  logoutAllDevices,
+  savePushToken,
+  validateSignupField,
+  sendPhoneVerificationOtp,
+  verifyPhoneOtp,
+  trustDevice,
+  reportSuspicious,
+  getSecurityEvents,
+  googleAuth,
+  registerContractor,
+  registerSupervisor,
+  registerLabor,
+  sendSignupOtp,
+  verifySignupOtp,
+  firebasePhoneLogin,
+  firebaseVerifyPhone,
+  claimWorkerProfile,
+  verifyEmail,
+  resendVerificationEmail
+} from "../controllers/authController";
+import { authenticateJWT, optionalAuthenticateJWT } from "../middleware/auth";
 
 const router = Router();
 
 router.post("/signup", signup as any);
+router.get("/verify-email", verifyEmail as any);
+router.post("/verify-email", verifyEmail as any);
+router.post("/resend-verification-email", resendVerificationEmail as any);
+router.post("/send-signup-otp", sendSignupOtp as any);
+router.post("/verify-signup-otp", verifySignupOtp as any);
+router.post("/firebase-phone-login", firebasePhoneLogin as any);
+router.post("/firebase-verify-phone", firebaseVerifyPhone as any);
+router.post("/claim-worker-profile", optionalAuthenticateJWT as any, claimWorkerProfile as any);
 router.post("/register/contractor", registerContractor as any);
 router.post("/register/supervisor", registerSupervisor as any);
 router.post("/register/labor", registerLabor as any);

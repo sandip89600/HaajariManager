@@ -8,7 +8,9 @@ import {
 
 const router = Router();
 
-// Account Recovery Endpoints (Phone + Scoped Session)
+// Account Recovery Endpoints (Email / Phone + Scoped Session)
+router.post("/check-email", requestRecoveryOtp as any);
+router.post("/find-account", requestRecoveryOtp as any);
 router.post("/check-phone", requestRecoveryOtp as any);
 router.post("/send-otp", requestRecoveryOtp as any);
 router.post("/request-otp", requestRecoveryOtp as any);

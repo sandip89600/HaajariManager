@@ -161,12 +161,12 @@ export default function DashboardScreen() {
     registerForPushNotificationsAsync().catch(() => {});
   }, []);
 
-  const welcomeRef = useRef<View>(null);
-  const summaryRef = useRef<View>(null);
-  const logRef = useRef<View>(null);
-  const actionsRef = useRef<View>(null);
-  const gpsRef = useRef<View>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const welcomeRef = useRef<any>(null);
+  const summaryRef = useRef<any>(null);
+  const logRef = useRef<any>(null);
+  const actionsRef = useRef<any>(null);
+  const gpsRef = useRef<any>(null);
+  const scrollViewRef = useRef<any>(null);
 
   const onLayoutWelcome = () => tour.registerTarget(0, welcomeRef);
   const onLayoutSummary = () => tour.registerTarget(1, summaryRef);

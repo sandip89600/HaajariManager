@@ -31,6 +31,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
 import { RootNavigatorParamList } from "@/navigation/RootNavigator";
 import { API_URL } from "@/utils/storage";
+import { sendFirebasePhoneOtp, verifyFirebasePhoneOtp } from "@/services/firebaseAuthService";
 import * as Haptics from "expo-haptics";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -100,7 +101,6 @@ export default function SignupScreen() {
 
   // Form Fields
   const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -148,11 +148,6 @@ export default function SignupScreen() {
   });
 
   // Validation States
-  const [usernameState, setUsernameState] = useState<
-    "idle" | "checking" | "available" | "error"
-  >("idle");
-  const [usernameMsg, setUsernameMsg] = useState("");
-
   const [emailState, setEmailState] = useState<
     "idle" | "checking" | "available" | "error"
   >("idle");
@@ -163,13 +158,11 @@ export default function SignupScreen() {
   >("idle");
   const [phoneMsg, setPhoneMsg] = useState("");
 
-  const usernameTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const emailTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const phoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
-      if (usernameTimer.current) clearTimeout(usernameTimer.current);
       if (emailTimer.current) clearTimeout(emailTimer.current);
       if (phoneTimer.current) clearTimeout(phoneTimer.current);
     };
@@ -179,7 +172,20 @@ export default function SignupScreen() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [otpVerified, setOtpVerified] = useState(false);
-  const [generatedOtp, setGeneratedOtp] = useState("");
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const [firebaseSessionInfo, setFirebaseSessionInfo] = useState<string | null>(null);
+
+  useEffect(() => {
+    let interval: any = null;
+    if (otpCountdown > 0) {
+      interval = setInterval(() => {
+        setOtpCountdown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [otpCountdown]);
 
   const buttonScale = useSharedValue(1);
 
@@ -188,15 +194,11 @@ export default function SignupScreen() {
   }));
 
   const runFieldValidation = async (
-    field: "username" | "email" | "phone",
+    field: "email" | "phone",
     val: string,
   ) => {
     const trimmed = val.trim();
     if (!trimmed) {
-      if (field === "username") {
-        setUsernameState("idle");
-        setUsernameMsg("");
-      }
       if (field === "email") {
         setEmailState("idle");
         setEmailMsg("");
@@ -208,22 +210,7 @@ export default function SignupScreen() {
       return;
     }
 
-    if (field === "username") {
-      if (trimmed.length < 3) {
-        setUsernameState("error");
-        setUsernameMsg("Username must be at least 3 characters.");
-        return;
-      }
-      if (!/^[a-zA-Z0-9_.-]+$/.test(trimmed)) {
-        setUsernameState("error");
-        setUsernameMsg(
-          "Only letters, numbers, underscores, hyphens, and dots allowed.",
-        );
-        return;
-      }
-      setUsernameState("checking");
-      setUsernameMsg("Checking username availability...");
-    } else if (field === "email") {
+    if (field === "email") {
       if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed)) {
         setEmailState("error");
         setEmailMsg("Invalid email address format.");
@@ -249,10 +236,7 @@ export default function SignupScreen() {
       });
       const data = await res.json();
       if (res.ok) {
-        if (field === "username") {
-          setUsernameState("available");
-          setUsernameMsg("Username is available");
-        } else if (field === "email") {
+        if (field === "email") {
           setEmailState("available");
           setEmailMsg("Email is available");
         } else if (field === "phone") {
@@ -260,10 +244,7 @@ export default function SignupScreen() {
           setPhoneMsg("Mobile number is available");
         }
       } else {
-        if (field === "username") {
-          setUsernameState("error");
-          setUsernameMsg(data.message || "Username is already in use.");
-        } else if (field === "email") {
+        if (field === "email") {
           setEmailState("error");
           setEmailMsg(data.message || "Email is already registered.");
         } else if (field === "phone") {
@@ -272,10 +253,6 @@ export default function SignupScreen() {
         }
       }
     } catch (err) {
-      if (field === "username") {
-        setUsernameState("idle");
-        setUsernameMsg("");
-      }
       if (field === "email") {
         setEmailState("idle");
         setEmailMsg("");
@@ -285,22 +262,6 @@ export default function SignupScreen() {
         setPhoneMsg("");
       }
     }
-  };
-
-  const handleUsernameChange = (val: string) => {
-    setUsername(val);
-    const cleaned = val.trim();
-    if (!cleaned) {
-      setUsernameState("idle");
-      setUsernameMsg("");
-      return;
-    }
-    setUsernameState("checking");
-    setUsernameMsg("Typing...");
-    if (usernameTimer.current) clearTimeout(usernameTimer.current);
-    usernameTimer.current = setTimeout(() => {
-      runFieldValidation("username", cleaned);
-    }, 500);
   };
 
   const handleEmailChange = (val: string) => {
@@ -321,8 +282,6 @@ export default function SignupScreen() {
 
   const handlePhoneChange = (val: string) => {
     setPhone(val);
-    setOtpSent(false);
-    setOtpVerified(false);
     const cleaned = val.trim();
     if (!cleaned) {
       setPhoneState("idle");
@@ -337,39 +296,121 @@ export default function SignupScreen() {
     }, 500);
   };
 
-  const handleSendOTP = () => {
-    if (phoneState !== "available" || phone.trim().length !== 10) {
+  const handleSendOTP = async () => {
+    const cleaned = phone.trim().replace(/\D/g, "");
+    if (cleaned.length !== 10) {
       Alert.alert(
-        "Error",
-        phoneMsg || "Please enter a valid, unregistered 10-digit mobile number",
+        "Invalid Mobile Number",
+        phoneMsg || "Please enter a valid 10-digit mobile number",
       );
       return;
     }
 
     setIsLoading(true);
     try {
-      const mockOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedOtp(mockOtp);
-      setOtpSent(true);
-      Alert.alert(
-        "Verification Code",
-        `Your verification code is: ${mockOtp}\n\n(SMS simulation)`,
-      );
+      // 1. Dispatch OTP via Firebase Phone Auth
+      const fbResult = await sendFirebasePhoneOtp(cleaned);
+      if (fbResult.success && fbResult.sessionInfo) {
+        setFirebaseSessionInfo(fbResult.sessionInfo);
+        setOtpSent(true);
+        setOtpCountdown(60);
+        Alert.alert(
+          "Verification Code Sent",
+          `A 6-digit verification code has been sent via Firebase SMS to +91 ${cleaned}.\n\nPlease check your text messages.`,
+        );
+        return;
+      }
+
+      // 2. Direct server fallback
+      try {
+        const response = await fetch(`${API_URL}/auth/send-signup-otp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: cleaned }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data.success) {
+          setFirebaseSessionInfo(null);
+          setOtpSent(true);
+          setOtpCountdown(60);
+          Alert.alert(
+            "Verification Code Sent",
+            `A 6-digit verification code has been sent via SMS to +91 ${cleaned}.\n\nPlease check your text messages.`,
+          );
+          return;
+        }
+      } catch (_) {}
+
+      // If both failed, surface the exact Firebase issue
+      throw new Error(fbResult.error || "Failed to dispatch verification code.");
+    } catch (err: any) {
+      Alert.alert("Failed to Send OTP", err.message || "Could not dispatch verification code. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleVerifyOTP = () => {
-    if (!otpCode.trim()) {
-      Alert.alert("Error", "Please enter the verification code");
+  const handleVerifyOTP = async () => {
+    const cleanedPhone = phone.trim().replace(/\D/g, "");
+    const cleanOtp = otpCode.trim();
+    if (!cleanOtp || cleanOtp.length < 6) {
+      Alert.alert("Error", "Please enter the complete 6-digit verification code");
       return;
     }
-    if (otpCode.trim() === generatedOtp || otpCode.trim() === "123456") {
+
+    setIsLoading(true);
+    try {
+      // 1. If Firebase Phone OTP session is active
+      if (firebaseSessionInfo) {
+        const verifyRes = await verifyFirebasePhoneOtp(firebaseSessionInfo, cleanOtp);
+        if (!verifyRes.success || !verifyRes.idToken) {
+          throw new Error(verifyRes.error || "Invalid or expired verification code.");
+        }
+
+        // Notify backend (graceful if route pending deployment on Render)
+        try {
+          const backendRes = await fetch(`${API_URL}/auth/firebase-verify-phone`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ idToken: verifyRes.idToken, phone: cleanedPhone }),
+          });
+          const backendData = await backendRes.json().catch(() => ({}));
+          if (backendRes.ok && backendData && !backendData.success) {
+            throw new Error(backendData.message || "Phone verification rejected by server.");
+          }
+        } catch (postErr: any) {
+          if (postErr.message && !postErr.message.includes("not found")) {
+            console.warn("[Backend verify phone]:", postErr.message);
+          }
+        }
+
+        setOtpVerified(true);
+        try {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (_) {}
+        Alert.alert("Verified", "Mobile number verified successfully!");
+        return;
+      }
+
+      // 2. Direct server fallback
+      const response = await fetch(`${API_URL}/auth/verify-signup-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleanedPhone, otp: cleanOtp }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Invalid or expired verification code.");
+      }
       setOtpVerified(true);
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (_) {}
       Alert.alert("Verified", "Mobile number verified successfully!");
-    } else {
-      Alert.alert("Error", "Invalid verification code. Please try again.");
+    } catch (err: any) {
+      Alert.alert("Verification Failed", err.message || "Invalid verification code. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -385,24 +426,16 @@ export default function SignupScreen() {
       Alert.alert("Error", "Full Name is required.");
       return;
     }
-    if (!username.trim()) {
-      Alert.alert("Error", "Username is required.");
-      return;
-    }
-    if (usernameState === "error") {
-      Alert.alert("Error", usernameMsg || "Username is already in use.");
-      return;
-    }
-    if (!phone.trim()) {
-      Alert.alert("Error", "Mobile Number is required.");
-      return;
-    }
-    if (phoneState === "error") {
-      Alert.alert("Error", phoneMsg || "Mobile number is already registered.");
+    if (!email.trim()) {
+      Alert.alert("Error", "Email address is required.");
       return;
     }
     if (emailState === "error") {
-      Alert.alert("Error", emailMsg || "Email is already registered.");
+      Alert.alert("Error", emailMsg || "Please enter a valid email address.");
+      return;
+    }
+    if (phone.trim() && phoneState === "error") {
+      Alert.alert("Error", phoneMsg || "Please enter a valid 10-digit mobile number.");
       return;
     }
     if (selectedRole === "contractor" && !companyName.trim()) {
@@ -430,12 +463,12 @@ export default function SignupScreen() {
 
       const result = await signup(
         name.trim(),
-        phone.trim(),
+        phone.trim() || undefined,
         password,
         selectedRole as UserRole,
         companyName.trim(),
         email.trim(),
-        username.trim(),
+        undefined, // username auto-generated on backend
         contractorName.trim(),
         contractorCompany.trim(),
         selectedRole === "labor" ? finalWorkerCategory : undefined,
@@ -452,11 +485,11 @@ export default function SignupScreen() {
               : "Labour";
 
         Alert.alert(
-          "Success",
-          `${roleLabel} account created successfully! Welcome to Haajari Manager.`,
+          "Verify Your Email ✉️",
+          `Welcome to Haajari Manager! Your ${roleLabel} account has been created.\n\nA verification link has been sent to ${email.trim()}.\n\nPlease check your email inbox to verify your account.`,
           [
             {
-              text: "Get Started",
+              text: "Continue to App",
               onPress: () => {
                 try {
                   navigation.navigate("Main");
@@ -476,9 +509,6 @@ export default function SignupScreen() {
         if (result.field === "email") {
           setEmailState("error");
           setEmailMsg(`❌ ${result.message}`);
-        } else if (result.field === "username") {
-          setUsernameState("error");
-          setUsernameMsg(`❌ ${result.message}`);
         } else if (result.field === "mobile" || result.field === "phone") {
           setPhoneState("error");
           setPhoneMsg(`❌ ${result.message}`);
@@ -514,14 +544,12 @@ export default function SignupScreen() {
   const isSubmitDisabled =
     isLoading ||
     !name.trim() ||
-    !username.trim() ||
-    !phone.trim() ||
+    !email.trim() ||
     !password ||
     password !== confirmPassword ||
     (selectedRole === "contractor" && !companyName.trim()) ||
-    usernameState === "error" ||
-    phoneState === "error" ||
-    emailState === "error";
+    emailState === "error" ||
+    (phone.trim().length > 0 && phoneState === "error");
 
   const ScrollContainer =
     Platform.OS === "web" ? ScrollView : KeyboardAwareScrollView;
@@ -746,56 +774,11 @@ export default function SignupScreen() {
               </View>
             </View>
 
-            {/* Username */}
+            {/* Email (Required) */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                {t("auth.username", "Username")}{" "}
+                {t("auth.email", "Email")}{" "}
                 <Text style={{ color: "red" }}>*</Text>
-              </ThemedText>
-              <View
-                style={[
-                  styles.inputWrapper,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    borderColor: getValidationBorderColor(usernameState),
-                  },
-                ]}
-              >
-                <Feather
-                  name="at-sign"
-                  size={18}
-                  color={theme.textSecondary}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={[styles.input, { color: theme.text }]}
-                  placeholder={t("auth.chooseUsername", "Choose username")}
-                  placeholderTextColor={theme.textSecondary}
-                  value={username}
-                  onChangeText={handleUsernameChange}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {usernameState === "checking" && (
-                  <ActivityIndicator size="small" color="#F97316" />
-                )}
-              </View>
-              {usernameMsg !== "" && (
-                <Text
-                  style={[
-                    styles.validationMsg,
-                    { color: getValidationColor(usernameState) },
-                  ]}
-                >
-                  {usernameMsg}
-                </Text>
-              )}
-            </View>
-
-            {/* Email */}
-            <View style={styles.inputContainer}>
-              <ThemedText style={styles.inputLabel}>
-                {t("auth.email", "Email")}
               </ThemedText>
               <View
                 style={[
@@ -838,65 +821,41 @@ export default function SignupScreen() {
               )}
             </View>
 
-            {/* Mobile Number & Optional OTP Verification */}
+            {/* Mobile Number (Optional, no OTP required) */}
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                {t("auth.mobileNumber", "Mobile Number")}{" "}
-                <Text style={{ color: "red" }}>*</Text>
+                {t("auth.mobileNumberOptional", "Mobile Number (Optional)")}
               </ThemedText>
-              <View style={styles.phoneInputRow}>
-                <View
-                  style={[
-                    styles.inputWrapper,
-                    styles.phoneInputWrapper,
-                    {
-                      backgroundColor: theme.backgroundDefault,
-                      borderColor: getValidationBorderColor(phoneState),
-                    },
-                  ]}
-                >
-                  <Feather
-                    name="phone"
-                    size={18}
-                    color={theme.textSecondary}
-                    style={styles.inputIcon}
-                  />
-                  <TextInput
-                    style={[styles.input, { color: theme.text }]}
-                    placeholder={t(
-                      "auth.enterMobileNumber",
-                      "Enter mobile number",
-                    )}
-                    placeholderTextColor={theme.textSecondary}
-                    value={phone}
-                    onChangeText={handlePhoneChange}
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                  />
-                  {phoneState === "checking" && (
-                    <ActivityIndicator size="small" color="#F97316" />
+              <View
+                style={[
+                  styles.inputWrapper,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor: getValidationBorderColor(phoneState),
+                  },
+                ]}
+              >
+                <Feather
+                  name="phone"
+                  size={18}
+                  color={theme.textSecondary}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={[styles.input, { color: theme.text }]}
+                  placeholder={t(
+                    "auth.enterMobileNumberOptional",
+                    "Enter mobile number (optional)",
                   )}
-                </View>
-
-                <Pressable
-                  onPress={handleSendOTP}
-                  style={[
-                    styles.otpButton,
-                    {
-                      backgroundColor:
-                        phone.trim().length === 10 && !otpVerified
-                          ? "#F97316"
-                          : theme.border,
-                    },
-                  ]}
-                  disabled={phone.trim().length !== 10 || otpVerified}
-                >
-                  <ThemedText style={styles.otpButtonText}>
-                    {otpSent
-                      ? t("auth.resendOtp", "Resend")
-                      : t("auth.sendOtp", "Send OTP")}
-                  </ThemedText>
-                </Pressable>
+                  placeholderTextColor={theme.textSecondary}
+                  value={phone}
+                  onChangeText={handlePhoneChange}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+                {phoneState === "checking" && (
+                  <ActivityIndicator size="small" color="#F97316" />
+                )}
               </View>
               {phoneMsg !== "" && (
                 <Text
@@ -909,61 +868,6 @@ export default function SignupScreen() {
                 </Text>
               )}
             </View>
-
-            {/* OTP Code Box */}
-            {otpSent && !otpVerified && (
-              <View style={styles.inputContainer}>
-                <ThemedText style={styles.inputLabel}>
-                  {t("auth.enterOtp", "OTP Code")}
-                </ThemedText>
-                <View style={styles.phoneInputRow}>
-                  <View
-                    style={[
-                      styles.inputWrapper,
-                      styles.phoneInputWrapper,
-                      {
-                        backgroundColor: theme.backgroundDefault,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name="shield"
-                      size={18}
-                      color={theme.textSecondary}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={[styles.input, { color: theme.text }]}
-                      placeholder={t("auth.enterOtpPlaceholder", "Enter OTP")}
-                      placeholderTextColor={theme.textSecondary}
-                      value={otpCode}
-                      onChangeText={setOtpCode}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                    />
-                  </View>
-                  <Pressable
-                    onPress={handleVerifyOTP}
-                    style={[styles.otpButton, { backgroundColor: "#10B981" }]}
-                  >
-                    <ThemedText style={styles.otpButtonText}>
-                      {t("auth.verifyOtp", "Verify")}
-                    </ThemedText>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-
-            {/* OTP Verified badge */}
-            {otpVerified && (
-              <View style={styles.verifiedContainer}>
-                <Feather name="check-circle" size={16} color="#10B981" />
-                <ThemedText style={[styles.verifiedText, { color: "#10B981" }]}>
-                  {t("auth.mobileVerified", "Mobile number verified")}
-                </ThemedText>
-              </View>
-            )}
 
             {/* ── ROLE SPECIFIC SECTIONS ── */}
 

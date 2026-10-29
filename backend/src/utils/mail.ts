@@ -391,6 +391,35 @@ export async function sendWelcomeEmail(email: string, name: string): Promise<boo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 1B. EMAIL VERIFICATION LINK EMAIL
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendEmailVerificationEmail(email: string, name: string, token: string): Promise<boolean> {
+  const baseUrl = getBaseUrl();
+  const subject = `Verify your ${APP_NAME} account`;
+  const verifyLink = `${baseUrl}/api/auth/verify-email?token=${token}`;
+
+  const content = `
+    <h2 style="color: #F8FAFC; margin-top: 0; font-size: 22px; font-weight: 700;">Verify Your Email Address ✉️</h2>
+    <p style="color: #CBD5E1; font-size: 15px; line-height: 1.6;">
+      Hello <strong>${name || "User"}</strong>, thank you for registering with <strong>${APP_NAME}</strong>. Please confirm your email address to complete your setup and verify your account:
+    </p>
+    <div style="text-align: center; margin: 28px 0;">
+      <a href="${verifyLink}" target="_blank" class="btn-primary" style="background-color: #FF6B35; color: #ffffff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 700; display: inline-block; font-size: 15px;">Verify Email</a>
+    </div>
+    <div class="info-box" style="background: rgba(255,255,255,0.05); padding: 14px; border-radius: 6px; margin: 20px 0; border-left: 3px solid #FF6B35;">
+      <p style="margin: 0; color: #E2E8F0; font-size: 13px;">
+        ⏱️ <strong>Note:</strong> This verification link is valid for <strong>24 hours</strong>. If you did not create this account, you can safely disregard this message.
+      </p>
+    </div>
+    <p style="color: #64748B; font-size: 11px; word-break: break-all; margin-top: 20px;">
+      Direct link: <a href="${verifyLink}" style="color: #FF6B35;">${verifyLink}</a>
+    </p>
+  `;
+
+  return sendMailUnified(email, subject, getEmailLayout("Verify Your Email", content), "Email Verification Link");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 2. FORGOT PASSWORD EMAIL
 // ─────────────────────────────────────────────────────────────────────────────
 export async function sendPasswordResetEmail(email: string, name: string, token: string): Promise<boolean> {
@@ -473,6 +502,36 @@ export async function sendEmailConfirmationRecoveryEmail(email: string, name: st
   `;
 
   return sendMailUnified(email, subject, getEmailLayout("Confirm Password Recovery", content), "Privileged Recovery Email Confirmation");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6B. PASSWORD RECOVERY OTP EMAIL
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendPasswordRecoveryOtpEmail(email: string, name: string, otpCode: string): Promise<boolean> {
+  const subject = `Your Password Recovery Code: ${otpCode} - ${APP_NAME}`;
+
+  const content = `
+    <h2 style="color: #F8FAFC; margin-top: 0; font-size: 22px; font-weight: 700;">Account Recovery Code</h2>
+    <p style="color: #CBD5E1; font-size: 15px; line-height: 1.6;">
+      Hello <strong>${name || "User"}</strong>, we received a request to recover your password for your <strong>${APP_NAME}</strong> account.
+    </p>
+    <p style="color: #CBD5E1; font-size: 15px; line-height: 1.6;">
+      Enter the 6-digit verification code below in the application to proceed with choosing a new password:
+    </p>
+    <div style="background: rgba(249, 115, 22, 0.1); border: 1.5px dashed #F97316; border-radius: 14px; padding: 22px; text-align: center; margin: 24px 0;">
+      <span style="font-size: 34px; font-weight: 800; letter-spacing: 10px; color: #F97316; font-family: monospace;">${otpCode}</span>
+    </div>
+    <div class="info-box">
+      <p style="margin: 0; color: #E2E8F0; font-size: 13px;">
+        ⏱️ <strong>Time Limit:</strong> This recovery code is valid for <strong>10 minutes</strong>. Never share this code with anyone.
+      </p>
+    </div>
+    <p style="color: #94A3B8; font-size: 13px; line-height: 1.6; margin-top: 20px;">
+      If you did not request this code, you can safely ignore this email. Your current password remains unchanged.
+    </p>
+  `;
+
+  return sendMailUnified(email, subject, getEmailLayout("Recovery Code", content), "Account Recovery OTP");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

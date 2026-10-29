@@ -16,6 +16,7 @@ import {
   authenticatedFetch,
 } from "@/utils/storage";
 import { getDeviceHeaders } from "@/utils/device";
+import { navigationRef } from "@/navigation/navigationRef";
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -35,14 +36,14 @@ interface AuthContextType {
   setNewDeviceAlert: (info: any) => void;
   refreshUserProfile: () => Promise<void>;
   login: (
-    phone: string,
+    identifier: string,
     password?: string,
     otp?: string,
     rememberMe?: boolean,
   ) => Promise<any>;
   signup: (
     name: string,
-    phone: string,
+    phone?: string,
     password?: string,
     role?: "contractor" | "builder" | "supervisor" | "labor" | "worker",
     companyName?: string,
@@ -52,7 +53,13 @@ interface AuthContextType {
     contractorCompany?: string,
     workerCategory?: string,
     dailyWage?: number,
-  ) => Promise<{ success: boolean; field?: string; message?: string }>;
+  ) => Promise<{
+    success: boolean;
+    field?: string;
+    message?: string;
+    emailVerificationSent?: boolean;
+    email?: string;
+  }>;
   loginAsGuest: () => void;
   logout: () => Promise<void>;
   loginWithBiometrics: (
@@ -70,6 +77,11 @@ interface AuthContextType {
     role?: "contractor" | "builder",
     googleId?: string,
     email?: string,
+  ) => Promise<any>;
+  loginWithFirebasePhone: (
+    idToken: string,
+    phone: string,
+    rememberMe?: boolean,
   ) => Promise<any>;
 }
 
@@ -196,8 +208,13 @@ export function useAuthProvider() {
           ? `${API_URL}/auth/verify-otp-login`
           : `${API_URL}/auth/login`;
         const payload = otp
-          ? { phone: phoneTrimmed, otp }
-          : { phone: phoneTrimmed, password };
+          ? { phone: phoneTrimmed, identifier: phoneTrimmed, otp }
+          : {
+              phone: phoneTrimmed,
+              identifier: phoneTrimmed,
+              email: phoneTrimmed.includes("@") ? phoneTrimmed : undefined,
+              password,
+            };
         const deviceHeaders = await getDeviceHeaders().catch(() => ({}));
 
         const res = await fetch(url, {
@@ -348,7 +365,7 @@ export function useAuthProvider() {
           setIsGuest(false);
           setUserId(userData.id);
           setUserType(uType);
-          setEmail(userData.phone);
+          setEmail(userData.phone || userData.email || "");
           setUser(userData);
           return true;
         }
@@ -362,7 +379,7 @@ export function useAuthProvider() {
   const signup = useCallback(
     async (
       name: string,
-      phone: string,
+      phone?: string,
       password?: string,
       role?: "contractor" | "builder" | "supervisor" | "labor" | "worker",
       companyName?: string,
@@ -376,9 +393,10 @@ export function useAuthProvider() {
       success: boolean;
       field?: string;
       message?: string;
+      emailVerificationSent?: boolean;
       email?: string;
     }> => {
-      const phoneTrimmed = phone.trim();
+      const phoneTrimmed = phone ? phone.trim() : "";
 
       // 1. Try server signup
       try {
@@ -391,12 +409,17 @@ export function useAuthProvider() {
           endpoint = `${API_URL}/auth/register/labor`;
         }
 
+        const fallbackUsername =
+          (email ? email.split("@")[0].replace(/[^a-zA-Z0-9]/g, "") : "user") +
+          "_" +
+          Math.random().toString(36).substring(2, 7);
+
         const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name,
-            phone: phoneTrimmed,
+            phone: phoneTrimmed || undefined,
             password,
             role: role === "worker" ? "labor" : role,
             companyName,
@@ -405,7 +428,7 @@ export function useAuthProvider() {
             workerCategory,
             dailyWage,
             email: email ? email.toLowerCase().trim() : undefined,
-            username: username ? username.toLowerCase().trim() : undefined,
+            username: username ? username.toLowerCase().trim() : fallbackUsername,
           }),
         });
 
@@ -421,6 +444,7 @@ export function useAuthProvider() {
             email: data.user.email,
             username: data.user.username,
             isPhoneVerified: !!data.user.isPhoneVerified,
+            isEmailVerified: !!data.user.isEmailVerified,
             rememberMe: true,
             token: data.token,
             refreshToken: data.refreshToken,
@@ -432,7 +456,7 @@ export function useAuthProvider() {
           setIsGuest(false);
           setUserId(data.user.id);
           setUserType("user");
-          setEmail(data.user.phone || "");
+          setEmail(data.user.email || data.user.phone || "");
 
           const userData: User = {
             id: data.user.id,
@@ -442,6 +466,7 @@ export function useAuthProvider() {
             email: data.user.email || "",
             username: data.user.username || "",
             isPhoneVerified: !!data.user.isPhoneVerified,
+            isEmailVerified: !!data.user.isEmailVerified,
             avatarColor: data.user.avatarColor || "#FF6B6B",
             profileImage: data.user.profileImage || undefined,
             address: data.user.address || "",
@@ -465,7 +490,12 @@ export function useAuthProvider() {
           // Trigger sync
           storage.syncWithBackend();
 
-          return { success: true };
+          return {
+            success: true,
+            emailVerificationSent: !!data.emailVerificationSent,
+            email: data.user.email,
+            message: data.message,
+          };
         } else {
           return {
             success: false,
@@ -732,6 +762,114 @@ export function useAuthProvider() {
     [],
   );
 
+  const loginWithFirebasePhone = useCallback(
+    async (
+      idToken: string,
+      phone: string,
+      rememberMe: boolean = true,
+    ): Promise<any> => {
+      try {
+        const phoneTrimmed = phone.trim();
+        const deviceHeaders = await getDeviceHeaders().catch(() => ({}));
+        const res = await fetch(`${API_URL}/auth/firebase-phone-login`, {
+          method: "POST",
+          headers: { ...deviceHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken, phone: phoneTrimmed }),
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok || !data) {
+          return {
+            success: false,
+            message: data?.message || "Firebase phone authentication failed.",
+          };
+        }
+
+        if (data.isNewUser) {
+          return {
+            success: true,
+            isNewUser: true,
+            phone: data.phone,
+            firebaseUid: data.firebaseUid,
+            hasInvitedProfile: data.hasInvitedProfile,
+          };
+        }
+
+        if (data.success && data.token) {
+          const role = data.user.role;
+          const uType = role === "admin" ? ("admin" as const) : ("user" as const);
+          const authData: AuthData = {
+            isLoggedIn: true,
+            userId: data.user.id,
+            userType: uType,
+            role,
+            phone: data.user.phone,
+            email: data.user.email,
+            username: data.user.username,
+            isPhoneVerified: true,
+            rememberMe,
+            token: data.token,
+            refreshToken: data.refreshToken,
+            tenantId: data.user.tenantId,
+            plan: data.user.plan || "free",
+          };
+
+          await storage.setAuth(authData);
+          setIsLoggedIn(true);
+          setIsGuest(false);
+          setUserId(data.user.id);
+          setUserType(uType);
+          setEmail(data.user.phone || "");
+
+          const userData: User = {
+            id: data.user.id,
+            uniqueId: data.user.uniqueId || "",
+            name: data.user.name,
+            phone: data.user.phone || "",
+            email: data.user.email || "",
+            username: data.user.username || "",
+            isPhoneVerified: true,
+            avatarColor: data.user.avatarColor || "#4ECDC4",
+            profileImage: data.user.profileImage || undefined,
+            address: data.user.address || "",
+            role,
+            workerCategory: data.user.workerCategory,
+            dailyWage: data.user.dailyWage,
+            contractorName: data.user.contractorName,
+            contractorCompany: data.user.contractorCompany,
+            connectionStatus: data.user.connectionStatus || "not_connected",
+            isActive: true,
+            createdAt: data.user.createdAt
+              ? new Date(data.user.createdAt).getTime()
+              : Date.now(),
+            loginHistory: [Date.now()],
+            companyName: data.user.companyName,
+            plan: data.user.plan || "free",
+          };
+
+          await storage.updateUser(userData);
+          setUser(userData);
+          storage.syncWithBackend();
+
+          return { success: true, isNewUser: false, user: userData };
+        }
+
+        return {
+          success: false,
+          message: data?.message || "Firebase phone login failed.",
+        };
+      } catch (err: any) {
+        console.warn("[loginWithFirebasePhone Error]:", err);
+        return {
+          success: false,
+          message: err.message || "Failed to complete phone login.",
+        };
+      }
+    },
+    [],
+  );
+
   const loginAsGuest = useCallback(() => {
     setIsGuest(true);
     setIsLoggedIn(false);
@@ -750,6 +888,18 @@ export function useAuthProvider() {
     setUserType("user");
     setUser(null);
     setNewDeviceAlert(null);
+
+    // Immediate navigation reset ensures 1-click return to Login
+    if (navigationRef.isReady()) {
+      try {
+        navigationRef.reset({
+          index: 0,
+          routes: [{ name: "Login" }],
+        });
+      } catch (e) {
+        // Handled by RootNavigator conditional screen update
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -858,6 +1008,7 @@ export function useAuthProvider() {
     logout,
     loginWithBiometrics,
     loginWithGoogle,
+    loginWithFirebasePhone,
   };
 }
 

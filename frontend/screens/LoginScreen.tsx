@@ -33,6 +33,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { storage, API_URL } from "@/utils/storage";
+import { sendFirebasePhoneOtp, verifyFirebasePhoneOtp } from "@/services/firebaseAuthService";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootNavigatorParamList } from "@/navigation/RootNavigator";
@@ -144,8 +145,13 @@ export default function LoginScreen() {
   const theme = themeContext.theme;
   const isDark = themeContext.isDark ?? false;
 
-  const { login, loginAsGuest, loginWithBiometrics, loginWithGoogle } =
-    useAuth();
+  const {
+    login,
+    loginAsGuest,
+    loginWithBiometrics,
+    loginWithGoogle,
+    loginWithFirebasePhone,
+  } = useAuth();
   const { t, language } = useLanguage();
   const insets = useSafeAreaInsets();
 
@@ -162,6 +168,7 @@ export default function LoginScreen() {
   const [showOtpVerification, setShowOtpVerification] = useState(false);
   const [otpCountdown, setOtpCountdown] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [firebaseSessionInfo, setFirebaseSessionInfo] = useState<string | null>(null);
 
   // Google completion modal state
   const [showMobileCompletionModal, setShowMobileCompletionModal] =
@@ -169,7 +176,7 @@ export default function LoginScreen() {
   const [pendingGoogleProfile, setPendingGoogleProfile] = useState<any>(null);
 
   // OTP Refs for 6 boxes
-  const otpRefs = useRef<Array<TextInput | null>>([]);
+  const otpRefs = useRef<Array<any>>([]);
   const [otpArray, setOtpArray] = useState(["", "", "", "", "", ""]);
 
   const buttonScale = useSharedValue(1);
@@ -350,12 +357,26 @@ export default function LoginScreen() {
 
   const handleSendOtp = async () => {
     if (!phone) {
-      setError("Please enter a valid mobile number or username.");
+      setError("Please enter a valid mobile number or email.");
       return;
     }
     setIsLoading(true);
     setError(null);
     try {
+      // 1. Dispatch OTP via Firebase Phone Auth
+      const fbResult = await sendFirebasePhoneOtp(phone);
+      if (fbResult.success && fbResult.sessionInfo) {
+        setFirebaseSessionInfo(fbResult.sessionInfo);
+        setShowOtpVerification(true);
+        setOtpCountdown(60);
+        Alert.alert(
+          "Verification Code Sent",
+          "A verification code was sent to your registered mobile number via Firebase SMS.",
+        );
+        return;
+      }
+
+      // 2. Direct server fallback
       const response = await fetch(`${API_URL}/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -381,6 +402,7 @@ export default function LoginScreen() {
         );
       }
 
+      setFirebaseSessionInfo(null);
       setShowOtpVerification(true);
       setOtpCountdown(60);
       Alert.alert(
@@ -403,6 +425,56 @@ export default function LoginScreen() {
     setIsLoading(true);
     setError(null);
     try {
+      // 1. If Firebase Phone OTP session is active
+      if (firebaseSessionInfo) {
+        const verifyRes = await verifyFirebasePhoneOtp(firebaseSessionInfo, fullOtp);
+        if (!verifyRes.success || !verifyRes.idToken) {
+          throw new Error(verifyRes.error || "Invalid verification code.");
+        }
+
+        const loginRes = await loginWithFirebasePhone(verifyRes.idToken, phone, rememberMe);
+        if (loginRes.isNewUser) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert(
+            "Account Required",
+            "Your phone number has been verified! Please complete your registration.",
+            [
+              {
+                text: "Sign Up",
+                onPress: () => {
+                  try {
+                    navigationProp.navigate("Signup", { phone: loginRes.phone || phone } as any);
+                  } catch (e) {}
+                },
+              },
+            ]
+          );
+          return;
+        }
+
+        if (loginRes.success) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          try {
+            navigationProp.replace("Main");
+          } catch (e) {}
+          return;
+        }
+
+        if (loginRes.message && loginRes.message.includes("API endpoint not found")) {
+          const fallbackSuccess = await login(phone, "", fullOtp);
+          if (fallbackSuccess) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            try {
+              navigationProp.replace("Main");
+            } catch (e) {}
+            return;
+          }
+        }
+
+        throw new Error(loginRes.message || "Failed to log in with verified phone.");
+      }
+
+      // 2. Direct server fallback OTP verification
       const success = await login(phone, "", fullOtp);
       if (success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -552,82 +624,80 @@ export default function LoginScreen() {
             <>
               {/* Fields inputs */}
               <AnimatedInput
-                icon="phone"
+                icon="user"
                 placeholder={t(
-                  "auth.mobileOrUsername",
-                  "Mobile number or username",
+                  "auth.mobileOrEmail",
+                  "Mobile number or Email",
                 )}
                 value={phone}
                 onChangeText={(tVal: string) => {
                   setPhone(tVal);
                   setError(null);
                 }}
-                keyboardType="default"
+                keyboardType="email-address"
                 autoCapitalize="none"
                 theme={theme}
                 isDark={isDark}
                 hasError={!!error && !phone}
               />
 
-              {loginMode === "password" ? (
-                <View style={{ marginTop: 12 }}>
-                  <AnimatedInput
-                    icon="lock"
-                    placeholder={t("auth.enterPassword", "Enter password")}
-                    value={password}
-                    onChangeText={(tVal: string) => {
-                      setPassword(tVal);
-                      setError(null);
+              <View style={{ marginTop: 12 }}>
+                <AnimatedInput
+                  icon="lock"
+                  placeholder={t("auth.enterPassword", "Enter password")}
+                  value={password}
+                  onChangeText={(tVal: string) => {
+                    setPassword(tVal);
+                    setError(null);
+                  }}
+                  secureTextEntry={!showPassword}
+                  rightIcon={showPassword ? "eye-off" : "eye"}
+                  onRightIconPress={() => setShowPassword(!showPassword)}
+                  theme={theme}
+                  isDark={isDark}
+                  hasError={!!error && !password}
+                />
+
+                {/* Remember me & Forgot Password row */}
+                <View style={styles.optionsRow}>
+                  <Pressable
+                    style={styles.checkboxRow}
+                    onPress={() => setRememberMe(!rememberMe)}
+                  >
+                    <Feather
+                      name={rememberMe ? "check-square" : "square"}
+                      size={18}
+                      color={rememberMe ? theme.primary : theme.textSecondary}
+                    />
+                    <ThemedText
+                      style={[
+                        styles.optionsLabel,
+                        { color: theme.textSecondary, marginLeft: 8 },
+                      ]}
+                    >
+                      {t("auth.rememberMe", "Remember me")}
+                    </ThemedText>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      triggerHaptic();
+                      navigationProp.navigate("ForgotPassword" as any);
                     }}
-                    secureTextEntry={!showPassword}
-                    rightIcon={showPassword ? "eye-off" : "eye"}
-                    onRightIconPress={() => setShowPassword(!showPassword)}
-                    theme={theme}
-                    isDark={isDark}
-                    hasError={!!error && !password}
-                  />
-
-                  {/* Remember me & Forgot Password row */}
-                  <View style={styles.optionsRow}>
-                    <Pressable
-                      style={styles.checkboxRow}
-                      onPress={() => setRememberMe(!rememberMe)}
-                    >
-                      <Feather
-                        name={rememberMe ? "check-square" : "square"}
-                        size={18}
-                        color={rememberMe ? theme.primary : theme.textSecondary}
-                      />
-                      <ThemedText
-                        style={[
-                          styles.optionsLabel,
-                          { color: theme.textSecondary, marginLeft: 8 },
-                        ]}
-                      >
-                        {t("auth.rememberMe", "Remember me")}
-                      </ThemedText>
-                    </Pressable>
-
-                    <Pressable
-                      onPress={() => {
-                        triggerHaptic();
-                        navigationProp.navigate("ForgotPassword" as any);
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <ThemedText
+                      style={{
+                        color: theme.primary,
+                        fontSize: 13,
+                        fontWeight: "600",
                       }}
-                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
-                      <ThemedText
-                        style={{
-                          color: theme.primary,
-                          fontSize: 13,
-                          fontWeight: "600",
-                        }}
-                      >
-                        {t("auth.forgotPassword", "Forgot Password?")}
-                      </ThemedText>
-                    </Pressable>
-                  </View>
+                      {t("auth.forgotPassword", "Forgot Password?")}
+                    </ThemedText>
+                  </Pressable>
                 </View>
-              ) : null}
+              </View>
 
               {/* Action Buttons */}
               <AnimatedPressable
@@ -638,8 +708,7 @@ export default function LoginScreen() {
                 ]}
                 onPress={() => {
                   triggerHaptic();
-                  if (loginMode === "password") handlePasswordLogin();
-                  else handleSendOtp();
+                  handlePasswordLogin();
                 }}
                 disabled={isLoading}
               >
@@ -652,9 +721,7 @@ export default function LoginScreen() {
                   ) : (
                     <>
                       <ThemedText style={styles.btnLabel}>
-                        {loginMode === "password"
-                          ? t("auth.secureLogin", "Secure Login")
-                          : t("auth.sendOtp", "Send OTP code")}
+                        {t("auth.secureLogin", "Secure Login")}
                       </ThemedText>
                       <Feather
                         name="arrow-right"
@@ -826,33 +893,10 @@ export default function LoginScreen() {
                 )}
               </Pressable>
 
-              <View style={styles.altAuthRow}>
-                <Pressable
-                  style={[styles.altBtn, { borderColor: theme.border }]}
-                  onPress={() =>
-                    setLoginMode(loginMode === "password" ? "otp" : "password")
-                  }
-                >
-                  <Feather
-                    name={loginMode === "password" ? "mail" : "lock"}
-                    size={16}
-                    color={theme.text}
-                  />
-                  <ThemedText
-                    style={[
-                      styles.altBtnLabel,
-                      { color: theme.text, marginLeft: 8 },
-                    ]}
-                  >
-                    {loginMode === "password"
-                      ? t("auth.useOtpLogin", "Use OTP Login")
-                      : t("auth.usePassword", "Use Password")}
-                  </ThemedText>
-                </Pressable>
-
-                {hasBiometric && (
+              {hasBiometric && (
+                <View style={styles.altAuthRow}>
                   <Pressable
-                    style={[styles.altBtn, { borderColor: theme.border }]}
+                    style={[styles.altBtn, { borderColor: theme.border, flex: 1 }]}
                     onPress={handleBiometricLogin}
                   >
                     <MaterialCommunityIcons
@@ -869,8 +913,8 @@ export default function LoginScreen() {
                       {biometricLabel}
                     </ThemedText>
                   </Pressable>
-                )}
-              </View>
+                </View>
+              )}
             </>
           )}
         </Animated.View>

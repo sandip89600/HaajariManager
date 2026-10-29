@@ -5,13 +5,15 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { User, Tenant, AuditLog, Worker, Attendance, Payment, WageHistory, Project, OtpCode, RecoverySession, SecurityEvent, ConnectionRequest } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
-import { sendPasswordResetEmail, sendWelcomeEmail, sendPasswordResetSuccessEmail, sendNewLoginAlertEmail } from "../utils/mail";
+import { sendPasswordResetEmail, sendWelcomeEmail, sendPasswordResetSuccessEmail, sendNewLoginAlertEmail, sendEmailVerificationEmail } from "../utils/mail";
 import { sendPushNotification } from "../utils/notifications";
 import { resolveDeviceMeta } from "../utils/deviceHelper";
 import { broadcastAdminActivity, getIO } from "../utils/socket";
 import { logActivity } from "../services/activityLogger";
 import { logRecoveryEvent } from "../services/recoveryAuditService";
 
+
+import { activeOtpChannel, generateSecureNumericOtp, normalizePhone, verifyFirebaseIdToken } from "../services/otpProvider";
 
 export const PERMANENT_ADMIN = {
   name: "System Administrator",
@@ -172,7 +174,7 @@ const generateRefreshToken = (user: any) => {
   );
 };
 
-const validateField = (field: string, value: string) => {
+const validateField = (field: string, value: string, isOptional: boolean = false) => {
   const trimmed = (value || "").trim();
 
   if (field === "email") {
@@ -188,20 +190,13 @@ const validateField = (field: string, value: string) => {
   }
 
   if (field === "username") {
-    const usernameClean = trimmed.toLowerCase();
-    if (!usernameClean) {
-      return { isValid: false, status: 400, message: "Username is required." };
-    }
-    const usernameRegex = /^[a-zA-Z0-9_.-]{3,20}$/;
-    if (!usernameRegex.test(usernameClean)) {
-      return { isValid: false, status: 400, message: "Username must be between 3 and 20 characters and contain only letters, numbers, underscores, hyphens or dots." };
-    }
-    return { isValid: true, cleanValue: usernameClean };
+    return { isValid: true, cleanValue: undefined };
   }
 
   if (field === "phone" || field === "mobile") {
     if (!trimmed) {
-      return { isValid: false, status: 400, message: "Mobile number is required." };
+      if (isOptional) return { isValid: true, cleanValue: undefined };
+      return { isValid: true, cleanValue: undefined }; // Phone is optional in signup
     }
     const phoneRegex = /^\+?[0-9]{8,15}$/;
     if (!phoneRegex.test(trimmed)) {
@@ -220,7 +215,16 @@ export const validateSignupField = async (req: AuthenticatedRequest, res: Respon
       return res.status(400).json({ success: false, message: "Field parameter is required." });
     }
 
-    const validationResult = validateField(field, value);
+    if (field === "username") {
+      return res.status(200).json({ success: true, message: "Username is not required." });
+    }
+
+    const trimmed = (value || "").trim();
+    if ((field === "phone" || field === "mobile") && !trimmed) {
+      return res.status(200).json({ success: true, message: "Mobile number is optional." });
+    }
+
+    const validationResult = validateField(field, value, true);
     if (!validationResult.isValid) {
       return res.status(validationResult.status || 400).json({
         success: false,
@@ -230,6 +234,9 @@ export const validateSignupField = async (req: AuthenticatedRequest, res: Respon
     }
 
     const cleanValue = validationResult.cleanValue!;
+    if (!cleanValue) {
+      return res.status(200).json({ success: true, message: "Field is valid." });
+    }
 
     if (field === "email") {
       const existing = await User.findOne({ email: cleanValue });
@@ -277,26 +284,21 @@ export const validateSignupField = async (req: AuthenticatedRequest, res: Respon
 export const signup = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { password, name, phone, role, companyName, email, username } = req.body;
-    console.log("[Registration Flow] User registration request received for phone:", phone);
+    console.log("[Registration Flow] User registration request received for email:", email);
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, field: "name", message: "Full name is required." });
     }
-    const isMinLength = password && password.length >= 8;
-    const hasUppercase = /[A-Z]/.test(password || "");
-    const hasLowercase = /[a-z]/.test(password || "");
-    const hasNumber = /[0-9]/.test(password || "");
-    const hasSpecial = /[^A-Za-z0-9]/.test(password || "");
-
-    if (!isMinLength || !hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
+    const isMinLength = password && password.length >= 6;
+    if (!isMinLength) {
       return res.status(400).json({
         success: false,
         field: "password",
-        message: "Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, one number, and one special character."
+        message: "Password must be at least 6 characters long."
       });
     }
 
-    // Email check
+    // Email check (REQUIRED)
     const emailResult = validateField("email", email);
     if (!emailResult.isValid) {
       return res.status(emailResult.status || 400).json({
@@ -307,36 +309,29 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
     }
     const emailClean = emailResult.cleanValue!;
 
-    // Username check
-    const usernameResult = validateField("username", username);
-    if (!usernameResult.isValid) {
-      return res.status(usernameResult.status || 400).json({
-        success: false,
-        field: "username",
-        message: usernameResult.message
-      });
-    }
-    const usernameClean = usernameResult.cleanValue!;
+    // Phone check (OPTIONAL)
+    let phoneClean: string | undefined = undefined;
+    if (phone && phone.trim()) {
+      const phoneResult = validateField("phone", phone, true);
+      if (!phoneResult.isValid) {
+        return res.status(phoneResult.status || 400).json({
+          success: false,
+          field: "mobile",
+          message: phoneResult.message
+        });
+      }
+      phoneClean = phoneResult.cleanValue;
 
-    // Phone check
-    const phoneResult = validateField("phone", phone);
-    if (!phoneResult.isValid) {
-      return res.status(phoneResult.status || 400).json({
-        success: false,
-        field: "mobile",
-        message: phoneResult.message
-      });
-    }
-    const phoneClean = phoneResult.cleanValue!;
-
-    // Perform DB Uniqueness Check
-    const existingPhone = await User.findOne({ phone: phoneClean });
-    if (existingPhone) {
-      return res.status(409).json({
-        success: false,
-        field: "mobile",
-        message: "This mobile number is already registered."
-      });
+      if (phoneClean) {
+        const existingPhone = await User.findOne({ phone: phoneClean });
+        if (existingPhone) {
+          return res.status(409).json({
+            success: false,
+            field: "mobile",
+            message: "This mobile number is already registered."
+          });
+        }
+      }
     }
 
     const existingEmail = await User.findOne({ email: emailClean });
@@ -348,16 +343,7 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    const existingUsername = await User.findOne({ username: usernameClean });
-    if (existingUsername) {
-      return res.status(409).json({
-        success: false,
-        field: "username",
-        message: "Username already exists. Please choose another username."
-      });
-    }
-
-    if (role && !["admin", "contractor", "builder"].includes(role)) {
+    if (role && !["admin", "contractor", "builder", "labor", "supervisor"].includes(role)) {
       return res.status(400).json({ success: false, field: "role", message: "Invalid role selected during signup" });
     }
 
@@ -385,17 +371,26 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
     const passwordHash = await bcrypt.hash(password, 12);
     const isAdmin = role === "admin";
 
+    // Generate Email Verification Token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationTokenHash = crypto.createHash("sha256").update(verificationToken).digest("hex");
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     const user = new User({
       tenantId: tenant._id,
       name: name.trim(),
       phone: phoneClean,
       email: emailClean,
-      username: usernameClean,
       passwordHash,
       role: role || "contractor",
       isActive: true,
       isVerified: true,
-      isPhoneVerified: isAdmin ? true : false,
+      isEmailVerified: isAdmin || false,
+      emailVerifiedAt: isAdmin ? new Date() : undefined,
+      emailVerificationToken: isAdmin ? undefined : verificationToken,
+      emailVerificationTokenHash: isAdmin ? undefined : verificationTokenHash,
+      emailVerificationExpires: isAdmin ? undefined : verificationExpires,
+      isPhoneVerified: false,
       status: "active",
       refreshTokens: [],
     });
@@ -438,10 +433,10 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
 
     console.log("[Registration Flow] User saved successfully. ID:", user._id.toString());
 
-    // Send Welcome Email if email was optionally provided
-    if (emailClean) {
-      sendWelcomeEmail(emailClean, user.name).catch((e) =>
-        console.error("[Email Error] Failed to send welcome email:", e)
+    // Send verification link to user's email
+    if (!isAdmin) {
+      sendEmailVerificationEmail(emailClean, user.name, verificationToken).catch((e) =>
+        console.error("[Email Error] Failed to send verification email:", e)
       );
     }
 
@@ -465,18 +460,21 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
     });
 
     res.status(201).json({
+      success: true,
       token,
       refreshToken,
+      emailVerificationSent: !isAdmin,
       user: {
         id: user._id,
         uniqueId: user.uniqueId,
         name: user.name,
-        phone: user.phone,
+        phone: user.phone || "",
         email: user.email || "",
         username: user.username || "",
         role: user.role,
         tenantId: tenant._id,
         isVerified: user.isVerified,
+        isEmailVerified: user.isEmailVerified,
         plan: tenant.plan,
         companyName: tenant.name,
         address: user.address || "",
@@ -484,6 +482,7 @@ export const signup = async (req: AuthenticatedRequest, res: Response) => {
         avatarColor: user.avatarColor || "#4ECDC4",
         createdAt: user.createdAt,
       },
+      message: "Registration successful! A verification link has been sent to your email."
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -686,7 +685,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
         return res.status(400).json({ error: "Invalid credentials" });
       }
 
-      if (user.otpEnabled) {
+      if (user.otpEnabled && user.phone) {
         // Generate random 6-digit OTP
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         const otpCodeHash = await bcrypt.hash(code, 12);
@@ -701,9 +700,8 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
         });
         await otpRecord.save();
 
-        console.log(`\n==============================================`);
-        console.log(`[SIMULATED SMS OTP] Code for ${user.name} (${user.phone}) is: ${code}`);
-        console.log(`==============================================\n`);
+        // Dispatch real SMS OTP via active provider (Fast2SMS / Twilio / MSG91 / Firebase)
+        await activeOtpChannel.send(user.phone, code);
 
         return res.json({
           success: true,
@@ -995,9 +993,8 @@ export const sendPhoneVerificationOtp = async (req: AuthenticatedRequest, res: R
     user.lastPhoneVerificationSentAt = new Date();
     await user.save();
 
-    console.log(`\n==============================================`);
-    console.log(`[SMS OTP PHONE VERIFICATION] Code for ${user.name} (${user.phone}) is: ${code}`);
-    console.log(`==============================================\n`);
+    // Dispatch real SMS OTP via active provider
+    await activeOtpChannel.send(user.phone, code);
 
     res.json({
       success: true,
@@ -1041,8 +1038,7 @@ export const verifyPhoneOtp = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ success: false, message: "Too many failed attempts. Please request a new OTP." });
     }
 
-    const isDev = otp === "123456";
-    const isMatch = isDev || (await bcrypt.compare(otp, activeOtp.otpCodeHash));
+    const isMatch = await bcrypt.compare(otp.trim(), activeOtp.otpCodeHash);
 
     if (!isMatch) {
       activeOtp.attemptsCount += 1;
@@ -1337,8 +1333,7 @@ export const resetPassword = async (req: AuthenticatedRequest, res: Response) =>
         });
       }
 
-      const isDev = otp === "123456";
-      const isMatch = isDev || (await bcrypt.compare(otp as string, activeOtp.otpCodeHash));
+      const isMatch = await bcrypt.compare((otp as string).trim(), activeOtp.otpCodeHash);
 
       if (!isMatch) {
         activeOtp.attemptsCount += 1;
@@ -2004,9 +1999,8 @@ export const sendOtp = async (req: AuthenticatedRequest, res: Response) => {
     });
     await newOtp.save();
 
-    console.log(`\n==============================================`);
-    console.log(`[SIMULATED SMS OTP] Code for ${recipientName} (${targetPhone}) is: ${code}`);
-    console.log(`==============================================\n`);
+    // Dispatch real SMS OTP via active provider
+    await activeOtpChannel.send(targetPhone, code);
 
     res.json({ success: true, message: "OTP sent successfully." });
   } catch (error: any) {
@@ -2050,8 +2044,7 @@ export const verifyOtpLogin = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ error: "Too many failed attempts. Please request a new OTP." });
     }
 
-    const isDevFallback = otp === "123456";
-    const isMatch = isDevFallback || await bcrypt.compare(otp, activeOtp.otpCodeHash);
+    const isMatch = await bcrypt.compare(otp.trim(), activeOtp.otpCodeHash);
 
     if (!isMatch) {
       activeOtp.attemptsCount += 1;
@@ -3054,31 +3047,25 @@ export const registerContractor = async (req: AuthenticatedRequest, res: Respons
     }
     const emailClean = emailResult.cleanValue!;
 
-    const usernameResult = validateField("username", username);
-    if (!usernameResult.isValid) {
-      return res.status(usernameResult.status || 400).json({ success: false, field: "username", message: usernameResult.message });
-    }
-    const usernameClean = usernameResult.cleanValue!;
-
-    const phoneResult = validateField("phone", phone);
-    if (!phoneResult.isValid) {
-      return res.status(phoneResult.status || 400).json({ success: false, field: "mobile", message: phoneResult.message });
-    }
-    const phoneClean = phoneResult.cleanValue!;
-
-    const existingPhone = await User.findOne({ phone: phoneClean });
-    if (existingPhone) {
-      return res.status(409).json({ success: false, field: "mobile", message: "Mobile number is already registered." });
+    // Phone check (OPTIONAL)
+    let phoneClean: string | undefined = undefined;
+    if (phone && phone.trim()) {
+      const phoneResult = validateField("phone", phone, true);
+      if (!phoneResult.isValid) {
+        return res.status(phoneResult.status || 400).json({ success: false, field: "mobile", message: phoneResult.message });
+      }
+      phoneClean = phoneResult.cleanValue;
+      if (phoneClean) {
+        const existingPhone = await User.findOne({ phone: phoneClean });
+        if (existingPhone) {
+          return res.status(409).json({ success: false, field: "mobile", message: "Mobile number is already registered." });
+        }
+      }
     }
 
     const existingEmail = await User.findOne({ email: emailClean });
     if (existingEmail) {
       return res.status(409).json({ success: false, field: "email", message: "Email is already registered." });
-    }
-
-    const existingUsername = await User.findOne({ username: usernameClean });
-    if (existingUsername) {
-      return res.status(409).json({ success: false, field: "username", message: "Username is already in use." });
     }
 
     const tenantCode = companyName.replace(/\s+/g, "").toLowerCase() + "_" + Date.now().toString(36);
@@ -3091,22 +3078,33 @@ export const registerContractor = async (req: AuthenticatedRequest, res: Respons
 
     const passwordHash = await bcrypt.hash(password, 12);
 
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationTokenHash = crypto.createHash("sha256").update(verificationToken).digest("hex");
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
     const user = new User({
       tenantId: tenant._id,
       name: name.trim(),
       phone: phoneClean,
       email: emailClean,
-      username: usernameClean,
       passwordHash,
       role: "contractor",
       isActive: true,
       isVerified: true,
-      isPhoneVerified: true,
+      isEmailVerified: false,
+      emailVerificationToken: verificationToken,
+      emailVerificationTokenHash: verificationTokenHash,
+      emailVerificationExpires: verificationExpires,
+      isPhoneVerified: false,
       status: "active",
       refreshTokens: [],
     });
 
     await user.save();
+
+    sendEmailVerificationEmail(emailClean, user.name, verificationToken).catch((e) =>
+      console.error("[Email Error] Failed to send verification email:", e)
+    );
 
     const token = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
@@ -3167,31 +3165,25 @@ export const registerSupervisor = async (req: AuthenticatedRequest, res: Respons
     }
     const emailClean = emailResult.cleanValue!;
 
-    const usernameResult = validateField("username", username);
-    if (!usernameResult.isValid) {
-      return res.status(usernameResult.status || 400).json({ success: false, field: "username", message: usernameResult.message });
-    }
-    const usernameClean = usernameResult.cleanValue!;
-
-    const phoneResult = validateField("phone", phone);
-    if (!phoneResult.isValid) {
-      return res.status(phoneResult.status || 400).json({ success: false, field: "mobile", message: phoneResult.message });
-    }
-    const phoneClean = phoneResult.cleanValue!;
-
-    const existingPhone = await User.findOne({ phone: phoneClean });
-    if (existingPhone) {
-      return res.status(409).json({ success: false, field: "mobile", message: "Mobile number is already registered." });
+    // Phone check (OPTIONAL)
+    let phoneClean: string | undefined = undefined;
+    if (phone && phone.trim()) {
+      const phoneResult = validateField("phone", phone, true);
+      if (!phoneResult.isValid) {
+        return res.status(phoneResult.status || 400).json({ success: false, field: "mobile", message: phoneResult.message });
+      }
+      phoneClean = phoneResult.cleanValue;
+      if (phoneClean) {
+        const existingPhone = await User.findOne({ phone: phoneClean });
+        if (existingPhone) {
+          return res.status(409).json({ success: false, field: "mobile", message: "Mobile number is already registered." });
+        }
+      }
     }
 
     const existingEmail = await User.findOne({ email: emailClean });
     if (existingEmail) {
       return res.status(409).json({ success: false, field: "email", message: "Email is already registered." });
-    }
-
-    const existingUsername = await User.findOne({ username: usernameClean });
-    if (existingUsername) {
-      return res.status(409).json({ success: false, field: "username", message: "Username is already in use." });
     }
 
     let standaloneTenant = await Tenant.findOne({ code: "STANDALONE_SUPERVISOR" });
@@ -3206,12 +3198,15 @@ export const registerSupervisor = async (req: AuthenticatedRequest, res: Respons
 
     const passwordHash = await bcrypt.hash(password, 12);
 
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationTokenHash = crypto.createHash("sha256").update(verificationToken).digest("hex");
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
     const supervisor = new User({
       tenantId: standaloneTenant._id,
       name: name.trim(),
       phone: phoneClean,
       email: emailClean,
-      username: usernameClean,
       passwordHash,
       role: "supervisor",
       connectionStatus: "not_connected",
@@ -3219,12 +3214,20 @@ export const registerSupervisor = async (req: AuthenticatedRequest, res: Respons
       contractorCompany: contractorCompany ? contractorCompany.trim() : "",
       isActive: true,
       isVerified: true,
-      isPhoneVerified: true,
+      isEmailVerified: false,
+      emailVerificationToken: verificationToken,
+      emailVerificationTokenHash: verificationTokenHash,
+      emailVerificationExpires: verificationExpires,
+      isPhoneVerified: false,
       status: "active",
       refreshTokens: [],
     });
 
     await supervisor.save();
+
+    sendEmailVerificationEmail(emailClean, supervisor.name, verificationToken).catch((e) =>
+      console.error("[Email Error] Failed to send verification email:", e)
+    );
 
     const token = generateAccessToken(supervisor);
     const refreshToken = generateRefreshToken(supervisor);
@@ -3286,31 +3289,25 @@ export const registerLabor = async (req: AuthenticatedRequest, res: Response) =>
     }
     const emailClean = emailResult.cleanValue!;
 
-    const usernameResult = validateField("username", username);
-    if (!usernameResult.isValid) {
-      return res.status(usernameResult.status || 400).json({ success: false, field: "username", message: usernameResult.message });
-    }
-    const usernameClean = usernameResult.cleanValue!;
-
-    const phoneResult = validateField("phone", phone);
-    if (!phoneResult.isValid) {
-      return res.status(phoneResult.status || 400).json({ success: false, field: "mobile", message: phoneResult.message });
-    }
-    const phoneClean = phoneResult.cleanValue!;
-
-    const existingPhone = await User.findOne({ phone: phoneClean });
-    if (existingPhone) {
-      return res.status(409).json({ success: false, field: "mobile", message: "Mobile number is already registered." });
+    // Phone check (OPTIONAL)
+    let phoneClean: string | undefined = undefined;
+    if (phone && phone.trim()) {
+      const phoneResult = validateField("phone", phone, true);
+      if (!phoneResult.isValid) {
+        return res.status(phoneResult.status || 400).json({ success: false, field: "mobile", message: phoneResult.message });
+      }
+      phoneClean = phoneResult.cleanValue;
+      if (phoneClean) {
+        const existingPhone = await User.findOne({ phone: phoneClean });
+        if (existingPhone) {
+          return res.status(409).json({ success: false, field: "mobile", message: "Mobile number is already registered." });
+        }
+      }
     }
 
     const existingEmail = await User.findOne({ email: emailClean });
     if (existingEmail) {
       return res.status(409).json({ success: false, field: "email", message: "Email is already registered." });
-    }
-
-    const existingUsername = await User.findOne({ username: usernameClean });
-    if (existingUsername) {
-      return res.status(409).json({ success: false, field: "username", message: "Username is already in use." });
     }
 
     let standaloneTenant = await Tenant.findOne({ code: "STANDALONE_LABOR" });
@@ -3325,12 +3322,7 @@ export const registerLabor = async (req: AuthenticatedRequest, res: Response) =>
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Check if contractor-created worker profiles exist for this phone
-    const phoneDigits = phoneClean.replace(/\D/g, "");
-    const matchingWorkers = await Worker.find({
-      phone: new RegExp(phoneDigits.slice(-10) + "$"),
-    });
-
+    // Check if contractor-created worker profiles exist for this phone (if provided)
     let assignedTenantId = standaloneTenant._id;
     let contractorId: any = undefined;
     let contractorName: string | undefined = undefined;
@@ -3338,33 +3330,44 @@ export const registerLabor = async (req: AuthenticatedRequest, res: Response) =>
     let connectionStatus: "connected" | "not_connected" = "not_connected";
     let finalCategory = workerCategory ? workerCategory.trim() : "labour";
     let finalWage = dailyWage !== undefined && dailyWage !== null ? Number(dailyWage) : 0;
+    let matchingWorkers: any[] = [];
 
-    if (matchingWorkers.length > 0) {
-      const primaryWorker = matchingWorkers[0];
-      assignedTenantId = primaryWorker.tenantId;
-      finalCategory = primaryWorker.category || finalCategory;
-      finalWage = primaryWorker.dailyRate !== undefined && primaryWorker.dailyRate !== null ? primaryWorker.dailyRate : finalWage;
-
-      const contractorUser = await User.findOne({
-        tenantId: primaryWorker.tenantId,
-        role: "contractor",
+    if (phoneClean) {
+      const phoneDigits = phoneClean.replace(/\D/g, "");
+      matchingWorkers = await Worker.find({
+        phone: new RegExp(phoneDigits.slice(-10) + "$"),
       });
 
-      if (contractorUser) {
-        contractorId = contractorUser._id;
-        contractorName = contractorUser.name;
-        const contractorTenant = await Tenant.findById(primaryWorker.tenantId);
-        contractorCompany = contractorTenant?.name || contractorUser.name;
-        connectionStatus = "connected";
+      if (matchingWorkers.length > 0) {
+        const primaryWorker = matchingWorkers[0];
+        assignedTenantId = primaryWorker.tenantId;
+        finalCategory = primaryWorker.category || finalCategory;
+        finalWage = primaryWorker.dailyRate !== undefined && primaryWorker.dailyRate !== null ? primaryWorker.dailyRate : finalWage;
+
+        const contractorUser = await User.findOne({
+          tenantId: primaryWorker.tenantId,
+          role: "contractor",
+        });
+
+        if (contractorUser) {
+          contractorId = contractorUser._id;
+          contractorName = contractorUser.name;
+          const contractorTenant = await Tenant.findById(primaryWorker.tenantId);
+          contractorCompany = contractorTenant?.name || contractorUser.name;
+          connectionStatus = "connected";
+        }
       }
     }
+
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationTokenHash = crypto.createHash("sha256").update(verificationToken).digest("hex");
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     const laborUser = new User({
       tenantId: assignedTenantId,
       name: name.trim(),
       phone: phoneClean,
       email: emailClean,
-      username: usernameClean,
       passwordHash,
       role: "labor",
       workerCategory: finalCategory,
@@ -3375,12 +3378,20 @@ export const registerLabor = async (req: AuthenticatedRequest, res: Response) =>
       contractorCompany,
       isActive: true,
       isVerified: true,
-      isPhoneVerified: true,
+      isEmailVerified: false,
+      emailVerificationToken: verificationToken,
+      emailVerificationTokenHash: verificationTokenHash,
+      emailVerificationExpires: verificationExpires,
+      isPhoneVerified: false,
       status: "active",
       refreshTokens: [],
     });
 
     await laborUser.save();
+
+    sendEmailVerificationEmail(emailClean, laborUser.name, verificationToken).catch((e) =>
+      console.error("[Email Error] Failed to send verification email:", e)
+    );
 
     // Link all matching contractor-created worker profiles to this user
     if (matchingWorkers.length > 0) {
@@ -3454,3 +3465,571 @@ export const registerLabor = async (req: AuthenticatedRequest, res: Response) =>
   }
 };
 
+
+// ─── NEW REAL PRODUCTION SIGNUP & FIREBASE PHONE CONTROLLERS ─────────────────
+
+// Send OTP for Signup / New Registration Verification
+export const sendSignupOtp = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      return res.status(400).json({ success: false, message: "Phone number is required." });
+    }
+
+    const clean10 = normalizePhone(phone);
+    if (clean10.length !== 10) {
+      return res.status(400).json({ success: false, message: "Please enter a valid 10-digit mobile number." });
+    }
+
+    // Check if phone number is already registered by an existing user
+    const existingUser = await User.findOne({
+      $or: [
+        { phone: clean10 },
+        { phone: `+91${clean10}` },
+        { phone: new RegExp(clean10 + "$") }
+      ]
+    });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "This mobile number is already registered. Please log in instead."
+      });
+    }
+
+    // Check cooldown (60 seconds)
+    const lastOtp = await OtpCode.findOne({ phone: clean10 }).sort({ createdAt: -1 });
+    if (lastOtp && (Date.now() - lastOtp.createdAt.getTime() < 60000)) {
+      const remaining = Math.ceil((60000 - (Date.now() - lastOtp.createdAt.getTime())) / 1000);
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${remaining} seconds before requesting a new OTP.`
+      });
+    }
+
+    // Generate secure 6-digit OTP
+    const code = generateSecureNumericOtp();
+    const otpCodeHash = await bcrypt.hash(code, 12);
+
+    await OtpCode.deleteMany({ phone: clean10 });
+
+    const newOtp = new OtpCode({
+      phone: clean10,
+      otpCodeHash,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 mins
+      verified: false,
+      attemptsCount: 0
+    });
+    await newOtp.save();
+
+    // Dispatch real OTP via active channel (Fast2SMS / Twilio / MSG91 / Firebase)
+    const dispatchResult = await activeOtpChannel.send(clean10, code);
+
+    res.json({
+      success: true,
+      message: `Verification code sent to +91 ${clean10}.`,
+      provider: dispatchResult.provider,
+      expiresIn: 300
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Failed to send signup OTP." });
+  }
+};
+
+// Verify OTP for Signup
+export const verifySignupOtp = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) {
+      return res.status(400).json({ success: false, message: "Phone number and OTP code are required." });
+    }
+
+    const clean10 = normalizePhone(phone);
+    const activeOtp = await OtpCode.findOne({ phone: clean10, verified: false });
+
+    if (!activeOtp) {
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP code." });
+    }
+
+    if (activeOtp.expiresAt.getTime() < Date.now()) {
+      return res.status(400).json({ success: false, message: "OTP has expired. Please request a new one." });
+    }
+
+    if (activeOtp.attemptsCount >= 5) {
+      return res.status(400).json({ success: false, message: "Too many failed attempts. Please request a new OTP." });
+    }
+
+    // Real bcrypt verification only - ZERO dummy codes
+    const isMatch = await bcrypt.compare(otp.trim(), activeOtp.otpCodeHash);
+
+    if (!isMatch) {
+      activeOtp.attemptsCount += 1;
+      await activeOtp.save();
+      return res.status(400).json({ success: false, message: "Invalid verification code. Please try again." });
+    }
+
+    activeOtp.verified = true;
+    await activeOtp.save();
+
+    res.json({
+      success: true,
+      message: "Mobile number verified successfully."
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Failed to verify OTP." });
+  }
+};
+
+// Firebase Phone Authentication: Verify Firebase ID Token & Direct Login
+export const firebasePhoneLogin = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { idToken, phone } = req.body;
+    if (!idToken || typeof idToken !== "string" || !idToken.trim()) {
+      return res.status(400).json({ success: false, message: "Firebase idToken is required." });
+    }
+
+    // 1. Cryptographically verify token with Firebase Admin SDK / project
+    const verification = await verifyFirebaseIdToken(idToken);
+    if (!verification.verified || !verification.phone) {
+      return res.status(verification.statusCode || 401).json({
+        success: false,
+        message: verification.error || "Firebase Phone Authentication failed."
+      });
+    }
+
+    const verifiedPhoneClean10 = normalizePhone(verification.phone);
+    if (verifiedPhoneClean10.length !== 10) {
+      return res.status(400).json({ success: false, message: "Verified token contains an invalid phone number." });
+    }
+
+    // 2. Reject mismatch between client-supplied phone and verified token phone (T6)
+    if (phone) {
+      const clientClean10 = normalizePhone(phone);
+      if (clientClean10 !== verifiedPhoneClean10) {
+        return res.status(400).json({
+          success: false,
+          message: "Provided phone number does not match Firebase verified phone."
+        });
+      }
+    }
+
+    // 3. Find existing user
+    let user = await User.findOne({
+      $or: [
+        { phone: verifiedPhoneClean10 },
+        { phone: `+91${verifiedPhoneClean10}` },
+        { phone: new RegExp(verifiedPhoneClean10 + "$") }
+      ]
+    });
+
+    // 4. Unregistered phone: proceed to signup without auto account creation (T4)
+    if (!user) {
+      const matchingWorkers = await Worker.find({
+        phone: new RegExp(verifiedPhoneClean10 + "$"),
+        $or: [{ isClaimed: false }, { isClaimed: { $exists: false } }, { userId: null }]
+      });
+      return res.json({
+        success: true,
+        isNewUser: true,
+        phone: verifiedPhoneClean10,
+        firebaseUid: verification.uid,
+        hasInvitedProfile: matchingWorkers.length > 0,
+        message: "Firebase phone verified. User registration required."
+      });
+    }
+
+    // 5. Check suspended / deactivated accounts (T8)
+    if (user.status === "suspended" || user.status === "deactivated" || user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Account has been suspended or deactivated. Please contact support."
+      });
+    }
+
+    // 6. Enforce PERMANENT_ADMIN protection: cannot bypass primary admin credentials (T9)
+    if (
+      user.role === "admin" ||
+      user.email === PERMANENT_ADMIN.email ||
+      user.phone === PERMANENT_ADMIN.phone ||
+      user.username === PERMANENT_ADMIN.username
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Administrative accounts require primary credentials and cannot sign in via phone OTP alone."
+      });
+    }
+
+    // 7. Update verification & login timestamp
+    user.isPhoneVerified = true;
+    user.phoneVerifiedAt = new Date();
+    user.lastLogin = new Date();
+
+    // 8. Link invited worker profiles for labor accounts if unclaimed (T5)
+    if (user.role === "labor") {
+      const unclaimedWorkers = await Worker.find({
+        phone: new RegExp(verifiedPhoneClean10 + "$"),
+        $or: [{ isClaimed: false }, { isClaimed: { $exists: false } }, { userId: null }]
+      });
+
+      for (const w of unclaimedWorkers) {
+        if (!w.userId || w.userId.toString() === user._id.toString()) {
+          w.userId = user._id as any;
+          w.isClaimed = true;
+          w.claimedAt = new Date();
+          await w.save();
+        }
+      }
+    }
+
+    await user.save();
+
+    // 9. Issue standard Haajari JWT session tokens (T3)
+    const jwtSecret = process.env.JWT_SECRET || "default_jwt_secret";
+    const token = jwt.sign(
+      { id: user._id, tenantId: user.tenantId, role: user.role },
+      jwtSecret,
+      { expiresIn: "30d" }
+    );
+
+    const refreshToken = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_REFRESH_SECRET || jwtSecret,
+      { expiresIn: "90d" }
+    );
+
+    return res.json({
+      success: true,
+      token,
+      refreshToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        role: user.role,
+        tenantId: user.tenantId,
+        isPhoneVerified: true
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message || "Firebase phone login error." });
+  }
+};
+
+// Firebase Phone Verification (without login - for profile or signup verification)
+export const firebaseVerifyPhone = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { idToken, phone } = req.body;
+    if (!idToken || typeof idToken !== "string" || !idToken.trim()) {
+      return res.status(400).json({ success: false, message: "Firebase idToken is required." });
+    }
+
+    const verification = await verifyFirebaseIdToken(idToken);
+    if (!verification.verified || !verification.phone) {
+      return res.status(verification.statusCode || 401).json({
+        success: false,
+        message: verification.error || "Firebase Phone Authentication failed."
+      });
+    }
+
+    const verifiedPhoneClean10 = normalizePhone(verification.phone);
+
+    if (phone) {
+      const clientClean10 = normalizePhone(phone);
+      if (clientClean10 !== verifiedPhoneClean10) {
+        return res.status(400).json({ success: false, message: "Provided phone number does not match Firebase verified phone." });
+      }
+    }
+
+    // If authenticated user, mark their account verified
+    if (req.user?.id) {
+      const user = await User.findById(req.user.id);
+      if (user) {
+        user.isPhoneVerified = true;
+        user.phoneVerifiedAt = new Date();
+        await user.save();
+      }
+    }
+
+    return res.json({
+      success: true,
+      verified: true,
+      phone: verifiedPhoneClean10,
+      uid: verification.uid,
+      message: "Phone number verified with Firebase successfully."
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Firebase phone verification error." });
+  }
+};
+
+// Claim worker profile with verification and duplicate claim protection (T5)
+export const claimWorkerProfile = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { idToken, phone, workerId } = req.body;
+    let verifiedPhone: string | undefined;
+    const userId = req.user?.id;
+
+    if (idToken) {
+      const verification = await verifyFirebaseIdToken(idToken);
+      if (!verification.verified || !verification.phone) {
+        return res.status(verification.statusCode || 401).json({
+          success: false,
+          message: verification.error || "Firebase authentication failed."
+        });
+      }
+      verifiedPhone = normalizePhone(verification.phone);
+    } else if (userId) {
+      const authUser = await User.findById(userId);
+      if (!authUser || !authUser.phone) {
+        return res.status(400).json({ success: false, message: "User phone is required to claim a worker profile." });
+      }
+      verifiedPhone = normalizePhone(authUser.phone);
+    } else {
+      return res.status(400).json({ success: false, message: "Firebase idToken or authenticated session is required." });
+    }
+
+    if (phone) {
+      const clientClean = normalizePhone(phone);
+      if (clientClean !== verifiedPhone) {
+        return res.status(400).json({ success: false, message: "Provided phone does not match verified identity." });
+      }
+    }
+
+    const workerQuery: any = {
+      phone: new RegExp(verifiedPhone + "$"),
+    };
+    if (workerId) {
+      workerQuery._id = workerId;
+    }
+
+    const worker = await Worker.findOne(workerQuery);
+    if (!worker) {
+      return res.status(404).json({ success: false, message: "No invited worker profile found for this phone number." });
+    }
+
+    // Prevent duplicate claims by other accounts
+    if (worker.isClaimed && worker.userId && (!userId || worker.userId.toString() !== userId.toString())) {
+      return res.status(409).json({ success: false, message: "This worker profile has already been claimed by another account." });
+    }
+
+    if (userId) {
+      worker.userId = userId as any;
+      worker.isClaimed = true;
+      worker.claimedAt = new Date();
+      await worker.save();
+    }
+
+    return res.json({
+      success: true,
+      worker: {
+        id: worker._id,
+        name: worker.name,
+        phone: worker.phone,
+        category: worker.category,
+        dailyRate: worker.dailyRate,
+        isClaimed: true
+      },
+      message: "Worker profile verified and claimed successfully."
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message || "Claim worker profile error." });
+  }
+};
+
+function renderVerificationResultHtml(isSuccess: boolean, title: string, message: string): string {
+  const icon = isSuccess ? "✅" : "⚠️";
+  const primaryColor = isSuccess ? "#10B981" : "#EF4444";
+  const bgColor = isSuccess ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} - Haajari Manager</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #0F172A;
+      color: #F8FAFC;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .card {
+      background-color: #1E293B;
+      border: 1px solid #334155;
+      border-radius: 20px;
+      padding: 44px 32px;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background-color: ${bgColor};
+      font-size: 36px;
+      margin-bottom: 24px;
+      border: 2px solid ${primaryColor};
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #F8FAFC;
+    }
+    p {
+      color: #94A3B8;
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+    .btn {
+      display: inline-block;
+      width: 100%;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
+      color: #ffffff;
+      text-decoration: none;
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 12px;
+      box-shadow: 0 4px 14px rgba(249, 115, 22, 0.4);
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .brand {
+      margin-top: 28px;
+      font-size: 12px;
+      color: #64748B;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">${icon}</div>
+    <h1>${title}</h1>
+    <p>${message}</p>
+    <a href="haajari://login" class="btn">Open Haajari Manager App</a>
+    <div class="brand">Haajari Manager · Workforce & Attendance</div>
+  </div>
+</body>
+</html>`;
+}
+
+export const verifyEmail = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const token = ((req.query.token as string) || req.body?.token || "").trim();
+
+    if (!token) {
+      if (req.headers.accept?.includes("application/json")) {
+        return res.status(400).json({ success: false, message: "Verification token is required." });
+      }
+      return res.status(400).send(renderVerificationResultHtml(false, "Invalid Link", "Verification token is missing from the link."));
+    }
+
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = await User.findOne({
+      $or: [
+        { emailVerificationToken: token },
+        { emailVerificationTokenHash: tokenHash }
+      ],
+      emailVerificationExpires: { $gt: new Date() }
+    });
+
+    if (!user) {
+      if (req.headers.accept?.includes("application/json")) {
+        return res.status(400).json({
+          success: false,
+          message: "Verification link is invalid or has expired. Please request a new one."
+        });
+      }
+      return res.status(400).send(renderVerificationResultHtml(false, "Link Expired or Invalid", "This verification link has expired or has already been used. Please request a new link from the app."));
+    }
+
+    user.isEmailVerified = true;
+    user.isVerified = true;
+    user.emailVerifiedAt = new Date();
+    user.emailVerificationToken = undefined;
+    user.emailVerificationTokenHash = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save();
+
+    await logActivity({
+      req,
+      action: "EMAIL_VERIFIED",
+      targetType: "User",
+      targetId: user._id.toString(),
+      userId: user._id.toString(),
+      userName: user.name,
+      role: user.role,
+      changes: { after: { isEmailVerified: true } }
+    });
+
+    if (req.headers.accept?.includes("application/json")) {
+      return res.json({
+        success: true,
+        message: "Email verified successfully! You can now log in.",
+        user: { id: user._id, email: user.email, isEmailVerified: true }
+      });
+    }
+
+    return res.send(renderVerificationResultHtml(true, "Email Verified Successfully!", `Thank you, ${user.name}! Your email (${user.email}) has been verified. You can now open Haajari Manager and sign in.`));
+  } catch (error: any) {
+    console.error("verifyEmail error:", error);
+    if (req.headers.accept?.includes("application/json")) {
+      return res.status(500).json({ error: error.message });
+    }
+    return res.status(500).send(renderVerificationResultHtml(false, "Error", "An unexpected error occurred while verifying your email."));
+  }
+};
+
+export const resendVerificationEmail = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const email = (req.body.email || "").trim().toLowerCase();
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email address is required." });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.json({ success: true, message: "If an account with this email exists, a verification link has been sent." });
+    }
+
+    if (user.isEmailVerified) {
+      return res.json({ success: true, message: "Your email is already verified. You can sign in directly." });
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationTokenHash = crypto.createHash("sha256").update(verificationToken).digest("hex");
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationTokenHash = verificationTokenHash;
+    user.emailVerificationExpires = verificationExpires;
+    await user.save();
+
+    await sendEmailVerificationEmail(user.email!, user.name, verificationToken);
+
+    return res.json({
+      success: true,
+      message: "A new verification link has been sent to your email."
+    });
+  } catch (error: any) {
+    console.error("resendVerificationEmail error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};

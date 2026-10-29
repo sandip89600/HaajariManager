@@ -22,6 +22,7 @@ interface LogRecoveryParams {
   userAgent?: string;
   details?: string;
   phone?: string;
+  email?: string;
 }
 
 export async function logRecoveryEvent(params: LogRecoveryParams): Promise<void> {
@@ -36,7 +37,8 @@ export async function logRecoveryEvent(params: LogRecoveryParams): Promise<void>
       ipAddress = "127.0.0.1",
       userAgent,
       details,
-      phone
+      phone,
+      email
     } = params;
 
     // 1. Persist to central AuditLog collection
@@ -47,7 +49,7 @@ export async function logRecoveryEvent(params: LogRecoveryParams): Promise<void>
       role: role || "user",
       action: `RECOVERY_${eventType.toUpperCase()}`,
       targetType: "ACCOUNT_RECOVERY",
-      targetId: userId ? userId.toString() : phone || "unknown",
+      targetId: userId ? userId.toString() : (email || phone || "unknown"),
       ipAddress,
       device: userAgent ? userAgent.substring(0, 100) : "Mobile/API",
       platform: channel,

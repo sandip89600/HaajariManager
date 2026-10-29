@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { User, OtpCode, RecoverySession } from "../models";
 import { normalizePhone, generateSecureNumericOtp, activeOtpChannel } from "../services/otpProvider";
 import { logRecoveryEvent } from "../services/recoveryAuditService";
-import { sendEmailConfirmationRecoveryEmail, sendPasswordResetSuccessEmail } from "../utils/mail";
+import { sendEmailConfirmationRecoveryEmail, sendPasswordResetSuccessEmail, sendPasswordRecoveryOtpEmail } from "../utils/mail";
 
 /**
  * Normalizes client IP address safely
@@ -18,50 +18,58 @@ function getClientIp(req: Request): string {
 }
 
 /**
- * 1. CHECK PHONE & SEND RECOVERY OTP
- * POST /api/recovery/check-phone (or /api/recovery/request-otp)
+ * 1. CHECK EMAIL / PHONE & SEND RECOVERY OTP
+ * POST /api/recovery/check-phone (or /api/recovery/request-otp, /api/recovery/check-email)
  */
 export const requestRecoveryOtp = async (req: Request, res: Response) => {
   try {
-    const { phone } = req.body;
+    const { phone, email, identifier } = req.body;
     const ipAddress = getClientIp(req);
     const userAgent = req.headers["user-agent"] || "";
 
-    if (!phone || typeof phone !== "string") {
+    const rawInput = (email || identifier || phone || "").toString().trim();
+    if (!rawInput) {
       return res.status(400).json({
         success: false,
-        message: "Mobile number is required."
+        message: "Email address or mobile number is required."
       });
     }
 
-    const cleanPhone = normalizePhone(phone);
-    if (!cleanPhone || cleanPhone.length < 8) {
-      return res.status(400).json({
-        success: false,
-        message: "Please enter a valid mobile number."
-      });
-    }
+    const isEmailInput = rawInput.includes("@");
+    const cleanEmail = isEmailInput ? rawInput.toLowerCase() : "";
+    const cleanPhone = !isEmailInput ? normalizePhone(rawInput) : "";
 
     // Lookup user in database
-    const user = await User.findOne({
-      $or: [
+    const userQueryConditions: any[] = [];
+    if (cleanEmail) {
+      userQueryConditions.push({ email: cleanEmail });
+    }
+    if (cleanPhone) {
+      userQueryConditions.push(
         { phone: cleanPhone },
         { phone: `+91${cleanPhone}` },
-        { phone: `91${cleanPhone}` },
-        { username: cleanPhone.toLowerCase() }
-      ]
+        { phone: `91${cleanPhone}` }
+      );
+    }
+    if (!cleanEmail && !cleanPhone) {
+      userQueryConditions.push({ email: rawInput.toLowerCase() });
+    }
+
+    const user = await User.findOne({
+      $or: userQueryConditions
     });
 
     // Anti-enumeration: return generic success response if user does not exist
     if (!user) {
-      console.log(`[Account Recovery] Non-registered phone recovery request for: ${cleanPhone}`);
+      console.log(`[Account Recovery] Non-registered recovery request for: ${rawInput}`);
       await logRecoveryEvent({
         eventType: "otp_requested",
-        channel: "sms",
-        phone: cleanPhone,
+        channel: isEmailInput ? "email" : "sms",
+        email: cleanEmail || undefined,
+        phone: cleanPhone || undefined,
         ipAddress,
         userAgent,
-        details: "Recovery OTP requested for unregistered number (Anti-enumeration)"
+        details: "Recovery OTP requested for unregistered account (Anti-enumeration)"
       });
       return res.json({
         success: true,
@@ -78,7 +86,8 @@ export const requestRecoveryOtp = async (req: Request, res: Response) => {
         userName: user.name,
         role: user.role,
         eventType: "recovery_blocked",
-        channel: "sms",
+        channel: "email",
+        email: user.email,
         phone: user.phone,
         ipAddress,
         userAgent,
@@ -90,8 +99,11 @@ export const requestRecoveryOtp = async (req: Request, res: Response) => {
       });
     }
 
+    // Determine target identifier for OTP storage
+    const targetKey = user.email ? user.email.toLowerCase() : (user.phone || cleanPhone);
+
     // Check resend cooldown (60 seconds)
-    const lastOtp = await OtpCode.findOne({ phone: user.phone }).sort({ createdAt: -1 });
+    const lastOtp = await OtpCode.findOne({ phone: targetKey }).sort({ createdAt: -1 });
     if (lastOtp && (Date.now() - lastOtp.createdAt.getTime() < 60000)) {
       return res.status(429).json({
         success: false,
@@ -100,45 +112,65 @@ export const requestRecoveryOtp = async (req: Request, res: Response) => {
     }
 
     // Generate secure 6-digit OTP
-    const isDev = process.env.NODE_ENV !== "production";
-    const otpCode = isDev && process.env.USE_DUMMY_OTP === "true" ? "123456" : generateSecureNumericOtp();
+    const otpCode = generateSecureNumericOtp();
     const otpCodeHash = await bcrypt.hash(otpCode, 12);
 
-    // Invalidate old OTPs
-    await OtpCode.deleteMany({ phone: user.phone });
+    // Invalidate old OTPs for both email key and phone key if present
+    await OtpCode.deleteMany({ phone: targetKey });
+    if (user.phone && user.phone !== targetKey) {
+      await OtpCode.deleteMany({ phone: user.phone });
+    }
 
-    // Store new hashed OTP (5 minutes validity)
+    // Store new hashed OTP (10 minutes validity)
     const newOtp = new OtpCode({
-      phone: user.phone,
+      phone: targetKey,
       otpCodeHash,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       verified: false,
       attemptsCount: 0,
       createdAt: new Date()
     });
     await newOtp.save();
 
-    // Dispatch OTP through pluggable channel
-    await activeOtpChannel.send(user.phone, otpCode);
-
-    // Audit log
-    await logRecoveryEvent({
-      userId: user._id,
-      tenantId: user.tenantId,
-      userName: user.name,
-      role: user.role,
-      eventType: "otp_requested",
-      channel: "sms",
-      phone: user.phone,
-      ipAddress,
-      userAgent,
-      details: "Recovery OTP generated and dispatched"
-    });
+    // Dispatch OTP through email or SMS
+    let dispatchMessage = "Verification code sent to your registered email address.";
+    if (user.email) {
+      await sendPasswordRecoveryOtpEmail(user.email, user.name, otpCode);
+      await logRecoveryEvent({
+        userId: user._id,
+        tenantId: user.tenantId,
+        userName: user.name,
+        role: user.role,
+        eventType: "otp_requested",
+        channel: "email",
+        email: user.email,
+        phone: user.phone,
+        ipAddress,
+        userAgent,
+        details: "Recovery OTP dispatched via email"
+      });
+    } else if (user.phone) {
+      await activeOtpChannel.send(user.phone, otpCode);
+      dispatchMessage = "Verification code sent to your registered mobile number.";
+      await logRecoveryEvent({
+        userId: user._id,
+        tenantId: user.tenantId,
+        userName: user.name,
+        role: user.role,
+        eventType: "otp_requested",
+        channel: "sms",
+        phone: user.phone,
+        ipAddress,
+        userAgent,
+        details: "Recovery OTP dispatched via SMS"
+      });
+    }
 
     return res.json({
       success: true,
+      email: user.email,
       phone: user.phone,
-      message: "Verification code sent to your registered mobile number."
+      message: dispatchMessage
     });
   } catch (error: any) {
     console.error("[Account Recovery Error]", error?.message || error);
@@ -155,27 +187,40 @@ export const requestRecoveryOtp = async (req: Request, res: Response) => {
  */
 export const verifyRecoveryOtp = async (req: Request, res: Response) => {
   try {
-    const { phone, otp } = req.body;
+    const { phone, email, identifier, otp } = req.body;
     const ipAddress = getClientIp(req);
     const userAgent = req.headers["user-agent"] || "";
 
-    if (!phone || !otp) {
+    const rawInput = (email || identifier || phone || "").toString().trim();
+    if (!rawInput || !otp) {
       return res.status(400).json({
         success: false,
-        message: "Mobile number and verification code are required."
+        message: "Email or mobile number and verification code are required."
       });
     }
 
-    const cleanPhone = normalizePhone(phone);
+    const isEmailInput = rawInput.includes("@");
+    const cleanEmail = isEmailInput ? rawInput.toLowerCase() : "";
+    const cleanPhone = !isEmailInput ? normalizePhone(rawInput) : "";
     const submittedOtp = otp.toString().trim();
 
-    const user = await User.findOne({
-      $or: [
+    const userQueryConditions: any[] = [];
+    if (cleanEmail) {
+      userQueryConditions.push({ email: cleanEmail });
+    }
+    if (cleanPhone) {
+      userQueryConditions.push(
         { phone: cleanPhone },
         { phone: `+91${cleanPhone}` },
-        { phone: `91${cleanPhone}` },
-        { username: cleanPhone.toLowerCase() }
-      ]
+        { phone: `91${cleanPhone}` }
+      );
+    }
+    if (!cleanEmail && !cleanPhone) {
+      userQueryConditions.push({ email: rawInput.toLowerCase() });
+    }
+
+    const user = await User.findOne({
+      $or: userQueryConditions
     });
 
     if (!user) {
@@ -185,7 +230,11 @@ export const verifyRecoveryOtp = async (req: Request, res: Response) => {
       });
     }
 
-    const activeOtp = await OtpCode.findOne({ phone: user.phone, verified: false });
+    const targetKey = user.email ? user.email.toLowerCase() : user.phone!;
+    let activeOtp = await OtpCode.findOne({ phone: targetKey, verified: false });
+    if (!activeOtp && user.phone) {
+      activeOtp = await OtpCode.findOne({ phone: user.phone, verified: false });
+    }
     if (!activeOtp) {
       return res.status(400).json({
         success: false,
@@ -235,9 +284,8 @@ export const verifyRecoveryOtp = async (req: Request, res: Response) => {
       });
     }
 
-    // Compare hash
-    const isDev = process.env.NODE_ENV !== "production" && submittedOtp === "123456";
-    const isMatch = isDev || (await bcrypt.compare(submittedOtp, activeOtp.otpCodeHash));
+    // Compare hash - real cryptographic bcrypt verification only
+    const isMatch = await bcrypt.compare(submittedOtp.trim(), activeOtp.otpCodeHash);
 
     if (!isMatch) {
       activeOtp.attemptsCount += 1;

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
+import bcrypt from "bcryptjs";
 import { User, Tenant, Worker, Attendance, Payment, AuditLog, WageHistory, Project, SupportProblem, SupportFeedback, Expense, MBEntry, OtpCode, Site, SubscriptionTransaction, Material } from "../models";
 
 dotenv.config({ path: path.join(__dirname, "../../.env") });
@@ -101,9 +102,48 @@ async function backupAndWipe() {
   const materialRes = await Material.deleteMany({});
   console.log(`   Deleted ${materialRes.deletedCount} Materials`);
 
-  // Clear refresh tokens of any remaining admin user
-  await User.updateMany({ role: "admin" }, { $set: { refreshTokens: [] } });
-  console.log(`🧹 Cleared all active admin refresh tokens (sessions)`);
+  // Clear refresh tokens of any remaining admin user and synchronize credentials
+  let admin = await User.findOne({ role: "admin" });
+  let tenant = await Tenant.findOne({ code: "SYSADMIN" });
+  if (!tenant) {
+    tenant = new Tenant({
+      name: "System Admin Org",
+      code: "SYSADMIN",
+      plan: "business",
+    });
+    await tenant.save();
+  }
+  const defaultPasswordHash = await bcrypt.hash("Sandeep#101", 12);
+  if (!admin) {
+    admin = new User({
+      tenantId: tenant._id,
+      name: "System Administrator",
+      email: "sandippandit896@gmail.com",
+      phone: "7058222107",
+      passwordHash: defaultPasswordHash,
+      role: "admin",
+      isActive: true,
+      isVerified: true,
+      isEmailVerified: true,
+      status: "active",
+      refreshTokens: [],
+    });
+    await admin.save();
+    console.log("👑 Admin account initialized: sandippandit896@gmail.com");
+  } else {
+    admin.email = "sandippandit896@gmail.com";
+    admin.name = "System Administrator";
+    admin.phone = "7058222107";
+    admin.passwordHash = defaultPasswordHash;
+    admin.isActive = true;
+    admin.isVerified = true;
+    admin.isEmailVerified = true;
+    admin.status = "active";
+    admin.tenantId = tenant._id;
+    admin.refreshTokens = [];
+    await admin.save();
+    console.log("👑 Admin credentials refreshed and synchronized: sandippandit896@gmail.com");
+  }
 
   console.log("\n==============================================");
   console.log("  RESET COMPLETE");

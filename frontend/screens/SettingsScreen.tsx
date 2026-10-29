@@ -877,28 +877,25 @@ export default function SettingsScreen({
   };
 
   // ─── LOGOUT FLOW ───────────────────────────────────────────────────────────
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const handleLogout = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {}
 
-    // On web, Alert.alert buttons are unreliable — use window.confirm instead
-    if (Platform.OS === "web") {
-      const confirmed = window.confirm("Are you sure you want to logout?");
-      if (confirmed) {
-        await logout();
+    try {
+      if (isInDrawer && onClose) {
+        onClose();
       }
-      return;
+      await logout();
+    } catch (err) {
+      console.warn("Logout error:", err);
+    } finally {
+      setIsLoggingOut(false);
     }
-
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: async () => {
-          await logout();
-        },
-      },
-    ]);
   };
 
   // ─── SUPPORT HELPERS ───────────────────────────────────────────────────────
@@ -1635,20 +1632,28 @@ export default function SettingsScreen({
         {/* ─── 11. LOGOUT BUTTON ─── */}
         <Pressable
           onPress={handleLogout}
+          disabled={isLoggingOut}
           style={[
             styles.logoutBtn,
             {
               borderColor: "#EF4444",
               backgroundColor: isDark ? "rgba(239, 68, 68, 0.1)" : "#FEF2F2",
+              opacity: isLoggingOut ? 0.6 : 1,
             },
           ]}
         >
-          <Feather name="log-out" size={18} color="#EF4444" />
-          <ThemedText
-            style={{ color: "#EF4444", fontWeight: "700", fontSize: 16 }}
-          >
-            {t.settings?.logout || "Log Out"}
-          </ThemedText>
+          {isLoggingOut ? (
+            <ActivityIndicator size="small" color="#EF4444" />
+          ) : (
+            <>
+              <Feather name="log-out" size={18} color="#EF4444" />
+              <ThemedText
+                style={{ color: "#EF4444", fontWeight: "700", fontSize: 16 }}
+              >
+                {t.settings?.logout || "Log Out"}
+              </ThemedText>
+            </>
+          )}
         </Pressable>
       </ScrollView>
 

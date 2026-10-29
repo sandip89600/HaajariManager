@@ -348,7 +348,10 @@ export default function TeamConnectionWidget({
         onRefreshParent?.();
 
         const acceptedWorkerId =
-          data?.workerId || data?.worker?.id || data?.worker?._id || data?.connection?.workerId;
+          data?.workerId ||
+          data?.worker?.id ||
+          data?.worker?._id ||
+          data?.connection?.workerId;
         if (isContractor && acceptedWorkerId) {
           navigateToUpdateWorker(acceptedWorkerId);
         } else {

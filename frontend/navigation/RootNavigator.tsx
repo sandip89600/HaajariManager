@@ -51,7 +51,6 @@ export default function RootNavigator() {
         <>
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Signup" component={SignupScreen} />
-          <Stack.Screen name="Main" component={MainTabNavigator} />
         </>
       )}
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />

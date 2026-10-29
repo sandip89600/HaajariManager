@@ -217,6 +217,7 @@ export interface AuthData {
   email?: string;
   username?: string;
   isPhoneVerified?: boolean;
+  isEmailVerified?: boolean;
   rememberMe: boolean;
   token?: string;
   refreshToken?: string;
@@ -243,7 +244,7 @@ export interface User {
   email?: string;
   password?: string;
   name: string;
-  phone: string;
+  phone?: string;
   address?: string;
   avatarColor: string;
   profileImage?: string;
@@ -256,6 +257,7 @@ export interface User {
   isActive: boolean;
   isVerified?: boolean;
   isPhoneVerified?: boolean;
+  isEmailVerified?: boolean;
   createdAt: number;
   lastLogin?: number;
   loginHistory: number[];

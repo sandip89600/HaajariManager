@@ -6,7 +6,7 @@ export interface IUser extends Document {
   username?: string;
   email?: string;
   passwordHash: string;
-  phone: string;
+  phone?: string;
   uniqueId: string;
   role: "contractor" | "builder" | "supervisor" | "labor" | "admin";
   workerCategory?: string;
@@ -19,6 +19,11 @@ export interface IUser extends Document {
   assignedProjects?: mongoose.Types.ObjectId[];
   isActive: boolean;
   isVerified: boolean;
+  isEmailVerified?: boolean;
+  emailVerifiedAt?: Date;
+  emailVerificationToken?: string;
+  emailVerificationTokenHash?: string;
+  emailVerificationExpires?: Date;
   isPhoneVerified?: boolean;
   phoneVerifiedAt?: Date;
   status?: "pending_verification" | "active" | "suspended" | "deactivated";
@@ -86,10 +91,9 @@ const UserSchema = new Schema<IUser>({
   tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true },
   name: { type: String, required: true },
   expoPushToken: { type: String },
-  username: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
   email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
   passwordHash: { type: String, required: true },
-  phone: { type: String, required: true, unique: true, trim: true },
+  phone: { type: String, unique: true, sparse: true, trim: true },
   uniqueId: { type: String, uppercase: true, trim: true },
   role: { type: String, enum: ["contractor", "builder", "supervisor", "labor", "admin"], default: "contractor" },
   workerCategory: { type: String, trim: true },
@@ -102,6 +106,11 @@ const UserSchema = new Schema<IUser>({
   assignedProjects: [{ type: Schema.Types.ObjectId, ref: "Project" }],
   isActive: { type: Boolean, default: true },
   isVerified: { type: Boolean, default: true },
+  isEmailVerified: { type: Boolean, default: false },
+  emailVerifiedAt: { type: Date },
+  emailVerificationToken: { type: String, sparse: true },
+  emailVerificationTokenHash: { type: String, sparse: true },
+  emailVerificationExpires: { type: Date },
   isPhoneVerified: { type: Boolean, default: false },
   phoneVerifiedAt: { type: Date },
   status: { type: String, enum: ["pending_verification", "active", "suspended", "deactivated"], default: "active" },

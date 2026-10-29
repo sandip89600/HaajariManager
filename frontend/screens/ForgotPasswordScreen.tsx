@@ -35,7 +35,7 @@ type ForgotPasswordNavigationProp = NativeStackNavigationProp<
   "ForgotPassword"
 >;
 
-type RecoveryStep = "PHONE_INPUT" | "OTP_INPUT" | "NEW_PASSWORD";
+type RecoveryStep = "EMAIL_INPUT" | "OTP_INPUT" | "NEW_PASSWORD";
 
 export default function ForgotPasswordScreen() {
   const { theme } = useTheme();
@@ -44,12 +44,12 @@ export default function ForgotPasswordScreen() {
   const insets = useSafeAreaInsets();
 
   // Recovery Step Flow
-  const [step, setStep] = useState<RecoveryStep>("PHONE_INPUT");
+  const [step, setStep] = useState<RecoveryStep>("EMAIL_INPUT");
 
-  // Phone & OTP state
-  const [phone, setPhone] = useState("");
+  // Email & OTP state
+  const [email, setEmail] = useState("");
   const [otpArray, setOtpArray] = useState(["", "", "", "", "", ""]);
-  const otpRefs = useRef<Array<TextInput | null>>([]);
+  const otpRefs = useRef<Array<any>>([]);
   const [cooldown, setCooldown] = useState(0);
 
   // Scoped Recovery Session
@@ -107,12 +107,12 @@ export default function ForgotPasswordScreen() {
   };
 
   /**
-   * STEP 1: Find Account & Send Recovery OTP
+   * STEP 1: Find Account & Send Recovery OTP via Email
    */
   const handleSendRecoveryCode = async () => {
-    const trimmed = phone.trim();
-    if (!trimmed || trimmed.length < 8) {
-      setError("Please enter a valid mobile number.");
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes("@") || trimmed.length < 5) {
+      setError("Please enter a valid registered email address.");
       return;
     }
 
@@ -126,7 +126,7 @@ export default function ForgotPasswordScreen() {
       const res = await fetch(`${API_URL}/recovery/check-phone`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: trimmed }),
+        body: JSON.stringify({ email: trimmed, identifier: trimmed, phone: trimmed }),
         signal: controller.signal,
       });
 
@@ -229,7 +229,9 @@ export default function ForgotPasswordScreen() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: phone.trim(),
+          email: email.trim().toLowerCase(),
+          identifier: email.trim().toLowerCase(),
+          phone: email.trim().toLowerCase(),
           otp: otpCode,
         }),
         signal: controller.signal,
@@ -289,7 +291,7 @@ export default function ForgotPasswordScreen() {
   const handleResetPassword = async () => {
     if (!recoverySessionToken) {
       setError("Your recovery session has expired. Please start again.");
-      setStep("PHONE_INPUT");
+      setStep("EMAIL_INPUT");
       return;
     }
 
@@ -391,9 +393,9 @@ export default function ForgotPasswordScreen() {
             onPress={() => {
               if (step === "NEW_PASSWORD") {
                 setRecoverySessionToken(null);
-                setStep("PHONE_INPUT");
+                setStep("EMAIL_INPUT");
               } else if (step === "OTP_INPUT") {
-                setStep("PHONE_INPUT");
+                setStep("EMAIL_INPUT");
               } else {
                 navigation.goBack();
               }
@@ -413,7 +415,7 @@ export default function ForgotPasswordScreen() {
                   ? "lock"
                   : step === "OTP_INPUT"
                     ? "shield"
-                    : "smartphone"
+                    : "mail"
               }
               size={28}
               color={theme.primary}
@@ -421,7 +423,7 @@ export default function ForgotPasswordScreen() {
           </View>
 
           <ThemedText style={styles.title}>
-            {step === "PHONE_INPUT"
+            {step === "EMAIL_INPUT"
               ? t("auth.forgotPassword", "Find Your Account")
               : step === "OTP_INPUT"
                 ? t("auth.enterOtp", "Enter 6-Digit Code")
@@ -429,13 +431,13 @@ export default function ForgotPasswordScreen() {
           </ThemedText>
 
           <ThemedText style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {step === "PHONE_INPUT"
+            {step === "EMAIL_INPUT"
               ? t(
                   "auth.forgotPasswordDesc",
-                  "Enter your mobile number linked to your Haajari account to receive a 6-digit recovery code.",
+                  "Enter your registered email address linked to your Haajari account to receive a 6-digit recovery code.",
                 )
               : step === "OTP_INPUT"
-                ? `${t("auth.otpSentTo", "We sent a 6-digit verification code to")} +91 ${phone}.`
+                ? `${t("auth.otpSentTo", "We sent a 6-digit verification code to")} ${email.trim()}.`
                 : t(
                     "auth.passwordRequirementsDesc",
                     "Create a new password that is at least 8 characters long with numbers and special symbols.",
@@ -451,12 +453,12 @@ export default function ForgotPasswordScreen() {
           </View>
         ) : null}
 
-        {/* STEP 1: PHONE INPUT */}
-        {step === "PHONE_INPUT" && (
+        {/* STEP 1: EMAIL INPUT */}
+        {step === "EMAIL_INPUT" && (
           <View style={styles.formContainer}>
             <View style={styles.inputContainer}>
               <ThemedText style={styles.inputLabel}>
-                {t("auth.registeredPhone", "Registered Mobile Number")}
+                {t("auth.registeredEmail", "Registered Email Address")}
               </ThemedText>
               <View
                 style={[
@@ -467,27 +469,27 @@ export default function ForgotPasswordScreen() {
                   },
                 ]}
               >
-                <View style={styles.countryCodeBadge}>
-                  <ThemedText
-                    style={[styles.countryCodeText, { color: theme.text }]}
-                  >
-                    +91
-                  </ThemedText>
-                </View>
+                <Feather
+                  name="mail"
+                  size={18}
+                  color={theme.textSecondary}
+                  style={{ marginLeft: 16, marginRight: 8 }}
+                />
                 <TextInput
                   style={[styles.input, { color: theme.text }]}
                   placeholder={t(
-                    "auth.phonePlaceholder",
-                    "Enter 10-digit mobile number",
+                    "auth.emailPlaceholder",
+                    "Enter your registered email address",
                   )}
                   placeholderTextColor={theme.textSecondary}
-                  value={phone}
+                  value={email}
                   onChangeText={(tVal) => {
-                    setPhone(tVal.replace(/[^0-9]/g, ""));
+                    setEmail(tVal);
                     setError(null);
                   }}
-                  keyboardType="phone-pad"
-                  maxLength={10}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
                   autoFocus
                 />
               </View>
@@ -497,12 +499,12 @@ export default function ForgotPasswordScreen() {
               onPress={handleSendRecoveryCode}
               onPressIn={() => (buttonScale.value = withSpring(0.96))}
               onPressOut={() => (buttonScale.value = withSpring(1))}
-              disabled={isLoading || phone.trim().length < 10}
+              disabled={isLoading || !email.trim().includes("@")}
               style={[
                 styles.submitButton,
                 {
                   backgroundColor:
-                    phone.trim().length >= 10 ? theme.primary : theme.border,
+                    email.trim().includes("@") ? theme.primary : theme.border,
                 },
                 animatedButtonStyle,
               ]}
@@ -559,7 +561,7 @@ export default function ForgotPasswordScreen() {
               ))}
             </View>
 
-            {/* Resend Cooldown Timer */}
+            {/* Resend Cooldown Timer & Change Email */}
             <View style={styles.resendRow}>
               {cooldown > 0 ? (
                 <ThemedText
@@ -581,6 +583,20 @@ export default function ForgotPasswordScreen() {
                   </ThemedText>
                 </Pressable>
               )}
+
+              <Pressable
+                onPress={() => {
+                  setStep("EMAIL_INPUT");
+                  setOtpArray(["", "", "", "", "", ""]);
+                  setError(null);
+                }}
+              >
+                <ThemedText
+                  style={{ color: theme.textSecondary, fontSize: 13, fontWeight: "500" }}
+                >
+                  {t("auth.changeEmail", "Change Email")}
+                </ThemedText>
+              </Pressable>
             </View>
 
             <AnimatedPressable
