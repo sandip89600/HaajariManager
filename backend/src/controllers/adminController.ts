@@ -5,6 +5,7 @@ import os from "os";
 import { User, Tenant, Worker, Attendance, Payment, AuditLog, WageHistory, Project, SupportProblem, SupportFeedback, DelayLog, Expense, MBEntry, OtpCode, Site, SubscriptionTransaction, Material } from "../models";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { broadcastAdminActivity } from "../utils/socket";
+import { PERMANENT_ADMIN } from "./authController";
 
 // Helper to format audit logs
 const formatAuditLog = (log: any): string => {
@@ -152,6 +153,15 @@ export const updateUserInfo = async (req: AuthenticatedRequest, res: Response) =
       return res.status(404).json({ error: "User not found" });
     }
 
+    if (user.role === "admin" || user.email === PERMANENT_ADMIN.email) {
+      if (role !== undefined && role !== "admin") {
+        return res.status(403).json({ error: "Forbidden: Permanent administrator role cannot be changed." });
+      }
+      if (isActive !== undefined && !isActive) {
+        return res.status(403).json({ error: "Forbidden: Permanent administrator cannot be deactivated." });
+      }
+    }
+
     const before = user.toObject();
     if (name !== undefined) user.name = name;
     if (role !== undefined) user.role = role;
@@ -197,6 +207,10 @@ export const toggleUserStatus = async (req: AuthenticatedRequest, res: Response)
       return res.status(404).json({ error: "User not found" });
     }
 
+    if (user.role === "admin" || user.email === PERMANENT_ADMIN.email) {
+      return res.status(403).json({ error: "Forbidden: Permanent administrator cannot be deactivated." });
+    }
+
     const before = user.toObject();
     user.isActive = isActive;
     await user.save();
@@ -227,6 +241,10 @@ export const deleteUser = async (req: AuthenticatedRequest, res: Response) => {
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    if (user.role === "admin" || user.email === PERMANENT_ADMIN.email) {
+      return res.status(403).json({ error: "Forbidden: Permanent administrator cannot be deleted." });
     }
 
     const before = user.toObject();

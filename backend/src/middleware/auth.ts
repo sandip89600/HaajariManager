@@ -35,11 +35,14 @@ export const authenticateJWT = (
 
       const deviceId = (req.headers["x-device-id"] as string) || (req.body?.deviceId as string);
 
-      // Check if device session was revoked
-      if (deviceId && decodedUser?.id && decodedUser.role !== "admin") {
+      // Check if user is active/not suspended, and check if device session was revoked
+      if (decodedUser?.id && decodedUser.role !== "admin") {
         try {
-          const userDoc = await User.findById(decodedUser.id).select("trustedDevices").lean();
-          if (userDoc?.trustedDevices) {
+          const userDoc = await User.findById(decodedUser.id).select("isActive status trustedDevices").lean();
+          if (!userDoc || !userDoc.isActive || userDoc.status === "suspended" || userDoc.status === "deactivated") {
+            return res.status(403).json({ error: "Account is inactive, suspended, or deactivated." });
+          }
+          if (deviceId && userDoc.trustedDevices) {
             const deviceRecord = userDoc.trustedDevices.find((d) => d.deviceId === deviceId);
             if (deviceRecord && deviceRecord.isRevoked) {
               return res.status(401).json({ error: "Session has been revoked. Please log in again." });

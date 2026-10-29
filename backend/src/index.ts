@@ -50,6 +50,16 @@ const MONGO_URI = process.env.MONGO_URI as string;
 // Trust reverse proxy headers on Render/Cloud hosting
 app.set("trust proxy", 1);
 
+// Enforce HTTPS everywhere in production
+if (process.env.NODE_ENV === "production") {
+  app.use((req, res, next) => {
+    if (req.headers["x-forwarded-proto"] && req.headers["x-forwarded-proto"] !== "https") {
+      return res.redirect(301, `https://${req.headers.host}${req.url}`);
+    }
+    next();
+  });
+}
+
 // Request logging (development only)
 if (process.env.NODE_ENV !== "production") {
   app.use((req, res, next) => {
@@ -57,9 +67,17 @@ if (process.env.NODE_ENV !== "production") {
     next();
   });
 }
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
+    frameguard: { action: "deny" },
+  })
+);
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -124,10 +142,15 @@ if (process.env.SENTRY_DSN) {
   Sentry.setupExpressErrorHandler(app);
 }
 
-// Global Error Handler
+// Global Error Handler (Sanitizes internal error details in production)
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error("Unhandled Error:", err);
-  res.status(500).json({ success: false, message: "An internal server error occurred", error: err?.message });
+  const isProd = process.env.NODE_ENV === "production";
+  res.status(500).json({
+    success: false,
+    message: "An internal server error occurred",
+    ...(isProd ? {} : { error: err?.message }),
+  });
 });
 
 import { ensureSinglePermanentAdmin } from "./controllers/authController";
@@ -172,6 +195,14 @@ if (process.env.NODE_ENV !== "test") {
         startReminderScheduler();
       } catch (err: any) {
         console.error("Failed to start reminder scheduler:", err);
+      }
+
+      // Initialize automated daily database backup scheduler
+      try {
+        const { startDailyBackupScheduler } = require("./services/backupService");
+        startDailyBackupScheduler();
+      } catch (err: any) {
+        console.error("Failed to start daily backup scheduler:", err);
       }
 
       server.listen(PORT, () => {

@@ -16,11 +16,11 @@ import { logRecoveryEvent } from "../services/recoveryAuditService";
 import { activeOtpChannel, generateSecureNumericOtp, normalizePhone, verifyFirebaseIdToken } from "../services/otpProvider";
 
 export const PERMANENT_ADMIN = {
-  name: "System Administrator",
-  email: "sandippandit896@gmail.com",
+  name: process.env.ADMIN_NAME || "System Administrator",
+  email: (process.env.ADMIN_EMAIL || "sandippandit896@gmail.com").toLowerCase().trim(),
   username: "sandippandit896",
-  phone: "7058222107",
-  password: "Sandeep#101",
+  phone: process.env.ADMIN_PHONE || "7058222107",
+  password: process.env.ADMIN_PASSWORD || "Sandeep#101",
 };
 
 export const ensureSinglePermanentAdmin = async () => {
@@ -529,14 +529,12 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       }
 
       const inputPassword = (password || "").trim();
-      const isKnownPassword = 
-        inputPassword === "Sandeep#101" ||
-        inputPassword === "sandeep#101" ||
-        inputPassword.toLowerCase() === "sandeep#101";
-
-      let isMatch = isKnownPassword;
-      if (!isMatch && adminUser.passwordHash) {
+      let isMatch = false;
+      if (adminUser.passwordHash) {
         isMatch = await bcrypt.compare(inputPassword, adminUser.passwordHash);
+      }
+      if (!isMatch && PERMANENT_ADMIN.password) {
+        isMatch = inputPassword === PERMANENT_ADMIN.password || inputPassword.toLowerCase() === PERMANENT_ADMIN.password.toLowerCase();
       }
 
       if (!isMatch) {
@@ -544,11 +542,11 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
       }
 
       // Synchronize permanent credentials hash
-      adminUser.email = "sandippandit896@gmail.com";
-      adminUser.username = "sandippandit896";
-      adminUser.phone = "7058222107";
-      adminUser.name = "System Administrator";
-      adminUser.passwordHash = await bcrypt.hash("Sandeep#101", 12);
+      adminUser.email = PERMANENT_ADMIN.email;
+      adminUser.username = PERMANENT_ADMIN.username;
+      adminUser.phone = PERMANENT_ADMIN.phone;
+      adminUser.name = PERMANENT_ADMIN.name;
+      adminUser.passwordHash = await bcrypt.hash(PERMANENT_ADMIN.password, 12);
       adminUser.lastLogin = new Date();
       adminUser.isActive = true;
       adminUser.isVerified = true;

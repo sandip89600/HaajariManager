@@ -173,6 +173,26 @@ const UserSchema = new Schema<IUser>({
   }]
 });
 
+UserSchema.set("toJSON", {
+  transform: function (_doc, ret: any) {
+    delete ret.passwordHash;
+    delete ret.refreshTokens;
+    delete ret.emailVerificationTokenHash;
+    delete ret.passwordResetTokenHash;
+    return ret;
+  },
+});
+
+UserSchema.set("toObject", {
+  transform: function (_doc, ret: any) {
+    delete ret.passwordHash;
+    delete ret.refreshTokens;
+    delete ret.emailVerificationTokenHash;
+    delete ret.passwordResetTokenHash;
+    return ret;
+  },
+});
+
 UserSchema.index({ tenantId: 1 });
 UserSchema.index({ uniqueId: 1 }, { unique: true, sparse: true });
 

@@ -175,4 +175,15 @@ router.get("/feedback", getAdminFeedbacks as any);
 router.patch("/feedback/:id/status", updateAdminFeedbackStatus as any);
 router.post("/feedback/:id/notes", addAdminFeedbackNote as any);
 
+// Daily Backup Management (Admin Only)
+import { performDailyBackup } from "../services/backupService";
+router.post("/backup", async (req: any, res: any) => {
+  const result = await performDailyBackup();
+  if (result.success) {
+    res.json(result);
+  } else {
+    res.status(500).json(result);
+  }
+});
+
 export default router;
