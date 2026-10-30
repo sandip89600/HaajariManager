@@ -12,43 +12,61 @@ const LAST_PUSH_TOKEN_KEY = "@haajari/last_push_token";
 export function isRunningInExpoGo(): boolean {
   return (
     Constants.executionEnvironment === ExecutionEnvironment.StoreClient ||
-    (Constants as any).appOwnership === "expo"
+    Constants.executionEnvironment === "storeClient" ||
+    (Constants as any).appOwnership === "expo" ||
+    typeof (Constants as any).expoVersion === "string" ||
+    Boolean(Constants.expoConfig?.hostUri && __DEV__)
   );
 }
 
+let cachedNotificationsModule: typeof import("expo-notifications") | null | undefined = undefined;
+
 /**
  * Dynamically retrieve expo-notifications module only when NOT running in Expo Go on Android.
- * This prevents expo-notifications top-level module evaluation from calling warnOfExpoGoPushUsage().
+ * This prevents ExpoTopicSubscriptionModule missing native module crashes in Expo Go.
  */
 export function getNotificationsModule():
   | typeof import("expo-notifications")
   | null {
+  if (cachedNotificationsModule !== undefined) {
+    return cachedNotificationsModule;
+  }
+
+  // Remote notifications are completely unsupported in Expo Go on Android (SDK 51+)
   if (Platform.OS === "android" && isRunningInExpoGo()) {
+    cachedNotificationsModule = null;
     return null;
   }
+
   try {
-    return require("expo-notifications");
-  } catch (e) {
+    const notifs = require("expo-notifications");
+    cachedNotificationsModule = notifs;
+    return notifs;
+  } catch (e: any) {
+    console.warn("[Notifications] Native notification module not available in current environment");
+    cachedNotificationsModule = null;
     return null;
   }
 }
 
 // Safely configure default notification handler when module is available
-const Notifications = getNotificationsModule();
-if (Notifications && Notifications.setNotificationHandler) {
-  try {
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
-    });
-  } catch (e) {
-    // Ignored in Expo Go
+try {
+  if (!isRunningInExpoGo() || Platform.OS !== "android") {
+    const Notifications = getNotificationsModule();
+    if (Notifications && Notifications.setNotificationHandler) {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      });
+    }
   }
+} catch (e) {
+  // Ignored in Expo Go
 }
 
 export interface NotificationSettings {

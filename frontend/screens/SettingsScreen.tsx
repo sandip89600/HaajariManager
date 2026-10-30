@@ -1202,6 +1202,17 @@ export default function SettingsScreen({
               {t.settings.businessManagement}
             </ThemedText>
             <SettingCard theme={theme} isDark={isDark}>
+              <SettingRow
+                icon="award"
+                iconColor="#F97316"
+                label="Haajari Pro Subscription"
+                sublabel="Upgrade plan (₹149 Monthly / ₹1,119 Yearly)"
+                onPress={() => {
+                  if (isInDrawer && onClose) onClose();
+                  navigation.navigate("Subscription");
+                }}
+                theme={theme}
+              />
               {(currentUser || authUser)?.role === "contractor" && (
                 <>
                   <SettingRow

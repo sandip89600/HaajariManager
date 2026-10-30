@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import Razorpay from "razorpay";
 import {
   SubscriptionConfigV2,
   SubscriptionPlanV2,
@@ -6,169 +7,47 @@ import {
   SubscriptionTransactionV2,
   ISubscriptionPlanV2,
   IBillingOptionV2,
+  Tenant,
+  User,
 } from "../models";
 import { getIO } from "../utils/socket";
 
-// Default seed plans if database has no plans configured
-const DEFAULT_PLANS = [
+// Redesigned Canonical Plans: ₹149 Monthly & ₹1119 Yearly
+export const DEFAULT_PLANS = [
   {
-    planId: "starter",
-    name: "Starter",
-    description: "Ideal for small contractors and growing teams.",
+    planId: "pro",
+    name: "Haajari Pro",
+    description: "Complete all-in-one construction management & worker attendance suite.",
     active: true,
     displayOrder: 1,
     features: {
-      maxWorkers: 25,
-      maxProjects: 3,
-      maxSupervisors: 2,
+      maxWorkers: -1, // Unlimited workers
+      maxProjects: -1, // Unlimited sites
+      maxSupervisors: -1, // Unlimited supervisors
       gpsAttendance: true,
       reports: true,
-      advancedReports: false,
+      advancedReports: true,
     },
     billingOptions: [
       {
         optionId: "monthly",
         durationMonths: 1,
         billingLabel: "Monthly",
-        price: 99,
+        price: 149,
+        currency: "INR",
+        active: true,
+        promotionEnabled: false,
+      },
+      {
+        optionId: "yearly",
+        durationMonths: 12,
+        billingLabel: "Yearly",
+        price: 1119,
         currency: "INR",
         active: true,
         promotionEnabled: true,
-        promotionalPrice: 2,
-        promotionalDurationMonths: 1,
-      },
-      {
-        optionId: "3_months",
-        durationMonths: 3,
-        billingLabel: "3 Months",
-        price: 249,
-        currency: "INR",
-        active: true,
-        promotionEnabled: false,
-      },
-      {
-        optionId: "6_months",
-        durationMonths: 6,
-        billingLabel: "6 Months",
-        price: 449,
-        currency: "INR",
-        active: true,
-        promotionEnabled: false,
-      },
-      {
-        optionId: "12_months",
-        durationMonths: 12,
-        billingLabel: "12 Months",
-        price: 799,
-        currency: "INR",
-        active: true,
-        promotionEnabled: false,
-      },
-    ],
-  },
-  {
-    planId: "professional",
-    name: "Professional",
-    description: "Designed for expanding multi-site contractors.",
-    active: true,
-    displayOrder: 2,
-    features: {
-      maxWorkers: 100,
-      maxProjects: 10,
-      maxSupervisors: 5,
-      gpsAttendance: true,
-      reports: true,
-      advancedReports: true,
-    },
-    billingOptions: [
-      {
-        optionId: "monthly",
-        durationMonths: 1,
-        billingLabel: "Monthly",
-        price: 299,
-        currency: "INR",
-        active: true,
-        promotionEnabled: false,
-      },
-      {
-        optionId: "3_months",
-        durationMonths: 3,
-        billingLabel: "3 Months",
-        price: 749,
-        currency: "INR",
-        active: true,
-        promotionEnabled: false,
-      },
-      {
-        optionId: "6_months",
-        durationMonths: 6,
-        billingLabel: "6 Months",
-        price: 1399,
-        currency: "INR",
-        active: true,
-        promotionEnabled: false,
-      },
-      {
-        optionId: "12_months",
-        durationMonths: 12,
-        billingLabel: "12 Months",
-        price: 2499,
-        currency: "INR",
-        active: true,
-        promotionEnabled: false,
-      },
-    ],
-  },
-  {
-    planId: "business",
-    name: "Business",
-    description: "Unlimited operational capacity for enterprise construction managers.",
-    active: true,
-    displayOrder: 3,
-    features: {
-      maxWorkers: -1,
-      maxProjects: -1,
-      maxSupervisors: -1,
-      gpsAttendance: true,
-      reports: true,
-      advancedReports: true,
-    },
-    billingOptions: [
-      {
-        optionId: "monthly",
-        durationMonths: 1,
-        billingLabel: "Monthly",
-        price: 599,
-        currency: "INR",
-        active: true,
-        promotionEnabled: false,
-      },
-      {
-        optionId: "3_months",
-        durationMonths: 3,
-        billingLabel: "3 Months",
-        price: 1499,
-        currency: "INR",
-        active: true,
-        promotionEnabled: false,
-      },
-      {
-        optionId: "6_months",
-        durationMonths: 6,
-        billingLabel: "6 Months",
-        price: 2799,
-        currency: "INR",
-        active: true,
-        promotionEnabled: false,
-      },
-      {
-        optionId: "12_months",
-        durationMonths: 12,
-        billingLabel: "12 Months",
-        price: 4999,
-        currency: "INR",
-        active: true,
-        promotionEnabled: false,
+        promotionalPrice: 1119,
+        promotionalDurationMonths: 12,
       },
     ],
   },
@@ -242,12 +121,14 @@ export class SubscriptionServiceV2 {
   }
 
   /**
-   * Seed canonical plans if database has none
+   * Seed canonical plans (upsert Pro plan with ₹149 monthly and ₹1119 yearly)
    */
-  static async seedDefaultPlans() {
-    const existingCount = await SubscriptionPlanV2.countDocuments();
-    if (existingCount === 0) {
+  static async seedDefaultPlans(forceReset: boolean = false) {
+    const proPlan = await SubscriptionPlanV2.findOne({ planId: "pro" });
+    if (!proPlan || forceReset) {
+      await SubscriptionPlanV2.deleteMany({});
       await SubscriptionPlanV2.insertMany(DEFAULT_PLANS);
+      console.log("[SubscriptionServiceV2] Seeded canonical plans: ₹149/mo & ₹1119/yr");
     }
   }
 
@@ -321,7 +202,171 @@ export class SubscriptionServiceV2 {
   }
 
   /**
-   * Create Checkout Order for user
+   * Create Razorpay Checkout Order for user
+   */
+  static async createRazorpayOrder(
+    userId: string,
+    tenantId: string,
+    planId: string = "pro",
+    optionId: string = "monthly"
+  ) {
+    const key_id = process.env.RAZORPAY_KEY_ID;
+    const key_secret = process.env.RAZORPAY_KEY_SECRET;
+
+    // Check plan in DB (or fallback to canonical Pro plan)
+    let plan = await SubscriptionPlanV2.findOne({
+      $or: [{ planId }, { planId: "pro" }],
+      active: true,
+    });
+    if (!plan) {
+      await this.seedDefaultPlans(true);
+      plan = await SubscriptionPlanV2.findOne({ planId: "pro", active: true });
+    }
+    if (!plan) {
+      throw { code: "PLAN_INACTIVE", message: "Requested plan is not available." };
+    }
+
+    // Determine billing option (monthly: 149, yearly: 1119)
+    const normalizedOption = (optionId || "monthly").toLowerCase();
+    const isYearly = normalizedOption.includes("year") || normalizedOption.includes("12");
+
+    const option = plan.billingOptions.find((o) =>
+      isYearly ? (o.optionId === "yearly" || o.durationMonths === 12) : (o.optionId === "monthly" || o.durationMonths === 1)
+    ) || plan.billingOptions[0];
+
+    const durationMonths = isYearly ? 12 : 1;
+    const amountRupees = isYearly ? 1119 : 149;
+    const amountInPaise = amountRupees * 100;
+    const receipt = `rcpt_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+
+    let orderId = `order_${Date.now()}_${Math.floor(100000 + Math.random() * 900000)}`;
+    let shortUrl = "";
+    const userDoc = await User.findById(userId).select("name email phone").lean();
+
+    // Call real Razorpay SDK if API credentials are configured in backend environment
+    if (key_id && key_secret) {
+      try {
+        const razorpay = new Razorpay({
+          key_id,
+          key_secret,
+        });
+
+        const order = await razorpay.orders.create({
+          amount: amountInPaise,
+          currency: "INR",
+          receipt,
+          notes: {
+            userId: String(userId),
+            tenantId: String(tenantId),
+            planId: plan.planId,
+            billingOptionId: option.optionId,
+            durationMonths: String(durationMonths),
+            amountRupees: String(amountRupees),
+          },
+        });
+        orderId = order.id;
+
+        // Generate official Razorpay hosted checkout page link
+        try {
+          const customerContact =
+            userDoc?.phone && userDoc.phone.replace(/\D/g, "").length === 10
+              ? `+91${userDoc.phone.replace(/\D/g, "")}`
+              : undefined;
+
+          const paymentLink = await razorpay.paymentLink.create({
+            amount: amountInPaise,
+            currency: "INR",
+            accept_partial: false,
+            description: `Haajari Pro ${option.billingLabel} Subscription`,
+            reference_id: orderId,
+            customer: {
+              name: userDoc?.name || "Contractor",
+              email: userDoc?.email || undefined,
+              contact: customerContact,
+            },
+            notify: {
+              sms: false,
+              email: false,
+            },
+            reminder_enable: false,
+            notes: {
+              userId: String(userId),
+              tenantId: String(tenantId),
+              orderId,
+              planId: plan.planId,
+              billingOptionId: option.optionId,
+            },
+            callback_url: "https://haajari.com/payment-callback",
+            callback_method: "get",
+          });
+          if (paymentLink && paymentLink.short_url) {
+            shortUrl = paymentLink.short_url;
+          }
+        } catch (plErr: any) {
+          console.warn("[SubscriptionServiceV2] Payment link note:", plErr?.message || plErr);
+        }
+      } catch (rzpErr: any) {
+        console.error("[SubscriptionServiceV2] Razorpay orders.create error:", rzpErr);
+        throw {
+          code: "RAZORPAY_ORDER_FAILED",
+          message: rzpErr.error?.description || rzpErr.message || "Failed to create Razorpay order.",
+        };
+      }
+    }
+
+    // Create transaction record in database
+    const transaction = await SubscriptionTransactionV2.create({
+      transactionId: orderId,
+      userId,
+      tenantId,
+      planId: plan.planId,
+      planNameSnapshot: plan.name,
+      billingOptionId: option.optionId,
+      billingSnapshot: {
+        durationMonths,
+        billingLabel: option.billingLabel,
+        price: amountRupees,
+        effectivePrice: amountRupees,
+        receipt,
+      },
+      amount: amountRupees,
+      currency: "INR",
+      status: "pending",
+      paymentProvider: "razorpay",
+      metadata: {
+        orderId,
+        receipt,
+        amountInPaise,
+        paymentUrl: shortUrl,
+      },
+    });
+
+    return {
+      success: true,
+      provider: "razorpay",
+      orderId,
+      transactionId: transaction.transactionId,
+      amount: amountRupees,
+      amountRupees,
+      amountInPaise,
+      currency: "INR",
+      keyId: key_id || "",
+      planId: plan.planId,
+      billingOptionId: option.optionId,
+      planName: plan.name,
+      billingLabel: option.billingLabel,
+      durationMonths,
+      paymentUrl: shortUrl,
+      prefill: {
+        name: userDoc?.name || "",
+        email: userDoc?.email || "",
+        contact: userDoc?.phone || "",
+      },
+    };
+  }
+
+  /**
+   * Alias for backward compatibility
    */
   static async createCheckoutOrder(
     userId: string,
@@ -329,77 +374,148 @@ export class SubscriptionServiceV2 {
     planId: string,
     optionId: string
   ) {
-    const config = await this.getGlobalConfig();
-    if (!config.globalEnabled) {
-      throw { code: "SUBSCRIPTION_DISABLED", message: "Subscription system is currently in Free Mode." };
+    return this.createRazorpayOrder(userId, tenantId, planId, optionId);
+  }
+
+  /**
+   * Cryptographically verify Razorpay signature and activate subscription
+   */
+  static async verifyRazorpayPayment(
+    userId: string,
+    tenantId: string,
+    razorpayOrderId: string,
+    razorpayPaymentId: string,
+    razorpaySignature: string,
+    planId: string = "pro",
+    billingOptionId: string = "monthly",
+    paymentLinkDetails?: {
+      paymentLinkId?: string;
+      referenceId?: string;
+      status?: string;
+    }
+  ) {
+    const key_secret = process.env.RAZORPAY_KEY_SECRET;
+
+    // Signature verification with HMAC-SHA256
+    if (key_secret && razorpaySignature && razorpaySignature !== "webhook_verified") {
+      const orderBody = `${razorpayOrderId}|${razorpayPaymentId}`;
+      const expectedOrderSig = crypto
+        .createHmac("sha256", key_secret)
+        .update(orderBody)
+        .digest("hex");
+
+      let isValid = expectedOrderSig === razorpaySignature;
+
+      // Also check payment link signature if available
+      if (!isValid && paymentLinkDetails?.paymentLinkId) {
+        const linkBody = `${paymentLinkDetails.paymentLinkId}|${paymentLinkDetails.referenceId || razorpayOrderId}|${paymentLinkDetails.status || "paid"}|${razorpayPaymentId}`;
+        const expectedLinkSig = crypto
+          .createHmac("sha256", key_secret)
+          .update(linkBody)
+          .digest("hex");
+        if (expectedLinkSig === razorpaySignature) {
+          isValid = true;
+        }
+      }
+
+      if (!isValid) {
+        console.warn(`[Razorpay Verification] Signature mismatch for order: ${razorpayOrderId}`);
+        await SubscriptionTransactionV2.updateOne(
+          { $or: [{ transactionId: razorpayOrderId }, { "metadata.orderId": razorpayOrderId }] },
+          { status: "failed", paymentReference: razorpayPaymentId }
+        );
+        throw {
+          code: "INVALID_SIGNATURE",
+          message: "Razorpay signature verification failed. Untrusted payment.",
+        };
+      }
     }
 
-    const plan = await SubscriptionPlanV2.findOne({ planId, active: true });
-    if (!plan) {
-      throw { code: "PLAN_INACTIVE", message: "Requested plan is not available." };
-    }
-
-    const option = plan.billingOptions.find((o) => o.optionId === optionId && o.active);
-    if (!option) {
-      throw { code: "BILLING_OPTION_INACTIVE", message: "Requested billing duration is not active." };
-    }
-
-    // Effective price calculation
-    const effectivePrice =
-      option.promotionEnabled && typeof option.promotionalPrice === "number"
-        ? option.promotionalPrice
-        : option.price;
-
-    const transactionId = `TXN_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-
-    const transaction = await SubscriptionTransactionV2.create({
-      transactionId,
-      userId,
-      tenantId,
-      planId,
-      planNameSnapshot: plan.name,
-      billingOptionId: optionId,
-      billingSnapshot: {
-        durationMonths: option.durationMonths,
-        billingLabel: option.billingLabel,
-        price: option.price,
-        promotionalPrice: option.promotionalPrice,
-        promotionEnabled: option.promotionEnabled,
-        effectivePrice,
-      },
-      amount: effectivePrice,
-      currency: option.currency || "INR",
-      status: "pending",
-      paymentProvider: "razorpay",
+    const txn = await SubscriptionTransactionV2.findOne({
+      $or: [{ transactionId: razorpayOrderId }, { "metadata.orderId": razorpayOrderId }],
     });
 
-    // Notify admin socket room of new transaction
+    const isYearly =
+      (billingOptionId || txn?.billingOptionId || "").toLowerCase().includes("year") ||
+      txn?.billingSnapshot?.durationMonths === 12;
+
+    const durationMonths = isYearly ? 12 : 1;
+    const startedAt = new Date();
+    const expiresAt = new Date(startedAt);
+    if (durationMonths >= 12) {
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+    } else {
+      expiresAt.setMonth(expiresAt.getMonth() + 1);
+    }
+
+    // 1. Update Tenant
+    await Tenant.findByIdAndUpdate(tenantId, {
+      plan: "pro",
+      planExpiresAt: expiresAt,
+      status: "Active",
+    });
+
+    // 2. Mark previous user subscriptions superseded and create new active subscription
+    await UserSubscriptionV2.updateMany(
+      { tenantId, status: "active" },
+      { $set: { status: "superseded" } }
+    );
+
+    const userSub = await UserSubscriptionV2.create({
+      userId,
+      tenantId,
+      planId: txn?.planId || planId || "pro",
+      billingOptionId: isYearly ? "yearly" : "monthly",
+      status: "active",
+      startedAt,
+      expiresAt,
+      provider: "razorpay",
+      providerSubscriptionId: razorpayPaymentId,
+    });
+
+    // 3. Mark transaction paid
+    if (txn) {
+      txn.status = "paid";
+      txn.paymentReference = razorpayPaymentId;
+      txn.startedAt = startedAt;
+      txn.expiresAt = expiresAt;
+      txn.metadata = {
+        ...txn.metadata,
+        razorpayPaymentId,
+        razorpaySignature,
+        verifiedAt: new Date().toISOString(),
+      };
+      await txn.save();
+    }
+
+    // 4. Socket notifications for real-time app unlock
     try {
       const io = getIO();
       if (io) {
-        io.to("admin:subscription").emit("subscription:transactionCreated", {
-          transactionId: transaction.transactionId,
-          amount: transaction.amount,
-          planName: plan.name,
-          timestamp: transaction.createdAt,
+        io.to(`user_${userId}`).emit("subscription:statusUpdated", {
+          status: "active",
+          planId: "pro",
+          expiresAt,
         });
+        io.to(`tenant_${tenantId}`).emit("subscription:statusUpdated", {
+          status: "active",
+          planId: "pro",
+          expiresAt,
+        });
+        io.emit("admin_dashboard_update");
       }
-    } catch {
-      // socket catch
-    }
+    } catch {}
 
     return {
-      transactionId: transaction.transactionId,
-      amount: transaction.amount,
-      currency: transaction.currency,
-      planName: plan.name,
-      billingLabel: option.billingLabel,
-      effectivePrice,
+      success: true,
+      message: "Payment verified and subscription activated successfully!",
+      subscription: userSub,
+      expiresAt,
     };
   }
 
   /**
-   * Activate User Subscription after Payment verification
+   * Activate User Subscription after Payment verification (backward-compatible)
    */
   static async activateSubscription(
     userId: string,
@@ -414,8 +530,12 @@ export class SubscriptionServiceV2 {
 
     const durationMonths = txn.billingSnapshot?.durationMonths || 1;
     const startedAt = new Date();
-    const expiresAt = new Date();
-    expiresAt.setMonth(expiresAt.getMonth() + durationMonths);
+    const expiresAt = new Date(startedAt);
+    if (durationMonths >= 12) {
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+    } else {
+      expiresAt.setMonth(expiresAt.getMonth() + durationMonths);
+    }
 
     // Update transaction
     txn.status = "paid";
@@ -427,8 +547,15 @@ export class SubscriptionServiceV2 {
     // Expire any prior active user subscriptions for this tenant
     await UserSubscriptionV2.updateMany(
       { tenantId, status: "active" },
-      { $set: { status: "expired" } }
+      { $set: { status: "superseded" } }
     );
+
+    // Update Tenant
+    await Tenant.findByIdAndUpdate(tenantId, {
+      plan: "pro",
+      planExpiresAt: expiresAt,
+      status: "Active",
+    });
 
     // Create new active subscription
     const userSub = await UserSubscriptionV2.create({

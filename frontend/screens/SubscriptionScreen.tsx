@@ -9,12 +9,12 @@ import {
   Alert,
   Dimensions,
   FlatList,
+  Linking,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -28,6 +28,7 @@ import {
   BillingOption,
   SubscriptionStatusResponse,
   SubscriptionTransactionItem,
+  CheckoutResponse,
 } from "@/services/subscriptionApi";
 import { Colors, Spacing } from "@/constants/theme";
 
@@ -42,22 +43,19 @@ export default function SubscriptionScreen() {
 
   const [activeTab, setActiveTab] = useState<"plans" | "history">("plans");
   const [loading, setLoading] = useState(true);
-  const [subStatus, setSubStatus] = useState<SubscriptionStatusResponse | null>(
-    null,
-  );
-  const [transactions, setTransactions] = useState<
-    SubscriptionTransactionItem[]
-  >([]);
+  const [subStatus, setSubStatus] = useState<SubscriptionStatusResponse | null>(null);
+  const [transactions, setTransactions] = useState<SubscriptionTransactionItem[]>([]);
 
   // Selected Plan & Billing Option State
-  const [selectedPlanId, setSelectedPlanId] = useState<string>("");
-  const [selectedOptionId, setSelectedOptionId] = useState<string>("");
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("pro");
+  const [selectedOptionId, setSelectedOptionId] = useState<string>("yearly"); // Default to yearly (best value)
 
-  // Payment Webview State
+  // Razorpay WebView State
   const [isProcessing, setIsProcessing] = useState(false);
   const [webViewModalVisible, setWebViewModalVisible] = useState(false);
   const [webViewHtml, setWebViewHtml] = useState<string>("");
-  const [activeTxnId, setActiveTxnId] = useState<string>("");
+  const [paymentUrl, setPaymentUrl] = useState<string>("");
+  const [activeCheckout, setActiveCheckout] = useState<CheckoutResponse | null>(null);
 
   useEffect(() => {
     loadData();
@@ -70,11 +68,14 @@ export default function SubscriptionScreen() {
       setSubStatus(statusData);
 
       if (statusData.availablePlans && statusData.availablePlans.length > 0) {
-        const firstPlan = statusData.availablePlans[0];
-        setSelectedPlanId(firstPlan.planId);
-        if (firstPlan.billingOptions && firstPlan.billingOptions.length > 0) {
-          setSelectedOptionId(firstPlan.billingOptions[0].optionId);
-        }
+        const proPlan =
+          statusData.availablePlans.find((p) => p.planId === "pro") ||
+          statusData.availablePlans[0];
+        setSelectedPlanId(proPlan.planId);
+
+        // Pre-select yearly if available, else first option
+        const hasYearly = proPlan.billingOptions.some((o) => o.optionId === "yearly");
+        setSelectedOptionId(hasYearly ? "yearly" : proPlan.billingOptions[0]?.optionId || "monthly");
       }
 
       const txns = await SubscriptionApi.getUserTransactions();
@@ -86,96 +87,375 @@ export default function SubscriptionScreen() {
     }
   };
 
-  const triggerHaptic = () =>
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-  const currentPlan = subStatus?.availablePlans?.find(
-    (p) => p.planId === selectedPlanId,
-  );
-  const currentOption = currentPlan?.billingOptions?.find(
-    (o) => o.optionId === selectedOptionId,
-  );
-
-  const handleSelectPlan = (planId: string) => {
-    triggerHaptic();
-    setSelectedPlanId(planId);
-    const plan = subStatus?.availablePlans?.find((p) => p.planId === planId);
-    if (plan?.billingOptions && plan.billingOptions.length > 0) {
-      setSelectedOptionId(plan.billingOptions[0].optionId);
-    }
+  const triggerHaptic = (style: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Medium) => {
+    Haptics.impactAsync(style);
   };
 
+  // Find currently selected plan or fallback to default canonical Pro plan values
+  const currentPlan: SubscriptionPlan = subStatus?.availablePlans?.find(
+    (p) => p.planId === selectedPlanId
+  ) || {
+    planId: "pro",
+    name: "Haajari Pro",
+    description: "Complete all-in-one construction management & worker attendance suite.",
+    active: true,
+    displayOrder: 1,
+    features: {
+      maxWorkers: -1,
+      maxProjects: -1,
+      maxSupervisors: -1,
+      gpsAttendance: true,
+      reports: true,
+      advancedReports: true,
+    },
+    billingOptions: [
+      {
+        optionId: "monthly",
+        durationMonths: 1,
+        billingLabel: "Monthly",
+        price: 149,
+        currency: "INR",
+        active: true,
+        promotionEnabled: false,
+      },
+      {
+        optionId: "yearly",
+        durationMonths: 12,
+        billingLabel: "Yearly",
+        price: 1119,
+        currency: "INR",
+        active: true,
+        promotionEnabled: true,
+        promotionalPrice: 1119,
+        promotionalDurationMonths: 12,
+      },
+    ],
+  };
+
+  const currentOption =
+    currentPlan.billingOptions.find((o) => o.optionId === selectedOptionId) ||
+    currentPlan.billingOptions[0];
+
   const handleSelectOption = (optionId: string) => {
-    triggerHaptic();
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
     setSelectedOptionId(optionId);
   };
 
+  /**
+   * Build Razorpay Checkout standard HTML for WebView
+   */
+  const buildRazorpayHtml = (checkout: CheckoutResponse) => {
+    const rawName = user?.name || "Contractor";
+    const rawEmail = user?.email || "";
+    const rawPhone = user?.phone || "";
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <title>Razorpay Checkout</title>
+        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #F8FAFC;
+            color: #1E293B;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px;
+          }
+          .card {
+            background: #FFFFFF;
+            border-radius: 20px;
+            padding: 32px 24px;
+            text-align: center;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.06), 0 8px 10px -6px rgba(0,0,0,0.06);
+            width: 100%;
+            max-width: 360px;
+          }
+          .spinner {
+            width: 44px;
+            height: 44px;
+            border: 4px solid #F1F5F9;
+            border-top-color: #F97316;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 20px;
+          }
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+          h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #0F172A; }
+          p { font-size: 14px; color: #64748B; line-height: 1.5; }
+          .price-pill {
+            display: inline-block;
+            margin-top: 14px;
+            background: #FFF7ED;
+            color: #EA580C;
+            font-weight: 700;
+            font-size: 18px;
+            padding: 8px 18px;
+            border-radius: 9999px;
+            border: 1px solid #FFEDD5;
+          }
+          .btn-open {
+            margin-top: 24px;
+            background: #F97316;
+            color: #FFFFFF;
+            font-weight: 600;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-size: 15px;
+            cursor: pointer;
+            width: 100%;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="spinner"></div>
+          <h3>Connecting to Razorpay</h3>
+          <p>Opening secure payment for <strong>${checkout.planName}</strong> (${checkout.billingLabel})...</p>
+          <div class="price-pill">₹${checkout.amountRupees || checkout.amount}</div>
+          <button id="manual-btn" class="btn-open" style="display:none;" onclick="launchRazorpay()">Tap to Open Payment</button>
+        </div>
+
+        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+        <script>
+          function postToApp(data) {
+            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+              window.ReactNativeWebView.postMessage(JSON.stringify(data));
+            }
+          }
+
+          function launchRazorpay() {
+            try {
+              if (!window.Razorpay) {
+                document.getElementById('manual-btn').style.display = 'block';
+                return;
+              }
+
+              var options = {
+                key: "${checkout.keyId}",
+                amount: ${checkout.amountInPaise || (checkout.amount * 100)},
+                currency: "${checkout.currency || "INR"}",
+                name: "Haajari Manager",
+                description: "${checkout.planName} (${checkout.billingLabel})",
+                order_id: "${checkout.orderId}",
+                image: "https://haajari.app/logo.png",
+                prefill: {
+                  name: "${rawName}",
+                  email: "${rawEmail}",
+                  contact: "${rawPhone}"
+                },
+                theme: {
+                  color: "#F97316"
+                },
+                handler: function (response) {
+                  postToApp({
+                    event: "PAYMENT_SUCCESS",
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_signature: response.razorpay_signature
+                  });
+                },
+                modal: {
+                  ondismiss: function () {
+                    postToApp({ event: "PAYMENT_DISMISSED" });
+                  }
+                }
+              };
+
+              var rzp = new Razorpay(options);
+              rzp.on('payment.failed', function (resp) {
+                postToApp({
+                  event: "PAYMENT_FAILED",
+                  error: resp.error ? resp.error.description : 'Payment transaction failed'
+                });
+              });
+              rzp.open();
+            } catch (err) {
+              document.getElementById('manual-btn').style.display = 'block';
+            }
+          }
+
+          function checkAndLaunch(retries) {
+            if (window.Razorpay) {
+              launchRazorpay();
+            } else if (retries > 0) {
+              setTimeout(function() { checkAndLaunch(retries - 1); }, 200);
+            } else {
+              document.getElementById('manual-btn').style.display = 'block';
+            }
+          }
+
+          window.onload = function() {
+            checkAndLaunch(30);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+  };
+
+  /**
+   * Handle initiation of Razorpay Checkout
+   */
   const handleCheckout = async () => {
     if (!currentPlan || !currentOption) return;
     setIsProcessing(true);
-    triggerHaptic();
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
       const checkoutData = await SubscriptionApi.createCheckout(
         currentPlan.planId,
-        currentOption.optionId,
+        currentOption.optionId
       );
-      setActiveTxnId(checkoutData.transactionId);
 
-      // Simple simulated Razorpay HTML checkout trigger
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
-            body { font-family: sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f8fafc; }
-            .card { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; max-width: 90%; }
-            .btn { background: #2563eb; color: white; border: none; padding: 14px 28px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 16px; }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <h2>Complete Payment</h2>
-            <p>Plan: <strong>${checkoutData.planName} (${checkoutData.billingLabel})</strong></p>
-            <p style="font-size: 24px; font-weight: bold; color: #2563eb;">₹${checkoutData.effectivePrice}</p>
-            <button class="btn" onclick="window.ReactNativeWebView.postMessage(JSON.stringify({ status: 'success' }))">Confirm Payment</button>
-          </div>
-        </body>
-        </html>
-      `;
+      // If Razorpay API keys are not configured yet, inform the user cleanly
+      if (!checkoutData.keyId) {
+        Alert.alert(
+          "Razorpay API Keys Needed",
+          "The Razorpay order creation and signature verification routes are completely set up!\n\nPlease add your RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in the backend/.env file to start processing real payments.",
+          [{ text: "Understood", style: "default" }]
+        );
+        return;
+      }
 
-      setWebViewHtml(htmlContent);
+      setActiveCheckout(checkoutData);
+
+      if (checkoutData.paymentUrl) {
+        setPaymentUrl(checkoutData.paymentUrl);
+      } else {
+        setPaymentUrl("");
+      }
+      const html = buildRazorpayHtml(checkoutData);
+      setWebViewHtml(html);
       setWebViewModalVisible(true);
     } catch (err: any) {
-      Alert.alert(
-        "Checkout Notice",
-        err.message || "Unable to initiate payment.",
-      );
+      if (err.message && err.message.includes("RAZORPAY_CONFIG_REQUIRED")) {
+        Alert.alert(
+          "Razorpay API Keys Needed",
+          "Please configure your RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in the backend/.env file to accept payments.",
+          [{ text: "OK" }]
+        );
+      } else {
+        Alert.alert(
+          "Checkout Notice",
+          err.message || "Unable to initiate payment."
+        );
+      }
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleWebViewMessage = async (event: any) => {
+  /**
+   * Parse redirect URL from Razorpay Payment Link and verify payment
+   */
+  const handleRedirectUrl = async (url: string) => {
     try {
-      const data = JSON.parse(event.nativeEvent.data);
-      if (data.status === "success" && activeTxnId) {
+      const queryString = url.split("?")[1] || "";
+      const params: Record<string, string> = {};
+      queryString.split("&").forEach((pair) => {
+        const [k, v] = pair.split("=");
+        if (k && v) {
+          params[decodeURIComponent(k)] = decodeURIComponent(v);
+        }
+      });
+
+      const paymentId = params["razorpay_payment_id"];
+      const signature = params["razorpay_signature"];
+      const linkId = params["razorpay_payment_link_id"];
+      const linkStatus = params["razorpay_payment_link_status"];
+      const orderId = params["razorpay_order_id"] || activeCheckout?.orderId;
+
+      if (paymentId) {
         setWebViewModalVisible(false);
         setIsProcessing(true);
 
-        await SubscriptionApi.activateSubscription(
-          activeTxnId,
-          `PAY_${Date.now()}`,
-        );
+        await SubscriptionApi.verifyPayment({
+          razorpay_order_id: orderId,
+          razorpay_payment_id: paymentId,
+          razorpay_signature: signature || "link_redirect_verified",
+          razorpay_payment_link_id: linkId,
+          razorpay_payment_link_status: linkStatus,
+          planId: currentPlan.planId,
+          billingOptionId: currentOption.optionId,
+        });
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
-          "Success!",
-          "Your subscription has been activated successfully!",
+          "Payment Successful! 🎉",
+          "Your Haajari Pro subscription has been activated successfully! All pro features are now completely unlocked.",
+          [
+            {
+              text: "Continue",
+              onPress: () => loadData(),
+            },
+          ]
         );
         loadData();
       }
-    } catch (err) {
-      console.warn("[SubscriptionScreen] Payment verification error:", err);
+    } catch (err: any) {
+      console.warn("[SubscriptionScreen] Redirect verification error:", err);
+      Alert.alert("Verification Notice", err.message || "Failed to confirm payment.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  /**
+   * Handle Razorpay events emitted from WebView
+   */
+  const handleWebViewMessage = async (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+
+      if (data.event === "PAYMENT_SUCCESS") {
+        setWebViewModalVisible(false);
+        setIsProcessing(true);
+
+        // Call backend signature verification endpoint
+        await SubscriptionApi.verifyPayment({
+          razorpay_order_id: data.razorpay_order_id,
+          razorpay_payment_id: data.razorpay_payment_id,
+          razorpay_signature: data.razorpay_signature,
+          planId: currentPlan.planId,
+          billingOptionId: currentOption.optionId,
+        });
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          "Payment Successful! 🎉",
+          "Your Haajari Pro subscription has been activated successfully! All pro features are now completely unlocked.",
+          [
+            {
+              text: "Continue",
+              onPress: () => loadData(),
+            },
+          ]
+        );
+        loadData();
+      } else if (data.event === "PAYMENT_DISMISSED") {
+        setWebViewModalVisible(false);
+      } else if (data.event === "PAYMENT_FAILED") {
+        setWebViewModalVisible(false);
+        Alert.alert("Payment Incomplete", data.error || "The payment transaction was not completed.");
+      } else if (data.event === "ERROR") {
+        setWebViewModalVisible(false);
+        Alert.alert("Checkout Error", data.message || "An error occurred with Razorpay checkout.");
+      }
+    } catch (err: any) {
+      console.warn("[SubscriptionScreen] Verification error:", err);
+      Alert.alert("Verification Error", err.message || "Failed to verify payment with server.");
     } finally {
       setIsProcessing(false);
     }
@@ -189,87 +469,39 @@ export default function SubscriptionScreen() {
     );
   }
 
-  // Global Subscription OFF -> Show Free Mode Card
-  if (!subStatus?.subscriptionEnabled) {
-    return (
-      <ThemedView style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Feather name="arrow-left" size={20} color={theme.text} />
-          </Pressable>
-
-          <ThemedText type="h2" style={{ fontWeight: "700" }}>
-            Subscription
-          </ThemedText>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.freeModeContainer}>
-          <View
-            style={[
-              styles.freeModeCard,
-              {
-                backgroundColor: theme.primary + "12",
-                borderColor: theme.primary + "30",
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.freeBadgeCircle,
-                { backgroundColor: theme.primary },
-              ]}
-            >
-              <Feather name="gift" size={36} color="#FFFFFF" />
-            </View>
-
-            <ThemedText
-              type="h2"
-              style={{
-                fontWeight: "700",
-                marginTop: Spacing.lg,
-                textAlign: "center",
-              }}
-            >
-              Currently in Free Mode
-            </ThemedText>
-
-            <ThemedText
-              type="body"
-              style={{
-                color: theme.textSecondary,
-                textAlign: "center",
-                marginTop: Spacing.sm,
-                lineHeight: 22,
-                maxWidth: 300,
-              }}
-            >
-              Haajari Manager is currently free for all construction managers.
-              All site limits, worker capacity, supervisor accounts, and PDF
-              exports are 100% unlocked!
-            </ThemedText>
-          </View>
-        </ScrollView>
-      </ThemedView>
-    );
-  }
+  const isProActive =
+    subStatus?.userSubscription &&
+    subStatus.userSubscription.status === "active";
 
   return (
     <ThemedView style={styles.container}>
-      {/* Header & Tabs */}
+      {/* Top Header */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={20} color={theme.text} />
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]}
+          hitSlop={8}
+        >
+          <Feather name="arrow-left" size={22} color={theme.text} />
         </Pressable>
 
-        <ThemedText type="h2" style={{ fontWeight: "700" }}>
-          Subscriptions
-        </ThemedText>
+        <View style={styles.headerTitleWrap}>
+          <ThemedText type="h2" style={styles.headerTitle}>
+            Haajari Pro
+          </ThemedText>
+          <View style={styles.proBadge}>
+            <ThemedText style={styles.proBadgeText}>PRO</ThemedText>
+          </View>
+        </View>
       </View>
 
-      {/* Tab Selector */}
+      {/* Tab Switcher */}
       <View style={styles.tabSelectorRow}>
         <Pressable
-          onPress={() => setActiveTab("plans")}
+          onPress={() => {
+            triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+            setActiveTab("plans");
+          }}
           style={[
             styles.tabBtn,
             activeTab === "plans" && {
@@ -280,17 +512,20 @@ export default function SubscriptionScreen() {
         >
           <ThemedText
             type="body"
-            style={{
-              color: activeTab === "plans" ? "#FFFFFF" : theme.text,
-              fontWeight: "700",
-            }}
+            style={[
+              styles.tabBtnText,
+              { color: activeTab === "plans" ? "#FFFFFF" : theme.text },
+            ]}
           >
-            Subscription Plans
+            Plans & Pricing
           </ThemedText>
         </Pressable>
 
         <Pressable
-          onPress={() => setActiveTab("history")}
+          onPress={() => {
+            triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+            setActiveTab("history");
+          }}
           style={[
             styles.tabBtn,
             activeTab === "history" && {
@@ -301,10 +536,10 @@ export default function SubscriptionScreen() {
         >
           <ThemedText
             type="body"
-            style={{
-              color: activeTab === "history" ? "#FFFFFF" : theme.text,
-              fontWeight: "700",
-            }}
+            style={[
+              styles.tabBtnText,
+              { color: activeTab === "history" ? "#FFFFFF" : theme.text },
+            ]}
           >
             History ({transactions.length})
           </ThemedText>
@@ -313,259 +548,305 @@ export default function SubscriptionScreen() {
 
       {activeTab === "plans" ? (
         <ScrollView
-          contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 100 }}
+          contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 110 }}
+          showsVerticalScrollIndicator={false}
         >
-          {/* Active Subscription Banner if user has active plan */}
-          {subStatus.userSubscription &&
-            subStatus.userSubscription.status === "active" && (
-              <View
-                style={[
-                  styles.activeSubBanner,
-                  { backgroundColor: "#E6F4EA", borderColor: "#34A853" },
-                ]}
-              >
-                <Feather name="check-circle" size={20} color="#137333" />
-                <View style={{ marginLeft: 10 }}>
-                  <ThemedText
-                    type="body"
-                    style={{ color: "#137333", fontWeight: "700" }}
-                  >
-                    Active Subscription:{" "}
-                    {subStatus.userSubscription.planId.toUpperCase()}
-                  </ThemedText>
-                  <ThemedText
-                    type="small"
-                    style={{ color: "#137333", marginTop: 2 }}
-                  >
-                    Valid until{" "}
-                    {new Date(
-                      subStatus.userSubscription.expiresAt,
-                    ).toLocaleDateString()}
-                  </ThemedText>
-                </View>
+          {/* Active Subscription Banner */}
+          {isProActive && subStatus?.userSubscription && (
+            <View style={styles.activeSubBanner}>
+              <View style={styles.activeSubIcon}>
+                <Feather name="check" size={20} color="#FFFFFF" />
               </View>
-            )}
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <ThemedText style={styles.activeSubTitle}>
+                  Haajari Pro is Active
+                </ThemedText>
+                <ThemedText style={styles.activeSubExpiry}>
+                  Valid until{" "}
+                  {new Date(subStatus.userSubscription.expiresAt).toLocaleDateString(
+                    undefined,
+                    { year: "numeric", month: "short", day: "numeric" }
+                  )}
+                </ThemedText>
+              </View>
+            </View>
+          )}
 
-          {/* Plan Tabs */}
+          {/* Promotional Free Mode Banner if subscription is globally disabled */}
+          {!subStatus?.subscriptionEnabled && (
+            <View style={styles.freeModeNotice}>
+              <Feather name="gift" size={20} color="#EA580C" />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <ThemedText style={styles.freeModeNoticeTitle}>
+                  Promotional Free Mode Active
+                </ThemedText>
+                <ThemedText style={styles.freeModeNoticeSub}>
+                  All site limits and worker features are currently free. You can preview our Pro plans below.
+                </ThemedText>
+              </View>
+            </View>
+          )}
+
+          {/* Pricing Plan Selector Title */}
           <ThemedText type="small" style={styles.sectionHeader}>
-            SELECT A PLAN
+            CHOOSE YOUR BILLING PLAN
           </ThemedText>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.planChipsRow}
-          >
-            {subStatus.availablePlans.map((plan) => {
-              const isSelected = plan.planId === selectedPlanId;
-              return (
-                <Pressable
-                  key={plan.planId}
-                  onPress={() => handleSelectPlan(plan.planId)}
-                  style={[
-                    styles.planChip,
-                    {
-                      backgroundColor: isSelected
-                        ? theme.primary
-                        : theme.backgroundDefault,
-                      borderColor: isSelected ? theme.primary : theme.border,
-                    },
-                  ]}
-                >
-                  <ThemedText
-                    type="body"
-                    style={{
-                      color: isSelected ? "#FFFFFF" : theme.text,
-                      fontWeight: "700",
-                    }}
-                  >
-                    {plan.name}
-                  </ThemedText>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
 
-          {/* Plan Description & Features Card */}
-          {currentPlan && (
-            <View
+          {/* Billing Options Stack */}
+          <View style={styles.billingGrid}>
+            {/* 1. Monthly Plan (₹149 / mo) */}
+            <Pressable
+              onPress={() => handleSelectOption("monthly")}
               style={[
-                styles.planCard,
+                styles.billingCard,
                 {
                   backgroundColor: theme.backgroundDefault,
-                  borderColor: theme.border,
+                  borderColor:
+                    selectedOptionId === "monthly" ? theme.primary : theme.border,
+                  borderWidth: selectedOptionId === "monthly" ? 2 : 1,
                 },
               ]}
             >
-              <ThemedText type="h3" style={{ fontWeight: "700" }}>
-                {currentPlan.name} Plan
-              </ThemedText>
-              <ThemedText
-                type="small"
-                style={{ color: theme.textSecondary, marginTop: 4 }}
-              >
-                {currentPlan.description}
-              </ThemedText>
-
-              {/* Billing Options Selector */}
-              <ThemedText
-                type="small"
-                style={[styles.sectionHeader, { marginTop: Spacing.md }]}
-              >
-                SELECT BILLING DURATION
-              </ThemedText>
-
-              <View style={styles.billingGrid}>
-                {currentPlan.billingOptions.map((opt) => {
-                  const isSelected = opt.optionId === selectedOptionId;
-                  const showPromo =
-                    opt.promotionEnabled &&
-                    typeof opt.promotionalPrice === "number";
-                  const effectivePrice = showPromo
-                    ? opt.promotionalPrice
-                    : opt.price;
-
-                  return (
-                    <Pressable
-                      key={opt.optionId}
-                      onPress={() => handleSelectOption(opt.optionId)}
-                      style={[
-                        styles.billingOptionBox,
-                        {
-                          backgroundColor: isSelected
-                            ? theme.primary + "12"
-                            : theme.backgroundRoot,
-                          borderColor: isSelected
-                            ? theme.primary
-                            : theme.border,
-                        },
-                      ]}
-                    >
-                      {showPromo && (
-                        <View style={styles.promoBadge}>
-                          <ThemedText
-                            type="small"
-                            style={{
-                              color: "#FFFFFF",
-                              fontWeight: "700",
-                              fontSize: 10,
-                            }}
-                          >
-                            PROMO OFFER
-                          </ThemedText>
-                        </View>
-                      )}
-
-                      <ThemedText type="body" style={{ fontWeight: "700" }}>
-                        {opt.billingLabel}
-                      </ThemedText>
-
-                      <View style={styles.priceRow}>
-                        <ThemedText
-                          type="h2"
-                          style={{ color: theme.primary, fontWeight: "800" }}
-                        >
-                          ₹{effectivePrice}
-                        </ThemedText>
-                        {showPromo &&
-                          effectivePrice !== undefined &&
-                          opt.price > effectivePrice && (
-                            <ThemedText
-                              type="small"
-                              style={styles.strikethroughPrice}
-                            >
-                              ₹{opt.price}
-                            </ThemedText>
-                          )}
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              {/* Features List */}
-              <View style={styles.featuresList}>
-                <ThemedText type="small" style={styles.sectionHeader}>
-                  INCLUDED FEATURES
-                </ThemedText>
-                <View style={styles.featureItem}>
-                  <Feather name="check" size={16} color={theme.primary} />
-                  <ThemedText type="body" style={styles.featureText}>
-                    Worker Capacity:{" "}
-                    {currentPlan.features.maxWorkers === -1
-                      ? "Unlimited"
-                      : currentPlan.features.maxWorkers}
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.cardTitleWrap}>
+                  <ThemedText type="h3" style={styles.planCardTitle}>
+                    Monthly Plan
+                  </ThemedText>
+                  <ThemedText style={styles.planCardSubtext}>
+                    Flexible billing, cancel anytime
                   </ThemedText>
                 </View>
-                <View style={styles.featureItem}>
-                  <Feather name="check" size={16} color={theme.primary} />
-                  <ThemedText type="body" style={styles.featureText}>
-                    Construction Sites:{" "}
-                    {currentPlan.features.maxProjects === -1
-                      ? "Unlimited"
-                      : currentPlan.features.maxProjects}
-                  </ThemedText>
-                </View>
-                <View style={styles.featureItem}>
-                  <Feather name="check" size={16} color={theme.primary} />
-                  <ThemedText type="body" style={styles.featureText}>
-                    Supervisors:{" "}
-                    {currentPlan.features.maxSupervisors === -1
-                      ? "Unlimited"
-                      : currentPlan.features.maxSupervisors}
-                  </ThemedText>
-                </View>
-              </View>
 
-              {/* Subscribe Button */}
-              {currentOption && (
-                <Pressable
-                  onPress={handleCheckout}
-                  disabled={isProcessing}
+                {/* Radio selection indicator */}
+                <View
                   style={[
-                    styles.checkoutBtn,
+                    styles.radioCircle,
                     {
-                      backgroundColor: theme.primary,
-                      opacity: isProcessing ? 0.7 : 1,
+                      borderColor:
+                        selectedOptionId === "monthly" ? theme.primary : theme.border,
                     },
                   ]}
                 >
-                  {isProcessing ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <ThemedText
-                      type="body"
-                      style={{
-                        color: "#FFFFFF",
-                        fontWeight: "700",
-                        fontSize: 16,
-                      }}
-                    >
-                      Subscribe Now • ₹
-                      {currentOption.promotionEnabled &&
-                      typeof currentOption.promotionalPrice === "number"
-                        ? currentOption.promotionalPrice
-                        : currentOption.price}
-                    </ThemedText>
+                  {selectedOptionId === "monthly" && (
+                    <View
+                      style={[styles.radioDot, { backgroundColor: theme.primary }]}
+                    />
                   )}
-                </Pressable>
-              )}
+                </View>
+              </View>
+
+              <View style={styles.priceContainer}>
+                <ThemedText style={[styles.mainPrice, { color: theme.text }]}>
+                  ₹149
+                </ThemedText>
+                <ThemedText style={styles.perMonthLabel}>/ month</ThemedText>
+              </View>
+            </Pressable>
+
+            {/* 2. Yearly Plan (₹1,119 / yr - Best Value) */}
+            <Pressable
+              onPress={() => handleSelectOption("yearly")}
+              style={[
+                styles.billingCard,
+                styles.yearlyCard,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor:
+                    selectedOptionId === "yearly" ? theme.primary : theme.border,
+                  borderWidth: selectedOptionId === "yearly" ? 2 : 1,
+                },
+              ]}
+            >
+              {/* Best Value Badge */}
+              <View style={styles.bestValueBadge}>
+                <Feather name="zap" size={12} color="#FFFFFF" style={{ marginRight: 4 }} />
+                <ThemedText style={styles.bestValueText}>
+                  BEST VALUE • SAVE 37%
+                </ThemedText>
+              </View>
+
+              <View style={styles.cardHeaderRow}>
+                <View style={styles.cardTitleWrap}>
+                  <ThemedText type="h3" style={styles.planCardTitle}>
+                    Annual Plan
+                  </ThemedText>
+                  <ThemedText style={styles.planCardSubtext}>
+                    12 months of full Pro access
+                  </ThemedText>
+                </View>
+
+                {/* Radio selection indicator */}
+                <View
+                  style={[
+                    styles.radioCircle,
+                    {
+                      borderColor:
+                        selectedOptionId === "yearly" ? theme.primary : theme.border,
+                    },
+                  ]}
+                >
+                  {selectedOptionId === "yearly" && (
+                    <View
+                      style={[styles.radioDot, { backgroundColor: theme.primary }]}
+                    />
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.priceContainer}>
+                <ThemedText style={[styles.mainPrice, { color: theme.primary }]}>
+                  ₹1,119
+                </ThemedText>
+                <ThemedText style={styles.perYearLabel}>/ year</ThemedText>
+                <ThemedText style={styles.strikethroughPrice}>₹1,788</ThemedText>
+              </View>
+
+              <View style={styles.savingsPill}>
+                <Feather name="check-circle" size={13} color="#15803D" />
+                <ThemedText style={styles.savingsPillText}>
+                  Just ₹93.25/mo • Save ₹669/year
+                </ThemedText>
+              </View>
+            </Pressable>
+          </View>
+
+          {/* Included Features Section */}
+          <View
+            style={[
+              styles.featuresContainer,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <ThemedText type="small" style={styles.sectionHeader}>
+              ALL PRO FEATURES INCLUDED
+            </ThemedText>
+
+            <View style={styles.featureItem}>
+              <View style={styles.featureIconWrap}>
+                <Feather name="users" size={16} color={theme.primary} />
+              </View>
+              <ThemedText style={styles.featureLabel}>
+                Unlimited Workers & Attendance Records
+              </ThemedText>
             </View>
-          )}
+
+            <View style={styles.featureItem}>
+              <View style={styles.featureIconWrap}>
+                <Feather name="map-pin" size={16} color={theme.primary} />
+              </View>
+              <ThemedText style={styles.featureLabel}>
+                Unlimited Construction Sites & Projects
+              </ThemedText>
+            </View>
+
+            <View style={styles.featureItem}>
+              <View style={styles.featureIconWrap}>
+                <Feather name="user-check" size={16} color={theme.primary} />
+              </View>
+              <ThemedText style={styles.featureLabel}>
+                Unlimited Supervisor & Staff Accounts
+              </ThemedText>
+            </View>
+
+            <View style={styles.featureItem}>
+              <View style={styles.featureIconWrap}>
+                <Feather name="navigation" size={16} color={theme.primary} />
+              </View>
+              <ThemedText style={styles.featureLabel}>
+                GPS Geo-fencing & Real-Time Punch-In
+              </ThemedText>
+            </View>
+
+            <View style={styles.featureItem}>
+              <View style={styles.featureIconWrap}>
+                <Feather name="file-text" size={16} color={theme.primary} />
+              </View>
+              <ThemedText style={styles.featureLabel}>
+                1-Click Wage, Overtime & Attendance PDF / Excel
+              </ThemedText>
+            </View>
+
+            <View style={styles.featureItem}>
+              <View style={styles.featureIconWrap}>
+                <Feather name="cloud" size={16} color={theme.primary} />
+              </View>
+              <ThemedText style={styles.featureLabel}>
+                Cloud Sync & Automated Daily Backups
+              </ThemedText>
+            </View>
+
+            <View style={styles.featureItem}>
+              <View style={styles.featureIconWrap}>
+                <Feather name="shield" size={16} color={theme.primary} />
+              </View>
+              <ThemedText style={styles.featureLabel}>
+                Priority Technical Support via WhatsApp
+              </ThemedText>
+            </View>
+          </View>
+
+          {/* Secure Payment Guarantee */}
+          <View style={styles.secureGuaranteeRow}>
+            <Feather name="lock" size={14} color={theme.textSecondary} />
+            <ThemedText style={styles.secureGuaranteeText}>
+              Secured by Razorpay • UPI, Cards, NetBanking supported
+            </ThemedText>
+          </View>
+
+          {/* Primary Action Button */}
+          <Pressable
+            onPress={handleCheckout}
+            disabled={isProcessing}
+            style={({ pressed }) => [
+              styles.subscribeBtn,
+              {
+                backgroundColor: theme.primary,
+                opacity: isProcessing ? 0.7 : pressed ? 0.9 : 1,
+              },
+            ]}
+          >
+            {isProcessing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="lock" size={18} color="#FFFFFF" />
+                <ThemedText style={styles.subscribeBtnText}>
+                  Pay Now • ₹{selectedOptionId === "yearly" ? "1,119" : "149"}
+                </ThemedText>
+              </View>
+            )}
+          </Pressable>
+
+          {/* Subtext under button */}
+          <ThemedText
+            style={{
+              textAlign: "center",
+              fontSize: 12,
+              color: theme.textSecondary,
+              marginTop: 10,
+              fontWeight: "500",
+            }}
+          >
+            Instant activation via Razorpay UPI, Cards & NetBanking
+          </ThemedText>
         </ScrollView>
       ) : (
         /* History Tab */
         <FlatList
           data={transactions}
           keyExtractor={(item) => item._id || item.transactionId}
-          contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 100 }}
+          contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 110 }}
           ListEmptyComponent={
-            <View style={styles.centeredContainer}>
-              <Feather name="file-text" size={42} color={theme.textSecondary} />
+            <View style={styles.emptyContainer}>
+              <Feather name="file-text" size={48} color={theme.textSecondary} />
               <ThemedText
                 type="body"
                 style={{ color: theme.textSecondary, marginTop: Spacing.md }}
               >
-                No subscription transactions found.
+                No subscription transactions found yet.
               </ThemedText>
             </View>
           }
@@ -580,15 +861,12 @@ export default function SubscriptionScreen() {
               ]}
             >
               <View style={styles.txnHeader}>
-                <View>
-                  <ThemedText type="body" style={{ fontWeight: "700" }}>
-                    {item.planNameSnapshot || item.planId}
+                <View style={{ flex: 1 }}>
+                  <ThemedText type="body" style={styles.txnTitle}>
+                    {item.planNameSnapshot || "Haajari Pro"}
                   </ThemedText>
-                  <ThemedText
-                    type="small"
-                    style={{ color: theme.textSecondary, marginTop: 2 }}
-                  >
-                    Txn ID: {item.transactionId}
+                  <ThemedText type="small" style={styles.txnId}>
+                    Txn: {item.transactionId}
                   </ThemedText>
                 </View>
 
@@ -597,15 +875,25 @@ export default function SubscriptionScreen() {
                     styles.statusBadge,
                     {
                       backgroundColor:
-                        item.status === "paid" ? "#E6F4EA" : "#F1F3F4",
+                        item.status === "paid"
+                          ? "#DCFCE7"
+                          : item.status === "failed"
+                          ? "#FEE2E2"
+                          : "#F1F5F9",
                     },
                   ]}
                 >
                   <ThemedText
                     type="small"
                     style={{
-                      color: item.status === "paid" ? "#137333" : "#70757A",
+                      color:
+                        item.status === "paid"
+                          ? "#15803D"
+                          : item.status === "failed"
+                          ? "#B91C1C"
+                          : "#475569",
                       fontWeight: "700",
+                      fontSize: 11,
                       textTransform: "uppercase",
                     }}
                   >
@@ -620,11 +908,15 @@ export default function SubscriptionScreen() {
 
               <View style={styles.txnFooter}>
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  {new Date(item.createdAt).toLocaleDateString()}
+                  {new Date(item.createdAt).toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
                 </ThemedText>
                 <ThemedText
                   type="body"
-                  style={{ fontWeight: "700", color: theme.primary }}
+                  style={{ fontWeight: "800", color: theme.primary }}
                 >
                   ₹{item.amount}
                 </ThemedText>
@@ -643,17 +935,93 @@ export default function SubscriptionScreen() {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <ThemedText type="h3" style={{ fontWeight: "700" }}>
-              Razorpay Checkout
-            </ThemedText>
-            <Pressable onPress={() => setWebViewModalVisible(false)}>
-              <Feather name="x" size={20} color={theme.text} />
-            </Pressable>
+            <View style={styles.modalHeaderTitleWrap}>
+              <Feather name="shield" size={18} color="#EA580C" />
+              <ThemedText type="h3" style={styles.modalHeaderTitle}>
+                Razorpay Checkout
+              </ThemedText>
+            </View>
+
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              {paymentUrl ? (
+                <Pressable
+                  onPress={() => {
+                    Linking.openURL(paymentUrl).catch(() =>
+                      Alert.alert("Notice", "Could not open external browser.")
+                    );
+                  }}
+                  hitSlop={8}
+                  style={styles.openBrowserBtn}
+                >
+                  <Feather name="external-link" size={15} color={theme.primary} />
+                  <ThemedText style={{ fontSize: 13, color: theme.primary, fontWeight: "700", marginLeft: 4 }}>
+                    Browser
+                  </ThemedText>
+                </Pressable>
+              ) : null}
+
+              <Pressable
+                onPress={() => setWebViewModalVisible(false)}
+                hitSlop={8}
+                style={styles.closeBtn}
+              >
+                <Feather name="x" size={22} color={theme.text} />
+              </Pressable>
+            </View>
           </View>
           <WebView
-            source={{ html: webViewHtml }}
+            source={
+              paymentUrl
+                ? { uri: paymentUrl }
+                : { html: webViewHtml, baseUrl: "https://api.razorpay.com" }
+            }
             onMessage={handleWebViewMessage}
+            onShouldStartLoadWithRequest={(request) => {
+              const url = request.url;
+              // Intercept callback redirect
+              if (url.includes("payment-callback") || url.includes("razorpay_payment_id")) {
+                handleRedirectUrl(url);
+                return false;
+              }
+              // Intercept UPI mobile schemes so UPI apps open natively
+              if (
+                url.startsWith("upi://") ||
+                url.startsWith("tez://") ||
+                url.startsWith("phonepe://") ||
+                url.startsWith("paytmmp://") ||
+                url.startsWith("intent://") ||
+                url.startsWith("credpay://") ||
+                url.startsWith("bhim://")
+              ) {
+                Linking.openURL(url).catch((err) => {
+                  console.warn("[Razorpay] UPI app open:", err);
+                });
+                return false;
+              }
+              return true;
+            }}
+            onNavigationStateChange={(navState) => {
+              if (
+                navState.url.includes("payment-callback") ||
+                navState.url.includes("razorpay_payment_id")
+              ) {
+                handleRedirectUrl(navState.url);
+              }
+            }}
             style={{ flex: 1 }}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            originWhitelist={["*"]}
+            mixedContentMode="always"
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View style={styles.centeredContainer}>
+                <ActivityIndicator size="large" color={theme.primary} />
+                <ThemedText style={{ marginTop: 12, color: theme.textSecondary, fontWeight: "600" }}>
+                  Opening Razorpay Payment Page...
+                </ThemedText>
+              </View>
+            )}
           />
         </View>
       </Modal>
@@ -673,98 +1041,270 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
-  backBtn: { marginRight: Spacing.md, padding: 4 },
-  freeModeContainer: {
-    padding: Spacing.xl,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 400,
+  backBtn: {
+    marginRight: Spacing.sm,
+    padding: 6,
   },
-  freeModeCard: {
-    width: "100%",
-    padding: Spacing.xl,
-    borderRadius: 20,
-    borderWidth: 1,
+  headerTitleWrap: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 8,
   },
-  freeBadgeCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    justifyContent: "center",
-    alignItems: "center",
+  headerTitle: {
+    fontWeight: "800",
+    fontSize: 22,
+  },
+  proBadge: {
+    backgroundColor: "#F97316",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  proBadgeText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 11,
+    letterSpacing: 0.5,
   },
   tabSelectorRow: {
     flexDirection: "row",
     paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginVertical: Spacing.sm,
     gap: Spacing.sm,
   },
   tabBtn: {
     flex: 1,
-    height: 42,
+    height: 40,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#EEEEEE",
+    borderColor: "#E2E8F0",
     justifyContent: "center",
     alignItems: "center",
+  },
+  tabBtnText: {
+    fontWeight: "700",
+    fontSize: 14,
   },
   activeSubBanner: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.md,
-    borderRadius: 12,
+    backgroundColor: "#DCFCE7",
+    borderColor: "#86EFAC",
     borderWidth: 1,
+    borderRadius: 14,
+    padding: Spacing.md,
     marginBottom: Spacing.lg,
   },
-  sectionHeader: {
-    fontWeight: "700",
-    letterSpacing: 0.5,
-    marginBottom: Spacing.xs,
-    color: "#888888",
-  },
-  planChipsRow: { gap: Spacing.sm, marginBottom: Spacing.lg },
-  planChip: {
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  planCard: { padding: Spacing.xl, borderRadius: 16, borderWidth: 1 },
-  billingGrid: { gap: Spacing.sm, marginVertical: Spacing.sm },
-  billingOptionBox: {
-    padding: Spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
-    position: "relative",
-  },
-  promoBadge: {
-    position: "absolute",
-    top: -8,
-    right: 12,
-    backgroundColor: "#E65100",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 8,
-    marginTop: 4,
-  },
-  strikethroughPrice: { textDecorationLine: "line-through", color: "#888888" },
-  featuresList: { marginTop: Spacing.lg },
-  featureItem: { flexDirection: "row", alignItems: "center", marginTop: 8 },
-  featureText: { marginLeft: 8, fontWeight: "500" },
-  checkoutBtn: {
-    height: 50,
-    borderRadius: 12,
+  activeSubIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#16A34A",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: Spacing.xl,
+  },
+  activeSubTitle: {
+    color: "#166534",
+    fontWeight: "800",
+    fontSize: 15,
+  },
+  activeSubExpiry: {
+    color: "#15803D",
+    fontSize: 13,
+    marginTop: 2,
+  },
+  freeModeNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FFEDD5",
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  freeModeNoticeTitle: {
+    color: "#9A3412",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  freeModeNoticeSub: {
+    color: "#C2410C",
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  sectionHeader: {
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    fontSize: 12,
+    color: "#94A3B8",
+    marginBottom: Spacing.sm,
+  },
+  billingGrid: {
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  billingCard: {
+    borderRadius: 16,
+    padding: Spacing.lg,
+    position: "relative",
+  },
+  yearlyCard: {
+    overflow: "hidden",
+  },
+  bestValueBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "#EA580C",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderBottomLeftRadius: 12,
+  },
+  bestValueText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  cardHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  cardTitleWrap: {
+    flex: 1,
+  },
+  planCardTitle: {
+    fontWeight: "800",
+    fontSize: 18,
+  },
+  planCardSubtext: {
+    color: "#64748B",
+    fontSize: 13,
+    marginTop: 2,
+  },
+  radioCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 12,
+  },
+  radioDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  priceContainer: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+    marginTop: Spacing.md,
+  },
+  mainPrice: {
+    fontSize: 28,
+    fontWeight: "900",
+  },
+  perMonthLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  perYearLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#EA580C",
+  },
+  strikethroughPrice: {
+    textDecorationLine: "line-through",
+    color: "#94A3B8",
+    fontSize: 16,
+    marginLeft: 6,
+    fontWeight: "600",
+  },
+  savingsPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginTop: 10,
+    gap: 6,
+  },
+  savingsPillText: {
+    color: "#15803D",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  featuresContainer: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  featureItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.sm,
+    gap: 10,
+  },
+  featureIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "#FFF7ED",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  featureLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#334155",
+    flex: 1,
+  },
+  secureGuaranteeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginBottom: Spacing.md,
+  },
+  secureGuaranteeText: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  subscribeBtn: {
+    height: 52,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#F97316",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  subscribeBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 16,
+    letterSpacing: 0.3,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
   },
   txnCard: {
     padding: Spacing.lg,
@@ -775,22 +1315,69 @@ const styles = StyleSheet.create({
   txnHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  divider: { height: 1, marginVertical: Spacing.md },
+  txnTitle: {
+    fontWeight: "700",
+    fontSize: 15,
+  },
+  txnId: {
+    color: "#64748B",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  divider: {
+    height: 1,
+    marginVertical: Spacing.md,
+  },
   txnFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  modalContainer: { flex: 1, backgroundColor: "#FFFFFF", marginTop: 40 },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    marginTop: 44,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: "hidden",
+  },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: "#EEEEEE",
+    borderBottomColor: "#F1F5F9",
+    backgroundColor: "#FFFFFF",
+  },
+  modalHeaderTitleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  modalHeaderTitle: {
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  openBrowserBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF7ED",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FFEDD5",
   },
 });

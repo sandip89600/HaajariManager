@@ -824,17 +824,50 @@ export default function DashboardScreen() {
           )}
         </View>
 
-        {/* Streak badge */}
-        <View
-          style={[
-            styles.streakBadge,
-            { backgroundColor: isDark ? "#334155" : "rgba(255,255,255,0.2)" },
-          ]}
-        >
-          <Feather name="zap" size={14} color="#F97316" />
-          <ThemedText style={[styles.streakText, { color: "#FFFFFF" }]}>
-            {streakCount} {t("dashboard.dayStreak", "day streak")}
-          </ThemedText>
+        {/* Streak badge & Upgrade Pro button row */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+          <View
+            style={[
+              styles.streakBadge,
+              { backgroundColor: isDark ? "#334155" : "rgba(255,255,255,0.2)", alignSelf: "flex-start", marginTop: 0 },
+            ]}
+          >
+            <Feather name="zap" size={14} color="#F97316" />
+            <ThemedText style={[styles.streakText, { color: "#FFFFFF" }]}>
+              {streakCount} {t("dashboard.dayStreak", "day streak")}
+            </ThemedText>
+          </View>
+
+          <Pressable
+            onPress={() => {
+              triggerHaptic();
+              navigation.navigate("Subscription");
+            }}
+            style={({ pressed }) => [
+              {
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: "#EA580C",
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.3)",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3,
+                elevation: 4,
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <Ionicons name="sparkles" size={13} color="#FFD700" style={{ marginRight: 5 }} />
+            <ThemedText style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "800" }}>
+              Upgrade • ₹149
+            </ThemedText>
+            <Feather name="chevron-right" size={14} color="#FFFFFF" style={{ marginLeft: 2 }} />
+          </Pressable>
         </View>
       </LinearGradient>
 

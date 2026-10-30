@@ -62,6 +62,49 @@ export interface SubscriptionTransactionItem {
   createdAt: string;
 }
 
+export interface CheckoutResponse {
+  success: boolean;
+  provider: "razorpay" | "direct";
+  orderId: string;
+  amount: number;
+  amountRupees?: number;
+  amountInPaise: number;
+  currency: string;
+  keyId: string;
+  planId: string;
+  billingOptionId: string;
+  planName: string;
+  billingLabel: string;
+  transactionId: string;
+  paymentUrl?: string;
+  prefill?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
+}
+
+export interface VerifyPaymentPayload {
+  razorpay_order_id?: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+  planId?: string;
+  billingOptionId?: string;
+  razorpay_payment_link_id?: string;
+  razorpay_payment_link_reference_id?: string;
+  razorpay_payment_link_status?: string;
+}
+
+export interface VerifyPaymentResponse {
+  success: boolean;
+  message: string;
+  subscription?: UserSubscriptionDetails;
+  tenant?: {
+    plan: string;
+    planExpiresAt: string;
+  };
+}
+
 export class SubscriptionApi {
   /**
    * Fetch global subscription mode status (unauthenticated or authenticated)
@@ -125,7 +168,10 @@ export class SubscriptionApi {
   /**
    * Create Checkout Order for plan & billing option
    */
-  static async createCheckout(planId: string, billingOptionId: string) {
+  static async createCheckout(
+    planId: string,
+    billingOptionId: string
+  ): Promise<CheckoutResponse> {
     const res = await authenticatedFetch(
       `${API_URL}/v2/subscription/checkout`,
       {
@@ -136,6 +182,26 @@ export class SubscriptionApi {
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
       throw new Error(errorData.message || "Failed to create checkout order.");
+    }
+    return await res.json();
+  }
+
+  /**
+   * Verify Razorpay Payment Signature and activate subscription
+   */
+  static async verifyPayment(
+    payload: VerifyPaymentPayload
+  ): Promise<VerifyPaymentResponse> {
+    const res = await authenticatedFetch(
+      `${API_URL}/v2/subscription/verify-payment`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to verify Razorpay payment.");
     }
     return await res.json();
   }

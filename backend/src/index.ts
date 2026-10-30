@@ -13,8 +13,14 @@ import apiRoutes from "./routes";
 import { initSocket } from "./utils/socket";
 import { validateEmailConfig } from "./utils/mail";
 
-// Load environment variables
+// Load environment variables (support running from workspace root or backend dir)
 dotenv.config();
+if (!process.env.MONGO_URI) {
+  dotenv.config({ path: path.join(__dirname, "../.env") });
+}
+if (!process.env.MONGO_URI) {
+  dotenv.config({ path: path.join(process.cwd(), "backend/.env") });
+}
 
 // Initialize Sentry
 if (process.env.SENTRY_DSN) {
@@ -177,6 +183,14 @@ if (process.env.NODE_ENV !== "test") {
         await seedDefaultConfigIfNeeded();
       } catch (err: any) {
         console.error("Failed to seed default app configuration:", err);
+      }
+
+      // Ensure canonical Pro subscription plans (₹149/mo & ₹1119/yr) are seeded
+      try {
+        const { SubscriptionServiceV2 } = require("./services/subscriptionServiceV2");
+        await SubscriptionServiceV2.seedDefaultPlans();
+      } catch (err: any) {
+        console.error("Failed to seed default subscription plans:", err);
       }
 
       // Programmatically drop any legacy unique index on 'name' in users collection if present
