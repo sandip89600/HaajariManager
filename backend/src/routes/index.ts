@@ -23,6 +23,7 @@ import razorpayRoutes from "./razorpayRoutes";
 import feedbackRoutes from "./feedbackRoutes";
 import webhookRoutes from "./webhookRoutes";
 import connectionRoutes from "./connectionRoutes";
+import googlePlayRoutes from "./googlePlayRoutes";
 
 const router = Router();
 
@@ -48,6 +49,10 @@ router.use("/sites", siteRoutes);
 // Version 2 Subscription & Admin Subscription APIs
 router.use("/v2/subscription", subscriptionV2Routes);
 router.use("/v2/admin/subscription", adminSubscriptionV2Routes);
+
+// Google Play Billing APIs
+router.use("/google-play", googlePlayRoutes);
+router.use("/v2/google-play", googlePlayRoutes);
 
 // Legacy subscription aliases pointing to v2 for backwards safety
 router.use("/subscription", subscriptionV2Routes);

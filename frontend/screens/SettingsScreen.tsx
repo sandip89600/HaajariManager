@@ -871,7 +871,7 @@ export default function SettingsScreen({
         Alert.alert("Success", `Your Haajari ${planName} Plan is now active.`);
       }
     } catch (error) {
-      console.warn("Failed to open Razorpay / update plan:", error);
+      console.warn("Failed to upgrade plan:", error);
       Alert.alert("Error", "Could not complete the plan upgrade.");
     }
   };

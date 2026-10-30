@@ -25,42 +25,11 @@ const getRazorpayInstance = () => {
  * Minimum amount: 100 paise
  */
 export const createOrder = async (req: Request, res: Response) => {
-  try {
-    const { amount, currency = "INR", receipt } = req.body;
-
-    // Validate minimum amount (>= 100 paise)
-    const numericAmount = Number(amount);
-    if (!numericAmount || isNaN(numericAmount) || numericAmount < 100) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid amount. Minimum amount must be at least 100 paise (1 INR).",
-      });
-    }
-
-    const razorpay = getRazorpayInstance();
-
-    const options = {
-      amount: Math.round(numericAmount),
-      currency: currency || "INR",
-      receipt: receipt || `receipt_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-    };
-
-    const order = await razorpay.orders.create(options);
-
-    return res.status(200).json({
-      success: true,
-      order_id: order.id,
-      amount: order.amount,
-      currency: order.currency,
-      receipt: order.receipt,
-    });
-  } catch (error: any) {
-    console.error("[Razorpay] Error creating order:", error);
-    return res.status(500).json({
-      success: false,
-      error: error.message || "Failed to create Razorpay order",
-    });
-  }
+  return res.status(403).json({
+    success: false,
+    error: "MIGRATED_TO_GOOGLE_PLAY",
+    message: "Razorpay order creation has been decommissioned. In-app purchases are powered by Google Play Billing.",
+  });
 };
 
 /**

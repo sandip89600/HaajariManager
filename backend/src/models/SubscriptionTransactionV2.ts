@@ -13,6 +13,8 @@ export interface ISubscriptionTransactionV2 extends Document {
   status: "paid" | "pending" | "failed" | "refunded" | "cancelled";
   paymentProvider: string;
   paymentReference?: string;
+  purchaseToken?: string;
+  orderId?: string;
   startedAt?: Date;
   expiresAt?: Date;
   metadata?: Record<string, any>;
@@ -37,8 +39,10 @@ const SubscriptionTransactionV2Schema = new Schema<ISubscriptionTransactionV2>(
       default: "pending",
       index: true,
     },
-    paymentProvider: { type: String, default: "razorpay" },
+    paymentProvider: { type: String, default: "google_play" },
     paymentReference: { type: String },
+    purchaseToken: { type: String, index: true },
+    orderId: { type: String, index: true },
     startedAt: { type: Date },
     expiresAt: { type: Date },
     metadata: { type: Schema.Types.Mixed },

@@ -33,7 +33,7 @@ export interface SubscriptionPlan {
 
 export interface UserSubscriptionDetails {
   subscriptionId: string;
-  status: "active" | "expired" | "cancelled" | "pending";
+  status: "active" | "expired" | "cancelled" | "pending" | "in_grace_period" | "on_hold";
   planId: string;
   billingOptionId: string;
   startedAt: string;
@@ -42,6 +42,9 @@ export interface UserSubscriptionDetails {
   cancelAtPeriodEnd?: boolean;
   cancelledAt?: string;
   provider: string;
+  orderId?: string;
+  purchaseToken?: string;
+  googlePlayState?: string;
 }
 
 export interface SubscriptionStatusResponse {

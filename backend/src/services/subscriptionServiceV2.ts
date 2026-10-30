@@ -171,10 +171,10 @@ export class SubscriptionServiceV2 {
 
     const availablePlans = await this.getAvailablePlansForUser();
 
-    // Query user's current active subscription (including period-end cancellations)
+    // Query user's current active subscription (including period-end cancellations, Google Play grace period)
     const activeSub = await UserSubscriptionV2.findOne({
       tenantId,
-      status: { $in: ["active", "cancelled"] },
+      status: { $in: ["active", "cancelled", "in_grace_period", "on_hold"] },
       expiresAt: { $gt: new Date() },
     })
       .sort({ expiresAt: -1 })
@@ -193,6 +193,9 @@ export class SubscriptionServiceV2 {
         cancelAtPeriodEnd: Boolean((activeSub as any).cancelAtPeriodEnd),
         cancelledAt: (activeSub as any).cancelledAt,
         provider: activeSub.provider,
+        orderId: (activeSub as any).orderId,
+        purchaseToken: (activeSub as any).purchaseToken,
+        googlePlayState: (activeSub as any).googlePlayState,
       };
     }
 
@@ -735,7 +738,7 @@ export class SubscriptionServiceV2 {
 
     const activeSub = await UserSubscriptionV2.findOne({
       tenantId,
-      status: { $in: ["active", "cancelled"] },
+      status: { $in: ["active", "cancelled", "in_grace_period"] },
       expiresAt: { $gt: new Date() },
     });
 

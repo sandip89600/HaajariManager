@@ -40,27 +40,11 @@ export const getSubscriptionStatus = async (req: Request, res: Response) => {
 };
 
 export const createCheckout = async (req: Request, res: Response) => {
-  try {
-    const userId = (req as any).user?.id || (req as any).user?._id;
-    const tenantId = (req as any).user?.tenantId;
-    const { planId, billingOptionId } = req.body;
-
-    const resolvedPlanId = planId || "pro";
-    const resolvedOptionId = billingOptionId || "monthly";
-
-    const order = await SubscriptionServiceV2.createRazorpayOrder(
-      userId,
-      tenantId,
-      resolvedPlanId,
-      resolvedOptionId
-    );
-    return res.status(201).json(order);
-  } catch (err: any) {
-    if (err.code) {
-      return res.status(400).json(err);
-    }
-    return res.status(500).json({ error: "CHECKOUT_FAILED", message: err.message || "Unable to process checkout." });
-  }
+  // Stop accepting new Razorpay orders in compliance with Google Play Store Billing policies
+  return res.status(403).json({
+    error: "MIGRATED_TO_GOOGLE_PLAY",
+    message: "New checkouts via Razorpay are disabled. Please subscribe directly through Google Play In-App Billing in the Haajari Manager app.",
+  });
 };
 
 export const verifyPayment = async (req: Request, res: Response) => {

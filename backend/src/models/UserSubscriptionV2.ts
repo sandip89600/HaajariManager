@@ -5,15 +5,25 @@ export interface IUserSubscriptionV2 extends Document {
   tenantId: mongoose.Types.ObjectId | string;
   planId: string;
   billingOptionId: string;
-  status: "active" | "expired" | "cancelled" | "pending";
+  status: "active" | "expired" | "cancelled" | "pending" | "in_grace_period" | "on_hold" | "superseded";
   startedAt: Date;
   expiresAt: Date;
   autoRenew: boolean;
   cancelAtPeriodEnd?: boolean;
   cancelledAt?: Date;
   cancellationReason?: string;
-  provider: string;
+  provider: string; // "google_play" | "razorpay" | "manual"
   providerSubscriptionId?: string;
+  // Google Play Billing fields
+  purchaseToken?: string;
+  orderId?: string;
+  linkedPurchaseToken?: string;
+  googlePlayState?: string;
+  lineItems?: Array<{
+    productId: string;
+    expiryTime: Date;
+    autoRenewing: boolean;
+  }>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,7 +36,7 @@ const UserSubscriptionV2Schema = new Schema<IUserSubscriptionV2>(
     billingOptionId: { type: String, required: true },
     status: {
       type: String,
-      enum: ["active", "expired", "cancelled", "pending"],
+      enum: ["active", "expired", "cancelled", "pending", "in_grace_period", "on_hold", "superseded"],
       default: "active",
       index: true,
     },
@@ -36,8 +46,19 @@ const UserSubscriptionV2Schema = new Schema<IUserSubscriptionV2>(
     cancelAtPeriodEnd: { type: Boolean, default: false },
     cancelledAt: { type: Date },
     cancellationReason: { type: String },
-    provider: { type: String, default: "razorpay" },
+    provider: { type: String, default: "google_play" },
     providerSubscriptionId: { type: String },
+    purchaseToken: { type: String, index: true },
+    orderId: { type: String, index: true },
+    linkedPurchaseToken: { type: String },
+    googlePlayState: { type: String },
+    lineItems: [
+      {
+        productId: { type: String },
+        expiryTime: { type: Date },
+        autoRenewing: { type: Boolean },
+      },
+    ],
   },
   { timestamps: true }
 );

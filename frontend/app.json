@@ -45,7 +45,8 @@
         "USE_BIOMETRIC",
         "USE_FINGERPRINT",
         "VIBRATE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "com.android.vending.BILLING"
       ]
     },
     "web": {
@@ -53,6 +54,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-iap",
       [
         "expo-camera",
         {

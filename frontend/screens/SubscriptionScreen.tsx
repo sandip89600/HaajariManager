@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   ScrollView,
@@ -10,13 +10,28 @@ import {
   Dimensions,
   FlatList,
   Linking,
+  Platform,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { WebView } from "react-native-webview";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+
+import {
+  initConnection,
+  endConnection,
+  fetchProducts,
+  requestPurchase,
+  finishTransaction,
+  getAvailablePurchases,
+  purchaseUpdatedListener,
+  purchaseErrorListener,
+  deepLinkToSubscriptions,
+  type ProductSubscriptionAndroid,
+  type Purchase,
+  type PurchaseError,
+} from "expo-iap";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -26,14 +41,15 @@ import { useLanguage } from "@/hooks/useLanguage";
 import {
   SubscriptionApi,
   SubscriptionPlan,
-  BillingOption,
   SubscriptionStatusResponse,
   SubscriptionTransactionItem,
-  CheckoutResponse,
 } from "@/services/subscriptionApi";
-import { Colors, Spacing } from "@/constants/theme";
+import { GooglePlayApi } from "@/services/googlePlayApi";
+import { Spacing } from "@/constants/theme";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const MONTHLY_PRODUCT_ID = "haajari_pro_monthly";
+const ANNUAL_PRODUCT_ID = "haajari_pro_annual";
+const SUB_PRODUCT_IDS = [MONTHLY_PRODUCT_ID, ANNUAL_PRODUCT_ID];
 
 export default function SubscriptionScreen() {
   const { theme } = useTheme();
@@ -49,21 +65,36 @@ export default function SubscriptionScreen() {
 
   // Selected Plan & Billing Option State
   const [selectedPlanId, setSelectedPlanId] = useState<string>("pro");
-  const [selectedOptionId, setSelectedOptionId] = useState<string>("yearly"); // Default to yearly (best value)
+  const [selectedOptionId, setSelectedOptionId] = useState<"monthly" | "yearly">("yearly");
 
-  // Razorpay WebView State
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [webViewModalVisible, setWebViewModalVisible] = useState(false);
-  const [webViewHtml, setWebViewHtml] = useState<string>("");
-  const [paymentUrl, setPaymentUrl] = useState<string>("");
-  const [activeCheckout, setActiveCheckout] = useState<CheckoutResponse | null>(null);
+  // Google Play In-App Purchase State
+  const [googleProducts, setGoogleProducts] = useState<ProductSubscriptionAndroid[]>([]);
+  const [isStoreConnected, setIsStoreConnected] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
 
-  // Cancel Subscription State
-  const [cancelModalVisible, setCancelModalVisible] = useState(false);
+  // Manage / Cancel Subscription Modal State
+  const [manageModalVisible, setManageModalVisible] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  const purchaseUpdateRef = useRef<any>(null);
+  const purchaseErrorRef = useRef<any>(null);
 
   useEffect(() => {
     loadData();
+    setupGooglePlayBilling();
+
+    return () => {
+      if (purchaseUpdateRef.current) {
+        purchaseUpdateRef.current.remove();
+      }
+      if (purchaseErrorRef.current) {
+        purchaseErrorRef.current.remove();
+      }
+      try {
+        endConnection();
+      } catch {}
+    };
   }, []);
 
   const loadData = async () => {
@@ -71,17 +102,6 @@ export default function SubscriptionScreen() {
     try {
       const statusData = await SubscriptionApi.getStatus();
       setSubStatus(statusData);
-
-      if (statusData.availablePlans && statusData.availablePlans.length > 0) {
-        const proPlan =
-          statusData.availablePlans.find((p) => p.planId === "pro") ||
-          statusData.availablePlans[0];
-        setSelectedPlanId(proPlan.planId);
-
-        // Pre-select yearly if available, else first option
-        const hasYearly = proPlan.billingOptions.some((o) => o.optionId === "yearly");
-        setSelectedOptionId(hasYearly ? "yearly" : proPlan.billingOptions[0]?.optionId || "monthly");
-      }
 
       const txns = await SubscriptionApi.getUserTransactions();
       setTransactions(txns);
@@ -92,234 +112,242 @@ export default function SubscriptionScreen() {
     }
   };
 
+  /**
+   * Initialize Google Play Billing connection and fetch product prices
+   */
+  const setupGooglePlayBilling = async () => {
+    try {
+      const connected = await initConnection();
+      setIsStoreConnected(true);
+
+      // Listen for successful purchases
+      purchaseUpdateRef.current = purchaseUpdatedListener(async (purchase: Purchase) => {
+        await handlePurchaseCompleted(purchase);
+      });
+
+      // Listen for purchase errors or user cancellation
+      purchaseErrorRef.current = purchaseErrorListener((error: any) => {
+        setIsPurchasing(false);
+        const errMsg = error?.message || "";
+        const errCode = String(error?.code || "");
+        const isUserCancel =
+          errCode.includes("CANCEL") ||
+          errCode === "user-cancelled" ||
+          errMsg.toLowerCase().includes("user canceled") ||
+          errMsg.toLowerCase().includes("cancelled");
+
+        if (!isUserCancel) {
+          Alert.alert("Google Play Notice", errMsg || "Payment could not be completed.");
+        }
+      });
+
+      // Fetch subscriptions from Google Play Store
+      const products = await fetchProducts({
+        skus: SUB_PRODUCT_IDS,
+        type: "subs",
+      });
+
+      if (products && Array.isArray(products) && products.length > 0) {
+        setGoogleProducts(products as ProductSubscriptionAndroid[]);
+      }
+    } catch (err: any) {
+      console.warn("[SubscriptionScreen] Google Play Billing init notice:", err.message || err);
+    }
+  };
+
   const triggerHaptic = (style: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Medium) => {
     Haptics.impactAsync(style);
   };
 
-  // Find currently selected plan or fallback to default canonical Pro plan values
-  const currentPlan: SubscriptionPlan = subStatus?.availablePlans?.find(
-    (p) => p.planId === selectedPlanId
-  ) || {
-    planId: "pro",
-    name: "Haajari Pro",
-    description: "Complete all-in-one construction management & worker attendance suite.",
-    active: true,
-    displayOrder: 1,
-    features: {
-      maxWorkers: -1,
-      maxProjects: -1,
-      maxSupervisors: -1,
-      gpsAttendance: true,
-      reports: true,
-      advancedReports: true,
-    },
-    billingOptions: [
-      {
-        optionId: "monthly",
-        durationMonths: 1,
-        billingLabel: "Monthly",
-        price: 149,
-        currency: "INR",
-        active: true,
-        promotionEnabled: false,
-      },
-      {
-        optionId: "yearly",
-        durationMonths: 12,
-        billingLabel: "Yearly",
-        price: 1119,
-        currency: "INR",
-        active: true,
-        promotionEnabled: true,
-        promotionalPrice: 1119,
-        promotionalDurationMonths: 12,
-      },
-    ],
+  /**
+   * Handle successful purchase returned by Google Play Billing library
+   */
+  const handlePurchaseCompleted = async (purchase: Purchase) => {
+    try {
+      setIsPurchasing(true);
+
+      const purchaseToken = purchase.purchaseToken;
+      const targetSku =
+        purchase.productId ||
+        (purchase as any).skus?.[0] ||
+        (selectedOptionId === "yearly" ? ANNUAL_PRODUCT_ID : MONTHLY_PRODUCT_ID);
+
+      if (!purchaseToken) {
+        throw new Error("Google Play returned an empty purchase token.");
+      }
+
+      // Step 1: Secure backend verification using Google Play Developer API
+      await GooglePlayApi.verifyPurchase({
+        productId: targetSku,
+        purchaseToken,
+        packageName: "com.haajari.app",
+        orderId: purchase.id,
+      });
+
+      // Step 2: Acknowledge and finalize purchase on Google Play Billing
+      try {
+        await finishTransaction({ purchase, isConsumable: false });
+      } catch (finErr: any) {
+        console.warn("[SubscriptionScreen] finishTransaction note:", finErr?.message || finErr);
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        "PRO Membership Active! 🎉",
+        "Welcome to Haajari PRO! Your Google Play subscription is confirmed and all features are now fully unlocked.",
+        [{ text: "Start Using PRO", onPress: () => loadData() }]
+      );
+      loadData();
+    } catch (err: any) {
+      console.error("[SubscriptionScreen] Purchase verification error:", err);
+      Alert.alert(
+        "Activation Notice",
+        err.message ||
+          "Payment was received by Google Play, but server verification is in progress. Please tap 'Restore Purchases' if your PRO badge does not appear shortly."
+      );
+    } finally {
+      setIsPurchasing(false);
+    }
   };
 
-  const currentOption =
-    currentPlan.billingOptions.find((o) => o.optionId === selectedOptionId) ||
-    currentPlan.billingOptions[0];
+  /**
+   * Initiate Google Play Native In-App Purchase Flow
+   */
+  const handleSubscribe = async () => {
+    const targetProductId = selectedOptionId === "yearly" ? ANNUAL_PRODUCT_ID : MONTHLY_PRODUCT_ID;
+    setIsPurchasing(true);
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
 
-  const handleSelectOption = (optionId: string) => {
+    try {
+      // Find matching Google Play product to retrieve offerToken (v5+ Billing requirement)
+      const targetProduct = googleProducts.find((p) => p.id === targetProductId);
+      const offerToken = (targetProduct as any)?.subscriptionOfferDetailsAndroid?.[0]?.offerToken;
+
+      await requestPurchase({
+        type: "subs",
+        request: {
+          google: {
+            skus: [targetProductId],
+            subscriptionOffers: offerToken
+              ? [{ sku: targetProductId, offerToken }]
+              : undefined,
+            obfuscatedAccountId: user?.id ? String(user.id) : undefined,
+          },
+        },
+      });
+    } catch (err: any) {
+      setIsPurchasing(false);
+      const errMsg = err.message || "";
+      const isUserCancel =
+        err.code === "E_USER_CANCELLED" ||
+        errMsg.toLowerCase().includes("user canceled") ||
+        errMsg.toLowerCase().includes("cancelled");
+
+      if (!isUserCancel) {
+        Alert.alert(
+          "Google Play Purchase",
+          errMsg || "Unable to open Google Play Store checkout. Please verify Google Play services on your device."
+        );
+      }
+    }
+  };
+
+  /**
+   * Restore Existing Purchases from Google Play
+   */
+  const handleRestorePurchases = async () => {
+    setIsRestoring(true);
     triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedOptionId(optionId);
+
+    try {
+      const purchases = await getAvailablePurchases();
+
+      if (!purchases || !Array.isArray(purchases) || purchases.length === 0) {
+        Alert.alert(
+          "Restore Purchases",
+          "No active Haajari PRO subscription was found on this Google Play account."
+        );
+        return;
+      }
+
+      const formatted: Array<{ productId: string; purchaseToken: string; orderId?: string }> = purchases
+        .filter((p): p is typeof p & { purchaseToken: string } => Boolean(p.purchaseToken))
+        .map((p) => ({
+          productId: String(p.productId || (p as any).skus?.[0] || MONTHLY_PRODUCT_ID),
+          purchaseToken: p.purchaseToken as string,
+          orderId: p.id ? String(p.id) : undefined,
+        }));
+
+      if (formatted.length === 0) {
+        Alert.alert(
+          "Restore Purchases",
+          "No valid Google Play subscription tokens found."
+        );
+        return;
+      }
+
+      const result = await GooglePlayApi.restorePurchases({ purchases: formatted });
+
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          "Purchases Restored",
+          "Your Haajari PRO subscription has been verified and restored successfully!",
+          [{ text: "OK", onPress: () => loadData() }]
+        );
+        loadData();
+      } else {
+        Alert.alert(
+          "Restore Notice",
+          result.message || "Unable to restore previous subscriptions."
+        );
+      }
+    } catch (err: any) {
+      console.warn("[SubscriptionScreen] Restore error:", err);
+      Alert.alert(
+        "Restore Error",
+        err.message || "Failed to query Google Play purchases."
+      );
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   /**
-   * Build Razorpay Checkout standard HTML for WebView
+   * Handle Manage / Cancel Subscription action
    */
-  const buildRazorpayHtml = (checkout: CheckoutResponse) => {
-    const rawName = user?.name || "Contractor";
-    const rawEmail = user?.email || "";
-    const rawPhone = user?.phone || "";
+  const handleOpenGooglePlaySubscriptions = async () => {
+    setManageModalVisible(false);
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
 
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>Razorpay Checkout</title>
-        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-        <style>
-          * { box-sizing: border-box; margin: 0; padding: 0; }
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: #F8FAFC;
-            color: #1E293B;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 24px;
-          }
-          .card {
-            background: #FFFFFF;
-            border-radius: 20px;
-            padding: 32px 24px;
-            text-align: center;
-            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.06), 0 8px 10px -6px rgba(0,0,0,0.06);
-            width: 100%;
-            max-width: 360px;
-          }
-          .spinner {
-            width: 44px;
-            height: 44px;
-            border: 4px solid #F1F5F9;
-            border-top-color: #F97316;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 20px;
-          }
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-          h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #0F172A; }
-          p { font-size: 14px; color: #64748B; line-height: 1.5; }
-          .price-pill {
-            display: inline-block;
-            margin-top: 14px;
-            background: #FFF7ED;
-            color: #EA580C;
-            font-weight: 700;
-            font-size: 18px;
-            padding: 8px 18px;
-            border-radius: 9999px;
-            border: 1px solid #FFEDD5;
-          }
-          .btn-open {
-            margin-top: 24px;
-            background: #F97316;
-            color: #FFFFFF;
-            font-weight: 600;
-            border: none;
-            padding: 14px 20px;
-            border-radius: 12px;
-            font-size: 15px;
-            cursor: pointer;
-            width: 100%;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <div class="spinner"></div>
-          <h3>Connecting to Razorpay</h3>
-          <p>Opening secure payment for <strong>${checkout.planName}</strong> (${checkout.billingLabel})...</p>
-          <div class="price-pill">₹${checkout.amountRupees || checkout.amount}</div>
-          <button id="manual-btn" class="btn-open" style="display:none;" onclick="launchRazorpay()">Tap to Open Payment</button>
-        </div>
+    const activeSku =
+      activeSub?.billingOptionId === "yearly" ? ANNUAL_PRODUCT_ID : MONTHLY_PRODUCT_ID;
 
-        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-        <script>
-          function postToApp(data) {
-            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-              window.ReactNativeWebView.postMessage(JSON.stringify(data));
-            }
-          }
-
-          function launchRazorpay() {
-            try {
-              if (!window.Razorpay) {
-                document.getElementById('manual-btn').style.display = 'block';
-                return;
-              }
-
-              var options = {
-                key: "${checkout.keyId}",
-                amount: ${checkout.amountInPaise || (checkout.amount * 100)},
-                currency: "${checkout.currency || "INR"}",
-                name: "Haajari Manager",
-                description: "${checkout.planName} (${checkout.billingLabel})",
-                order_id: "${checkout.orderId}",
-                image: "https://haajari.app/logo.png",
-                prefill: {
-                  name: "${rawName}",
-                  email: "${rawEmail}",
-                  contact: "${rawPhone}"
-                },
-                theme: {
-                  color: "#F97316"
-                },
-                handler: function (response) {
-                  postToApp({
-                    event: "PAYMENT_SUCCESS",
-                    razorpay_payment_id: response.razorpay_payment_id,
-                    razorpay_order_id: response.razorpay_order_id,
-                    razorpay_signature: response.razorpay_signature
-                  });
-                },
-                modal: {
-                  ondismiss: function () {
-                    postToApp({ event: "PAYMENT_DISMISSED" });
-                  }
-                }
-              };
-
-              var rzp = new Razorpay(options);
-              rzp.on('payment.failed', function (resp) {
-                postToApp({
-                  event: "PAYMENT_FAILED",
-                  error: resp.error ? resp.error.description : 'Payment transaction failed'
-                });
-              });
-              rzp.open();
-            } catch (err) {
-              document.getElementById('manual-btn').style.display = 'block';
-            }
-          }
-
-          function checkAndLaunch(retries) {
-            if (window.Razorpay) {
-              launchRazorpay();
-            } else if (retries > 0) {
-              setTimeout(function() { checkAndLaunch(retries - 1); }, 200);
-            } else {
-              document.getElementById('manual-btn').style.display = 'block';
-            }
-          }
-
-          window.onload = function() {
-            checkAndLaunch(30);
-          };
-        </script>
-      </body>
-      </html>
-    `;
+    try {
+      await deepLinkToSubscriptions({
+        packageNameAndroid: "com.haajari.app",
+        skuAndroid: activeSku,
+      });
+    } catch {
+      // Fallback to standard web link to Google Play Subscriptions
+      Linking.openURL(
+        `https://play.google.com/store/account/subscriptions?sku=${activeSku}&package=com.haajari.app`
+      ).catch(() => {
+        Linking.openURL("https://play.google.com/store/account/subscriptions").catch(() => {});
+      });
+    }
   };
 
   /**
-   * Handle Subscription Cancellation Confirmation
+   * Handle Legacy Razorpay Subscription Cancellation (Graceful cycle-end cancel)
    */
-  const handleConfirmCancellation = async () => {
+  const handleConfirmLegacyCancellation = async () => {
     setIsCancelling(true);
     triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
 
     try {
       await SubscriptionApi.cancelSubscription("User requested cancellation from mobile app");
-      setCancelModalVisible(false);
+      setManageModalVisible(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       const formattedExpiry = activeSub?.expiresAt
@@ -347,162 +375,6 @@ export default function SubscriptionScreen() {
     }
   };
 
-  /**
-   * Handle initiation of Razorpay Checkout
-   */
-  const handleCheckout = async () => {
-    if (!currentPlan || !currentOption) return;
-    setIsProcessing(true);
-    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
-
-    try {
-      const checkoutData = await SubscriptionApi.createCheckout(
-        currentPlan.planId,
-        currentOption.optionId
-      );
-
-      // If Razorpay API keys are not configured yet, inform the user cleanly
-      if (!checkoutData.keyId) {
-        Alert.alert(
-          "Razorpay API Keys Needed",
-          "The Razorpay order creation and signature verification routes are completely set up!\n\nPlease add your RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in the backend/.env file to start processing real payments.",
-          [{ text: "Understood", style: "default" }]
-        );
-        return;
-      }
-
-      setActiveCheckout(checkoutData);
-
-      if (checkoutData.paymentUrl) {
-        setPaymentUrl(checkoutData.paymentUrl);
-      } else {
-        setPaymentUrl("");
-      }
-      const html = buildRazorpayHtml(checkoutData);
-      setWebViewHtml(html);
-      setWebViewModalVisible(true);
-    } catch (err: any) {
-      if (err.message && err.message.includes("RAZORPAY_CONFIG_REQUIRED")) {
-        Alert.alert(
-          "Razorpay API Keys Needed",
-          "Please configure your RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in the backend/.env file to accept payments.",
-          [{ text: "OK" }]
-        );
-      } else {
-        Alert.alert(
-          "Checkout Notice",
-          err.message || "Unable to initiate payment."
-        );
-      }
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  /**
-   * Parse redirect URL from Razorpay Payment Link and verify payment
-   */
-  const handleRedirectUrl = async (url: string) => {
-    try {
-      const queryString = url.split("?")[1] || "";
-      const params: Record<string, string> = {};
-      queryString.split("&").forEach((pair) => {
-        const [k, v] = pair.split("=");
-        if (k && v) {
-          params[decodeURIComponent(k)] = decodeURIComponent(v);
-        }
-      });
-
-      const paymentId = params["razorpay_payment_id"];
-      const signature = params["razorpay_signature"];
-      const linkId = params["razorpay_payment_link_id"];
-      const linkStatus = params["razorpay_payment_link_status"];
-      const orderId = params["razorpay_order_id"] || activeCheckout?.orderId;
-
-      if (paymentId) {
-        setWebViewModalVisible(false);
-        setIsProcessing(true);
-
-        await SubscriptionApi.verifyPayment({
-          razorpay_order_id: orderId,
-          razorpay_payment_id: paymentId,
-          razorpay_signature: signature || "link_redirect_verified",
-          razorpay_payment_link_id: linkId,
-          razorpay_payment_link_status: linkStatus,
-          planId: currentPlan.planId,
-          billingOptionId: currentOption.optionId,
-        });
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          "Payment Successful! 🎉",
-          "Your Haajari Pro subscription has been activated successfully! All pro features are now completely unlocked.",
-          [
-            {
-              text: "Continue",
-              onPress: () => loadData(),
-            },
-          ]
-        );
-        loadData();
-      }
-    } catch (err: any) {
-      console.warn("[SubscriptionScreen] Redirect verification error:", err);
-      Alert.alert("Verification Notice", err.message || "Failed to confirm payment.");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  /**
-   * Handle Razorpay events emitted from WebView
-   */
-  const handleWebViewMessage = async (event: any) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-
-      if (data.event === "PAYMENT_SUCCESS") {
-        setWebViewModalVisible(false);
-        setIsProcessing(true);
-
-        // Call backend signature verification endpoint
-        await SubscriptionApi.verifyPayment({
-          razorpay_order_id: data.razorpay_order_id,
-          razorpay_payment_id: data.razorpay_payment_id,
-          razorpay_signature: data.razorpay_signature,
-          planId: currentPlan.planId,
-          billingOptionId: currentOption.optionId,
-        });
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          "Payment Successful! 🎉",
-          "Your Haajari Pro subscription has been activated successfully! All pro features are now completely unlocked.",
-          [
-            {
-              text: "Continue",
-              onPress: () => loadData(),
-            },
-          ]
-        );
-        loadData();
-      } else if (data.event === "PAYMENT_DISMISSED") {
-        setWebViewModalVisible(false);
-      } else if (data.event === "PAYMENT_FAILED") {
-        setWebViewModalVisible(false);
-        Alert.alert("Payment Incomplete", data.error || "The payment transaction was not completed.");
-      } else if (data.event === "ERROR") {
-        setWebViewModalVisible(false);
-        Alert.alert("Checkout Error", data.message || "An error occurred with Razorpay checkout.");
-      }
-    } catch (err: any) {
-      console.warn("[SubscriptionScreen] Verification error:", err);
-      Alert.alert("Verification Error", err.message || "Failed to verify payment with server.");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   if (loading) {
     return (
       <ThemedView style={styles.centeredContainer}>
@@ -514,13 +386,17 @@ export default function SubscriptionScreen() {
   const activeSub = subStatus?.userSubscription;
   const isProActive = Boolean(
     activeSub &&
-    activeSub.status === "active" &&
+    (activeSub.status === "active" ||
+      activeSub.status === "in_grace_period" ||
+      activeSub.status === "on_hold") &&
     (!activeSub.expiresAt || new Date(activeSub.expiresAt) > new Date())
   );
+
   const isYearly = Boolean(
     activeSub?.billingOptionId &&
     (activeSub.billingOptionId.includes("year") || activeSub.billingOptionId.includes("12"))
   );
+
   const daysRemaining = activeSub?.expiresAt
     ? Math.max(
         0,
@@ -530,6 +406,13 @@ export default function SubscriptionScreen() {
         )
       )
     : null;
+
+  // Retrieve dynamic localized prices from Google Play product details
+  const monthlyProduct = googleProducts.find((p) => p.id === MONTHLY_PRODUCT_ID);
+  const annualProduct = googleProducts.find((p) => p.id === ANNUAL_PRODUCT_ID);
+
+  const monthlyPriceText = monthlyProduct?.displayPrice || "₹149";
+  const annualPriceText = annualProduct?.displayPrice || "₹1,119";
 
   return (
     <ThemedView style={styles.container}>
@@ -545,7 +428,7 @@ export default function SubscriptionScreen() {
 
         <View style={styles.headerTitleWrap}>
           <ThemedText type="h2" style={styles.headerTitle}>
-            {isProActive ? "PRO Identity" : "Haajari Pro"}
+            {isProActive ? "PRO Membership" : "Haajari Pro"}
           </ThemedText>
           <View style={[styles.proBadge, isProActive && { backgroundColor: "#10B981" }]}>
             <ThemedText style={styles.proBadgeText}>
@@ -577,7 +460,7 @@ export default function SubscriptionScreen() {
               { color: activeTab === "plans" ? "#FFFFFF" : theme.text },
             ]}
           >
-            {isProActive ? "👑 PRO Membership" : "Plans & Pricing"}
+            {isProActive ? "👑 PRO Status" : "Plans & Pricing"}
           </ThemedText>
         </Pressable>
 
@@ -609,7 +492,7 @@ export default function SubscriptionScreen() {
       {activeTab === "plans" ? (
         isProActive && activeSub ? (
           /* ══════════════════════════════════════════════════════════════════
-             OPTION 4: MAIN PRO IDENTITY SCREEN (WHEN UPGRADED)
+             MAIN PRO IDENTITY SCREEN (ACTIVE SUBSCRIBER)
              ══════════════════════════════════════════════════════════════════ */
           <ScrollView
             contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 110 }}
@@ -670,7 +553,7 @@ export default function SubscriptionScreen() {
                 <View style={styles.proMetaCol}>
                   <ThemedText style={styles.proMetaLabel}>ACTIVE PLAN</ThemedText>
                   <ThemedText style={styles.proMetaValue}>
-                    {isYearly ? "Annual Plan (₹1,119 / yr)" : "Monthly Plan (₹149 / mo)"}
+                    {isYearly ? "Annual Plan" : "Monthly Plan"}
                   </ThemedText>
                 </View>
 
@@ -702,10 +585,10 @@ export default function SubscriptionScreen() {
               {/* Subscription ID & Guarantee */}
               <View style={styles.proCardFooter}>
                 <ThemedText style={styles.subscriptionIdText}>
-                  ID: SUB-{String(activeSub.subscriptionId || "PRO").slice(-8).toUpperCase()}
+                  PROVIDER: {activeSub.provider === "google_play" ? "GOOGLE PLAY" : "RAZORPAY (LEGACY)"}
                 </ThemedText>
                 <ThemedText style={styles.verifiedGuaranteeText}>
-                  Secured by Razorpay • Instant Sync
+                  Protected by Google Play • Encrypted
                 </ThemedText>
               </View>
             </LinearGradient>
@@ -726,7 +609,7 @@ export default function SubscriptionScreen() {
                     Unlimited Workers & Daily Attendance
                   </ThemedText>
                   <ThemedText style={styles.unlockedSub}>
-                    No 20 worker cap • Add unlimited workers freely
+                    No worker cap • Add unlimited workers freely
                   </ThemedText>
                 </View>
                 <View style={styles.activePill}>
@@ -837,6 +720,27 @@ export default function SubscriptionScreen() {
               </View>
             </View>
 
+            {/* Restore Purchases Button */}
+            <Pressable
+              onPress={handleRestorePurchases}
+              disabled={isRestoring}
+              style={[
+                styles.restoreBtn,
+                { backgroundColor: theme.backgroundDefault, borderColor: theme.border },
+              ]}
+            >
+              {isRestoring ? (
+                <ActivityIndicator size="small" color={theme.primary} />
+              ) : (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Feather name="refresh-cw" size={15} color={theme.primary} />
+                  <ThemedText style={[styles.restoreBtnText, { color: theme.text }]}>
+                    Restore Purchases
+                  </ThemedText>
+                </View>
+              )}
+            </Pressable>
+
             {/* Quick Action: View Invoices & History */}
             <Pressable
               onPress={() => {
@@ -872,7 +776,7 @@ export default function SubscriptionScreen() {
               </ThemedText>
             </Pressable>
 
-            {/* Secondary Action: Cancel Subscription */}
+            {/* Secondary Action: Manage Subscription */}
             {activeSub.cancelAtPeriodEnd ? (
               <View style={[styles.cancelledNoticeCard, { backgroundColor: theme.backgroundDefault, borderColor: "#F59E0B" }]}>
                 <Feather name="info" size={16} color="#D97706" style={{ marginRight: 8, marginTop: 2 }} />
@@ -895,307 +799,294 @@ export default function SubscriptionScreen() {
               <Pressable
                 onPress={() => {
                   triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
-                  setCancelModalVisible(true);
+                  setManageModalVisible(true);
                 }}
                 style={styles.cancelSubBtn}
               >
-                <Feather name="slash" size={13} color="#94A3B8" style={{ marginRight: 6 }} />
+                <Feather name="settings" size={14} color="#64748B" style={{ marginRight: 6 }} />
                 <ThemedText style={styles.cancelSubBtnText}>
-                  Cancel Subscription
+                  Manage / Cancel Subscription
                 </ThemedText>
               </Pressable>
             )}
           </ScrollView>
         ) : (
           /* ══════════════════════════════════════════════════════════════════
-             STANDARD CHECKOUT & PLANS VIEW (WHEN NOT UPGRADED)
+             STANDARD PLANS VIEW (SUBSCRIBE VIA GOOGLE PLAY)
              ══════════════════════════════════════════════════════════════════ */
           <ScrollView
             contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 110 }}
             showsVerticalScrollIndicator={false}
           >
-          {/* Active Subscription Banner */}
-          {isProActive && subStatus?.userSubscription && (
-            <View style={styles.activeSubBanner}>
-              <View style={styles.activeSubIcon}>
-                <Feather name="check" size={20} color="#FFFFFF" />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <ThemedText style={styles.activeSubTitle}>
-                  Haajari Pro is Active
-                </ThemedText>
-                <ThemedText style={styles.activeSubExpiry}>
-                  Valid until{" "}
-                  {new Date(subStatus.userSubscription.expiresAt).toLocaleDateString(
-                    undefined,
-                    { year: "numeric", month: "short", day: "numeric" }
-                  )}
-                </ThemedText>
-              </View>
-            </View>
-          )}
-
-          {/* Promotional Free Mode Banner if subscription is globally disabled */}
-          {!subStatus?.subscriptionEnabled && (
-            <View style={styles.freeModeNotice}>
-              <Feather name="gift" size={20} color="#EA580C" />
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <ThemedText style={styles.freeModeNoticeTitle}>
-                  Promotional Free Mode Active
-                </ThemedText>
-                <ThemedText style={styles.freeModeNoticeSub}>
-                  All site limits and worker features are currently free. You can preview our Pro plans below.
-                </ThemedText>
-              </View>
-            </View>
-          )}
-
-          {/* Pricing Plan Selector Title */}
-          <ThemedText type="small" style={styles.sectionHeader}>
-            CHOOSE YOUR BILLING PLAN
-          </ThemedText>
-
-          {/* Billing Options Stack */}
-          <View style={styles.billingGrid}>
-            {/* 1. Monthly Plan (₹149 / mo) */}
-            <Pressable
-              onPress={() => handleSelectOption("monthly")}
-              style={[
-                styles.billingCard,
-                {
-                  backgroundColor: theme.backgroundDefault,
-                  borderColor:
-                    selectedOptionId === "monthly" ? theme.primary : theme.border,
-                  borderWidth: selectedOptionId === "monthly" ? 2 : 1,
-                },
-              ]}
-            >
-              <View style={styles.cardHeaderRow}>
-                <View style={styles.cardTitleWrap}>
-                  <ThemedText type="h3" style={styles.planCardTitle}>
-                    Monthly Plan
+            {/* Promotional Free Mode Banner if subscription is globally disabled */}
+            {!subStatus?.subscriptionEnabled && (
+              <View style={styles.freeModeNotice}>
+                <Feather name="gift" size={20} color="#EA580C" />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <ThemedText style={styles.freeModeNoticeTitle}>
+                    Promotional Free Mode Active
                   </ThemedText>
-                  <ThemedText style={styles.planCardSubtext}>
-                    Flexible billing, cancel anytime
+                  <ThemedText style={styles.freeModeNoticeSub}>
+                    All site limits and worker features are currently free. You can preview our Pro plans below.
                   </ThemedText>
                 </View>
-
-                {/* Radio selection indicator */}
-                <View
-                  style={[
-                    styles.radioCircle,
-                    {
-                      borderColor:
-                        selectedOptionId === "monthly" ? theme.primary : theme.border,
-                    },
-                  ]}
-                >
-                  {selectedOptionId === "monthly" && (
-                    <View
-                      style={[styles.radioDot, { backgroundColor: theme.primary }]}
-                    />
-                  )}
-                </View>
-              </View>
-
-              <View style={styles.priceContainer}>
-                <ThemedText style={[styles.mainPrice, { color: theme.text }]}>
-                  ₹149
-                </ThemedText>
-                <ThemedText style={styles.perMonthLabel}>/ month</ThemedText>
-              </View>
-            </Pressable>
-
-            {/* 2. Yearly Plan (₹1,119 / yr - Best Value) */}
-            <Pressable
-              onPress={() => handleSelectOption("yearly")}
-              style={[
-                styles.billingCard,
-                styles.yearlyCard,
-                {
-                  backgroundColor: theme.backgroundDefault,
-                  borderColor:
-                    selectedOptionId === "yearly" ? theme.primary : theme.border,
-                  borderWidth: selectedOptionId === "yearly" ? 2 : 1,
-                },
-              ]}
-            >
-              {/* Best Value Badge */}
-              <View style={styles.bestValueBadge}>
-                <Feather name="zap" size={12} color="#FFFFFF" style={{ marginRight: 4 }} />
-                <ThemedText style={styles.bestValueText}>
-                  BEST VALUE • SAVE 37%
-                </ThemedText>
-              </View>
-
-              <View style={styles.cardHeaderRow}>
-                <View style={styles.cardTitleWrap}>
-                  <ThemedText type="h3" style={styles.planCardTitle}>
-                    Annual Plan
-                  </ThemedText>
-                  <ThemedText style={styles.planCardSubtext}>
-                    12 months of full Pro access
-                  </ThemedText>
-                </View>
-
-                {/* Radio selection indicator */}
-                <View
-                  style={[
-                    styles.radioCircle,
-                    {
-                      borderColor:
-                        selectedOptionId === "yearly" ? theme.primary : theme.border,
-                    },
-                  ]}
-                >
-                  {selectedOptionId === "yearly" && (
-                    <View
-                      style={[styles.radioDot, { backgroundColor: theme.primary }]}
-                    />
-                  )}
-                </View>
-              </View>
-
-              <View style={styles.priceContainer}>
-                <ThemedText style={[styles.mainPrice, { color: theme.primary }]}>
-                  ₹1,119
-                </ThemedText>
-                <ThemedText style={styles.perYearLabel}>/ year</ThemedText>
-                <ThemedText style={styles.strikethroughPrice}>₹1,788</ThemedText>
-              </View>
-
-              <View style={styles.savingsPill}>
-                <Feather name="check-circle" size={13} color="#15803D" />
-                <ThemedText style={styles.savingsPillText}>
-                  Just ₹93.25/mo • Save ₹669/year
-                </ThemedText>
-              </View>
-            </Pressable>
-          </View>
-
-          {/* Included Features Section */}
-          <View
-            style={[
-              styles.featuresContainer,
-              {
-                backgroundColor: theme.backgroundDefault,
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            <ThemedText type="small" style={styles.sectionHeader}>
-              ALL PRO FEATURES INCLUDED
-            </ThemedText>
-
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconWrap}>
-                <Feather name="users" size={16} color={theme.primary} />
-              </View>
-              <ThemedText style={styles.featureLabel}>
-                Unlimited Workers & Attendance Records
-              </ThemedText>
-            </View>
-
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconWrap}>
-                <Feather name="map-pin" size={16} color={theme.primary} />
-              </View>
-              <ThemedText style={styles.featureLabel}>
-                Unlimited Construction Sites & Projects
-              </ThemedText>
-            </View>
-
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconWrap}>
-                <Feather name="user-check" size={16} color={theme.primary} />
-              </View>
-              <ThemedText style={styles.featureLabel}>
-                Unlimited Supervisor & Staff Accounts
-              </ThemedText>
-            </View>
-
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconWrap}>
-                <Feather name="navigation" size={16} color={theme.primary} />
-              </View>
-              <ThemedText style={styles.featureLabel}>
-                GPS Geo-fencing & Real-Time Punch-In
-              </ThemedText>
-            </View>
-
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconWrap}>
-                <Feather name="file-text" size={16} color={theme.primary} />
-              </View>
-              <ThemedText style={styles.featureLabel}>
-                1-Click Wage, Overtime & Attendance PDF / Excel
-              </ThemedText>
-            </View>
-
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconWrap}>
-                <Feather name="cloud" size={16} color={theme.primary} />
-              </View>
-              <ThemedText style={styles.featureLabel}>
-                Cloud Sync & Automated Daily Backups
-              </ThemedText>
-            </View>
-
-            <View style={styles.featureItem}>
-              <View style={styles.featureIconWrap}>
-                <Feather name="shield" size={16} color={theme.primary} />
-              </View>
-              <ThemedText style={styles.featureLabel}>
-                Priority Technical Support via WhatsApp
-              </ThemedText>
-            </View>
-          </View>
-
-          {/* Secure Payment Guarantee */}
-          <View style={styles.secureGuaranteeRow}>
-            <Feather name="lock" size={14} color={theme.textSecondary} />
-            <ThemedText style={styles.secureGuaranteeText}>
-              Secured by Razorpay • UPI, Cards, NetBanking supported
-            </ThemedText>
-          </View>
-
-          {/* Primary Action Button */}
-          <Pressable
-            onPress={handleCheckout}
-            disabled={isProcessing}
-            style={({ pressed }) => [
-              styles.subscribeBtn,
-              {
-                backgroundColor: theme.primary,
-                opacity: isProcessing ? 0.7 : pressed ? 0.9 : 1,
-              },
-            ]}
-          >
-            {isProcessing ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Feather name="lock" size={18} color="#FFFFFF" />
-                <ThemedText style={styles.subscribeBtnText}>
-                  Pay Now • ₹{selectedOptionId === "yearly" ? "1,119" : "149"}
-                </ThemedText>
               </View>
             )}
-          </Pressable>
 
-          {/* Subtext under button */}
-          <ThemedText
-            style={{
-              textAlign: "center",
-              fontSize: 12,
-              color: theme.textSecondary,
-              marginTop: 10,
-              fontWeight: "500",
-            }}
-          >
-            Instant activation via Razorpay UPI, Cards & NetBanking
-          </ThemedText>
-        </ScrollView>
+            {/* Pricing Plan Selector Title */}
+            <ThemedText type="small" style={styles.sectionHeader}>
+              CHOOSE YOUR BILLING PLAN
+            </ThemedText>
+
+            {/* Billing Options Stack */}
+            <View style={styles.billingGrid}>
+              {/* 1. Monthly Plan */}
+              <Pressable
+                onPress={() => {
+                  triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedOptionId("monthly");
+                }}
+                style={[
+                  styles.billingCard,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor:
+                      selectedOptionId === "monthly" ? theme.primary : theme.border,
+                    borderWidth: selectedOptionId === "monthly" ? 2 : 1,
+                  },
+                ]}
+              >
+                <View style={styles.cardHeaderRow}>
+                  <View style={styles.cardTitleWrap}>
+                    <ThemedText type="h3" style={styles.planCardTitle}>
+                      Monthly Plan
+                    </ThemedText>
+                    <ThemedText style={styles.planCardSubtext}>
+                      Flexible monthly billing via Google Play
+                    </ThemedText>
+                  </View>
+
+                  {/* Radio selection indicator */}
+                  <View
+                    style={[
+                      styles.radioCircle,
+                      {
+                        borderColor:
+                          selectedOptionId === "monthly" ? theme.primary : theme.border,
+                      },
+                    ]}
+                  >
+                    {selectedOptionId === "monthly" && (
+                      <View
+                        style={[styles.radioDot, { backgroundColor: theme.primary }]}
+                      />
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.priceContainer}>
+                  <ThemedText style={[styles.mainPrice, { color: theme.text }]}>
+                    {monthlyPriceText}
+                  </ThemedText>
+                  <ThemedText style={styles.perMonthLabel}>/ month</ThemedText>
+                </View>
+              </Pressable>
+
+              {/* 2. Yearly Plan (Best Value) */}
+              <Pressable
+                onPress={() => {
+                  triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedOptionId("yearly");
+                }}
+                style={[
+                  styles.billingCard,
+                  styles.yearlyCard,
+                  {
+                    backgroundColor: theme.backgroundDefault,
+                    borderColor:
+                      selectedOptionId === "yearly" ? theme.primary : theme.border,
+                    borderWidth: selectedOptionId === "yearly" ? 2 : 1,
+                  },
+                ]}
+              >
+                {/* Best Value Badge */}
+                <View style={styles.bestValueBadge}>
+                  <Feather name="zap" size={12} color="#FFFFFF" style={{ marginRight: 4 }} />
+                  <ThemedText style={styles.bestValueText}>
+                    BEST VALUE • SAVE 37%
+                  </ThemedText>
+                </View>
+
+                <View style={styles.cardHeaderRow}>
+                  <View style={styles.cardTitleWrap}>
+                    <ThemedText type="h3" style={styles.planCardTitle}>
+                      Annual Plan
+                    </ThemedText>
+                    <ThemedText style={styles.planCardSubtext}>
+                      12 months of full Pro access
+                    </ThemedText>
+                  </View>
+
+                  {/* Radio selection indicator */}
+                  <View
+                    style={[
+                      styles.radioCircle,
+                      {
+                        borderColor:
+                          selectedOptionId === "yearly" ? theme.primary : theme.border,
+                      },
+                    ]}
+                  >
+                    {selectedOptionId === "yearly" && (
+                      <View
+                        style={[styles.radioDot, { backgroundColor: theme.primary }]}
+                      />
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.priceContainer}>
+                  <ThemedText style={[styles.mainPrice, { color: theme.primary }]}>
+                    {annualPriceText}
+                  </ThemedText>
+                  <ThemedText style={styles.perYearLabel}>/ year</ThemedText>
+                  <ThemedText style={styles.strikethroughPrice}>₹1,788</ThemedText>
+                </View>
+
+                <View style={styles.savingsPill}>
+                  <Feather name="check-circle" size={13} color="#15803D" />
+                  <ThemedText style={styles.savingsPillText}>
+                    Just ₹93.25/mo • Save ₹669/year
+                  </ThemedText>
+                </View>
+              </Pressable>
+            </View>
+
+            {/* Included Features Section */}
+            <View
+              style={[
+                styles.featuresContainer,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <ThemedText type="small" style={styles.sectionHeader}>
+                ALL PRO FEATURES INCLUDED
+              </ThemedText>
+
+              <View style={styles.featureItem}>
+                <View style={styles.featureIconWrap}>
+                  <Feather name="users" size={16} color={theme.primary} />
+                </View>
+                <ThemedText style={styles.featureLabel}>
+                  Unlimited Workers & Attendance Records
+                </ThemedText>
+              </View>
+
+              <View style={styles.featureItem}>
+                <View style={styles.featureIconWrap}>
+                  <Feather name="map-pin" size={16} color={theme.primary} />
+                </View>
+                <ThemedText style={styles.featureLabel}>
+                  Unlimited Construction Sites & Projects
+                </ThemedText>
+              </View>
+
+              <View style={styles.featureItem}>
+                <View style={styles.featureIconWrap}>
+                  <Feather name="user-check" size={16} color={theme.primary} />
+                </View>
+                <ThemedText style={styles.featureLabel}>
+                  Unlimited Supervisor & Staff Accounts
+                </ThemedText>
+              </View>
+
+              <View style={styles.featureItem}>
+                <View style={styles.featureIconWrap}>
+                  <Feather name="navigation" size={16} color={theme.primary} />
+                </View>
+                <ThemedText style={styles.featureLabel}>
+                  GPS Geo-fencing & Real-Time Punch-In
+                </ThemedText>
+              </View>
+
+              <View style={styles.featureItem}>
+                <View style={styles.featureIconWrap}>
+                  <Feather name="file-text" size={16} color={theme.primary} />
+                </View>
+                <ThemedText style={styles.featureLabel}>
+                  1-Click Wage, Overtime & Attendance PDF / Excel
+                </ThemedText>
+              </View>
+
+              <View style={styles.featureItem}>
+                <View style={styles.featureIconWrap}>
+                  <Feather name="cloud" size={16} color={theme.primary} />
+                </View>
+                <ThemedText style={styles.featureLabel}>
+                  Cloud Sync & Automated Daily Backups
+                </ThemedText>
+              </View>
+
+              <View style={styles.featureItem}>
+                <View style={styles.featureIconWrap}>
+                  <Feather name="shield" size={16} color={theme.primary} />
+                </View>
+                <ThemedText style={styles.featureLabel}>
+                  Priority Technical Support via WhatsApp
+                </ThemedText>
+              </View>
+            </View>
+
+            {/* Google Play Billing Secure Guarantee */}
+            <View style={styles.secureGuaranteeRow}>
+              <Feather name="lock" size={14} color={theme.textSecondary} />
+              <ThemedText style={styles.secureGuaranteeText}>
+                Protected by Google Play In-App Billing
+              </ThemedText>
+            </View>
+
+            {/* Primary Action Button: Subscribe with Google Play */}
+            <Pressable
+              onPress={handleSubscribe}
+              disabled={isPurchasing}
+              style={({ pressed }) => [
+                styles.subscribeBtn,
+                {
+                  backgroundColor: theme.primary,
+                  opacity: isPurchasing ? 0.7 : pressed ? 0.9 : 1,
+                },
+              ]}
+            >
+              {isPurchasing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Feather name="shield" size={18} color="#FFFFFF" />
+                  <ThemedText style={styles.subscribeBtnText}>
+                    Subscribe with Google Play • {selectedOptionId === "yearly" ? annualPriceText : monthlyPriceText}
+                  </ThemedText>
+                </View>
+              )}
+            </Pressable>
+
+            {/* Restore Purchases Link */}
+            <Pressable
+              onPress={handleRestorePurchases}
+              disabled={isRestoring}
+              style={styles.restoreLinkBtn}
+            >
+              {isRestoring ? (
+                <ActivityIndicator size="small" color={theme.textSecondary} />
+              ) : (
+                <ThemedText style={styles.restoreLinkText}>
+                  Already purchased? Tap to Restore Purchases
+                </ThemedText>
+              )}
+            </Pressable>
+          </ScrollView>
         )
       ) : (
         /* History Tab */
@@ -1230,7 +1121,10 @@ export default function SubscriptionScreen() {
                     {item.planNameSnapshot || "Haajari Pro"}
                   </ThemedText>
                   <ThemedText type="small" style={styles.txnId}>
-                    Txn: {item.transactionId}
+                    ID: {item.transactionId}
+                  </ThemedText>
+                  <ThemedText type="small" style={styles.txnProvider}>
+                    Provider: {item.paymentProvider ? item.paymentProvider.toUpperCase() : "GOOGLE_PLAY"}
                   </ThemedText>
                 </View>
 
@@ -1290,113 +1184,13 @@ export default function SubscriptionScreen() {
         />
       )}
 
-      {/* Razorpay Web Checkout Modal */}
+      {/* ── Manage / Cancel Subscription Confirmation Modal ── */}
       <Modal
-        visible={webViewModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setWebViewModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <View style={styles.modalHeaderTitleWrap}>
-              <Feather name="shield" size={18} color="#EA580C" />
-              <ThemedText type="h3" style={styles.modalHeaderTitle}>
-                Razorpay Checkout
-              </ThemedText>
-            </View>
-
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              {paymentUrl ? (
-                <Pressable
-                  onPress={() => {
-                    Linking.openURL(paymentUrl).catch(() =>
-                      Alert.alert("Notice", "Could not open external browser.")
-                    );
-                  }}
-                  hitSlop={8}
-                  style={styles.openBrowserBtn}
-                >
-                  <Feather name="external-link" size={15} color={theme.primary} />
-                  <ThemedText style={{ fontSize: 13, color: theme.primary, fontWeight: "700", marginLeft: 4 }}>
-                    Browser
-                  </ThemedText>
-                </Pressable>
-              ) : null}
-
-              <Pressable
-                onPress={() => setWebViewModalVisible(false)}
-                hitSlop={8}
-                style={styles.closeBtn}
-              >
-                <Feather name="x" size={22} color={theme.text} />
-              </Pressable>
-            </View>
-          </View>
-          <WebView
-            source={
-              paymentUrl
-                ? { uri: paymentUrl }
-                : { html: webViewHtml, baseUrl: "https://api.razorpay.com" }
-            }
-            onMessage={handleWebViewMessage}
-            onShouldStartLoadWithRequest={(request) => {
-              const url = request.url;
-              // Intercept callback redirect
-              if (url.includes("payment-callback") || url.includes("razorpay_payment_id")) {
-                handleRedirectUrl(url);
-                return false;
-              }
-              // Intercept UPI mobile schemes so UPI apps open natively
-              if (
-                url.startsWith("upi://") ||
-                url.startsWith("tez://") ||
-                url.startsWith("phonepe://") ||
-                url.startsWith("paytmmp://") ||
-                url.startsWith("intent://") ||
-                url.startsWith("credpay://") ||
-                url.startsWith("bhim://")
-              ) {
-                Linking.openURL(url).catch((err) => {
-                  console.warn("[Razorpay] UPI app open:", err);
-                });
-                return false;
-              }
-              return true;
-            }}
-            onNavigationStateChange={(navState) => {
-              if (
-                navState.url.includes("payment-callback") ||
-                navState.url.includes("razorpay_payment_id")
-              ) {
-                handleRedirectUrl(navState.url);
-              }
-            }}
-            style={{ flex: 1 }}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            originWhitelist={["*"]}
-            mixedContentMode="always"
-            startInLoadingState={true}
-            renderLoading={() => (
-              <View style={styles.centeredContainer}>
-                <ActivityIndicator size="large" color={theme.primary} />
-                <ThemedText style={{ marginTop: 12, color: theme.textSecondary, fontWeight: "600" }}>
-                  Opening Razorpay Payment Page...
-                </ThemedText>
-              </View>
-            )}
-          />
-        </View>
-      </Modal>
-
-      {/* ── Cancel Subscription Confirmation Modal ── */}
-      <Modal
-        visible={cancelModalVisible}
+        visible={manageModalVisible}
         transparent
         animationType="fade"
         onRequestClose={() => {
-          if (!isCancelling) setCancelModalVisible(false);
+          if (!isCancelling) setManageModalVisible(false);
         }}
       >
         <View style={styles.cancelModalOverlay}>
@@ -1408,10 +1202,10 @@ export default function SubscriptionScreen() {
           >
             <View style={styles.cancelModalHeader}>
               <View style={styles.cancelModalIconWrap}>
-                <Feather name="alert-triangle" size={24} color="#EA580C" />
+                <Feather name="shield" size={24} color="#EA580C" />
               </View>
               <ThemedText type="h3" style={styles.cancelModalTitle}>
-                Cancel Haajari PRO?
+                Manage Haajari PRO
               </ThemedText>
             </View>
 
@@ -1426,8 +1220,7 @@ export default function SubscriptionScreen() {
                 <ThemedText
                   style={[styles.cancelModalBulletText, { color: theme.text }]}
                 >
-                  Your PRO benefits will remain active until the current billing
-                  period ends.
+                  Your PRO benefits will remain 100% active until your current billing period ends.
                 </ThemedText>
               </View>
 
@@ -1441,7 +1234,7 @@ export default function SubscriptionScreen() {
                 <ThemedText
                   style={[styles.cancelModalBulletText, { color: theme.text }]}
                 >
-                  No future automatic renewal will be charged.
+                  No future automatic renewal will be charged once cancelled.
                 </ThemedText>
               </View>
 
@@ -1455,7 +1248,7 @@ export default function SubscriptionScreen() {
                 <ThemedText
                   style={[styles.cancelModalBulletText, { color: theme.text }]}
                 >
-                  Your workers, attendance and salary records will remain safe.
+                  Your workers, attendance, and salary records will always remain safe.
                 </ThemedText>
               </View>
             </View>
@@ -1465,7 +1258,7 @@ export default function SubscriptionScreen() {
               <Pressable
                 onPress={() => {
                   triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
-                  setCancelModalVisible(false);
+                  setManageModalVisible(false);
                 }}
                 disabled={isCancelling}
                 style={[styles.keepProBtn, { backgroundColor: theme.primary }]}
@@ -1475,20 +1268,34 @@ export default function SubscriptionScreen() {
                 </ThemedText>
               </Pressable>
 
-              {/* Yes, Cancel Subscription (Secondary Destructive Action) */}
-              <Pressable
-                onPress={handleConfirmCancellation}
-                disabled={isCancelling}
-                style={styles.confirmCancelBtn}
-              >
-                {isCancelling ? (
-                  <ActivityIndicator size="small" color="#EF4444" />
-                ) : (
-                  <ThemedText style={styles.confirmCancelBtnText}>
-                    Yes, Cancel Subscription
-                  </ThemedText>
-                )}
-              </Pressable>
+              {/* Action depending on provider: Google Play vs Legacy Razorpay */}
+              {activeSub?.provider === "razorpay" ? (
+                <Pressable
+                  onPress={handleConfirmLegacyCancellation}
+                  disabled={isCancelling}
+                  style={styles.confirmCancelBtn}
+                >
+                  {isCancelling ? (
+                    <ActivityIndicator size="small" color="#EF4444" />
+                  ) : (
+                    <ThemedText style={styles.confirmCancelBtnText}>
+                      Cancel Subscription
+                    </ThemedText>
+                  )}
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={handleOpenGooglePlaySubscriptions}
+                  style={styles.confirmCancelBtn}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Feather name="external-link" size={15} color="#64748B" />
+                    <ThemedText style={[styles.confirmCancelBtnText, { color: "#64748B" }]}>
+                      Manage on Google Play
+                    </ThemedText>
+                  </View>
+                </Pressable>
+              )}
             </View>
           </View>
         </View>
@@ -1554,34 +1361,6 @@ const styles = StyleSheet.create({
   tabBtnText: {
     fontWeight: "700",
     fontSize: 14,
-  },
-  activeSubBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#DCFCE7",
-    borderColor: "#86EFAC",
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  activeSubIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#16A34A",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  activeSubTitle: {
-    color: "#166534",
-    fontWeight: "800",
-    fontSize: 15,
-  },
-  activeSubExpiry: {
-    color: "#15803D",
-    fontSize: 13,
-    marginTop: 2,
   },
   freeModeNotice: {
     flexDirection: "row",
@@ -1766,8 +1545,33 @@ const styles = StyleSheet.create({
   subscribeBtnText: {
     color: "#FFFFFF",
     fontWeight: "800",
-    fontSize: 16,
+    fontSize: 15,
     letterSpacing: 0.3,
+  },
+  restoreLinkBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 14,
+    paddingVertical: 8,
+  },
+  restoreLinkText: {
+    color: "#64748B",
+    fontSize: 13,
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  restoreBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  restoreBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
   },
   emptyContainer: {
     alignItems: "center",
@@ -1794,6 +1598,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  txnProvider: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 2,
+  },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -1807,46 +1617,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    marginTop: 44,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    overflow: "hidden",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-    backgroundColor: "#FFFFFF",
-  },
-  modalHeaderTitleWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  modalHeaderTitle: {
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  closeBtn: {
-    padding: 4,
-  },
-  openBrowserBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF7ED",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#FFEDD5",
   },
   // ─── PRO Identity Screen Styles ─────────────────────────────────────────
   proIdentityCard: {
@@ -2071,7 +1841,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   cancelSubBtnText: {
-    color: "#94A3B8",
+    color: "#64748B",
     fontSize: 13,
     fontWeight: "600",
   },
