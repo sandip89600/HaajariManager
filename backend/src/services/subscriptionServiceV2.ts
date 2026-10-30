@@ -171,10 +171,10 @@ export class SubscriptionServiceV2 {
 
     const availablePlans = await this.getAvailablePlansForUser();
 
-    // Query user's current active subscription
+    // Query user's current active subscription (including period-end cancellations)
     const activeSub = await UserSubscriptionV2.findOne({
       tenantId,
-      status: "active",
+      status: { $in: ["active", "cancelled"] },
       expiresAt: { $gt: new Date() },
     })
       .sort({ expiresAt: -1 })
@@ -189,6 +189,9 @@ export class SubscriptionServiceV2 {
         billingOptionId: activeSub.billingOptionId,
         startedAt: activeSub.startedAt,
         expiresAt: activeSub.expiresAt,
+        autoRenew: activeSub.autoRenew,
+        cancelAtPeriodEnd: Boolean((activeSub as any).cancelAtPeriodEnd),
+        cancelledAt: (activeSub as any).cancelledAt,
         provider: activeSub.provider,
       };
     }
@@ -599,6 +602,124 @@ export class SubscriptionServiceV2 {
   }
 
   /**
+   * Cancel User Subscription at period end (Graceful Period-End Cancellation)
+   */
+  static async cancelSubscription(userId: string, tenantId: string, reason?: string) {
+    const activeSub = await UserSubscriptionV2.findOne({
+      tenantId,
+      status: { $in: ["active"] },
+      expiresAt: { $gt: new Date() },
+    }).sort({ expiresAt: -1 });
+
+    if (!activeSub) {
+      throw { code: "NO_ACTIVE_SUBSCRIPTION", message: "No active subscription found to cancel." };
+    }
+
+    // 1. If Razorpay subscription exists, call Razorpay cancellation API at cycle end
+    const key_id = process.env.RAZORPAY_KEY_ID;
+    const key_secret = process.env.RAZORPAY_KEY_SECRET;
+    if (
+      key_id &&
+      key_secret &&
+      activeSub.providerSubscriptionId &&
+      activeSub.providerSubscriptionId.startsWith("sub_")
+    ) {
+      try {
+        const Razorpay = (await import("razorpay")).default;
+        const razorpay = new Razorpay({ key_id, key_secret });
+        await (razorpay.subscriptions as any).cancel(activeSub.providerSubscriptionId, true);
+        console.log(`[SubscriptionServiceV2] Cancelled Razorpay subscription: ${activeSub.providerSubscriptionId} at cycle end`);
+      } catch (rzpErr: any) {
+        console.warn("[SubscriptionServiceV2] Razorpay cancel API note:", rzpErr?.message || rzpErr);
+      }
+    }
+
+    // 2. Mark subscription as cancel at period end (Benefits remain 100% active until expiresAt)
+    activeSub.autoRenew = false;
+    activeSub.cancelAtPeriodEnd = true;
+    activeSub.cancelledAt = new Date();
+    activeSub.cancellationReason = reason || "User requested cancellation from mobile app";
+    await activeSub.save();
+
+    // 3. Send cancellation confirmation email
+    try {
+      const userDoc = await User.findById(userId).select("email name").lean();
+      if (userDoc && userDoc.email) {
+        const planName =
+          activeSub.billingOptionId === "yearly" ? "Annual Plan (₹1,119 / yr)" : "Monthly Plan (₹149 / mo)";
+        const expiryFormatted = activeSub.expiresAt.toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+
+        const emailHtml = `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1E293B;">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <h2 style="color: #0F172A; margin-bottom: 6px;">Haajari PRO Cancellation Confirmation</h2>
+              <p style="color: #64748B; font-size: 14px; margin: 0;">Your automatic renewal has been cancelled.</p>
+            </div>
+            <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+              <p style="font-size: 15px; margin-bottom: 12px;">Hello <strong>${userDoc.name || "Contractor"}</strong>,</p>
+              <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+                We have processed your cancellation request for <strong>${planName}</strong>. Automatic renewal is now disabled and no future charges will be billed to your account.
+              </p>
+              <div style="background: #DCFCE7; border: 1px solid #86EFAC; border-radius: 8px; padding: 14px; margin: 16px 0;">
+                <p style="margin: 0; font-size: 13px; font-weight: 700; color: #166534;">
+                  ✅ Important: Your PRO benefits remain 100% ACTIVE until ${expiryFormatted}.
+                </p>
+              </div>
+              <ul style="font-size: 13px; color: #475569; line-height: 1.7; padding-left: 20px; margin-bottom: 0;">
+                <li>No future automatic renewal will be charged.</li>
+                <li>Your workers, sites, attendance, and salary records will remain safe.</li>
+                <li>After ${expiryFormatted}, your account will automatically switch to the Free Basic Plan.</li>
+                <li>You can re-upgrade to PRO at any time from your Haajari Manager app.</li>
+              </ul>
+            </div>
+            <p style="font-size: 12px; color: #94A3B8; text-align: center;">
+              Thank you for using Haajari Manager. If this cancellation was unintentional, you can re-activate PRO at any time.
+            </p>
+          </div>
+        `;
+
+        const { sendMailUnifiedDetailed } = await import("../utils/mail");
+        await sendMailUnifiedDetailed(
+          userDoc.email,
+          "Haajari PRO Cancellation Confirmation - Active Until " + expiryFormatted,
+          emailHtml,
+          "SubscriptionCancellation"
+        );
+      }
+    } catch (mailErr: any) {
+      console.warn("[SubscriptionServiceV2] Cancellation email notice:", mailErr?.message || mailErr);
+    }
+
+    // 4. Broadcast real-time socket update to user
+    try {
+      const io = getIO();
+      if (io) {
+        io.to(`user_${userId}`).emit("subscription:statusUpdated", {
+          status: "active",
+          cancelAtPeriodEnd: true,
+          expiresAt: activeSub.expiresAt,
+        });
+        io.to(`tenant_${tenantId}`).emit("subscription:statusUpdated", {
+          status: "active",
+          cancelAtPeriodEnd: true,
+          expiresAt: activeSub.expiresAt,
+        });
+      }
+    } catch {}
+
+    return {
+      success: true,
+      message: "Subscription renewal has been cancelled. Your PRO benefits remain active until the end of your billing cycle.",
+      expiresAt: activeSub.expiresAt,
+      cancelAtPeriodEnd: true,
+    };
+  }
+
+  /**
    * Feature Access & Plan Limit Enforcement
    * Returns allowed: true instantly if Global Subscription is OFF.
    */
@@ -614,7 +735,7 @@ export class SubscriptionServiceV2 {
 
     const activeSub = await UserSubscriptionV2.findOne({
       tenantId,
-      status: "active",
+      status: { $in: ["active", "cancelled"] },
       expiresAt: { $gt: new Date() },
     });
 

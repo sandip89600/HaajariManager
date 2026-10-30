@@ -150,6 +150,26 @@ export const handleRazorpayWebhook = async (req: Request, res: Response) => {
           );
         }
       }
+    } else if (
+      event === "subscription.cancelled" ||
+      event === "subscription.pending_cancellation" ||
+      event === "subscription.halted"
+    ) {
+      const subEntity = req.body.payload?.subscription?.entity;
+      const subId = subEntity?.id;
+      if (subId) {
+        await UserSubscriptionV2.updateMany(
+          { providerSubscriptionId: subId },
+          {
+            $set: {
+              autoRenew: false,
+              cancelAtPeriodEnd: true,
+              cancelledAt: new Date(),
+              cancellationReason: `Cancelled via Razorpay Webhook (${event})`,
+            },
+          }
+        );
+      }
     }
 
     return res.status(200).json({ status: "ok" });
@@ -187,14 +207,21 @@ export const activateSubscription = async (req: Request, res: Response) => {
 
 export const cancelSubscription = async (req: Request, res: Response) => {
   try {
+    const userId = (req as any).user?.id || (req as any).user?._id;
     const tenantId = (req as any).user?.tenantId;
-    await UserSubscriptionV2.updateMany(
-      { tenantId, status: "active" },
-      { $set: { status: "cancelled" } }
-    );
-    return res.json({ message: "Subscription cancelled successfully." });
+    const { reason } = req.body || {};
+
+    if (!userId || !tenantId) {
+      return res.status(401).json({ error: "UNAUTHORIZED", message: "User authentication required." });
+    }
+
+    const result = await SubscriptionServiceV2.cancelSubscription(String(userId), String(tenantId), reason);
+    return res.json(result);
   } catch (err: any) {
-    return res.status(500).json({ error: "CANCEL_FAILED", message: "Failed to cancel subscription." });
+    if (err.code) {
+      return res.status(400).json(err);
+    }
+    return res.status(500).json({ error: "CANCEL_FAILED", message: err.message || "Failed to cancel subscription." });
   }
 };
 

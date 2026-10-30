@@ -38,6 +38,9 @@ export interface UserSubscriptionDetails {
   billingOptionId: string;
   startedAt: string;
   expiresAt: string;
+  autoRenew?: boolean;
+  cancelAtPeriodEnd?: boolean;
+  cancelledAt?: string;
   provider: string;
 }
 
@@ -223,6 +226,29 @@ export class SubscriptionApi {
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
       throw new Error(errorData.message || "Failed to activate subscription.");
+    }
+    return await res.json();
+  }
+
+  /**
+   * Cancel Subscription renewal at period end (graceful cancellation)
+   */
+  static async cancelSubscription(reason?: string): Promise<{
+    success: boolean;
+    message: string;
+    expiresAt?: string;
+    cancelAtPeriodEnd?: boolean;
+  }> {
+    const res = await authenticatedFetch(
+      `${API_URL}/v2/subscription/cancel`,
+      {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      }
+    );
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to cancel subscription.");
     }
     return await res.json();
   }

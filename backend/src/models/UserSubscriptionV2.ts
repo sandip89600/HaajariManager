@@ -9,6 +9,9 @@ export interface IUserSubscriptionV2 extends Document {
   startedAt: Date;
   expiresAt: Date;
   autoRenew: boolean;
+  cancelAtPeriodEnd?: boolean;
+  cancelledAt?: Date;
+  cancellationReason?: string;
   provider: string;
   providerSubscriptionId?: string;
   createdAt: Date;
@@ -30,6 +33,9 @@ const UserSubscriptionV2Schema = new Schema<IUserSubscriptionV2>(
     startedAt: { type: Date, default: Date.now },
     expiresAt: { type: Date, required: true, index: true },
     autoRenew: { type: Boolean, default: false },
+    cancelAtPeriodEnd: { type: Boolean, default: false },
+    cancelledAt: { type: Date },
+    cancellationReason: { type: String },
     provider: { type: String, default: "razorpay" },
     providerSubscriptionId: { type: String },
   },

@@ -12,7 +12,7 @@ const LAST_PUSH_TOKEN_KEY = "@haajari/last_push_token";
 export function isRunningInExpoGo(): boolean {
   return (
     Constants.executionEnvironment === ExecutionEnvironment.StoreClient ||
-    Constants.executionEnvironment === "storeClient" ||
+    (Constants.executionEnvironment as any) === "storeClient" ||
     (Constants as any).appOwnership === "expo" ||
     typeof (Constants as any).expoVersion === "string" ||
     Boolean(Constants.expoConfig?.hostUri && __DEV__)

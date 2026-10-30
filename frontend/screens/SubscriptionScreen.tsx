@@ -14,7 +14,8 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -56,6 +57,10 @@ export default function SubscriptionScreen() {
   const [webViewHtml, setWebViewHtml] = useState<string>("");
   const [paymentUrl, setPaymentUrl] = useState<string>("");
   const [activeCheckout, setActiveCheckout] = useState<CheckoutResponse | null>(null);
+
+  // Cancel Subscription State
+  const [cancelModalVisible, setCancelModalVisible] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -306,6 +311,43 @@ export default function SubscriptionScreen() {
   };
 
   /**
+   * Handle Subscription Cancellation Confirmation
+   */
+  const handleConfirmCancellation = async () => {
+    setIsCancelling(true);
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
+
+    try {
+      await SubscriptionApi.cancelSubscription("User requested cancellation from mobile app");
+      setCancelModalVisible(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      const formattedExpiry = activeSub?.expiresAt
+        ? new Date(activeSub.expiresAt).toLocaleDateString(undefined, {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })
+        : "the end of your billing cycle";
+
+      Alert.alert(
+        "Subscription Cancelled",
+        `Your automatic renewal has been cancelled.\n\nYour PRO benefits remain 100% active until ${formattedExpiry}.\n\nA confirmation email has been sent to your registered email address.`,
+        [{ text: "OK", onPress: () => loadData() }]
+      );
+      loadData();
+    } catch (err: any) {
+      console.warn("[SubscriptionScreen] Cancellation error:", err);
+      Alert.alert(
+        "Notice",
+        err.message || "Failed to cancel subscription. Please check your connection and try again."
+      );
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  /**
    * Handle initiation of Razorpay Checkout
    */
   const handleCheckout = async () => {
@@ -469,9 +511,25 @@ export default function SubscriptionScreen() {
     );
   }
 
-  const isProActive =
-    subStatus?.userSubscription &&
-    subStatus.userSubscription.status === "active";
+  const activeSub = subStatus?.userSubscription;
+  const isProActive = Boolean(
+    activeSub &&
+    activeSub.status === "active" &&
+    (!activeSub.expiresAt || new Date(activeSub.expiresAt) > new Date())
+  );
+  const isYearly = Boolean(
+    activeSub?.billingOptionId &&
+    (activeSub.billingOptionId.includes("year") || activeSub.billingOptionId.includes("12"))
+  );
+  const daysRemaining = activeSub?.expiresAt
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(activeSub.expiresAt).getTime() - Date.now()) /
+            (1000 * 60 * 60 * 24)
+        )
+      )
+    : null;
 
   return (
     <ThemedView style={styles.container}>
@@ -487,10 +545,12 @@ export default function SubscriptionScreen() {
 
         <View style={styles.headerTitleWrap}>
           <ThemedText type="h2" style={styles.headerTitle}>
-            Haajari Pro
+            {isProActive ? "PRO Identity" : "Haajari Pro"}
           </ThemedText>
-          <View style={styles.proBadge}>
-            <ThemedText style={styles.proBadgeText}>PRO</ThemedText>
+          <View style={[styles.proBadge, isProActive && { backgroundColor: "#10B981" }]}>
+            <ThemedText style={styles.proBadgeText}>
+              {isProActive ? "ACTIVE" : "PRO"}
+            </ThemedText>
           </View>
         </View>
       </View>
@@ -517,7 +577,7 @@ export default function SubscriptionScreen() {
               { color: activeTab === "plans" ? "#FFFFFF" : theme.text },
             ]}
           >
-            Plans & Pricing
+            {isProActive ? "👑 PRO Membership" : "Plans & Pricing"}
           </ThemedText>
         </Pressable>
 
@@ -541,16 +601,319 @@ export default function SubscriptionScreen() {
               { color: activeTab === "history" ? "#FFFFFF" : theme.text },
             ]}
           >
-            History ({transactions.length})
+            Billing History ({transactions.length})
           </ThemedText>
         </Pressable>
       </View>
 
       {activeTab === "plans" ? (
-        <ScrollView
-          contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 110 }}
-          showsVerticalScrollIndicator={false}
-        >
+        isProActive && activeSub ? (
+          /* ══════════════════════════════════════════════════════════════════
+             OPTION 4: MAIN PRO IDENTITY SCREEN (WHEN UPGRADED)
+             ══════════════════════════════════════════════════════════════════ */
+          <ScrollView
+            contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 110 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* VIP PRO Digital Membership Card */}
+            <LinearGradient
+              colors={["#0F172A", "#1E293B", "#0F172A"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.proIdentityCard}
+            >
+              <View style={styles.proCardHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                  <View style={styles.crownCircle}>
+                    <ThemedText style={{ fontSize: 24 }}>👑</ThemedText>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={styles.proIdentityTitle}>
+                      HAAJARI PRO MEMBER
+                    </ThemedText>
+                    <ThemedText numberOfLines={1} style={styles.proMemberName}>
+                      {user?.companyName || user?.name || "Verified Contractor"}
+                    </ThemedText>
+                  </View>
+                </View>
+
+                <View
+                  style={[
+                    styles.verifiedActiveBadge,
+                    activeSub.cancelAtPeriodEnd && {
+                      backgroundColor: "rgba(245, 158, 11, 0.2)",
+                      borderColor: "#F59E0B",
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.pulsingDot,
+                      activeSub.cancelAtPeriodEnd && { backgroundColor: "#F59E0B" },
+                    ]}
+                  />
+                  <ThemedText
+                    style={[
+                      styles.verifiedActiveText,
+                      activeSub.cancelAtPeriodEnd && { color: "#FBBF24" },
+                    ]}
+                  >
+                    {activeSub.cancelAtPeriodEnd ? "CANCELLING" : "ACTIVE"}
+                  </ThemedText>
+                </View>
+              </View>
+
+              <View style={styles.proCardDivider} />
+
+              {/* Plan Details & Validity Grid */}
+              <View style={styles.proMetaGrid}>
+                <View style={styles.proMetaCol}>
+                  <ThemedText style={styles.proMetaLabel}>ACTIVE PLAN</ThemedText>
+                  <ThemedText style={styles.proMetaValue}>
+                    {isYearly ? "Annual Plan (₹1,119 / yr)" : "Monthly Plan (₹149 / mo)"}
+                  </ThemedText>
+                </View>
+
+                <View style={[styles.proMetaCol, { alignItems: "flex-end" }]}>
+                  <ThemedText style={styles.proMetaLabel}>VALID UNTIL</ThemedText>
+                  <ThemedText style={styles.proMetaValue}>
+                    {activeSub.expiresAt
+                      ? new Date(activeSub.expiresAt).toLocaleDateString(undefined, {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "Lifetime"}
+                  </ThemedText>
+                </View>
+              </View>
+
+              {daysRemaining !== null && (
+                <View style={styles.daysRemainingRow}>
+                  <Feather name="clock" size={13} color="#F59E0B" style={{ marginRight: 6 }} />
+                  <ThemedText style={styles.daysRemainingText}>
+                    {daysRemaining > 0
+                      ? `${daysRemaining} days remaining in current billing period`
+                      : "Renews today"}
+                  </ThemedText>
+                </View>
+              )}
+
+              {/* Subscription ID & Guarantee */}
+              <View style={styles.proCardFooter}>
+                <ThemedText style={styles.subscriptionIdText}>
+                  ID: SUB-{String(activeSub.subscriptionId || "PRO").slice(-8).toUpperCase()}
+                </ThemedText>
+                <ThemedText style={styles.verifiedGuaranteeText}>
+                  Secured by Razorpay • Instant Sync
+                </ThemedText>
+              </View>
+            </LinearGradient>
+
+            {/* Unlocked Pro Features Header */}
+            <ThemedText type="small" style={styles.sectionHeader}>
+              ALL PRO FEATURES UNLOCKED
+            </ThemedText>
+
+            {/* Feature Entitlements List */}
+            <View style={[styles.unlockedFeaturesContainer, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+              <View style={[styles.unlockedItem, { borderBottomColor: theme.border }]}>
+                <View style={styles.unlockedIconWrap}>
+                  <Feather name="check" size={15} color="#16A34A" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <ThemedText style={[styles.unlockedTitle, { color: theme.text }]}>
+                    Unlimited Workers & Daily Attendance
+                  </ThemedText>
+                  <ThemedText style={styles.unlockedSub}>
+                    No 20 worker cap • Add unlimited workers freely
+                  </ThemedText>
+                </View>
+                <View style={styles.activePill}>
+                  <ThemedText style={styles.activePillText}>UNLOCKED</ThemedText>
+                </View>
+              </View>
+
+              <View style={[styles.unlockedItem, { borderBottomColor: theme.border }]}>
+                <View style={styles.unlockedIconWrap}>
+                  <Feather name="check" size={15} color="#16A34A" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <ThemedText style={[styles.unlockedTitle, { color: theme.text }]}>
+                    Unlimited Sites & Projects
+                  </ThemedText>
+                  <ThemedText style={styles.unlockedSub}>
+                    Manage all current and future job sites
+                  </ThemedText>
+                </View>
+                <View style={styles.activePill}>
+                  <ThemedText style={styles.activePillText}>UNLOCKED</ThemedText>
+                </View>
+              </View>
+
+              <View style={[styles.unlockedItem, { borderBottomColor: theme.border }]}>
+                <View style={styles.unlockedIconWrap}>
+                  <Feather name="check" size={15} color="#16A34A" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <ThemedText style={[styles.unlockedTitle, { color: theme.text }]}>
+                    Unlimited Supervisors & Staff
+                  </ThemedText>
+                  <ThemedText style={styles.unlockedSub}>
+                    Assign team supervisors with access control
+                  </ThemedText>
+                </View>
+                <View style={styles.activePill}>
+                  <ThemedText style={styles.activePillText}>UNLOCKED</ThemedText>
+                </View>
+              </View>
+
+              <View style={[styles.unlockedItem, { borderBottomColor: theme.border }]}>
+                <View style={styles.unlockedIconWrap}>
+                  <Feather name="check" size={15} color="#16A34A" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <ThemedText style={[styles.unlockedTitle, { color: theme.text }]}>
+                    GPS Geo-fencing & Real-Time Punch-In
+                  </ThemedText>
+                  <ThemedText style={styles.unlockedSub}>
+                    Accurate on-site location verification
+                  </ThemedText>
+                </View>
+                <View style={styles.activePill}>
+                  <ThemedText style={styles.activePillText}>UNLOCKED</ThemedText>
+                </View>
+              </View>
+
+              <View style={[styles.unlockedItem, { borderBottomColor: theme.border }]}>
+                <View style={styles.unlockedIconWrap}>
+                  <Feather name="check" size={15} color="#16A34A" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <ThemedText style={[styles.unlockedTitle, { color: theme.text }]}>
+                    1-Click Wage & Attendance PDF / Excel
+                  </ThemedText>
+                  <ThemedText style={styles.unlockedSub}>
+                    Instant payroll calculations & detailed export
+                  </ThemedText>
+                </View>
+                <View style={styles.activePill}>
+                  <ThemedText style={styles.activePillText}>UNLOCKED</ThemedText>
+                </View>
+              </View>
+
+              <View style={[styles.unlockedItem, { borderBottomColor: theme.border }]}>
+                <View style={styles.unlockedIconWrap}>
+                  <Feather name="check" size={15} color="#16A34A" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <ThemedText style={[styles.unlockedTitle, { color: theme.text }]}>
+                    Cloud Sync & Automated Daily Backups
+                  </ThemedText>
+                  <ThemedText style={styles.unlockedSub}>
+                    Zero data loss guaranteed with automatic cloud saves
+                  </ThemedText>
+                </View>
+                <View style={styles.activePill}>
+                  <ThemedText style={styles.activePillText}>UNLOCKED</ThemedText>
+                </View>
+              </View>
+
+              <View style={[styles.unlockedItem, { borderBottomWidth: 0 }]}>
+                <View style={styles.unlockedIconWrap}>
+                  <Feather name="check" size={15} color="#16A34A" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <ThemedText style={[styles.unlockedTitle, { color: theme.text }]}>
+                    Priority VIP Support
+                  </ThemedText>
+                  <ThemedText style={styles.unlockedSub}>
+                    Direct priority help via WhatsApp
+                  </ThemedText>
+                </View>
+                <View style={styles.activePill}>
+                  <ThemedText style={styles.activePillText}>UNLOCKED</ThemedText>
+                </View>
+              </View>
+            </View>
+
+            {/* Quick Action: View Invoices & History */}
+            <Pressable
+              onPress={() => {
+                triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+                setActiveTab("history");
+              }}
+              style={[
+                styles.viewInvoicesBtn,
+                { backgroundColor: theme.backgroundDefault, borderColor: theme.border },
+              ]}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Feather name="file-text" size={18} color={theme.primary} />
+                <ThemedText style={[styles.viewInvoicesBtnText, { color: theme.text }]}>
+                  View Invoices & Transaction History ({transactions.length})
+                </ThemedText>
+              </View>
+              <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+            </Pressable>
+
+            {/* VIP Support Contact Button */}
+            <Pressable
+              onPress={() => {
+                Linking.openURL(
+                  "https://wa.me/917058222107?text=Hello%20Haajari%20Support,%20I%20am%20a%20PRO%20Member"
+                ).catch(() => {});
+              }}
+              style={styles.supportContactBtn}
+            >
+              <Feather name="message-circle" size={18} color="#15803D" />
+              <ThemedText style={styles.supportContactBtnText}>
+                Connect with VIP WhatsApp Support
+              </ThemedText>
+            </Pressable>
+
+            {/* Secondary Action: Cancel Subscription */}
+            {activeSub.cancelAtPeriodEnd ? (
+              <View style={[styles.cancelledNoticeCard, { backgroundColor: theme.backgroundDefault, borderColor: "#F59E0B" }]}>
+                <Feather name="info" size={16} color="#D97706" style={{ marginRight: 8, marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={styles.cancelledNoticeTitle}>
+                    Automatic Renewal Cancelled
+                  </ThemedText>
+                  <ThemedText style={styles.cancelledNoticeDesc}>
+                    Your PRO benefits remain 100% active until{" "}
+                    {new Date(activeSub.expiresAt).toLocaleDateString(undefined, {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                    . No future charges will be billed to your account.
+                  </ThemedText>
+                </View>
+              </View>
+            ) : (
+              <Pressable
+                onPress={() => {
+                  triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+                  setCancelModalVisible(true);
+                }}
+                style={styles.cancelSubBtn}
+              >
+                <Feather name="slash" size={13} color="#94A3B8" style={{ marginRight: 6 }} />
+                <ThemedText style={styles.cancelSubBtnText}>
+                  Cancel Subscription
+                </ThemedText>
+              </Pressable>
+            )}
+          </ScrollView>
+        ) : (
+          /* ══════════════════════════════════════════════════════════════════
+             STANDARD CHECKOUT & PLANS VIEW (WHEN NOT UPGRADED)
+             ══════════════════════════════════════════════════════════════════ */
+          <ScrollView
+            contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 110 }}
+            showsVerticalScrollIndicator={false}
+          >
           {/* Active Subscription Banner */}
           {isProActive && subStatus?.userSubscription && (
             <View style={styles.activeSubBanner}>
@@ -833,6 +1196,7 @@ export default function SubscriptionScreen() {
             Instant activation via Razorpay UPI, Cards & NetBanking
           </ThemedText>
         </ScrollView>
+        )
       ) : (
         /* History Tab */
         <FlatList
@@ -1023,6 +1387,110 @@ export default function SubscriptionScreen() {
               </View>
             )}
           />
+        </View>
+      </Modal>
+
+      {/* ── Cancel Subscription Confirmation Modal ── */}
+      <Modal
+        visible={cancelModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isCancelling) setCancelModalVisible(false);
+        }}
+      >
+        <View style={styles.cancelModalOverlay}>
+          <View
+            style={[
+              styles.cancelModalContent,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
+            <View style={styles.cancelModalHeader}>
+              <View style={styles.cancelModalIconWrap}>
+                <Feather name="alert-triangle" size={24} color="#EA580C" />
+              </View>
+              <ThemedText type="h3" style={styles.cancelModalTitle}>
+                Cancel Haajari PRO?
+              </ThemedText>
+            </View>
+
+            <View style={styles.cancelModalBulletList}>
+              <View style={styles.cancelModalBulletItem}>
+                <Feather
+                  name="check-circle"
+                  size={16}
+                  color="#16A34A"
+                  style={styles.cancelBulletIcon}
+                />
+                <ThemedText
+                  style={[styles.cancelModalBulletText, { color: theme.text }]}
+                >
+                  Your PRO benefits will remain active until the current billing
+                  period ends.
+                </ThemedText>
+              </View>
+
+              <View style={styles.cancelModalBulletItem}>
+                <Feather
+                  name="shield"
+                  size={16}
+                  color="#3B82F6"
+                  style={styles.cancelBulletIcon}
+                />
+                <ThemedText
+                  style={[styles.cancelModalBulletText, { color: theme.text }]}
+                >
+                  No future automatic renewal will be charged.
+                </ThemedText>
+              </View>
+
+              <View style={styles.cancelModalBulletItem}>
+                <Feather
+                  name="database"
+                  size={16}
+                  color="#F59E0B"
+                  style={styles.cancelBulletIcon}
+                />
+                <ThemedText
+                  style={[styles.cancelModalBulletText, { color: theme.text }]}
+                >
+                  Your workers, attendance and salary records will remain safe.
+                </ThemedText>
+              </View>
+            </View>
+
+            <View style={styles.cancelModalActions}>
+              {/* Keep My PRO (Primary Button) */}
+              <Pressable
+                onPress={() => {
+                  triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+                  setCancelModalVisible(false);
+                }}
+                disabled={isCancelling}
+                style={[styles.keepProBtn, { backgroundColor: theme.primary }]}
+              >
+                <ThemedText style={styles.keepProBtnText}>
+                  Keep My PRO
+                </ThemedText>
+              </Pressable>
+
+              {/* Yes, Cancel Subscription (Secondary Destructive Action) */}
+              <Pressable
+                onPress={handleConfirmCancellation}
+                disabled={isCancelling}
+                style={styles.confirmCancelBtn}
+              >
+                {isCancelling ? (
+                  <ActivityIndicator size="small" color="#EF4444" />
+                ) : (
+                  <ThemedText style={styles.confirmCancelBtnText}>
+                    Yes, Cancel Subscription
+                  </ThemedText>
+                )}
+              </Pressable>
+            </View>
+          </View>
         </View>
       </Modal>
     </ThemedView>
@@ -1379,5 +1847,310 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#FFEDD5",
+  },
+  // ─── PRO Identity Screen Styles ─────────────────────────────────────────
+  proIdentityCard: {
+    borderRadius: 20,
+    padding: 22,
+    borderWidth: 1.5,
+    borderColor: "rgba(245, 158, 11, 0.45)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+    marginBottom: 20,
+    overflow: "hidden",
+  },
+  proCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  crownCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(245, 158, 11, 0.2)",
+    borderWidth: 1.5,
+    borderColor: "#F59E0B",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  proIdentityTitle: {
+    color: "#F59E0B",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+  },
+  proMemberName: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  verifiedActiveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    borderColor: "#10B981",
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  pulsingDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: "#10B981",
+    marginRight: 6,
+  },
+  verifiedActiveText: {
+    color: "#34D399",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  proCardDivider: {
+    height: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    marginVertical: 16,
+  },
+  proMetaGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  proMetaCol: {
+    flex: 1,
+  },
+  proMetaLabel: {
+    color: "#94A3B8",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  proMetaValue: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  daysRemainingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderColor: "rgba(245, 158, 11, 0.3)",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginTop: 14,
+  },
+  daysRemainingText: {
+    color: "#FBBF24",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  proCardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.08)",
+  },
+  subscriptionIdText: {
+    color: "#64748B",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  verifiedGuaranteeText: {
+    color: "#10B981",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  unlockedFeaturesContainer: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 18,
+  },
+  unlockedItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  unlockedIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#DCFCE7",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  unlockedTitle: {
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  unlockedSub: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  activePill: {
+    backgroundColor: "#F0FDF4",
+    borderColor: "#BBF7D0",
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  activePillText: {
+    color: "#16A34A",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  viewInvoicesBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  viewInvoicesBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    flex: 1,
+  },
+  supportContactBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: "#DCFCE7",
+    borderWidth: 1,
+    borderColor: "#86EFAC",
+  },
+  supportContactBtnText: {
+    color: "#15803D",
+    fontSize: 14,
+    fontWeight: "700",
+    marginLeft: 8,
+  },
+  cancelledNoticeCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 14,
+  },
+  cancelledNoticeTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#D97706",
+  },
+  cancelledNoticeDesc: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  cancelSubBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    marginTop: 12,
+  },
+  cancelSubBtnText: {
+    color: "#94A3B8",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  cancelModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  cancelModalContent: {
+    width: "100%",
+    maxWidth: 380,
+    borderRadius: 22,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  cancelModalHeader: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  cancelModalIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#FFF7ED",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  cancelModalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  cancelModalBulletList: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  cancelModalBulletItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  cancelBulletIcon: {
+    marginRight: 10,
+    marginTop: 2,
+  },
+  cancelModalBulletText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
+  },
+  cancelModalActions: {
+    gap: 10,
+  },
+  keepProBtn: {
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  keepProBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  confirmCancelBtn: {
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmCancelBtnText: {
+    color: "#EF4444",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

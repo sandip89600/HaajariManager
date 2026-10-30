@@ -148,10 +148,18 @@ export default function DashboardScreen() {
   const { user } = useAuth();
   const {
     config: featureConfig,
+    subscriptionStatus,
     isSubscriptionEnabled,
     isModuleVisible,
+    refetch: refetchFeatureAccess,
   } = useFeatureAccess();
   const subscriptionsEnabled = isSubscriptionEnabled;
+  const isProActive = Boolean(
+    subscriptionStatus?.userSubscription &&
+    subscriptionStatus.userSubscription.status === "active" &&
+    (!subscriptionStatus.userSubscription.expiresAt ||
+      new Date(subscriptionStatus.userSubscription.expiresAt) > new Date())
+  );
   const { socket, connectSocket } = useSocket();
   const { unreadCount } = useNotifications();
   const insets = useSafeAreaInsets();
@@ -465,7 +473,8 @@ export default function DashboardScreen() {
     useCallback(() => {
       loadDashboardData();
       markSessionStart();
-    }, [activeSite?.id]),
+      refetchFeatureAccess?.().catch(() => {});
+    }, [activeSite?.id, refetchFeatureAccess]),
   );
 
   useInAppReview({ isReady: !loading && !refreshing });
@@ -752,32 +761,42 @@ export default function DashboardScreen() {
                 )}
               </Pressable>
             </View>
-
             {/* Small Plan Badge Nudge — only visible when subscriptions are enabled */}
+            {/*  */}
             {subscriptionsEnabled && (
               <Pressable
                 onPress={() => {
                   triggerHaptic();
                   navigation.navigate("Subscription");
                 }}
-                style={styles.nudgeBadge}
+                style={[
+                  styles.nudgeBadge,
+                  isProActive && {
+                    backgroundColor: "rgba(16, 185, 129, 0.25)",
+                    borderColor: "#10B981",
+                  },
+                ]}
               >
                 <ThemedText style={styles.nudgeBadgeText}>
-                  {currentPlan === "free" || currentPlan === "basic"
-                    ? t("settings.basicPlan", "Basic Plan")
-                    : currentPlan === "professional" || currentPlan === "super"
-                      ? t("settings.superPlan", "Super Plan")
-                      : t("settings.premiumPlan", "Premium Plan")}
+                  {isProActive
+                    ? "👑 Haajari PRO"
+                    : currentPlan === "free" || currentPlan === "basic"
+                      ? t("settings.basicPlan", "Basic Plan")
+                      : currentPlan === "professional" || currentPlan === "super"
+                        ? t("settings.superPlan", "Super Plan")
+                        : t("settings.premiumPlan", "Premium Plan")}
                 </ThemedText>
                 <View style={styles.nudgeDivider} />
                 <ThemedText style={styles.nudgeBadgeText}>
-                  {workersList.length} /{" "}
-                  {currentPlan === "free" || currentPlan === "basic"
-                    ? 20
-                    : currentPlan === "professional" || currentPlan === "super"
-                      ? 100
-                      : t("common.unlimited", "Unlimited")}{" "}
-                  {t("dashboard.used", "Used")}
+                  {isProActive
+                    ? `${workersList.length} Workers • Unlimited`
+                    : `${workersList.length} / ${
+                        currentPlan === "free" || currentPlan === "basic"
+                          ? 20
+                          : currentPlan === "professional" || currentPlan === "super"
+                            ? 100
+                            : t("common.unlimited", "Unlimited")
+                      } ${t("dashboard.used", "Used")}`}
                 </ThemedText>
                 <Feather
                   name="arrow-right"
@@ -800,28 +819,6 @@ export default function DashboardScreen() {
               {formattedDate}
             </ThemedText>
           </View>
-          {/* Upgrade button — only visible when subscriptions are enabled */}
-          {subscriptionsEnabled && (
-            <View style={styles.headerActions}>
-              <Pressable
-                onPress={() => {
-                  triggerHaptic();
-                  navigation.navigate("Subscription");
-                }}
-                style={styles.premiumBadgeBtn}
-              >
-                <Ionicons
-                  name="sparkles"
-                  size={13}
-                  color="#FFFFFF"
-                  style={{ marginRight: 4 }}
-                />
-                <ThemedText style={styles.premiumBadgeBtnText}>
-                  {t.settings?.upgradePlan || "Upgrade"}
-                </ThemedText>
-              </Pressable>
-            </View>
-          )}
         </View>
 
         {/* Streak badge & Upgrade Pro button row */}
@@ -838,36 +835,69 @@ export default function DashboardScreen() {
             </ThemedText>
           </View>
 
-          <Pressable
-            onPress={() => {
-              triggerHaptic();
-              navigation.navigate("Subscription");
-            }}
-            style={({ pressed }) => [
-              {
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: "#EA580C",
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 20,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.3)",
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.25,
-                shadowRadius: 3,
-                elevation: 4,
-                opacity: pressed ? 0.8 : 1,
-              },
-            ]}
-          >
-            <Ionicons name="sparkles" size={13} color="#FFD700" style={{ marginRight: 5 }} />
-            <ThemedText style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "800" }}>
-              Upgrade • ₹149
-            </ThemedText>
-            <Feather name="chevron-right" size={14} color="#FFFFFF" style={{ marginLeft: 2 }} />
-          </Pressable>
+          {isProActive ? (
+            <Pressable
+              onPress={() => {
+                triggerHaptic();
+                navigation.navigate("Subscription");
+              }}
+              style={({ pressed }) => [
+                {
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#059669",
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: "rgba(52,211,153,0.6)",
+                  shadowColor: "#059669",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.35,
+                  shadowRadius: 4,
+                  elevation: 4,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+            >
+              <ThemedText style={{ fontSize: 13, marginRight: 4 }}>👑</ThemedText>
+              <ThemedText style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "800" }}>
+                PRO Active
+              </ThemedText>
+              <Feather name="chevron-right" size={14} color="#FFFFFF" style={{ marginLeft: 3 }} />
+            </Pressable>
+          ) : subscriptionsEnabled ? (
+            <Pressable
+              onPress={() => {
+                triggerHaptic();
+                navigation.navigate("Subscription");
+              }}
+              style={({ pressed }) => [
+                {
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#EA580C",
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.3)",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.25,
+                  shadowRadius: 3,
+                  elevation: 4,
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              <Ionicons name="sparkles" size={13} color="#FFD700" style={{ marginRight: 5 }} />
+              <ThemedText style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "800" }}>
+                Upgrade • ₹149
+              </ThemedText>
+              <Feather name="chevron-right" size={14} color="#FFFFFF" style={{ marginLeft: 2 }} />
+            </Pressable>
+          ) : null}
         </View>
       </LinearGradient>
 
@@ -894,18 +924,38 @@ export default function DashboardScreen() {
         >
           <View style={styles.topSiteHeaderRow}>
             <View style={{ flex: 1 }}>
-              <ThemedText
-                style={[
-                  styles.topSiteName,
-                  { color: isDark ? "#FFFFFF" : "#0F172A" },
-                ]}
-              >
-                {activeSite
-                  ? activeSite.name
-                  : user?.companyName ||
-                    t.sites?.title ||
-                    "Main Construction Site"}
-              </ThemedText>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <ThemedText
+                  style={[
+                    styles.topSiteName,
+                    { color: isDark ? "#FFFFFF" : "#0F172A" },
+                  ]}
+                >
+                  {activeSite
+                    ? activeSite.name
+                    : user?.companyName ||
+                      t.sites?.title ||
+                      "Main Construction Site"}
+                </ThemedText>
+                {isProActive && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      backgroundColor: "#FEF3C7",
+                      paddingHorizontal: 7,
+                      paddingVertical: 2,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: "#F59E0B",
+                    }}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: "800", color: "#B45309" }}>
+                      👑 PRO
+                    </Text>
+                  </View>
+                )}
+              </View>
               <ThemedText
                 style={[
                   styles.topSiteDate,
