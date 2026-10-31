@@ -7,7 +7,7 @@ declare const process: any;
 const GOOGLE_WEB_CLIENT_ID =
   (typeof process !== "undefined" &&
     process.env?.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) ||
-  "734339237204-ck40vfaneag57k5u541g1vsr1v18uule.apps.googleusercontent.com";
+  "903556875541-qsvifqd303obt69nb6jt437pkpqmkhm5.apps.googleusercontent.com";
 
 let isGoogleConfigured = false;
 
