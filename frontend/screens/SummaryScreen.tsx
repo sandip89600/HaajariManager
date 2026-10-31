@@ -55,6 +55,7 @@ import {
   generateAndSharePaymentReceipt,
 } from "@/utils/export";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
+import { trackInteraction } from "@/utils/reviewTracker";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -1425,7 +1426,10 @@ export default function SummaryScreen() {
       const url = `${API_URL}/export/${endpoint}?year=${selectedYear}&month=${selectedMonth}`;
 
       const success = await downloadAndSharePDF(url, filename);
-      if (success) Alert.alert(t.common.success, t.export.success);
+      if (success) {
+        trackInteraction("report_viewed");
+        Alert.alert(t.common.success, t.export.success);
+      }
     } catch (error: any) {
       reportError({
         title: "PDF Export Failed",
@@ -1469,7 +1473,10 @@ export default function SummaryScreen() {
       const url = `${API_URL}/export/csv?year=${selectedYear}&month=${selectedMonth}`;
 
       const success = await downloadAndShareCSV(url, filename);
-      if (success) Alert.alert(t.common.success, t.export.success);
+      if (success) {
+        trackInteraction("report_viewed");
+        Alert.alert(t.common.success, t.export.success);
+      }
     } catch (error: any) {
       reportError({
         title: "CSV Export Failed",

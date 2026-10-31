@@ -6,7 +6,8 @@
  * Manages:
  *  - Session start timestamps
  *  - Cumulative meaningful interaction counts
- *  - "Review already requested" flag (never prompt again once fired)
+ *  - Prompt interval limits (minimum 21 days between prompts)
+ *  - Maximum lifetime prompt caps (3 prompts max per install)
  *
  * All state is persisted in AsyncStorage so it survives app restarts.
  * ─────────────────────────────────────────────────────────────────────────────
@@ -20,6 +21,8 @@ const KEYS = {
   SESSION_START: "@haajari/session_start",
   INTERACTION_COUNT: "@haajari/interaction_count",
   INSTALL_DATE: "@haajari/install_date",
+  LAST_REVIEW_DATE: "@haajari/last_review_date",
+  REVIEW_COUNT: "@haajari/review_count",
 } as const;
 
 // ─── Interaction Types ────────────────────────────────────────────────────────
@@ -31,11 +34,17 @@ export type InteractionType =
   | "screen_navigated";
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
-/** Minimum session duration in milliseconds before review is eligible (2.5 min) */
-const MIN_SESSION_MS = 2.5 * 60 * 1000;
+/** Minimum session duration in milliseconds before review is eligible (2 minutes) */
+const MIN_SESSION_MS = 2 * 60 * 1000;
 
 /** Minimum cumulative interactions required before review is eligible */
 const MIN_INTERACTIONS = 3;
+
+/** Minimum interval in milliseconds between automated prompts (21 days) */
+const MIN_INTERVAL_BETWEEN_PROMPTS_MS = 21 * 24 * 60 * 60 * 1000;
+
+/** Maximum automated review prompts allowed over the lifetime of the install */
+const MAX_PROMPTS_PER_INSTALL = 3;
 
 // ─── Session Start ────────────────────────────────────────────────────────────
 
@@ -81,11 +90,16 @@ export async function trackInteraction(type: InteractionType): Promise<void> {
 // ─── Review State ─────────────────────────────────────────────────────────────
 
 /**
- * Returns true if a review prompt has already been requested on this device.
- * Once true, it will never be reset unless AsyncStorage is cleared manually.
+ * Returns true if a review prompt has already been requested on this device
+ * and has exceeded the lifetime cap.
  */
 export async function hasBeenRequested(): Promise<boolean> {
   try {
+    const countRaw = await AsyncStorage.getItem(KEYS.REVIEW_COUNT);
+    if (countRaw) {
+      const count = parseInt(countRaw, 10);
+      return count >= MAX_PROMPTS_PER_INSTALL;
+    }
     const val = await AsyncStorage.getItem(KEYS.REVIEW_REQUESTED);
     return val === "true";
   } catch (e) {
@@ -94,13 +108,21 @@ export async function hasBeenRequested(): Promise<boolean> {
 }
 
 /**
- * Mark that the review prompt has been shown. Call this immediately BEFORE
+ * Mark that the review prompt has been triggered. Call this immediately BEFORE
  * invoking StoreReview.requestReview() so that even if the call throws,
- * we won't attempt again.
+ * we won't attempt again immediately.
  */
 export async function markRequested(): Promise<void> {
   try {
-    await AsyncStorage.setItem(KEYS.REVIEW_REQUESTED, "true");
+    const now = Date.now().toString();
+    const countRaw = await AsyncStorage.getItem(KEYS.REVIEW_COUNT);
+    const count = countRaw ? parseInt(countRaw, 10) : 0;
+
+    await AsyncStorage.multiSet([
+      [KEYS.REVIEW_REQUESTED, "true"],
+      [KEYS.LAST_REVIEW_DATE, now],
+      [KEYS.REVIEW_COUNT, (count + 1).toString()],
+    ]);
   } catch (e) {
     // Silently ignore
   }
@@ -109,29 +131,47 @@ export async function markRequested(): Promise<void> {
 // ─── Core Eligibility Check ───────────────────────────────────────────────────
 
 /**
- * Evaluates ALL conditions required before requesting an in-app review.
+ * Evaluates ALL conditions required before requesting an automated in-app review.
  *
  * Conditions:
- *  1. Review has never been requested before
- *  2. Session has been active for at least MIN_SESSION_MS
- *  3. User has completed at least MIN_INTERACTIONS meaningful actions
+ *  1. Total review requests have not exceeded MAX_PROMPTS_PER_INSTALL (3 times)
+ *  2. At least MIN_INTERVAL_BETWEEN_PROMPTS_MS (21 days) passed since last prompt
+ *  3. Session has been active for at least MIN_SESSION_MS (2 minutes)
+ *  4. User has completed at least MIN_INTERACTIONS (3) meaningful actions
  *
  * Returns true only when every condition passes.
  */
 export async function shouldRequestReview(): Promise<boolean> {
   try {
-    // Condition 1 – Never requested before
-    const alreadyRequested = await hasBeenRequested();
-    if (alreadyRequested) return false;
+    // Condition 1 – Check lifetime cap
+    const countRaw = await AsyncStorage.getItem(KEYS.REVIEW_COUNT);
+    const count = countRaw ? parseInt(countRaw, 10) : 0;
+    if (count >= MAX_PROMPTS_PER_INSTALL) return false;
 
-    // Condition 2 – Session duration
+    // Condition 2 – Check minimum interval between prompts
+    const lastDateRaw = await AsyncStorage.getItem(KEYS.LAST_REVIEW_DATE);
+    if (lastDateRaw) {
+      const lastDate = parseInt(lastDateRaw, 10);
+      if (Date.now() - lastDate < MIN_INTERVAL_BETWEEN_PROMPTS_MS) {
+        return false;
+      }
+    } else {
+      // For migration from older single-flag version
+      const legacyFlag = await AsyncStorage.getItem(KEYS.REVIEW_REQUESTED);
+      if (legacyFlag === "true" && count === 0) {
+        // Has already been requested in older app version
+        return false;
+      }
+    }
+
+    // Condition 3 – Session duration
     const sessionStartRaw = await AsyncStorage.getItem(KEYS.SESSION_START);
     if (!sessionStartRaw) return false;
     const sessionStart = parseInt(sessionStartRaw, 10);
     const sessionDuration = Date.now() - sessionStart;
     if (sessionDuration < MIN_SESSION_MS) return false;
 
-    // Condition 3 – Interaction count
+    // Condition 4 – Interaction count
     const interactionRaw = await AsyncStorage.getItem(KEYS.INTERACTION_COUNT);
     const interactionCount = interactionRaw ? parseInt(interactionRaw, 10) : 0;
     if (interactionCount < MIN_INTERACTIONS) return false;
@@ -155,6 +195,8 @@ export async function resetReviewState(): Promise<void> {
       KEYS.SESSION_START,
       KEYS.INTERACTION_COUNT,
       KEYS.INSTALL_DATE,
+      KEYS.LAST_REVIEW_DATE,
+      KEYS.REVIEW_COUNT,
     ]);
   } catch (e) {
     // Silently ignore

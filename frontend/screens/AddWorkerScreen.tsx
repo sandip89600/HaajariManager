@@ -38,6 +38,7 @@ import ContextualTooltip from "@/components/ContextualTooltip";
 import { uploadImageToServer } from "@/utils/upload";
 import LimitReachedModal from "@/components/ui/LimitReachedModal";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import { trackInteraction } from "@/utils/reviewTracker";
 import { RootStackParamList } from "@/navigation/MainTabNavigator";
 import { ScreenKeyboardAwareScrollView } from "@/components/ScreenKeyboardAwareScrollView";
 
@@ -308,6 +309,7 @@ export default function AddWorkerScreen() {
         await storage.addWorker(newWorker);
       }
 
+      trackInteraction("worker_created");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       navigation.goBack();
     } catch (error: any) {

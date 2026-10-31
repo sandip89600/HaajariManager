@@ -17,6 +17,7 @@ import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import * as Haptics from "expo-haptics";
 import { useLanguage } from "@/hooks/useLanguage";
 import { appContextTracker } from "@/utils/appContextTracker";
+import { requestInAppReview } from "@/utils/inAppReview";
 
 export default function SupportScreen() {
   const { theme, isDark } = useTheme();
@@ -62,6 +63,11 @@ export default function SupportScreen() {
         Alert.alert("Error", t.support.emailAlert);
       });
     }
+  };
+
+  const handleRateApp = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await requestInAppReview({ force: true, fallbackToStore: true });
   };
 
   return (
@@ -202,6 +208,57 @@ export default function SupportScreen() {
             />
             <ThemedText style={styles.actionButtonText}>
               {t.support.emailButton}
+            </ThemedText>
+          </Pressable>
+        </View>
+
+        {/* GOOGLE PLAY REVIEW CARD */}
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.backgroundDefault,
+              borderColor: theme.border,
+              ...Shadows.card,
+            },
+          ]}
+        >
+          <View style={[styles.iconWrapper, { backgroundColor: "#FFF8E1" }]}>
+            <Feather name="star" size={32} color="#FFA000" />
+          </View>
+          <ThemedText type="h2" style={styles.cardTitle}>
+            Rate on Google Play
+          </ThemedText>
+          <ThemedText
+            type="body"
+            style={[styles.cardDesc, { color: theme.textSecondary }]}
+          >
+            Agar aapko Haajari Manager pasand hai to Google Play Store par 5-star rating aur review dekar hamara hosla badhayein!
+          </ThemedText>
+          <ThemedText
+            type="h3"
+            style={[styles.contactDetail, { color: "#FFA000" }]}
+          >
+            ⭐⭐⭐⭐⭐
+          </ThemedText>
+          <Pressable
+            onPress={handleRateApp}
+            style={({ pressed }) => [
+              styles.actionButton,
+              {
+                backgroundColor: "#E35C31",
+                opacity: pressed ? 0.9 : 1,
+              },
+            ]}
+          >
+            <Feather
+              name="thumbs-up"
+              size={18}
+              color="#FFFFFF"
+              style={{ marginRight: Spacing.xs }}
+            />
+            <ThemedText style={styles.actionButtonText}>
+              Rate on Google Play
             </ThemedText>
           </Pressable>
         </View>

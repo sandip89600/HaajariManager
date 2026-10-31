@@ -538,6 +538,7 @@ export default function DashboardScreen() {
 
     try {
       await storage.setAttendanceRecord(newRecord);
+      trackInteraction("attendance_marked");
       showSuccessToast("Attendance marked successfully.");
     } catch (e) {
       console.warn("Failed to mark present:", e);
@@ -575,6 +576,7 @@ export default function DashboardScreen() {
       });
       setQuickMarkModalVisible(false);
       await loadDashboardData(true);
+      trackInteraction("attendance_marked");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showSuccessToast("Attendance marked successfully.");
     } catch (e) {
@@ -608,6 +610,7 @@ export default function DashboardScreen() {
       );
       setQuickMarkModalVisible(false);
       await loadDashboardData(true);
+      trackInteraction("attendance_marked");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn("Failed to clear attendance:", e);
@@ -1398,7 +1401,7 @@ export default function DashboardScreen() {
                 };
 
                 const handleLongPress = () => {
-                  // Hold for 2 seconds opens Attendance Options Pop-Up Modal
+                  // Hold for  seconds opens Attendance Options Pop-Up M1odal
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   handleMarkOptions(worker.id);
                 };
@@ -1408,7 +1411,7 @@ export default function DashboardScreen() {
                     key={worker.id}
                     onPress={handleSingleTap}
                     onLongPress={handleLongPress}
-                    delayLongPress={2000}
+                    delayLongPress={1000}
                     style={({ pressed }) => [
                       styles.workerLogRow,
                       {

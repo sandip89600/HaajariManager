@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Platform,
   LogBox,
+  Image,
 } from "react-native";
 import {
   NavigationContainer,
@@ -131,8 +132,13 @@ function AppInner() {
 
   if (languageContext.isLoading) {
     return (
-      <View style={[styles.loading, { backgroundColor: theme.backgroundRoot }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.loading, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
+        <Image
+          source={require("./assets/images/icon.png")}
+          style={{ width: 110, height: 110, borderRadius: 26, marginBottom: 20 }}
+          resizeMode="contain"
+        />
+        <ActivityIndicator size="large" color="#E35C31" />
       </View>
     );
   }

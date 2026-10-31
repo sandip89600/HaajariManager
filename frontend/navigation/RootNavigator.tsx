@@ -10,7 +10,7 @@ import ResetPasswordScreen from "@/screens/ResetPasswordScreen";
 import TermsAndConditionsScreen from "@/screens/TermsAndConditionsScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Image } from "react-native";
 
 export type RootNavigatorParamList = {
   Login: undefined;
@@ -30,8 +30,13 @@ export default function RootNavigator() {
 
   if (isLoading) {
     return (
-      <View style={[styles.loading, { backgroundColor: theme.backgroundRoot }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.loading, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
+        <Image
+          source={require("@/assets/images/icon.png")}
+          style={{ width: 110, height: 110, borderRadius: 26, marginBottom: 20 }}
+          resizeMode="contain"
+        />
+        <ActivityIndicator size="large" color="#E35C31" />
       </View>
     );
   }

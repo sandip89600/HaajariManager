@@ -46,6 +46,7 @@ import {
   API_URL,
 } from "@/utils/storage";
 import { Spacing, BorderRadius, Shadows, Colors } from "@/constants/theme";
+import { trackInteraction } from "@/utils/reviewTracker";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -297,6 +298,7 @@ export default function AttendanceScreen() {
           timestamp: Date.now(),
         };
         await storage.setAttendanceRecord(newRecord);
+        trackInteraction("attendance_marked");
 
         setAttendance((prev) => {
           const idx = prev.findIndex(

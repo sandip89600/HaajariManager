@@ -48,6 +48,7 @@ import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useTour } from "@/contexts/TourContext";
 import { Language, languageNames } from "@/constants/i18n";
 import { Spacing, BorderRadius, Colors, Shadows } from "@/constants/theme";
+import { requestInAppReview } from "@/utils/inAppReview";
 import {
   storage,
   User,
@@ -1026,6 +1027,11 @@ export default function SettingsScreen({
     }
   };
 
+  const handleRateApp = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await requestInAppReview({ force: true, fallbackToStore: true });
+  };
+
   // Label color utilities
   const getRoleLabel = (r?: string) => {
     if (!r) return "";
@@ -1594,6 +1600,14 @@ export default function SettingsScreen({
             label={t.settings.submitFeedback}
             sublabel={t.settings.submitFeedbackDesc}
             onPress={() => setShowFeedbackModal(true)}
+            theme={theme}
+          />
+          <SettingRow
+            icon="star"
+            iconColor="#FFC107"
+            label="Rate on Google Play"
+            sublabel="Play Store par review aur rating de kar support karein"
+            onPress={handleRateApp}
             isLast
             theme={theme}
           />

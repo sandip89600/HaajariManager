@@ -8,6 +8,7 @@ import {
   ScrollView,
   Platform,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -567,17 +568,15 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Top Hero Logo */}
-        {/* Top Hero Logo */}
         <Animated.View
           entering={FadeInUp.duration(600).springify()}
           style={styles.heroSection}
         >
-          <LinearGradient
-            colors={["#F97316", "#EA580C"]}
+          <Image
+            source={require("../assets/images/icon.png")}
             style={styles.logoBadge}
-          >
-            <Feather name="shield" size={32} color="#FFFFFF" />
-          </LinearGradient>
+            resizeMode="contain"
+          />
           <ThemedText style={[styles.appName, { color: theme.text }]}>
             {t("app.name", "Haajari Manager")}
           </ThemedText>
@@ -959,12 +958,10 @@ const styles = StyleSheet.create({
   // Hero section
   heroSection: { alignItems: "center", marginBottom: 32 },
   logoBadge: {
-    width: 64,
-    height: 64,
+    width: 72,
+    height: 72,
     borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#F97316",
+    shadowColor: "#E35C31",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
