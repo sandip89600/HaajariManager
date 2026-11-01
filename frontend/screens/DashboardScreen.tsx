@@ -474,7 +474,7 @@ export default function DashboardScreen() {
       loadDashboardData();
       markSessionStart();
       refetchFeatureAccess?.().catch(() => {});
-    }, [activeSite?.id, refetchFeatureAccess]),
+    }, []),
   );
 
   useInAppReview({ isReady: !loading && !refreshing });

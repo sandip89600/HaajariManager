@@ -111,7 +111,18 @@ export interface VerifyPaymentResponse {
   };
 }
 
+let cachedStatus: { data: SubscriptionStatusResponse; timestamp: number } | null = null;
+let inflightStatusPromise: Promise<SubscriptionStatusResponse> | null = null;
+const STATUS_CACHE_TTL_MS = 30000; // 30 seconds cache
+
 export class SubscriptionApi {
+  /**
+   * Clear in-memory subscription status cache (call after purchase/cancellation)
+   */
+  static invalidateStatusCache(): void {
+    cachedStatus = null;
+    inflightStatusPromise = null;
+  }
   /**
    * Fetch global subscription mode status (unauthenticated or authenticated)
    */
@@ -149,26 +160,49 @@ export class SubscriptionApi {
   }
 
   /**
-   * Fetch unified user subscription status
+   * Fetch unified user subscription status (cached & deduplicated)
    */
-  static async getStatus(): Promise<SubscriptionStatusResponse> {
-    try {
-      const res = await authenticatedFetch(`${API_URL}/v2/subscription/status`);
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (err) {
-      console.warn(
-        "[SubscriptionApi] Status fetch failed, defaulting to free mode:",
-        err,
-      );
+  static async getStatus(force = false): Promise<SubscriptionStatusResponse> {
+    const now = Date.now();
+    if (!force && cachedStatus && now - cachedStatus.timestamp < STATUS_CACHE_TTL_MS) {
+      return cachedStatus.data;
     }
-    return {
-      subscriptionEnabled: false,
-      mode: "free",
-      userSubscription: null,
-      availablePlans: [],
-    };
+
+    if (inflightStatusPromise) {
+      return inflightStatusPromise;
+    }
+
+    inflightStatusPromise = (async () => {
+      try {
+        const res = await authenticatedFetch(`${API_URL}/v2/subscription/status`, {
+          timeoutMs: 10000,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          cachedStatus = { data, timestamp: Date.now() };
+          return data;
+        }
+      } catch (err: any) {
+        if (cachedStatus) {
+          return cachedStatus.data;
+        }
+        console.warn(
+          "[SubscriptionApi] Status fetch failed, defaulting to free mode:",
+          err?.message || err,
+        );
+      } finally {
+        inflightStatusPromise = null;
+      }
+
+      return {
+        subscriptionEnabled: false,
+        mode: "free",
+        userSubscription: null,
+        availablePlans: [],
+      };
+    })();
+
+    return inflightStatusPromise;
   }
 
   /**

@@ -751,29 +751,31 @@ export const storage = {
     delayedSites: number;
     completedSites: number;
   }> {
-    try {
-      const auth = await this.getAuth();
-      if (auth?.token) {
-        const res = await authenticatedFetch(
-          `${API_URL}/sites/dashboard/stats`,
-        );
-        if (res.ok) {
-          return await res.json();
+    return dedupeRequest("site_dashboard_stats", async () => {
+      try {
+        const auth = await this.getAuth();
+        if (auth?.token) {
+          const res = await authenticatedFetch(
+            `${API_URL}/sites/dashboard/stats`,
+          );
+          if (res.ok) {
+            return await res.json();
+          }
         }
+      } catch (e) {
+        console.warn("Failed to fetch site dashboard stats", e);
       }
-    } catch (e) {
-      console.warn("Failed to fetch site dashboard stats", e);
-    }
-    return {
-      totalSites: 0,
-      activeSites: 0,
-      workersPresent: 0,
-      workersAbsent: 0,
-      totalWorkers: 0,
-      sitesInProgress: 0,
-      delayedSites: 0,
-      completedSites: 0,
-    };
+      return {
+        totalSites: 0,
+        activeSites: 0,
+        workersPresent: 0,
+        workersAbsent: 0,
+        totalWorkers: 0,
+        sitesInProgress: 0,
+        delayedSites: 0,
+        completedSites: 0,
+      };
+    });
   },
 
   async getSites(params?: {

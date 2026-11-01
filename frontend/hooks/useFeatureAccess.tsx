@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import { useAuth } from "./useAuth";
 import { storage, API_URL } from "@/utils/storage";
 import {
@@ -60,29 +67,45 @@ export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
     useState<SubscriptionStatusResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchConfig = async () => {
-    try {
-      // 1. Fetch App Config
-      const auth = await storage.getAuth();
-      if (auth && auth.token) {
-        const res = await fetch(`${API_URL}/app/config`, {
-          headers: { Authorization: `Bearer ${auth.token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setConfig(data);
-        }
-      }
+  const lastFetchRef = useRef<number>(0);
+  const isFetchingRef = useRef<boolean>(false);
 
-      // 2. Fetch Subscription v2 Status
-      const subStatus = await SubscriptionApi.getStatus();
-      setSubscriptionStatus(subStatus);
-    } catch (err) {
-      console.warn("[FeatureAccess] Failed to fetch app configuration:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const fetchConfig = useCallback(
+    async (force = false) => {
+      const now = Date.now();
+      // Throttle calls to minimum 15 seconds unless forced
+      if (!force && now - lastFetchRef.current < 15000) {
+        return;
+      }
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
+      lastFetchRef.current = now;
+
+      try {
+        // 1. Fetch App Config
+        const auth = await storage.getAuth();
+        if (auth && auth.token) {
+          const res = await fetch(`${API_URL}/app/config`, {
+            headers: { Authorization: `Bearer ${auth.token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setConfig(data);
+          }
+        }
+
+        // 2. Fetch Subscription v2 Status
+        const subStatus = await SubscriptionApi.getStatus(force);
+        setSubscriptionStatus(subStatus);
+      } catch (err) {
+        console.warn("[FeatureAccess] Failed to fetch app configuration:", err);
+      } finally {
+        isFetchingRef.current = false;
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -92,7 +115,7 @@ export const FeatureAccessProvider: React.FC<{ children: React.ReactNode }> = ({
       setSubscriptionStatus(null);
       setIsLoading(false);
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, fetchConfig]);
 
   const isSubscriptionEnabled =
     subscriptionStatus?.subscriptionEnabled ?? false;

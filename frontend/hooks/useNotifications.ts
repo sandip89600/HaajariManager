@@ -42,6 +42,10 @@ export function useNotifications() {
   }>({
     queryKey: ["notifications"],
     queryFn: async () => {
+      const auth = await storage.getAuth();
+      if (!auth?.token) {
+        return { notifications: [], unreadCount: 0 };
+      }
       const res = await authenticatedFetch(`${API_URL}/notifications`);
       if (!res.ok) throw new Error("Failed to fetch notifications");
       const data = await res.json();
@@ -60,6 +64,8 @@ export function useNotifications() {
   const unreadCountQuery = useQuery<number>({
     queryKey: ["notifications-unread-count"],
     queryFn: async () => {
+      const auth = await storage.getAuth();
+      if (!auth?.token) return 0;
       const res = await authenticatedFetch(
         `${API_URL}/notifications/unread-count`,
       );

@@ -97,10 +97,13 @@ export default function SubscriptionScreen() {
     };
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (force = false) => {
     setLoading(true);
     try {
-      const statusData = await SubscriptionApi.getStatus();
+      if (force) {
+        SubscriptionApi.invalidateStatusCache();
+      }
+      const statusData = await SubscriptionApi.getStatus(force);
       setSubStatus(statusData);
 
       const txns = await SubscriptionApi.getUserTransactions();
@@ -195,9 +198,9 @@ export default function SubscriptionScreen() {
       Alert.alert(
         "PRO Membership Active! 🎉",
         "Welcome to Haajari PRO! Your Google Play subscription is confirmed and all features are now fully unlocked.",
-        [{ text: "Start Using PRO", onPress: () => loadData() }]
+        [{ text: "Start Using PRO", onPress: () => loadData(true) }]
       );
-      loadData();
+      loadData(true);
     } catch (err: any) {
       console.error("[SubscriptionScreen] Purchase verification error:", err);
       Alert.alert(
@@ -293,9 +296,9 @@ export default function SubscriptionScreen() {
         Alert.alert(
           "Purchases Restored",
           "Your Haajari PRO subscription has been verified and restored successfully!",
-          [{ text: "OK", onPress: () => loadData() }]
+          [{ text: "OK", onPress: () => loadData(true) }]
         );
-        loadData();
+        loadData(true);
       } else {
         Alert.alert(
           "Restore Notice",
@@ -361,9 +364,9 @@ export default function SubscriptionScreen() {
       Alert.alert(
         "Subscription Cancelled",
         `Your automatic renewal has been cancelled.\n\nYour PRO benefits remain 100% active until ${formattedExpiry}.\n\nA confirmation email has been sent to your registered email address.`,
-        [{ text: "OK", onPress: () => loadData() }]
+        [{ text: "OK", onPress: () => loadData(true) }]
       );
-      loadData();
+      loadData(true);
     } catch (err: any) {
       console.warn("[SubscriptionScreen] Cancellation error:", err);
       Alert.alert(

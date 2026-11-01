@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import * as Haptics from "expo-haptics";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
-import { authenticatedFetch, API_URL } from "@/utils/storage";
+import { authenticatedFetch, API_URL, storage } from "@/utils/storage";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { QrScannerModal } from "@/components/QrScannerModal";
 import { MyQrCodeModal } from "@/components/MyQrCodeModal";
@@ -99,9 +99,16 @@ export default function TeamConnectionWidget({
     }
   };
 
+  const isLoadingRef = useRef(false);
+
   // Load connection data and pending requests
   const loadConnectionData = useCallback(async () => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
     try {
+      const auth = await storage.getAuth();
+      if (!auth?.token) return;
+
       // 1. Fetch pending requests for current user
       const res = await authenticatedFetch(
         `${API_URL}/connections/user/pending-requests`,
@@ -133,6 +140,8 @@ export default function TeamConnectionWidget({
       }
     } catch (e) {
       console.warn("Error loading team connection data:", e);
+    } finally {
+      isLoadingRef.current = false;
     }
   }, [isContractor]);
 

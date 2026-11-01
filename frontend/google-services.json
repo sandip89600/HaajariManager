@@ -14,14 +14,6 @@
       },
       "oauth_client": [
         {
-          "client_id": "903556875541-l8dii71hrkqhgmnus7lo1esqc7hiq2ci.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.haajari.app",
-            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
-          }
-        },
-        {
           "client_id": "903556875541-qsvifqd303obt69nb6jt437pkpqmkhm5.apps.googleusercontent.com",
           "client_type": 3
         }
