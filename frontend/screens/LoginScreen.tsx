@@ -214,7 +214,7 @@ export default function LoginScreen() {
         return;
       }
 
-      setGoogleLoadingText("Setting up your Haajari account...");
+      setGoogleLoadingText("Setting up your Haajari Manager account...");
       const res = await loginWithGoogle(
         googleRes.idToken,
         googleRes.accessToken,

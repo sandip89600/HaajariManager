@@ -38,7 +38,7 @@ export default function SupportScreen() {
   const handleWhatsApp = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const phoneNumber = "+917057942248";
-    const message = "Hi Haajari Support Team, I need help with my account...";
+    const message = "Hi Haajari Manager Support Team, I need help with my account...";
     const url = `https://wa.me/${phoneNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(message)}`;
 
     if (Platform.OS === "web") {
@@ -53,7 +53,7 @@ export default function SupportScreen() {
   const handleEmail = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const email = "info.haajariapp@gmail.com";
-    const subject = "Haajari App Support Request";
+    const subject = "Haajari Manager App Support Request";
     const url = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
 
     if (Platform.OS === "web") {

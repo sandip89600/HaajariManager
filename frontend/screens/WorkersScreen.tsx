@@ -218,7 +218,7 @@ export default function WorkersScreen() {
     rawHeaderHeight > 0
       ? rawHeaderHeight
       : insets.top + Platform.select({ ios: 44, default: 56 });
-  const tabBarHeight = insets.bottom + 60;
+  const tabBarHeight = insets.bottom + 88;
 
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<

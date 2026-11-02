@@ -23,7 +23,7 @@ export default function PaymentStatusScreen() {
       case "completed":
       case "success":
         return {
-          title: `🎉 Welcome to Haajari ${planName === "super" ? "Super" : "Premium"}`,
+          title: `🎉 Welcome to Haajari Manager ${planName === "super" ? "Super" : "Premium"}`,
           desc: "Your subscription is now active.",
           workers:
             planName === "super"

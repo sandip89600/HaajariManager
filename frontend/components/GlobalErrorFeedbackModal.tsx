@@ -79,7 +79,7 @@ export function GlobalErrorFeedbackModal({
   config,
   onClose,
 }: GlobalErrorFeedbackModalProps) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { user } = useAuth();
   const { t } = useLanguage();
 
@@ -179,11 +179,19 @@ export function GlobalErrorFeedbackModal({
         <View
           style={[
             styles.container,
-            { backgroundColor: theme.backgroundDefault || "#0F172A" },
+            {
+              backgroundColor: theme.backgroundDefault || (isDark ? "#0F172A" : "#FFFFFF"),
+              borderColor: theme.border,
+            },
           ]}
         >
           {/* Top Bar Indicator */}
-          <View style={styles.handleIndicator} />
+          <View
+            style={[
+              styles.handleIndicator,
+              { backgroundColor: isDark ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.15)" },
+            ]}
+          />
 
           {step === "alert" && (
             <View style={styles.stepContent}>
@@ -286,11 +294,19 @@ export function GlobalErrorFeedbackModal({
                     <Pressable
                       key={cat}
                       onPress={() => setSelectedCategory(cat)}
-                      style={[styles.chip, isSelected && styles.chipSelected]}
+                      style={[
+                        styles.chip,
+                        {
+                          backgroundColor: isDark ? "#1E293B" : theme.backgroundSecondary,
+                          borderColor: isDark ? "#334155" : theme.border,
+                        },
+                        isSelected && styles.chipSelected,
+                      ]}
                     >
                       <Text
                         style={[
                           styles.chipText,
+                          { color: isDark ? "#94A3B8" : theme.textSecondary },
                           isSelected && styles.chipTextSelected,
                         ]}
                       >
@@ -302,15 +318,22 @@ export function GlobalErrorFeedbackModal({
               </ScrollView>
 
               {/* Problem Message Input */}
-              <Text style={[styles.inputLabel, { marginTop: 16 }]}>
+              <Text style={[styles.inputLabel, { marginTop: 16, color: theme.textSecondary }]}>
                 {t.feedback?.description || "Problem Description"}
               </Text>
               <TextInput
-                style={styles.textArea}
+                style={[
+                  styles.textArea,
+                  {
+                    backgroundColor: isDark ? "#020617" : theme.backgroundSecondary,
+                    borderColor: theme.border,
+                    color: theme.text,
+                  },
+                ]}
                 multiline
                 numberOfLines={4}
                 placeholder="Please describe what went wrong..."
-                placeholderTextColor="#64748B"
+                placeholderTextColor={theme.textSecondary || "#64748B"}
                 value={userMessage}
                 onChangeText={setUserMessage}
               />
@@ -320,7 +343,15 @@ export function GlobalErrorFeedbackModal({
               )}
 
               {/* Diagnostics Summary Box */}
-              <View style={styles.diagnosticsBox}>
+              <View
+                style={[
+                  styles.diagnosticsBox,
+                  {
+                    backgroundColor: isDark ? "rgba(30, 41, 59, 0.4)" : theme.backgroundSecondary,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
                 <Text style={styles.diagTitle}>
                   {t.feedback?.attachedDiagnostics ||
                     "Attached Diagnostics Context"}

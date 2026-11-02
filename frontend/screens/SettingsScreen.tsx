@@ -869,7 +869,7 @@ export default function SettingsScreen({
         }
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Success", `Your Haajari ${planName} Plan is now active.`);
+        Alert.alert("Success", `Your Haajari Manager ${planName} Plan is now active.`);
       }
     } catch (error) {
       console.warn("Failed to upgrade plan:", error);
@@ -903,7 +903,7 @@ export default function SettingsScreen({
   const handleWhatsAppSupport = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const phoneNumber = "+917057942248";
-    const message = "Hi Haajari Support Team, I need help with my account...";
+    const message = "Hi Haajari Manager Support Team, I need help with my account...";
     const url = `https://wa.me/${phoneNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(message)}`;
 
     if (Platform.OS === "web") {
@@ -1211,7 +1211,7 @@ export default function SettingsScreen({
               <SettingRow
                 icon="award"
                 iconColor="#F97316"
-                label="Haajari Pro Subscription"
+                label="Haajari Manager PRO Subscription"
                 sublabel="Upgrade plan (₹149 Monthly / ₹1,119 Yearly)"
                 onPress={() => {
                   if (isInDrawer && onClose) onClose();

@@ -377,7 +377,7 @@ export default function WorkerSummaryScreen() {
     setIsExporting(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const filename = `${t.app?.name || "Haajari"}_${type === "attendance" ? "Attendance" : "Summary"}_${monthNames[selectedMonth]}_${selectedYear}.pdf`;
+      const filename = `${t.app?.name || "Haajari Manager"}_${type === "attendance" ? "Attendance" : "Summary"}_${monthNames[selectedMonth]}_${selectedYear}.pdf`;
       const url = `${API_URL}/export/pdf?year=${selectedYear}&month=${selectedMonth}&type=${type}`;
       const success = await downloadAndSharePDF(url, filename);
       if (success) Alert.alert(t.common?.success || "Success", t.export?.success || "Exported successfully");
@@ -400,7 +400,7 @@ export default function WorkerSummaryScreen() {
     setIsExporting(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const filename = `${t.app?.name || "Haajari"}_${monthNames[selectedMonth]}_${selectedYear}.csv`;
+      const filename = `${t.app?.name || "Haajari Manager"}_${monthNames[selectedMonth]}_${selectedYear}.csv`;
       const url = `${API_URL}/export/csv?year=${selectedYear}&month=${selectedMonth}`;
       const success = await downloadAndShareCSV(url, filename);
       if (success) Alert.alert(t.common?.success || "Success", t.export?.success || "Exported successfully");
@@ -675,15 +675,17 @@ export default function WorkerSummaryScreen() {
             >
               <View
                 style={{
-                  backgroundColor: "#1E293B",
+                  backgroundColor: isDark ? "#1E293B" : theme.backgroundSecondary,
                   paddingHorizontal: 8,
                   paddingVertical: 2,
                   borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: theme.border,
                 }}
               >
                 <ThemedText
                   type="small"
-                  style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 11 }}
+                  style={{ color: isDark ? "#FFFFFF" : theme.text, fontWeight: "700", fontSize: 11 }}
                 >
                   {t.workers?.dailyRate || "Daily Rate"}: {t.common?.currency || "₹"}
                   {summary.worker.dailyRate}

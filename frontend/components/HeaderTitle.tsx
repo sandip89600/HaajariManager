@@ -17,8 +17,8 @@ export function HeaderTitle({ title }: HeaderTitleProps) {
         resizeMode="contain"
       />
       <ThemedText
-        style={[styles.title, { color: Colors.light.primaryDark }]}
-        lightColor={Colors.light.primaryDark}
+        style={styles.title}
+        lightColor={Colors.light.text}
         darkColor={Colors.dark.text}
       >
         {title}

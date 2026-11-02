@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "Haajari",
+    "name": "Haajari Manager",
     "tagline": "Powered by Haajari Artificial Intelligence"
   },
   "nav": {
@@ -32,7 +32,7 @@
     "confirmPasswordPlaceholder": "Re-enter new password",
     "enterOtp": "Enter 6-Digit Code",
     "forgotPassword": "Find Your Account",
-    "forgotPasswordDesc": "Enter your registered email address linked to your Haajari account to receive a 6-digit recovery code.",
+    "forgotPasswordDesc": "Enter your registered email address linked to your Haajari Manager account to receive a 6-digit recovery code.",
     "registeredEmail": "Registered Email Address",
     "emailPlaceholder": "Enter your registered email address",
     "changeEmail": "Change Email",
@@ -465,7 +465,7 @@
     "privacyPolicy": "Privacy Policy",
     "termsConditions": "Terms & Conditions",
     "versionText": "Version 1.0.2 (Production Build)",
-    "haiDesc": "HAI (Haajari Artificial Intelligence) is the intelligent assistant powering the Haajari App. It helps contractors, builders, and supervisors manage workers, attendance, payments, advances, reports, and navigation using AI.",
+    "haiDesc": "HAI (Haajari Artificial Intelligence) is the intelligent assistant powering the Haajari Manager App. It helps contractors, builders, and supervisors manage workers, attendance, payments, advances, reports, and navigation using AI.",
     "basicPlan": "Basic Plan",
     "premiumPlan": "Premium Plan",
     "superPlan": "Super Plan"

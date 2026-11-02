@@ -274,7 +274,7 @@ export default function DeviceManagementScreen() {
                   style={{ color: theme.textSecondary, marginTop: 2 }}
                 >
                   {currentDevice.deviceOs || "Mobile"} |{" "}
-                  {currentDevice.deviceBrowser || "Haajari App"}
+                  {currentDevice.deviceBrowser || "Haajari Manager App"}
                 </ThemedText>
 
                 <ThemedText

@@ -287,15 +287,17 @@ const SummaryCard = memo(function SummaryCard({
           >
             <View
               style={{
-                backgroundColor: "#1E293B",
+                backgroundColor: isDark ? "#1E293B" : theme.backgroundSecondary,
                 paddingHorizontal: 8,
                 paddingVertical: 2,
                 borderRadius: 6,
+                borderWidth: 1,
+                borderColor: theme.border,
               }}
             >
               <ThemedText
                 type="small"
-                style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 11 }}
+                style={{ color: isDark ? "#FFFFFF" : theme.text, fontWeight: "700", fontSize: 11 }}
               >
                 {t.workers.dailyRate}: {t.common.currency}
                 {summary.worker.dailyRate}

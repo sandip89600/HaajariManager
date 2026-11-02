@@ -52,7 +52,7 @@ export const MyQrCodeModal: React.FC<MyQrCodeModalProps> = ({
         : "#8B5CF6";
 
   const displayId = uniqueId || user?.uniqueId || "HJR-ID";
-  const displayName = user?.name || "Haajari User";
+  const displayName = user?.name || "Haajari Manager User";
 
   const qrPayload = buildConnectPayload(displayId, role, displayName);
 
@@ -74,8 +74,8 @@ export const MyQrCodeModal: React.FC<MyQrCodeModalProps> = ({
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await Share.share({
-        message: `Connect with me on Haajari App!\nName: ${displayName}\nRole: ${roleLabel}\nUnique ID: ${displayId}\nDeep Link: ${qrPayload}`,
-        title: `Haajari QR Code - ${displayName}`,
+        message: `Connect with me on Haajari Manager App!\nName: ${displayName}\nRole: ${roleLabel}\nUnique ID: ${displayId}\nDeep Link: ${qrPayload}`,
+        title: `Haajari Manager QR Code - ${displayName}`,
       });
     } catch (e) {
       console.warn("Share error:", e);

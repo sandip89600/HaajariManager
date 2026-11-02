@@ -59,7 +59,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
 
       <View style={styles.content}>
         <ThemedText type="h1" style={styles.title}>
-          Oops! Haajari hit a snag
+          Oops! Haajari Manager hit a snag
         </ThemedText>
 
         <ThemedText type="body" style={styles.message}>
@@ -82,7 +82,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
             type="body"
             style={[styles.buttonText, { color: theme.buttonText }]}
           >
-            Restart Haajari
+            Restart Haajari Manager
           </ThemedText>
         </Pressable>
       </View>

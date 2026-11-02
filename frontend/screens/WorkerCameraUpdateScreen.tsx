@@ -570,10 +570,10 @@ export default function WorkerCameraUpdateScreen() {
                   enableTorch={torchOn}
                 />
               ) : (
-                <View style={[styles.permissionFallback, { backgroundColor: "#0F172A" }]}>
-                  <Feather name="camera-off" size={48} color="#94A3B8" />
-                  <Text style={styles.permTitle}>Camera Permission Required</Text>
-                  <Text style={styles.permDesc}>
+                <View style={[styles.permissionFallback, { backgroundColor: isDark ? "#0F172A" : theme.backgroundRoot }]}>
+                  <Feather name="camera-off" size={48} color={theme.textSecondary || "#94A3B8"} />
+                  <Text style={[styles.permTitle, { color: theme.text }]}>Camera Permission Required</Text>
+                  <Text style={[styles.permDesc, { color: theme.textSecondary }]}>
                     Please grant camera access to capture site proof photos.
                   </Text>
                   <Pressable

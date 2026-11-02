@@ -214,7 +214,7 @@ export default function PaymentHandoverMenuScreen() {
       if (proofStatus.showUpgradeUI) {
         Alert.alert(
           "Premium Feature",
-          `Payment Proof is available on the Haajari ${proofStatus.minPlan.toUpperCase()} plan.`,
+          `Payment Proof is available on the Haajari Manager ${proofStatus.minPlan.toUpperCase()} plan.`,
           [
             { text: "Cancel", style: "cancel" },
             {
@@ -253,7 +253,7 @@ export default function PaymentHandoverMenuScreen() {
             style={[styles.upgradeSub, { color: theme.textSecondary }]}
           >
             Enforce digital handovers, signature verification, receipts, and
-            proof tracking by upgrading to Haajari Premium.
+            proof tracking by upgrading to Haajari Manager Premium.
           </ThemedText>
 
           <Pressable

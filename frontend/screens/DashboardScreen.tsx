@@ -782,7 +782,7 @@ export default function DashboardScreen() {
               >
                 <ThemedText style={styles.nudgeBadgeText}>
                   {isProActive
-                    ? "👑 Haajari PRO"
+                    ? "👑 Haajari Manager PRO"
                     : currentPlan === "free" || currentPlan === "basic"
                       ? t("settings.basicPlan", "Basic Plan")
                       : currentPlan === "professional" || currentPlan === "super"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -24,28 +24,29 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { storage, siteActivityStorage, Site } from "@/utils/storage";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useTheme } from "@/hooks/useTheme";
 import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
 
-// ── Strict Design Tokens (Phase 9) ──
-const TOKENS = {
-  bg: "#101828",
-  surface: "#1D2939",
-  surfaceLight: "#253247",
+// ── Strict Design Tokens (Theme-Aware) ──
+export const getTokens = (isDark: boolean) => ({
+  bg: isDark ? "#101828" : "#F8FAFC",
+  surface: isDark ? "#1D2939" : "#FFFFFF",
+  surfaceLight: isDark ? "#253247" : "#F1F5F9",
   primary: "#F97316",
   primaryHover: "#EA580C",
-  text: "#F9FAFB",
-  textSecondary: "#D0D5DD",
-  textMuted: "#98A2B3",
-  border: "#344054",
-  borderLight: "#475467",
+  text: isDark ? "#F9FAFB" : "#0F172A",
+  textSecondary: isDark ? "#D0D5DD" : "#475569",
+  textMuted: isDark ? "#98A2B3" : "#64748B",
+  border: isDark ? "#344054" : "#E2E8F0",
+  borderLight: isDark ? "#475467" : "#CBD5E1",
   success: "#12B76A",
-  successLight: "rgba(18, 183, 106, 0.15)",
+  successLight: isDark ? "rgba(18, 183, 106, 0.15)" : "rgba(18, 183, 106, 0.12)",
   error: "#F04438",
-  errorLight: "rgba(240, 68, 56, 0.15)",
+  errorLight: isDark ? "rgba(240, 68, 56, 0.15)" : "rgba(240, 68, 56, 0.12)",
   warning: "#F79009",
-  warningLight: "rgba(247, 144, 9, 0.15)",
+  warningLight: isDark ? "rgba(247, 144, 9, 0.15)" : "rgba(247, 144, 9, 0.12)",
   blue: "#2E90FA",
-};
+});
 
 // Wireframe 1 Filter Pills: All, Active, Delay, Complete
 const FILTER_OPTIONS = [
@@ -85,9 +86,12 @@ export interface ContractorOverviewMetrics {
 }
 
 export default function SiteControlDashboardScreen() {
+  const { theme, isDark } = useTheme();
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  const TOKENS = useMemo(() => getTokens(isDark), [isDark]);
+  const styles = useMemo(() => createStyles(TOKENS), [TOKENS]);
 
   // Data States
   const [contractorName, setContractorName] = useState<string>("Contractor");
@@ -651,7 +655,7 @@ export default function SiteControlDashboardScreen() {
         renderItem={renderSiteCard}
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: insets.bottom + 80 },
+          { paddingBottom: insets.bottom + 110 },
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -805,7 +809,8 @@ export default function SiteControlDashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (TOKENS: ReturnType<typeof getTokens>) =>
+  StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: TOKENS.bg,

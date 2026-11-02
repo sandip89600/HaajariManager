@@ -24,6 +24,8 @@ import * as Haptics from "expo-haptics";
 import { ThemedView } from "@/components/ThemedView";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useSocket } from "@/hooks/useSocket";
+import { useTheme } from "@/hooks/useTheme";
+import { getTokens } from "./SiteControlDashboardScreen";
 import {
   storage,
   siteActivityStorage,
@@ -31,27 +33,6 @@ import {
   Worker as StorageWorker,
 } from "@/utils/storage";
 import { uploadAudioToServer } from "@/utils/upload";
-
-// ── Strict Design Tokens (Phase 9) ──
-const TOKENS = {
-  bg: "#101828",
-  surface: "#1D2939",
-  surfaceLight: "#253247",
-  primary: "#F97316",
-  primaryHover: "#EA580C",
-  text: "#F9FAFB",
-  textSecondary: "#D0D5DD",
-  textMuted: "#98A2B3",
-  border: "#344054",
-  borderLight: "#475467",
-  success: "#12B76A",
-  successLight: "rgba(18, 183, 106, 0.15)",
-  error: "#F04438",
-  errorLight: "rgba(240, 68, 56, 0.15)",
-  warning: "#F79009",
-  warningLight: "rgba(247, 144, 9, 0.15)",
-  blue: "#2E90FA",
-};
 
 export type ControlTab =
   | "Overview"
@@ -118,11 +99,14 @@ const WORKER_CATEGORIES = [
 ];
 
 export default function SiteDetailControlScreen() {
+  const { theme, isDark } = useTheme();
   const { t } = useLanguage();
   const { socket } = useSocket();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  const TOKENS = useMemo(() => getTokens(isDark), [isDark]);
+  const styles = useMemo(() => createStyles(TOKENS), [TOKENS]);
   const { siteId, initialTab, presentWorkers: routePresentWorkers, totalWorkers: routeTotalWorkers } = route.params || {};
 
   // Resolve initial tab gracefully (Attendance removed per user request)
@@ -2392,7 +2376,8 @@ export default function SiteDetailControlScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (TOKENS: ReturnType<typeof getTokens>) =>
+  StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: TOKENS.bg,

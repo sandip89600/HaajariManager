@@ -55,6 +55,7 @@ import PaymentHandoverMenuScreen from "@/screens/PaymentHandoverMenuScreen";
 import SecureAccountScreen from "@/screens/SecureAccountScreen";
 import NotificationScreen from "@/screens/NotificationScreen";
 import RoleBottomNavigation from "@/components/RoleBottomNavigation";
+import FloatingPillNavigation from "@/components/FloatingPillNavigation";
 import { getNormalizedRole } from "@/navigation/navigationConfig";
 import { navigateToUpdateWorker } from "@/navigation/navigationRef";
 
@@ -224,10 +225,11 @@ function MainTabs() {
       <Tab.Navigator
         initialRouteName="DashboardTab"
         tabBar={(props) => (
-          <RoleBottomNavigation
+          <FloatingPillNavigation
             {...props}
             role={normalizedRole}
             onOpenQrScanner={() => setIsScannerOpen(true)}
+            showLabels={false}
           />
         )}
         screenOptions={{

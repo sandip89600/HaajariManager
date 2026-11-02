@@ -434,7 +434,7 @@ export default function ForgotPasswordScreen() {
             {step === "EMAIL_INPUT"
               ? t(
                   "auth.forgotPasswordDesc",
-                  "Enter your registered email address linked to your Haajari account to receive a 6-digit recovery code.",
+                  "Enter your registered email address linked to your Haajari Manager account to receive a 6-digit recovery code.",
                 )
               : step === "OTP_INPUT"
                 ? `${t("auth.otpSentTo", "We sent a 6-digit verification code to")} ${email.trim()}.`

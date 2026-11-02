@@ -108,7 +108,7 @@ export default function SecurityAlertModal({
                 { color: isDark ? "#94A3B8" : "#64748B" },
               ]}
             >
-              Your Haajari account was just signed in from a new device.
+              Your Haajari Manager account was just signed in from a new device.
             </ThemedText>
           </View>
 
@@ -199,7 +199,7 @@ export default function SecurityAlertModal({
           <ThemedText
             style={[styles.note, { color: isDark ? "#64748B" : "#9CA3AF" }]}
           >
-            Haajari will never ask for your password via email or SMS.
+            Haajari Manager will never ask for your password via email or SMS.
           </ThemedText>
         </View>
       </View>

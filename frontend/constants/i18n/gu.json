@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "Haajari",
+    "name": "Haajari Manager",
     "tagline": "હાજરી કૃત્રિમ બુદ્ધિમત્તા દ્વારા સંચાલિત"
   },
   "auth": {
@@ -443,7 +443,7 @@
     "privacyPolicy": "Privacy Policy",
     "termsConditions": "Terms & Conditions",
     "versionText": "Version 1.0.2 (Production Build)",
-    "haiDesc": "HAI (Haajari Artificial Intelligence) is the intelligent assistant powering the Haajari App. It helps contractors, builders, and supervisors manage workers, attendance, payments, advances, reports, and navigation using AI.",
+    "haiDesc": "HAI (Haajari Artificial Intelligence) is the intelligent assistant powering the Haajari Manager App. It helps contractors, builders, and supervisors manage workers, attendance, payments, advances, reports, and navigation using AI.",
     "basicPlan": "बेसिक प्लान",
     "premiumPlan": "प्रीमियम प्लान",
     "superPlan": "सुपर प्लान"

@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 
 import {
   initConnection,
@@ -46,6 +47,10 @@ import {
 } from "@/services/subscriptionApi";
 import { GooglePlayApi } from "@/services/googlePlayApi";
 import { Spacing } from "@/constants/theme";
+
+const isExpoGo =
+  Constants.appOwnership === "expo" ||
+  (Constants as any).executionEnvironment === ExecutionEnvironment.StoreClient;
 
 const MONTHLY_PRODUCT_ID = "haajari_pro_monthly";
 const ANNUAL_PRODUCT_ID = "haajari_pro_annual";
@@ -86,14 +91,22 @@ export default function SubscriptionScreen() {
 
     return () => {
       if (purchaseUpdateRef.current) {
-        purchaseUpdateRef.current.remove();
+        try {
+          purchaseUpdateRef.current.remove();
+        } catch {}
+        purchaseUpdateRef.current = null;
       }
       if (purchaseErrorRef.current) {
-        purchaseErrorRef.current.remove();
+        try {
+          purchaseErrorRef.current.remove();
+        } catch {}
+        purchaseErrorRef.current = null;
       }
-      try {
-        endConnection();
-      } catch {}
+      if (!isExpoGo) {
+        try {
+          endConnection().catch(() => {});
+        } catch {}
+      }
     };
   }, []);
 
@@ -119,6 +132,14 @@ export default function SubscriptionScreen() {
    * Initialize Google Play Billing connection and fetch product prices
    */
   const setupGooglePlayBilling = async () => {
+    // Expo Go does not contain the native Google Play Billing library (ExpoIap)
+    if (isExpoGo) {
+      console.log(
+        "[SubscriptionScreen] Running inside Expo Go: In-App Purchases are disabled. (Requires an Expo Development Build or APK)."
+      );
+      return;
+    }
+
     try {
       const connected = await initConnection();
       setIsStoreConnected(true);
@@ -197,7 +218,7 @@ export default function SubscriptionScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         "PRO Membership Active! 🎉",
-        "Welcome to Haajari PRO! Your Google Play subscription is confirmed and all features are now fully unlocked.",
+        "Welcome to Haajari Manager PRO! Your Google Play subscription is confirmed and all features are now fully unlocked.",
         [{ text: "Start Using PRO", onPress: () => loadData(true) }]
       );
       loadData(true);
@@ -217,6 +238,14 @@ export default function SubscriptionScreen() {
    * Initiate Google Play Native In-App Purchase Flow
    */
   const handleSubscribe = async () => {
+    if (isExpoGo) {
+      Alert.alert(
+        "Development Build Required",
+        "Google Play In-App Purchases cannot be tested inside Expo Go.\n\nPlease install the Haajari Manager Development Build APK (com.haajari.app) using 'npx expo run:android' or EAS Build."
+      );
+      return;
+    }
+
     const targetProductId = selectedOptionId === "yearly" ? ANNUAL_PRODUCT_ID : MONTHLY_PRODUCT_ID;
     setIsPurchasing(true);
     triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
@@ -259,6 +288,14 @@ export default function SubscriptionScreen() {
    * Restore Existing Purchases from Google Play
    */
   const handleRestorePurchases = async () => {
+    if (isExpoGo) {
+      Alert.alert(
+        "Development Build Required",
+        "Google Play purchase restoration requires an installed APK and cannot be tested inside Expo Go."
+      );
+      return;
+    }
+
     setIsRestoring(true);
     triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
 
@@ -268,7 +305,7 @@ export default function SubscriptionScreen() {
       if (!purchases || !Array.isArray(purchases) || purchases.length === 0) {
         Alert.alert(
           "Restore Purchases",
-          "No active Haajari PRO subscription was found on this Google Play account."
+          "No active Haajari Manager PRO subscription was found on this Google Play account."
         );
         return;
       }
@@ -295,7 +332,7 @@ export default function SubscriptionScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           "Purchases Restored",
-          "Your Haajari PRO subscription has been verified and restored successfully!",
+          "Your Haajari Manager PRO subscription has been verified and restored successfully!",
           [{ text: "OK", onPress: () => loadData(true) }]
         );
         loadData(true);
@@ -325,6 +362,11 @@ export default function SubscriptionScreen() {
 
     const activeSku =
       activeSub?.billingOptionId === "yearly" ? ANNUAL_PRODUCT_ID : MONTHLY_PRODUCT_ID;
+
+    if (isExpoGo) {
+      Linking.openURL("https://play.google.com/store/account/subscriptions").catch(() => {});
+      return;
+    }
 
     try {
       await deepLinkToSubscriptions({
@@ -431,7 +473,7 @@ export default function SubscriptionScreen() {
 
         <View style={styles.headerTitleWrap}>
           <ThemedText type="h2" style={styles.headerTitle}>
-            {isProActive ? "PRO Membership" : "Haajari Pro"}
+            {isProActive ? "PRO Membership" : "Haajari Manager PRO"}
           </ThemedText>
           <View style={[styles.proBadge, isProActive && { backgroundColor: "#10B981" }]}>
             <ThemedText style={styles.proBadgeText}>
@@ -440,6 +482,16 @@ export default function SubscriptionScreen() {
           </View>
         </View>
       </View>
+
+      {/* Expo Go Development Notice */}
+      {isExpoGo && (
+        <View style={styles.expoGoBanner}>
+          <Feather name="info" size={15} color="#D97706" style={{ marginRight: 8, marginTop: 1 }} />
+          <ThemedText style={styles.expoGoBannerText}>
+            Expo Go Preview Mode: Native Google Play Billing requires a Development Build (npx expo run:android).
+          </ThemedText>
+        </View>
+      )}
 
       {/* Tab Switcher */}
       <View style={styles.tabSelectorRow}>
@@ -515,7 +567,7 @@ export default function SubscriptionScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <ThemedText style={styles.proIdentityTitle}>
-                      HAAJARI PRO MEMBER
+                      HAAJARI MANAGER PRO MEMBER
                     </ThemedText>
                     <ThemedText numberOfLines={1} style={styles.proMemberName}>
                       {user?.companyName || user?.name || "Verified Contractor"}
@@ -768,7 +820,7 @@ export default function SubscriptionScreen() {
             <Pressable
               onPress={() => {
                 Linking.openURL(
-                  "https://wa.me/917058222107?text=Hello%20Haajari%20Support,%20I%20am%20a%20PRO%20Member"
+                  "https://wa.me/917058222107?text=Hello%20Haajari%20Manager%20Support,%20I%20am%20a%20PRO%20Member"
                 ).catch(() => {});
               }}
               style={styles.supportContactBtn}
@@ -1121,7 +1173,7 @@ export default function SubscriptionScreen() {
               <View style={styles.txnHeader}>
                 <View style={{ flex: 1 }}>
                   <ThemedText type="body" style={styles.txnTitle}>
-                    {item.planNameSnapshot || "Haajari Pro"}
+                    {item.planNameSnapshot || "Haajari Manager PRO"}
                   </ThemedText>
                   <ThemedText type="small" style={styles.txnId}>
                     ID: {item.transactionId}
@@ -1208,7 +1260,7 @@ export default function SubscriptionScreen() {
                 <Feather name="shield" size={24} color="#EA580C" />
               </View>
               <ThemedText type="h3" style={styles.cancelModalTitle}>
-                Manage Haajari PRO
+                Manage Haajari Manager PRO
               </ThemedText>
             </View>
 
@@ -1925,5 +1977,24 @@ const styles = StyleSheet.create({
     color: "#EF4444",
     fontSize: 14,
     fontWeight: "700",
+  },
+  expoGoBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  expoGoBannerText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#92400E",
+    fontWeight: "600",
   },
 });

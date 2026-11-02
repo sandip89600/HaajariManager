@@ -12,6 +12,8 @@ import {
   NavigationContainer,
   getStateFromPath,
   getPathFromState,
+  DefaultTheme,
+  DarkTheme,
 } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -130,6 +132,23 @@ function AppInner() {
     return cleanup;
   }, []);
 
+  const navigationTheme = React.useMemo(() => {
+    const baseTheme = isDark ? DarkTheme : DefaultTheme;
+    return {
+      ...baseTheme,
+      dark: isDark,
+      colors: {
+        ...baseTheme.colors,
+        primary: theme.primary,
+        background: theme.backgroundRoot,
+        card: theme.backgroundDefault,
+        text: theme.text,
+        border: theme.border,
+        notification: theme.primary,
+      },
+    };
+  }, [isDark, theme]);
+
   if (languageContext.isLoading) {
     return (
       <View style={[styles.loading, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF" }]}>
@@ -149,7 +168,11 @@ function AppInner() {
         <ErrorFeedbackProvider>
           <FeatureAccessProvider>
             <OfflineBanner />
-            <NavigationContainer ref={navigationRef} linking={linking}>
+            <NavigationContainer
+              ref={navigationRef}
+              linking={linking}
+              theme={navigationTheme}
+            >
               <RootNavigator />
             </NavigationContainer>
             {/* VoiceAssistant disabled — will be re-enabled in a future release */}
