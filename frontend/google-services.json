@@ -1,33 +1,41 @@
 {
   "project_info": {
-    "project_number": "903556875541",
-    "project_id": "haajari-app",
-    "storage_bucket": "haajari-app.firebasestorage.app"
+    "project_number": "811043191308",
+    "project_id": "studio-6151081845-253a9",
+    "storage_bucket": "studio-6151081845-253a9.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:903556875541:android:bda763370a45ab1dc9d51c",
+        "mobilesdk_app_id": "1:811043191308:android:5ade78c65fcb8563fb8c29",
         "android_client_info": {
           "package_name": "com.haajari.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "903556875541-qsvifqd303obt69nb6jt437pkpqmkhm5.apps.googleusercontent.com",
+          "client_id": "811043191308-tqaoih5i91deifu8vsbkmh7s5e3mvtnv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.haajari.app",
+            "certificate_hash": "9494ec3e5efc9ab181aad9483bfced0e5dfe745c"
+          }
+        },
+        {
+          "client_id": "811043191308-dia1apqivl06qoab2ibc2cl0di76tpsc.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyCLNAY2kuYWyKbifID8rqxv39ynqMeahvA"
+          "current_key": "AIzaSyCFyS5ECG3iRmgJWvEJizvSc7ZA6CGf6cM"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "903556875541-qsvifqd303obt69nb6jt437pkpqmkhm5.apps.googleusercontent.com",
+              "client_id": "811043191308-dia1apqivl06qoab2ibc2cl0di76tpsc.apps.googleusercontent.com",
               "client_type": 3
             }
           ]
