@@ -8,25 +8,28 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://haajarimanager.onrender.com/api"
-      }
-    },
-    "preview": {
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
+        "EXPO_PUBLIC_API_URL": "https://haajarimanager.onrender.com/api",
+         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "811043191308-dia1apqivl06qoab2ibc2cl0di76tpsc.apps.googleusercontent.com"
+        }
       },
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://haajarimanager.onrender.com/api"
-      }
-    },
-    "production": {
-      "autoIncrement": true,
-      "android": {
-        "buildType": "app-bundle"
+      "preview": {
+        "distribution": "internal",
+        "android": {
+          "buildType": "apk"
+        },
+        "env": {
+          "EXPO_PUBLIC_API_URL": "https://haajarimanager.onrender.com/api",
+          "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "811043191308-dia1apqivl06qoab2ibc2cl0di76tpsc.apps.googleusercontent.com"
+        }
       },
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://haajarimanager.onrender.com/api"
+      "production": {
+        "autoIncrement": true,
+        "android": {
+          "buildType": "app-bundle"
+        },
+        "env": {
+          "EXPO_PUBLIC_API_URL": "https://haajarimanager.onrender.com/api",
+          "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "811043191308-dia1apqivl06qoab2ibc2cl0di76tpsc.apps.googleusercontent.com"
       }
     }
   },
