@@ -43,3 +43,4 @@ export * from "./SubscriptionPlanV2";
 export * from "./UserSubscriptionV2";
 export * from "./SubscriptionTransactionV2";
 export * from "./ConnectionRequest";
+export * from "./UploadedMedia";

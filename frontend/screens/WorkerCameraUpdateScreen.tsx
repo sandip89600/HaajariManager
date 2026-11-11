@@ -12,6 +12,7 @@ import {
   Modal,
   Linking,
   Platform,
+  DeviceEventEmitter,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -224,8 +225,9 @@ export default function WorkerCameraUpdateScreen() {
       // 3. Submit work update to backend
       const isMorning = activeCameraMode === "MORNING";
       const activityType = isMorning ? "MORNING_WORK" : "EVENING_WORK";
-      const todayDate = new Date().toISOString().split("T")[0];
-      const clientRequestId = `${user?.id || "worker"}_${activeCameraMode}_${todayDate}_${Date.now()}`;
+      const nowLocal = new Date();
+      const localDateStr = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, "0")}-${String(nowLocal.getDate()).padStart(2, "0")}`;
+      const clientRequestId = `${user?.id || "worker"}_${activeCameraMode}_${localDateStr}_${Date.now()}`;
 
       await siteActivityStorage.submitWorkUpdate(activeSite.id, {
         activityType,
@@ -237,10 +239,12 @@ export default function WorkerCameraUpdateScreen() {
           address: activeSite.address,
         },
         clientRequestId,
+        dateStr: localDateStr,
       });
 
       // 4. Server confirmed success
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      DeviceEventEmitter.emit("refreshData");
       setCameraStep("SUCCESS");
 
       // Auto close and refresh after 1.5 seconds

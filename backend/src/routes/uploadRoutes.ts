@@ -1,9 +1,11 @@
-import { Router, Response } from "express";
+import { Router, Request, Response } from "express";
 import multer = require("multer");
 import path = require("path");
 import fs = require("fs");
+import mongoose from "mongoose";
 import { isS3Configured, uploadToS3 } from "../utils/s3";
 import { AuthenticatedRequest, authenticateJWT } from "../middleware/auth";
+import { UploadedMedia } from "../models";
 
 const router = Router();
 
@@ -75,10 +77,27 @@ router.post(
         return res.json({ url });
       }
 
-      // Graceful local fallback: save to uploads/ folder
+      // Persistent MongoDB media fallback (survives Render ephemeral disk restarts/sleeps)
+      const forwardedProto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0]?.trim();
+      const protocol = forwardedProto || (process.env.NODE_ENV === "production" ? "https" : req.protocol);
+      const host = req.get("host");
+
+      try {
+        const mediaDoc = await UploadedMedia.create({
+          data: fileBuffer,
+          mimeType,
+          originalName,
+          size: fileBuffer.length,
+          uploadedBy: req.user?.id ? new mongoose.Types.ObjectId(req.user.id) : undefined,
+        });
+        const persistentUrl = `${protocol}://${host}/api/upload/file/${mediaDoc._id.toString()}`;
+        return res.json({ url: persistentUrl });
+      } catch (dbErr: any) {
+        console.warn("MongoDB media storage fallback failed, using local disk:", dbErr?.message || dbErr);
+      }
+
+      // Graceful local disk fallback (dev/offline only)
       const uploadsDir = path.join(__dirname, "../../uploads");
-      
-      // Verify uploads directory exists, if not, create it
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
       }
@@ -91,13 +110,9 @@ router.post(
       const fileName = `${uniqueSuffix}${fileExtension}`;
       const filePath = path.join(uploadsDir, fileName);
 
-      // Write file buffer to local disk
       fs.writeFileSync(filePath, fileBuffer);
 
-      // Construct server URL dynamically (supports local IP discovery)
-      const host = req.get("host");
-      const url = `${req.protocol}://${host}/uploads/${fileName}`;
-
+      const url = `${protocol}://${host}/uploads/${fileName}`;
       res.json({ url });
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -105,5 +120,24 @@ router.post(
     }
   }
 );
+
+router.get("/file/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: "Invalid media ID" });
+    }
+    const media = await UploadedMedia.findById(id);
+    if (!media) {
+      return res.status(404).json({ error: "Media file not found" });
+    }
+    res.setHeader("Content-Type", media.mimeType || "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    return res.send(media.data);
+  } catch (error: any) {
+    console.error("Serve uploaded media error:", error);
+    return res.status(500).json({ error: "Failed to load media file" });
+  }
+});
 
 export default router;

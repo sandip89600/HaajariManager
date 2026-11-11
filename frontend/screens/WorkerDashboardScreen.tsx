@@ -230,7 +230,10 @@ export default function WorkerDashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       loadWorkerData();
-    }, [loadWorkerData]),
+      if (user && !(uniqueId || user.uniqueId || workerInfo?.uniqueId)) {
+        refreshUserProfile?.().catch(() => {});
+      }
+    }, [loadWorkerData, user?.id, uniqueId]),
   );
 
   useEffect(() => {

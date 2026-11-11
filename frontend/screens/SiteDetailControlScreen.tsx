@@ -145,6 +145,7 @@ export default function SiteDetailControlScreen() {
   const [photoFilter, setPhotoFilter] = useState<PhotoFilter>("ALL");
   const [photoTradeFilter, setPhotoTradeFilter] = useState<string>("ALL");
   const [selectedPhotoModal, setSelectedPhotoModal] = useState<SitePhotoItem | null>(null);
+  const [sitePhotosHistory, setSitePhotosHistory] = useState<any[]>([]);
 
   // Instructions & Communication States
   const [customInstructions, setCustomInstructions] = useState<SiteInstructionItem[]>([]);
@@ -198,7 +199,13 @@ export default function SiteDetailControlScreen() {
       if (!siteId) return;
       if (showIndicator) setIsLoading(true);
       try {
-        const ctrl = await siteActivityStorage.getSiteControlCenter(siteId, selectedDate);
+        const [ctrl, photosRes] = await Promise.all([
+          siteActivityStorage.getSiteControlCenter(siteId, selectedDate),
+          siteActivityStorage.getSitePhotos(siteId).catch(() => null),
+        ]);
+        if (photosRes && Array.isArray(photosRes.photos)) {
+          setSitePhotosHistory(photosRes.photos);
+        }
         if (ctrl && ctrl.success) {
           setControlData(ctrl);
           if (ctrl.activeInstructions && Array.isArray(ctrl.activeInstructions)) {
@@ -430,12 +437,21 @@ export default function SiteDetailControlScreen() {
     return counts;
   }, [allWorkers]);
 
-  // Extract all photos
+  // Extract all photos (merge today's control photos with full site photos history)
   const allPhotos: SitePhotoItem[] = useMemo(() => {
-    const rawPhotos = controlData?.sitePhotos || [];
-    return rawPhotos
+    const todayPhotos = controlData?.sitePhotos || [];
+    const mergedRaw = [...todayPhotos, ...sitePhotosHistory];
+    const seenIds = new Set<string>();
+    const deduped: any[] = [];
+    for (const p of mergedRaw) {
+      const pid = String(p.id || p._id || "");
+      if (pid && seenIds.has(pid)) continue;
+      if (pid) seenIds.add(pid);
+      deduped.push(p);
+    }
+    return deduped
       .map((p: any) => ({
-        id: p.id || p._id || `${Math.random()}`,
+        id: String(p.id || p._id || `${Math.random()}`),
         photoUrl:
           p.photo?.url || (typeof p.photo === "string" ? p.photo : p.photoUri || p.url || ""),
         siteName: p.siteName || siteDisplayName,
@@ -449,15 +465,31 @@ export default function SiteDetailControlScreen() {
         location: p.location,
       }))
       .filter((p: SitePhotoItem) => !!p.photoUrl);
-  }, [controlData, siteDisplayName, selectedDate]);
+  }, [controlData, sitePhotosHistory, siteDisplayName, selectedDate]);
 
   const morningPhotosCount = useMemo(() => {
+    return allPhotos.filter(
+      (p) =>
+        p.dateStr === selectedDate &&
+        (p.activityType === "MORNING_WORK" || p.activityType === "MORNING")
+    ).length;
+  }, [allPhotos, selectedDate]);
+
+  const eveningPhotosCount = useMemo(() => {
+    return allPhotos.filter(
+      (p) =>
+        p.dateStr === selectedDate &&
+        (p.activityType === "EVENING_WORK" || p.activityType === "EVENING")
+    ).length;
+  }, [allPhotos, selectedDate]);
+
+  const allMorningPhotosCount = useMemo(() => {
     return allPhotos.filter(
       (p) => p.activityType === "MORNING_WORK" || p.activityType === "MORNING"
     ).length;
   }, [allPhotos]);
 
-  const eveningPhotosCount = useMemo(() => {
+  const allEveningPhotosCount = useMemo(() => {
     return allPhotos.filter(
       (p) => p.activityType === "EVENING_WORK" || p.activityType === "EVENING"
     ).length;
@@ -1515,8 +1547,8 @@ export default function SiteDetailControlScreen() {
                   pf === "ALL"
                     ? allPhotos.length
                     : pf === "MORNING"
-                    ? morningPhotosCount
-                    : eveningPhotosCount;
+                    ? allMorningPhotosCount
+                    : allEveningPhotosCount;
                 return (
                   <Pressable
                     key={pf}
@@ -1599,7 +1631,7 @@ export default function SiteDetailControlScreen() {
                           {photo.workerName}
                         </Text>
                         <Text style={styles.photoTimestamp} numberOfLines={1}>
-                          {photo.timeStr}
+                          {photo.dateStr ? `${photo.dateStr} • ` : ""}{photo.timeStr}
                         </Text>
                       </View>
                     </Pressable>

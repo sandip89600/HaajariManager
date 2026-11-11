@@ -14,9 +14,15 @@ import {
 } from "../models";
 import { getIO } from "../utils/socket";
 
-// Helper for format YYYY-MM-DD in local time
+// Helper for format YYYY-MM-DD in IST (Asia/Kolkata) so UTC cloud hosts match mobile devices
+function toISTDate(date?: Date): Date {
+  const base = date || new Date();
+  const utcMs = base.getTime() + base.getTimezoneOffset() * 60000;
+  return new Date(utcMs + 5.5 * 60 * 60000);
+}
+
 function getTodayDateStr(date?: Date): string {
-  const d = date || new Date();
+  const d = toISTDate(date);
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -24,7 +30,7 @@ function getTodayDateStr(date?: Date): string {
 }
 
 function formatTimeString(date?: Date): string {
-  const d = date || new Date();
+  const d = toISTDate(date);
   let hours = d.getHours();
   const minutes = String(d.getMinutes()).padStart(2, "0");
   const ampm = hours >= 12 ? "PM" : "AM";
@@ -472,6 +478,7 @@ export const submitWorkUpdate = async (
       location,
       clientRequestId,
       description,
+      dateStr: clientDateStr,
     } = req.body;
 
     let normalizedType = (activityType || "").toUpperCase().trim();
@@ -567,7 +574,10 @@ export const submitWorkUpdate = async (
     if (!site) return res.status(404).json({ error: "Site not found" });
 
     const now = new Date();
-    const dateStr = getTodayDateStr(now);
+    const dateStr =
+      typeof clientDateStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(clientDateStr.trim())
+        ? clientDateStr.trim()
+        : getTodayDateStr(now);
     const timeStr = formatTimeString(now);
 
     // Prevent duplicate morning/evening submission for same worker & same date
@@ -620,6 +630,11 @@ export const submitWorkUpdate = async (
     });
 
     await activity.save();
+
+    if (worker && !worker.projectId) {
+      worker.projectId = site._id as any;
+      await worker.save();
+    }
 
     // Auto-record or update DailySiteSession for today
     if (worker) {
@@ -985,15 +1000,7 @@ export const getWorkerTodayContext = async (
       }
     }
 
-    // Fallback C: Any active site in system
-    if (!defaultSite) {
-      defaultSite = await Site.findOne({ isDeleted: false, isArchived: false, status: { $ne: "Completed" } }).sort({ updatedAt: -1 });
-      if (!defaultSite) {
-        defaultSite = await Site.findOne({ isDeleted: false, isArchived: false }).sort({ updatedAt: -1 });
-      }
-    }
-
-    // Auto-link worker & user contractor if found
+    // Auto-link worker & user contractor if found (strictly within tenant/contractor scope)
     if (defaultSite) {
       if (worker && !worker.projectId) {
         worker.projectId = defaultSite._id as any;

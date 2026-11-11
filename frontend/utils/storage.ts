@@ -2205,6 +2205,7 @@ export const siteActivityStorage = {
         address?: string;
       };
       clientRequestId?: string;
+      dateStr?: string;
     },
   ) {
     const res = await authenticatedFetch(

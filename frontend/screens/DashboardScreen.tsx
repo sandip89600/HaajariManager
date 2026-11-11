@@ -26,6 +26,7 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import SettingsDrawer from "@/components/SettingsDrawer";
 import {
@@ -145,7 +146,7 @@ export default function DashboardScreen() {
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
-  const { user } = useAuth();
+  const { user, uniqueId, refreshUserProfile } = useAuth();
   const {
     config: featureConfig,
     subscriptionStatus,
@@ -503,7 +504,10 @@ export default function DashboardScreen() {
   // Effects
   useEffect(() => {
     connectSocket();
-  }, []);
+    if (user && !(user.uniqueId || uniqueId)) {
+      refreshUserProfile?.().catch(() => {});
+    }
+  }, [user?.id, uniqueId]);
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -874,18 +878,40 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* Streak badge & Upgrade Pro button row */}
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-          <View
-            style={[
-              styles.streakBadge,
-              { backgroundColor: isDark ? "#334155" : "rgba(255,255,255,0.2)", alignSelf: "flex-start", marginTop: 0 },
-            ]}
-          >
-            <Feather name="zap" size={14} color="#F97316" />
-            <ThemedText style={[styles.streakText, { color: "#FFFFFF" }]}>
-              {streakCount} {t("dashboard.dayStreak", "day streak")}
-            </ThemedText>
+        {/* Streak badge, Contractor Unique ID & Upgrade Pro button row */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <View
+              style={[
+                styles.streakBadge,
+                { backgroundColor: isDark ? "#334155" : "rgba(255,255,255,0.2)", alignSelf: "flex-start", marginTop: 0 },
+              ]}
+            >
+              <Feather name="zap" size={14} color="#F97316" />
+              <ThemedText style={[styles.streakText, { color: "#FFFFFF" }]}>
+                {streakCount} {t("dashboard.dayStreak", "day streak")}
+              </ThemedText>
+            </View>
+
+            <Pressable
+              onPress={async () => {
+                const activeId = uniqueId || user?.uniqueId || "";
+                if (!activeId) return;
+                await Clipboard.setStringAsync(activeId);
+                triggerHaptic();
+                showSuccessToast(`Unique ID ${activeId} copied!`);
+              }}
+              style={[
+                styles.streakBadge,
+                { backgroundColor: isDark ? "#334155" : "rgba(255,255,255,0.22)", alignSelf: "flex-start", marginTop: 0 },
+              ]}
+            >
+              <Feather name="hash" size={13} color="#FFFFFF" />
+              <ThemedText style={[styles.streakText, { color: "#FFFFFF", letterSpacing: 0.4 }]}>
+                {uniqueId || user?.uniqueId || "HM-C-PENDING"}
+              </ThemedText>
+              <Feather name="copy" size={12} color="#FFFFFF" />
+            </Pressable>
           </View>
 
           {isProActive ? (

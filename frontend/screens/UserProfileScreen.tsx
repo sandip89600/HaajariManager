@@ -38,7 +38,7 @@ import { Language, languageNames } from "@/constants/i18n";
 export default function UserProfileScreen() {
   const { theme, themeMode, setThemeMode, isDark } = useTheme();
   const { t, language, setLanguage } = useLanguage();
-  const { user: authUser, logout } = useAuth();
+  const { user: authUser, uniqueId: authUniqueId, logout } = useAuth();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const finalHeaderHeight =
@@ -222,6 +222,12 @@ export default function UserProfileScreen() {
               : null;
           const freshUser: User = {
             id: serverUser._id || serverUser.id || authUser.id,
+            uniqueId:
+              serverUser.uniqueId ||
+              localUser?.uniqueId ||
+              authUser.uniqueId ||
+              authUniqueId ||
+              "",
             name:
               serverUser.name || (localUser ? localUser.name : authUser.name),
             phone: serverUser.phone || authUser.phone || "",
@@ -232,6 +238,20 @@ export default function UserProfileScreen() {
             profileImage: serverUser.profileImage || undefined,
             address: serverUser.address || "",
             role: serverUser.role || authUser.role || "contractor",
+            workerCategory:
+              serverUser.workerCategory || localUser?.workerCategory,
+            dailyWage:
+              serverUser.dailyWage !== undefined
+                ? serverUser.dailyWage
+                : localUser?.dailyWage,
+            contractorName:
+              serverUser.contractorName || localUser?.contractorName,
+            contractorCompany:
+              serverUser.contractorCompany || localUser?.contractorCompany,
+            connectionStatus:
+              serverUser.connectionStatus ||
+              localUser?.connectionStatus ||
+              "not_connected",
             isActive: true,
             createdAt: serverUser.createdAt
               ? new Date(serverUser.createdAt).getTime()
@@ -613,22 +633,24 @@ export default function UserProfileScreen() {
     return theme.primary;
   };
 
+  const resolvedUniqueId = user?.uniqueId || authUniqueId || "";
+
   const copyUniqueId = async () => {
-    if (user?.uniqueId) {
-      await Clipboard.setStringAsync(user.uniqueId);
+    if (resolvedUniqueId) {
+      await Clipboard.setStringAsync(resolvedUniqueId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         t("common.copied", "Copied"),
-        `Unique ID ${user.uniqueId} copied to clipboard!`,
+        `Unique ID ${resolvedUniqueId} copied to clipboard!`,
       );
     }
   };
 
   const shareUniqueId = async () => {
-    if (user?.uniqueId) {
+    if (resolvedUniqueId) {
       try {
         await Share.share({
-          message: `Haajari Manager ID: ${user.uniqueId}\nName: ${user.name}\nRole: ${user.role?.toUpperCase()}`,
+          message: `Haajari Manager ID: ${resolvedUniqueId}\nName: ${user?.name || ""}\nRole: ${user?.role?.toUpperCase() || ""}`,
         });
       } catch (err) {
         console.warn("Share error:", err);
@@ -720,7 +742,7 @@ export default function UserProfileScreen() {
                   color: isDark ? "#93C5FD" : "#1D4ED8",
                 }}
               >
-                {user.uniqueId || "HM-PENDING"}
+                {resolvedUniqueId || "HM-PENDING"}
               </ThemedText>
             </View>
           </View>

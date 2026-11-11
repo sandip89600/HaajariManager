@@ -126,7 +126,10 @@ export default function SupervisorDashboardScreen() {
 
   useEffect(() => {
     loadSupervisorData();
-  }, [loadSupervisorData]);
+    if (user && !(uniqueId || user.uniqueId)) {
+      refreshUserProfile?.().catch(() => {});
+    }
+  }, [loadSupervisorData, user?.id, uniqueId]);
 
   const onRefresh = useCallback(() => {
     setIsRefreshing(true);
