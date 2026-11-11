@@ -296,12 +296,43 @@ export default function WorkersScreen() {
   });
 
   const assignedProjectsKey = user?.assignedProjects?.join(",") || "";
+  const hasHydratedWorkersRef = useRef(false);
 
   const loadWorkers = useCallback(
     async (silent = false) => {
-      if (!silent) setIsLoading(true);
+      const today = new Date();
+      let hydratedFromCache = hasHydratedWorkersRef.current;
+      if (!silent && !hydratedFromCache) setIsLoading(true);
       try {
-        const today = new Date();
+        if (!silent && !hydratedFromCache) {
+          const [cachedWorkers, cachedAttendance, cachedAuth] =
+            await Promise.all([
+              storage.getCachedWorkers(),
+              storage
+                .getCachedAttendanceForMonth(
+                  today.getFullYear(),
+                  today.getMonth(),
+                )
+                .catch(() => []),
+              storage.getAuth().catch(() => null),
+            ]);
+          if (cachedWorkers.length > 0) {
+            let filteredCached = cachedWorkers;
+            if (role === "supervisor") {
+              const assignedProjects = user?.assignedProjects || [];
+              filteredCached = filteredCached.filter(
+                (w) => w.projectId && assignedProjects.includes(w.projectId),
+              );
+            }
+            setWorkers(filteredCached.sort((a, b) => b.createdAt - a.createdAt));
+            setAttendanceRecords(cachedAttendance || []);
+            setCurrentPlan(cachedAuth?.plan || "free");
+            hydratedFromCache = true;
+            hasHydratedWorkersRef.current = true;
+            setIsLoading(false);
+          }
+        }
+
         const [rawWorkers, attendance, auth] = await Promise.all([
           storage.getWorkers(),
           storage
@@ -321,6 +352,7 @@ export default function WorkersScreen() {
         setWorkers(loadedWorkers.sort((a, b) => b.createdAt - a.createdAt));
         setAttendanceRecords(attendance || []);
         setCurrentPlan(auth?.plan || "free");
+        hasHydratedWorkersRef.current = true;
       } catch (err) {
         console.error("Error loading workers:", err);
       } finally {

@@ -10,7 +10,6 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
-  ActivityIndicator,
   Dimensions,
   Platform,
   Modal,
@@ -33,6 +32,7 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { AttendanceEditorModal } from "@/components/AttendanceEditorModal";
+import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
@@ -108,19 +108,12 @@ export default function AttendanceScreen() {
     return new Date(year, month + 1, 0).getDate();
   }, [year, month]);
 
-  // Load Data with Instant Cache + Parallel Revalidation
-  const loadData = async (silent = false) => {
-    try {
-      if (!silent && workers.length === 0) setLoading(true);
-
-      // Parallel fetch of independent requests instead of sequential waterfall
-      const [sitesResult, loadedWorkers, monthAttendance] = await Promise.all([
-        storage.getSites(),
-        storage.getWorkers(),
-        storage.getAttendanceForMonth(year, month),
-      ]);
-
-      const rawSites = sitesResult.sites || [];
+  const applyAttendanceSnapshot = useCallback(
+    (
+      rawSites: any[],
+      loadedWorkers: Worker[],
+      monthAttendance: AttendanceRecord[],
+    ) => {
       const projects: Project[] = rawSites.map((s: any) => ({
         id: s.id,
         name: s.name,
@@ -142,7 +135,6 @@ export default function AttendanceScreen() {
 
       setActiveSite(activeProj);
 
-      // Filter workers assigned to the active site/project (or show all workers if "All Sites" / null)
       const siteWorkers =
         passedSiteId ||
         (selectedSiteFilter && selectedSiteFilter !== "ALL" && activeProj)
@@ -153,6 +145,41 @@ export default function AttendanceScreen() {
 
       setWorkers(siteWorkers);
       setAttendance(monthAttendance);
+    },
+    [passedSiteId, selectedSiteFilter],
+  );
+
+  // Load Data with Instant Cache + Parallel Revalidation
+  const loadData = async (silent = false) => {
+    let hydratedFromCache = workers.length > 0;
+    try {
+      if (!silent && !hydratedFromCache) {
+        setLoading(true);
+        const [cachedSites, cachedWorkers, cachedAttendance] =
+          await Promise.all([
+            storage.getCachedSites(),
+            storage.getCachedWorkers(),
+            storage.getCachedAttendanceForMonth(year, month),
+          ]);
+        if (cachedWorkers.length > 0 || cachedAttendance.length > 0) {
+          hydratedFromCache = true;
+          applyAttendanceSnapshot(cachedSites, cachedWorkers, cachedAttendance);
+          setLoading(false);
+        }
+      }
+
+      // Parallel fetch of fresh data from backend
+      const [sitesResult, loadedWorkers, monthAttendance] = await Promise.all([
+        storage.getSites(),
+        storage.getWorkers(),
+        storage.getAttendanceForMonth(year, month),
+      ]);
+
+      applyAttendanceSnapshot(
+        sitesResult.sites || [],
+        loadedWorkers,
+        monthAttendance,
+      );
     } catch (e) {
       console.warn("Failed to load attendance grid data:", e);
     } finally {
@@ -540,8 +567,20 @@ export default function AttendanceScreen() {
       )}
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#F97316" />
+        <View style={{ flex: 1, padding: 16, gap: 12 }}>
+          <SkeletonLoader width="100%" height={42} borderRadius={10} />
+          {[0, 1, 2, 3, 4, 5, 6].map((row) => (
+            <View
+              key={row}
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              <SkeletonLoader width={116} height={46} borderRadius={8} />
+              <SkeletonLoader width={42} height={46} borderRadius={8} />
+              <SkeletonLoader width={42} height={46} borderRadius={8} />
+              <SkeletonLoader width={42} height={46} borderRadius={8} />
+              <SkeletonLoader width={42} height={46} borderRadius={8} />
+            </View>
+          ))}
         </View>
       ) : (
         /* 4. Grid register sheet */

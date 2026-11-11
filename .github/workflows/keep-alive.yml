@@ -1,0 +1,15 @@
+name: Keep Render Backend Awake
+
+on:
+  schedule:
+    # Render free tier sleeps after 15 minutes of inactivity; ping every 14 minutes
+    - cron: "*/14 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Haajari backend /api/ping
+        run: |
+          curl --fail --silent --show-error --max-time 60 "https://haajarimanager.onrender.com/api/ping"

@@ -6,7 +6,6 @@ import {
   ScrollView,
   Pressable,
   RefreshControl,
-  ActivityIndicator,
   Platform,
   Share,
   DeviceEventEmitter,
@@ -20,9 +19,10 @@ import * as Haptics from "expo-haptics";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
-import { authenticatedFetch, API_URL } from "@/utils/storage";
+import { authenticatedFetch, API_URL, storage } from "@/utils/storage";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import TeamConnectionWidget from "@/components/TeamConnectionWidget";
+import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
 
 export default function SupervisorDashboardScreen() {
   const { theme, isDark } = useTheme();
@@ -53,8 +53,25 @@ export default function SupervisorDashboardScreen() {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     try {
-      // 1. Fetch sites
-      const sitesRes = await authenticatedFetch(`${API_URL}/sites`);
+      // 1. Immediately hydrate from local cache if available
+      const cached = await storage.getSupervisorDashboardCache();
+      if (cached) {
+        if (Array.isArray(cached.sites)) setAssignedSites(cached.sites);
+        if (Array.isArray(cached.workers)) setAssignedWorkers(cached.workers);
+        if (cached.todayAttendance) setTodayAttendance(cached.todayAttendance);
+        setIsLoading(false);
+      }
+
+      // 2. Fetch fresh data in parallel from backend
+      const now = new Date();
+      const [sitesRes, workersRes, attRes] = await Promise.all([
+        authenticatedFetch(`${API_URL}/sites`),
+        authenticatedFetch(`${API_URL}/workers`),
+        authenticatedFetch(
+          `${API_URL}/attendance/month?year=${now.getFullYear()}&month=${now.getMonth() + 1}`,
+        ),
+      ]);
+
       let sitesList: any[] = [];
       if (sitesRes.ok) {
         const sitesData = await sitesRes.json();
@@ -64,8 +81,6 @@ export default function SupervisorDashboardScreen() {
         setAssignedSites(sitesList);
       }
 
-      // 2. Fetch workers
-      const workersRes = await authenticatedFetch(`${API_URL}/workers`);
       let workersList: any[] = [];
       if (workersRes.ok) {
         workersList = await workersRes.json();
@@ -74,11 +89,7 @@ export default function SupervisorDashboardScreen() {
         }
       }
 
-      // 3. Fetch today's attendance
-      const now = new Date();
-      const attRes = await authenticatedFetch(
-        `${API_URL}/attendance/month?year=${now.getFullYear()}&month=${now.getMonth() + 1}`,
-      );
+      let nextTodayAttendance: typeof todayAttendance | null = null;
       if (attRes.ok) {
         const attData = await attRes.json();
         if (Array.isArray(attData)) {
@@ -94,9 +105,16 @@ export default function SupervisorDashboardScreen() {
           }
           const totalW = workersList.length;
           const unmarked = Math.max(0, totalW - (p + a + h));
-          setTodayAttendance({ present: p, absent: a, halfDay: h, unmarked });
+          nextTodayAttendance = { present: p, absent: a, halfDay: h, unmarked };
+          setTodayAttendance(nextTodayAttendance);
         }
       }
+
+      await storage.setSupervisorDashboardCache({
+        sites: sitesList,
+        workers: workersList,
+        ...(nextTodayAttendance ? { todayAttendance: nextTodayAttendance } : {}),
+      });
     } catch (error) {
       console.warn("Failed to load supervisor dashboard data:", error);
     } finally {
@@ -346,11 +364,10 @@ export default function SupervisorDashboardScreen() {
         </View>
 
         {isLoading ? (
-          <ActivityIndicator
-            size="small"
-            color={theme.primary}
-            style={{ marginVertical: 20 }}
-          />
+          <View style={{ gap: 12, marginVertical: 8 }}>
+            <SkeletonLoader width="100%" height={92} borderRadius={14} />
+            <SkeletonLoader width="100%" height={92} borderRadius={14} />
+          </View>
         ) : assignedSites.length === 0 ? (
           <View
             style={[

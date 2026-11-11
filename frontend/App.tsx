@@ -106,7 +106,6 @@ const linking = {
 };
 
 import { ErrorFeedbackProvider } from "@/context/ErrorFeedbackContext";
-import OfflineBanner from "@/components/OfflineBanner";
 import { networkManager } from "@/utils/networkManager";
 
 function AppInner() {
@@ -167,7 +166,6 @@ function AppInner() {
       <AuthContext.Provider value={authContext}>
         <ErrorFeedbackProvider>
           <FeatureAccessProvider>
-            <OfflineBanner />
             <NavigationContainer
               ref={navigationRef}
               linking={linking}

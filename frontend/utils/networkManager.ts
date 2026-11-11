@@ -6,13 +6,40 @@ import {
 } from "react-native";
 import { API_URL } from "./apiConfig";
 
+const KEEP_ALIVE_INTERVAL_MS = 14 * 60 * 1000; // 14 minutes (Render sleeps after 15 minutes)
+const PING_TIMEOUT_MS = 45000; // Allow Render cold start to complete without aborting prematurely
+const FOREGROUND_PING_THROTTLE_MS = 30000;
+
 let isOnline = true;
-let heartbeatInterval: any = null;
+let isBackendAwake = false;
+let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
 let lastPingTime = 0;
+let inflightPing: Promise<boolean> | null = null;
+
+async function fetchWithTimeout(
+  url: string,
+  method: "GET" | "HEAD",
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      method,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 export const networkManager = {
   isOnline(): boolean {
     return isOnline;
+  },
+
+  isBackendReady(): boolean {
+    return isBackendAwake;
   },
 
   setOnline(online: boolean): void {
@@ -22,71 +49,98 @@ export const networkManager = {
     }
   },
 
-  async checkConnectivity(): Promise<boolean> {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch(`${API_URL}/health`, {
-        method: "GET",
-        signal: controller.signal,
-      }).catch(async () => {
-        // Fallback to pinging root URL if /health is not defined
-        return fetch(`${API_URL}`, {
-          method: "HEAD",
-          signal: controller.signal,
-        });
-      });
-      clearTimeout(timeoutId);
-
-      const ok = Boolean(
-        res &&
-          (res.ok ||
-            res.status === 404 ||
-            res.status === 200 ||
-            res.status === 304),
-      );
-      this.setOnline(ok);
-      lastPingTime = Date.now();
-      return ok;
-    } catch {
-      this.setOnline(false);
-      lastPingTime = Date.now();
-      return false;
+  async pingServer(): Promise<boolean> {
+    if (inflightPing) {
+      return inflightPing;
     }
+
+    inflightPing = (async () => {
+      try {
+        let res: Response | null = null;
+        try {
+          res = await fetchWithTimeout(`${API_URL}/ping`, "GET", PING_TIMEOUT_MS);
+        } catch {
+          res = await fetchWithTimeout(
+            `${API_URL}/health`,
+            "GET",
+            PING_TIMEOUT_MS,
+          ).catch(() => null);
+        }
+
+        const ok = Boolean(
+          res &&
+            (res.ok ||
+              res.status === 200 ||
+              res.status === 304 ||
+              res.status === 404),
+        );
+        isBackendAwake = ok;
+        lastPingTime = Date.now();
+        if (ok) {
+          DeviceEventEmitter.emit("network:backendAwake", { awake: true });
+        }
+        return ok;
+      } catch {
+        lastPingTime = Date.now();
+        return false;
+      } finally {
+        inflightPing = null;
+      }
+    })();
+
+    return inflightPing;
+  },
+
+  async checkConnectivity(): Promise<boolean> {
+    return this.pingServer();
   },
 
   init(): () => void {
-    // 1. Initial check
-    this.checkConnectivity();
+    // 1. Wake up backend immediately on app start
+    this.pingServer();
 
-    // 2. Web network listeners
+    // 2. Web browser network listeners (only genuine browser offline state)
+    let handleOnline: (() => void) | null = null;
+    let handleOffline: (() => void) | null = null;
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      const handleOnline = () => this.setOnline(true);
-      const handleOffline = () => this.setOnline(false);
+      handleOnline = () => {
+        this.setOnline(true);
+        this.pingServer();
+      };
+      handleOffline = () => this.setOnline(false);
       window.addEventListener("online", handleOnline);
       window.addEventListener("offline", handleOffline);
     }
 
-    // 3. AppState change listener (e.g. app returns from background)
+    // 3. AppState change listener (wake backend when app returns from background)
     const appStateSub = AppState.addEventListener(
       "change",
       (nextAppState: AppStateStatus) => {
-        if (nextAppState === "active") {
-          this.checkConnectivity();
+        if (
+          nextAppState === "active" &&
+          Date.now() - lastPingTime > FOREGROUND_PING_THROTTLE_MS
+        ) {
+          this.pingServer();
         }
       },
     );
 
-    // 4. Background heartbeat
-    if (heartbeatInterval) clearInterval(heartbeatInterval);
-    heartbeatInterval = setInterval(() => {
-      // Periodic check every 25 seconds
-      this.checkConnectivity();
-    }, 25000);
+    // 4. Keep-alive ping every 14 minutes while app is active
+    if (keepAliveInterval) clearInterval(keepAliveInterval);
+    keepAliveInterval = setInterval(() => {
+      this.pingServer();
+    }, KEEP_ALIVE_INTERVAL_MS);
 
     return () => {
-      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      if (keepAliveInterval) {
+        clearInterval(keepAliveInterval);
+        keepAliveInterval = null;
+      }
       appStateSub.remove();
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        if (handleOnline) window.removeEventListener("online", handleOnline);
+        if (handleOffline) window.removeEventListener("offline", handleOffline);
+      }
     };
   },
 };

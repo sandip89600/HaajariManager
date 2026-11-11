@@ -24,6 +24,7 @@ import { BlurView } from "expo-blur";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
 import { useTheme } from "@/hooks/useTheme";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useAuth } from "@/hooks/useAuth";
@@ -1155,12 +1156,75 @@ export default function SummaryScreen() {
   ];
 
   const isFetchingSummariesRef = useRef(false);
+  const hasHydratedRef = useRef(false);
+
+  const applyContractorSummaries = useCallback(
+    (
+      loadedWorkers: Worker[],
+      loadedAttendance: AttendanceRecord[],
+      loadedPayments: PaymentRecord[],
+    ) => {
+      setWorkers(loadedWorkers);
+      setAttendance(loadedAttendance);
+
+      const workerSummaries: WorkerSummary[] = loadedWorkers.map((worker) => {
+        const summary = calculateWorkerSummary(
+          worker.id,
+          loadedAttendance,
+          worker.dailyRate,
+          worker.uniqueId,
+        );
+        const workerPayments = loadedPayments.filter(
+          (p) =>
+            p.workerId === worker.id ||
+            (worker.uniqueId && p.workerId === worker.uniqueId),
+        );
+        const totalPaid = workerPayments.reduce((sum, p) => sum + p.amount, 0);
+        const workerRecords = loadedAttendance.filter(
+          (a) =>
+            a.workerId === worker.id ||
+            (worker.uniqueId && a.workerId === worker.uniqueId),
+        );
+        const totalAdvance = summary.totalAdvanceAmount || 0;
+        return {
+          worker,
+          ...summary,
+          totalPaid,
+          balance: Math.max(
+            0,
+            summary.totalAmount - totalAdvance - totalPaid,
+          ),
+          payments: workerPayments,
+          records: workerRecords,
+          totalAdvanceAmount: totalAdvance,
+          totalOvertimeAmount: summary.totalOvertimeAmount || 0,
+        };
+      });
+
+      setSummaries(workerSummaries);
+      setGrandTotal(
+        workerSummaries.reduce((sum, s) => sum + s.totalAmount, 0),
+      );
+      setGrandTotalPaid(
+        workerSummaries.reduce((sum, s) => sum + s.totalPaid, 0),
+      );
+      setGrandTotalAdvance(
+        workerSummaries.reduce(
+          (sum, s) => sum + (s.totalAdvanceAmount || 0),
+          0,
+        ),
+      );
+      hasHydratedRef.current = true;
+    },
+    [],
+  );
 
   const loadSummaries = useCallback(
     async (silent = false) => {
       if (isFetchingSummariesRef.current) return;
       isFetchingSummariesRef.current = true;
-      if (!silent) setIsLoading(true);
+      let hydratedFromCache = hasHydratedRef.current;
+      if (!silent && !hydratedFromCache) setIsLoading(true);
       try {
         if (isWorker && user) {
           // Worker-specific personal summary
@@ -1173,8 +1237,11 @@ export default function SummaryScreen() {
             createdAt: user.createdAt || Date.now(),
           };
 
-          // 1. Get cached/offline records first
-          const localAttendance = await storage.getAttendance();
+          // 1. Get cached records first and render immediately if present
+          const [localAttendance, cachedPayments] = await Promise.all([
+            storage.getAttendance(),
+            storage.getCachedPaymentsForMonth(selectedYear, selectedMonth),
+          ]);
           let workerAttendance = localAttendance.filter(
             (r) =>
               r.year === selectedYear &&
@@ -1182,6 +1249,15 @@ export default function SummaryScreen() {
                 r.month === selectedMonth + 1 ||
                 (selectedMonth > 0 && r.month === selectedMonth - 1)),
           );
+          if (!silent && workerAttendance.length > 0) {
+            applyContractorSummaries(
+              [currentWorker],
+              workerAttendance,
+              cachedPayments,
+            );
+            hydratedFromCache = true;
+            setIsLoading(false);
+          }
 
           // 2. Fetch fresh attendance from backend
           try {
@@ -1216,46 +1292,34 @@ export default function SummaryScreen() {
             selectedMonth,
           );
 
-          const summary = calculateWorkerSummary(
-            currentWorker.id,
+          applyContractorSummaries(
+            [currentWorker],
             workerAttendance,
-            currentWorker.dailyRate,
-            currentWorker.uniqueId,
+            loadedPayments,
           );
-
-          const workerPayments = loadedPayments.filter(
-            (p) =>
-              p.workerId === currentWorker.id ||
-              (currentWorker.uniqueId && p.workerId === currentWorker.uniqueId),
-          );
-          const totalPaid = workerPayments.reduce(
-            (sum, p) => sum + p.amount,
-            0,
-          );
-
-          const totalAdvance = summary.totalAdvanceAmount || 0;
-          const singleSummary: WorkerSummary = {
-            worker: currentWorker,
-            ...summary,
-            totalPaid,
-            balance: Math.max(
-              0,
-              summary.totalAmount - totalAdvance - totalPaid,
-            ),
-            payments: workerPayments,
-            records: workerAttendance,
-            totalAdvanceAmount: totalAdvance,
-            totalOvertimeAmount: summary.totalOvertimeAmount || 0,
-          };
-
-          setWorkers([currentWorker]);
-          setAttendance(workerAttendance);
-          setSummaries([singleSummary]);
-          setGrandTotal(singleSummary.totalAmount);
-          setGrandTotalPaid(singleSummary.totalPaid);
-          setGrandTotalAdvance(totalAdvance);
         } else {
-          // Contractor / Supervisor workflow
+          // Contractor / Supervisor workflow: hydrate from cache immediately
+          if (!silent && !hydratedFromCache) {
+            const [cachedWorkers, cachedAttendance, cachedPayments] =
+              await Promise.all([
+                storage.getCachedWorkers(),
+                storage.getCachedAttendanceForMonth(
+                  selectedYear,
+                  selectedMonth,
+                ),
+                storage.getCachedPaymentsForMonth(selectedYear, selectedMonth),
+              ]);
+            if (cachedWorkers.length > 0) {
+              applyContractorSummaries(
+                cachedWorkers,
+                cachedAttendance,
+                cachedPayments,
+              );
+              hydratedFromCache = true;
+              setIsLoading(false);
+            }
+          }
+
           const [loadedWorkers, loadedAttendance, loadedPayments] =
             await Promise.all([
               storage.getWorkers(),
@@ -1263,60 +1327,10 @@ export default function SummaryScreen() {
               storage.getPaymentsForMonth(selectedYear, selectedMonth),
             ]);
 
-          setWorkers(loadedWorkers);
-          setAttendance(loadedAttendance);
-
-          const workerSummaries: WorkerSummary[] = loadedWorkers.map(
-            (worker) => {
-              const summary = calculateWorkerSummary(
-                worker.id,
-                loadedAttendance,
-                worker.dailyRate,
-                worker.uniqueId,
-              );
-              const workerPayments = loadedPayments.filter(
-                (p) =>
-                  p.workerId === worker.id ||
-                  (worker.uniqueId && p.workerId === worker.uniqueId),
-              );
-              const totalPaid = workerPayments.reduce(
-                (sum, p) => sum + p.amount,
-                0,
-              );
-              const workerRecords = loadedAttendance.filter(
-                (a) =>
-                  a.workerId === worker.id ||
-                  (worker.uniqueId && a.workerId === worker.uniqueId),
-              );
-              const totalAdvance = summary.totalAdvanceAmount || 0;
-              return {
-                worker,
-                ...summary,
-                totalPaid,
-                balance: Math.max(
-                  0,
-                  summary.totalAmount - totalAdvance - totalPaid,
-                ),
-                payments: workerPayments,
-                records: workerRecords,
-                totalAdvanceAmount: totalAdvance,
-                totalOvertimeAmount: summary.totalOvertimeAmount || 0,
-              };
-            },
-          );
-
-          setSummaries(workerSummaries);
-          setGrandTotal(
-            workerSummaries.reduce((sum, s) => sum + s.totalAmount, 0),
-          );
-          setGrandTotalPaid(
-            workerSummaries.reduce((sum, s) => sum + s.totalPaid, 0),
-          );
-          setGrandTotalAdvance(
-            workerSummaries.reduce(
-              (sum, s) => sum + (s.totalAdvanceAmount || 0),
-              0,
-            ),
+          applyContractorSummaries(
+            loadedWorkers,
+            loadedAttendance,
+            loadedPayments,
           );
         }
       } catch (error) {
@@ -1326,7 +1340,7 @@ export default function SummaryScreen() {
         if (!silent) setIsLoading(false);
       }
     },
-    [selectedMonth, selectedYear, isWorker, user],
+    [selectedMonth, selectedYear, isWorker, user, applyContractorSummaries],
   );
 
   useFocusEffect(
@@ -1677,8 +1691,10 @@ export default function SummaryScreen() {
   const renderEmpty = () => {
     if (isLoading) {
       return (
-        <View style={[styles.emptyContainer, { paddingTop: Spacing["4xl"] }]}>
-          <ActivityIndicator size="large" color={theme.primary} />
+        <View style={{ paddingHorizontal: Spacing.lg, gap: Spacing.md, paddingTop: Spacing.md }}>
+          <SkeletonLoader width="100%" height={128} borderRadius={16} />
+          <SkeletonLoader width="100%" height={128} borderRadius={16} />
+          <SkeletonLoader width="100%" height={128} borderRadius={16} />
         </View>
       );
     }

@@ -284,13 +284,14 @@ export default function DashboardScreen() {
   const triggerHaptic = () =>
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-  // Load dashboard data
-  const loadDashboardData = async (silent = false) => {
-    try {
-      if (!silent) setLoading(true);
-
-      const sitesResult = await storage.getSites();
-      const rawSites = sitesResult.sites || [];
+  const applyDashboardSnapshot = useCallback(
+    (
+      rawSites: any[],
+      statsData: any,
+      workers: Worker[],
+      attendance: AttendanceRecord[],
+      planValue?: string,
+    ) => {
       const projects = rawSites.map((s: any) => ({
         id: s.id,
         name: s.name,
@@ -304,22 +305,8 @@ export default function DashboardScreen() {
         clientName: s.clientName,
       })) as any[];
 
-      const statsData = await storage.getSiteDashboardStats();
-      setSiteStats(statsData);
-
-      const workers = await storage.getWorkers();
-      const todayYear = today.getFullYear();
-      const todayMonth = today.getMonth();
-      const todayDay = today.getDate();
-
-      const attendance = await storage.getAttendanceForMonth(
-        todayYear,
-        todayMonth,
-      );
-
-      const auth = await storage.getAuth();
-      if (auth?.plan) setCurrentPlan(auth.plan);
-      else if (user?.plan) setCurrentPlan(user.plan);
+      if (statsData) setSiteStats(statsData);
+      if (planValue) setCurrentPlan(planValue as any);
 
       setProjectsList(projects);
       setWorkersList(workers);
@@ -329,7 +316,11 @@ export default function DashboardScreen() {
         projects.find((p) => p.status === "active") || projects[0] || null;
       setActiveSite(active);
 
-      // Default to ALL workers (contractor-wide scope) unless an explicit site filter is selected
+      const now = new Date();
+      const todayYear = now.getFullYear();
+      const todayMonth = now.getMonth();
+      const todayDay = now.getDate();
+
       const siteWorkers =
         selectedSiteFilter && selectedSiteFilter !== "ALL" && active
           ? workers.filter((w) => w.projectId === active.id)
@@ -372,18 +363,17 @@ export default function DashboardScreen() {
         rate: totalWorkers > 0 ? rate : 0,
       });
 
-      // Streak calculation
       let streak = 0;
       let checkDate = new Date();
       for (let i = 0; i < 30; i++) {
-        const year = checkDate.getFullYear();
-        const month = checkDate.getMonth();
-        const day = checkDate.getDate();
+        const y = checkDate.getFullYear();
+        const m = checkDate.getMonth();
+        const d = checkDate.getDate();
         const hasAttendance = attendance.some(
           (r) =>
-            r.year === year &&
-            r.month === month &&
-            r.day === day &&
+            r.year === y &&
+            r.month === m &&
+            r.day === d &&
             (r.value === "P" ||
               r.value === "A" ||
               r.value === "H" ||
@@ -394,7 +384,7 @@ export default function DashboardScreen() {
           streak++;
           checkDate.setDate(checkDate.getDate() - 1);
         } else {
-          if (streak === 0 && checkDate.getDate() === today.getDate()) {
+          if (streak === 0 && checkDate.getDate() === now.getDate()) {
             checkDate.setDate(checkDate.getDate() - 1);
             continue;
           }
@@ -403,7 +393,6 @@ export default function DashboardScreen() {
       }
       setStreakCount(Math.max(1, streak));
 
-      // Smart insight
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayAttendance = attendance.filter(
@@ -442,6 +431,67 @@ export default function DashboardScreen() {
           "Welcome! Register workers and sites to see live insights.",
         );
       }
+    },
+    [selectedSiteFilter],
+  );
+
+  // Load dashboard data (Cache-first instant display + background live sync)
+  const loadDashboardData = async (silent = false) => {
+    const todayYear = today.getFullYear();
+    const todayMonth = today.getMonth();
+    let hasCachedSnapshot = workersList.length > 0 || projectsList.length > 0;
+
+    try {
+      if (!silent && !hasCachedSnapshot) {
+        setLoading(true);
+        const [
+          cachedSites,
+          cachedStats,
+          cachedWorkers,
+          cachedAttendance,
+          cachedAuth,
+        ] = await Promise.all([
+          storage.getCachedSites(),
+          storage.getCachedSiteDashboardStats(),
+          storage.getCachedWorkers(),
+          storage.getCachedAttendanceForMonth(todayYear, todayMonth),
+          storage.getAuth().catch(() => null),
+        ]);
+
+        if (
+          cachedSites.length > 0 ||
+          cachedWorkers.length > 0 ||
+          cachedAttendance.length > 0 ||
+          cachedStats !== null
+        ) {
+          hasCachedSnapshot = true;
+          applyDashboardSnapshot(
+            cachedSites,
+            cachedStats,
+            cachedWorkers,
+            cachedAttendance,
+            cachedAuth?.plan || user?.plan,
+          );
+          setLoading(false);
+        }
+      }
+
+      const [sitesResult, statsData, workers, attendance, auth] =
+        await Promise.all([
+          storage.getSites(),
+          storage.getSiteDashboardStats(),
+          storage.getWorkers(),
+          storage.getAttendanceForMonth(todayYear, todayMonth),
+          storage.getAuth().catch(() => null),
+        ]);
+
+      applyDashboardSnapshot(
+        sitesResult.sites || [],
+        statsData,
+        workers,
+        attendance,
+        auth?.plan || user?.plan,
+      );
     } catch (error) {
       console.warn("Failed to load dashboard statistics:", error);
     } finally {
@@ -920,6 +970,26 @@ export default function DashboardScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
+        {loading && workersList.length === 0 && projectsList.length === 0 ? (
+          <View style={{ padding: 16, gap: 14 }}>
+            <SkeletonLoader width="100%" height={116} borderRadius={16} />
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+              <SkeletonLoader width="48%" height={84} borderRadius={14} />
+              <SkeletonLoader width="48%" height={84} borderRadius={14} />
+              <SkeletonLoader width="48%" height={84} borderRadius={14} />
+              <SkeletonLoader width="48%" height={84} borderRadius={14} />
+            </View>
+            <SkeletonLoader width="100%" height={72} borderRadius={16} />
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+              <SkeletonLoader width="22%" height={76} borderRadius={14} />
+              <SkeletonLoader width="22%" height={76} borderRadius={14} />
+              <SkeletonLoader width="22%" height={76} borderRadius={14} />
+              <SkeletonLoader width="22%" height={76} borderRadius={14} />
+            </View>
+            <SkeletonLoader width="100%" height={140} borderRadius={16} />
+          </View>
+        ) : (
+        <>
         {/* ── 1. Top Site Information Card ───────────────────────────── */}
         <Animated.View
           entering={FadeInDown.delay(100).springify()}
@@ -1571,6 +1641,8 @@ export default function DashboardScreen() {
               onAction={() => navigation.navigate("AddWorker")}
             />
           </Animated.View>
+        )}
+        </>
         )}
       </ScrollView>
 

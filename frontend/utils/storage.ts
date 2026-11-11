@@ -199,6 +199,8 @@ export const STORAGE_KEYS = {
   SITES: "@haajari/sites",
   SYNC_QUEUE: "@haajari/sync_queue",
   LABOUR_DASHBOARD: "@haajari/labour_dashboard",
+  SITE_DASHBOARD_STATS: "@haajari/site_dashboard_stats",
+  SUPERVISOR_DASHBOARD: "@haajari/supervisor_dashboard",
 };
 
 export interface AuthData {
@@ -741,6 +743,24 @@ export const storage = {
     return this.getSiteDashboardStats();
   },
 
+  async getCachedSiteDashboardStats(): Promise<{
+    totalSites: number;
+    activeSites: number;
+    workersPresent: number;
+    workersAbsent: number;
+    totalWorkers: number;
+    sitesInProgress: number;
+    delayedSites: number;
+    completedSites: number;
+  } | null> {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.SITE_DASHBOARD_STATS);
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  },
+
   async getSiteDashboardStats(): Promise<{
     totalSites: number;
     activeSites: number;
@@ -759,12 +779,19 @@ export const storage = {
             `${API_URL}/sites/dashboard/stats`,
           );
           if (res.ok) {
-            return await res.json();
+            const stats = await res.json();
+            AsyncStorage.setItem(
+              STORAGE_KEYS.SITE_DASHBOARD_STATS,
+              JSON.stringify(stats),
+            ).catch(() => {});
+            return stats;
           }
         }
       } catch (e) {
         console.warn("Failed to fetch site dashboard stats", e);
       }
+      const cached = await this.getCachedSiteDashboardStats();
+      if (cached) return cached;
       return {
         totalSites: 0,
         activeSites: 0,
@@ -776,6 +803,15 @@ export const storage = {
         completedSites: 0,
       };
     });
+  },
+
+  async getCachedSites(): Promise<Site[]> {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.SITES);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
   },
 
   async getSites(params?: {
@@ -981,6 +1017,17 @@ export const storage = {
   },
 
   // Worker methods
+  async getCachedWorkers(): Promise<Worker[]> {
+    const mem = getMemoryCache<Worker[]>("workers");
+    if (mem) return mem;
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.WORKERS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
   async getWorkers(forceRefresh = false): Promise<Worker[]> {
     if (!forceRefresh) {
       const cached = getMemoryCache<Worker[]>("workers");
@@ -1321,6 +1368,23 @@ export const storage = {
     DeviceEventEmitter.emit("attendanceUpdated");
   },
 
+  async getCachedAttendanceForMonth(
+    year: number,
+    month: number,
+  ): Promise<AttendanceRecord[]> {
+    const key = `attendance_${year}_${month}`;
+    const mem = getMemoryCache<AttendanceRecord[]>(key);
+    if (mem) return mem;
+    const records = await this.getAttendance();
+    return records.filter(
+      (r) =>
+        r.year === year &&
+        (r.month === month ||
+          r.month === month + 1 ||
+          (month > 0 && r.month === month - 1)),
+    );
+  },
+
   async getAttendanceForMonth(
     year: number,
     month: number,
@@ -1540,6 +1604,41 @@ export const storage = {
     } catch (err) {
       console.warn("Failed to cache labour dashboard:", err);
     }
+  },
+
+  // Supervisor Dashboard Cache
+  async getSupervisorDashboardCache(): Promise<any | null> {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.SUPERVISOR_DASHBOARD);
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async setSupervisorDashboardCache(data: any): Promise<void> {
+    try {
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.SUPERVISOR_DASHBOARD,
+        JSON.stringify(data),
+      );
+    } catch (err) {
+      console.warn("Failed to cache supervisor dashboard:", err);
+    }
+  },
+
+  async getCachedPaymentsForMonth(
+    year: number,
+    month: number,
+  ): Promise<PaymentRecord[]> {
+    const payments = await this.getPayments();
+    return payments.filter(
+      (p) =>
+        p.year === year &&
+        (p.month === month ||
+          p.month === month + 1 ||
+          (month > 0 && p.month === month - 1)),
+    );
   },
 
   async getPaymentsForMonth(

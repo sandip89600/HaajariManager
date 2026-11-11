@@ -115,81 +115,92 @@ export function useAuthProvider() {
   }, []);
 
   const checkAuth = async () => {
+    let auth: AuthData | null = null;
+    let cachedUserData: User | null = null;
+
     try {
-      const auth = await storage.getAuth();
+      auth = await storage.getAuth();
       if (auth?.isLoggedIn && auth?.rememberMe) {
+        cachedUserData = await storage.getUserById(auth.userId);
         setIsLoggedIn(true);
         setUserId(auth.userId);
         setUserType(auth.userType);
         setEmail(auth.phone || auth.email || "");
-        let userData = await storage.getUserById(auth.userId);
-        if (auth.token) {
-          try {
-            const res = await authenticatedFetch(`${API_URL}/auth/profile`);
-            if (res.ok) {
-              const profileData = await res.json();
-              const serverUser = profileData.user;
-              if (serverUser) {
-                const tenantObj =
-                  typeof serverUser.tenantId === "object"
-                    ? serverUser.tenantId
-                    : null;
-                userData = {
-                  id: serverUser._id || serverUser.id || auth.userId,
-                  uniqueId:
-                    serverUser.uniqueId || (userData ? userData.uniqueId : ""),
-                  name: serverUser.name || (userData ? userData.name : ""),
-                  phone: serverUser.phone || "",
-                  email: serverUser.email || "",
-                  username: serverUser.username || "",
-                  isPhoneVerified: !!serverUser.isPhoneVerified,
-                  avatarColor: serverUser.avatarColor || "#4ECDC4",
-                  profileImage: serverUser.profileImage || undefined,
-                  address: serverUser.address || "",
-                  role: serverUser.role || auth.role || "contractor",
-                  workerCategory:
-                    serverUser.workerCategory ||
-                    (userData ? userData.workerCategory : ""),
-                  dailyWage:
-                    serverUser.dailyWage !== undefined
-                      ? serverUser.dailyWage
-                      : userData
-                        ? userData.dailyWage
-                        : undefined,
-                  contractorName:
-                    serverUser.contractorName ||
-                    (userData ? userData.contractorName : ""),
-                  contractorCompany:
-                    serverUser.contractorCompany ||
-                    (userData ? userData.contractorCompany : ""),
-                  connectionStatus:
-                    serverUser.connectionStatus ||
-                    (userData ? userData.connectionStatus : "not_connected"),
-                  isActive: true,
-                  createdAt: serverUser.createdAt
-                    ? new Date(serverUser.createdAt).getTime()
-                    : Date.now(),
-                  loginHistory: [Date.now()],
-                  companyName: tenantObj?.name || serverUser.companyName || "",
-                  plan:
-                    tenantObj?.plan || serverUser.plan || auth.plan || "free",
-                };
-                await storage.updateUser(userData);
-              }
-            }
-          } catch (e) {
-            console.log("Failed to fetch user profile during checkAuth:", e);
-          }
-        }
-        setUser(userData);
-
-        // Run sync on launch if logged in
-        if (auth.token) {
-          storage.syncWithBackend();
+        if (cachedUserData) {
+          setUser(cachedUserData);
         }
       }
+    } catch (e) {
+      console.log("Failed to restore local auth session:", e);
     } finally {
+      // Unblock RootNavigator immediately so data screens open without waiting on backend cold start
       setIsLoading(false);
+    }
+
+    // Silently refresh profile & sync in background when a token exists
+    if (auth?.isLoggedIn && auth?.rememberMe && auth.token) {
+      (async () => {
+        let userData = cachedUserData;
+        try {
+          const res = await authenticatedFetch(`${API_URL}/auth/profile`);
+          if (res.ok) {
+            const profileData = await res.json();
+            const serverUser = profileData.user;
+            if (serverUser) {
+              const tenantObj =
+                typeof serverUser.tenantId === "object"
+                  ? serverUser.tenantId
+                  : null;
+              userData = {
+                id: serverUser._id || serverUser.id || auth!.userId,
+                uniqueId:
+                  serverUser.uniqueId || (userData ? userData.uniqueId : ""),
+                name: serverUser.name || (userData ? userData.name : ""),
+                phone: serverUser.phone || "",
+                email: serverUser.email || "",
+                username: serverUser.username || "",
+                isPhoneVerified: !!serverUser.isPhoneVerified,
+                avatarColor: serverUser.avatarColor || "#4ECDC4",
+                profileImage: serverUser.profileImage || undefined,
+                address: serverUser.address || "",
+                role: serverUser.role || auth!.role || "contractor",
+                workerCategory:
+                  serverUser.workerCategory ||
+                  (userData ? userData.workerCategory : ""),
+                dailyWage:
+                  serverUser.dailyWage !== undefined
+                    ? serverUser.dailyWage
+                    : userData
+                      ? userData.dailyWage
+                      : undefined,
+                contractorName:
+                  serverUser.contractorName ||
+                  (userData ? userData.contractorName : ""),
+                contractorCompany:
+                  serverUser.contractorCompany ||
+                  (userData ? userData.contractorCompany : ""),
+                connectionStatus:
+                  serverUser.connectionStatus ||
+                  (userData ? userData.connectionStatus : "not_connected"),
+                isActive: true,
+                createdAt: serverUser.createdAt
+                  ? new Date(serverUser.createdAt).getTime()
+                  : Date.now(),
+                loginHistory: [Date.now()],
+                companyName: tenantObj?.name || serverUser.companyName || "",
+                plan:
+                  tenantObj?.plan || serverUser.plan || auth!.plan || "free",
+              };
+              await storage.updateUser(userData);
+              setUser(userData);
+            }
+          }
+        } catch (e) {
+          console.log("Failed to refresh user profile in background:", e);
+        }
+
+        storage.syncWithBackend().catch(() => {});
+      })();
     }
   };
 

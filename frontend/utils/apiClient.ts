@@ -18,7 +18,11 @@ function onRefreshed(token: string) {
 
 export async function authenticatedFetch(
   url: string,
-  options: RequestInit & { _retry?: boolean; timeoutMs?: number } = {},
+  options: RequestInit & {
+    _retry?: boolean;
+    _coldStartRetry?: boolean;
+    timeoutMs?: number;
+  } = {},
 ): Promise<Response> {
   let fullUrl = url;
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
@@ -57,7 +61,7 @@ export async function authenticatedFetch(
   options.headers = headers;
 
   const controller = new AbortController();
-  const timeoutMs = options.timeoutMs || 15000;
+  const timeoutMs = options.timeoutMs || 45000;
   let didTimeout = false;
   const timeoutId = setTimeout(() => {
     didTimeout = true;
@@ -77,11 +81,22 @@ export async function authenticatedFetch(
       // Caller intentionally cancelled/aborted request (e.g., React Query unmount or focus change)
       throw netError;
     }
-    networkManager.setOnline(false);
+
+    const method = (options.method || "GET").toUpperCase();
+    const isIdempotentRead = method === "GET" || method === "HEAD";
+    if (isIdempotentRead && !options._coldStartRetry) {
+      // Retry once after waking up the backend (handles Render cold-start socket resets)
+      await networkManager.pingServer().catch(() => false);
+      return authenticatedFetch(url, {
+        ...options,
+        _coldStartRetry: true,
+      });
+    }
+
     if (didTimeout || netError.name === "AbortError") {
       console.warn(`Request to ${fullUrl} timed out after ${timeoutMs}ms`);
       throw new Error(
-        "Request timed out. Please check network connection and try again.",
+        "Server is taking longer than usual to respond. Please try again in a moment.",
       );
     }
     console.warn(
@@ -89,7 +104,7 @@ export async function authenticatedFetch(
       netError?.message || netError,
     );
     throw new Error(
-      "Unable to connect to Haajari server. Please check internet connection.",
+      "Haajari server is currently loading. Please wait a moment and try again.",
     );
   } finally {
     clearTimeout(timeoutId);

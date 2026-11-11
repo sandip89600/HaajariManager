@@ -30,6 +30,7 @@ import {
 import { captureLocation } from "@/utils/gps";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import TeamConnectionWidget from "@/components/TeamConnectionWidget";
+import { SkeletonLoader } from "@/components/ui/SkeletonLoader";
 
 export default function WorkerDashboardScreen() {
   const { theme, isDark } = useTheme();
@@ -969,11 +970,11 @@ export default function WorkerDashboardScreen() {
             {t("worker.dailyBreakdown", "Daily Attendance History")}
           </Text>
           {isLoading ? (
-            <ActivityIndicator
-              size="small"
-              color={theme.primary}
-              style={{ marginVertical: 20 }}
-            />
+            <View style={{ gap: 10, marginVertical: 8 }}>
+              <SkeletonLoader width="100%" height={52} borderRadius={12} />
+              <SkeletonLoader width="100%" height={52} borderRadius={12} />
+              <SkeletonLoader width="100%" height={52} borderRadius={12} />
+            </View>
           ) : attendanceRecords.length === 0 ? (
             <View style={styles.emptyBox}>
               <Feather name="calendar" size={32} color={theme.textSecondary} />

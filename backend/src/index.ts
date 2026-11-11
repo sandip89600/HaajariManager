@@ -103,6 +103,7 @@ const limiter = rateLimit({
   max: isDev ? 100000 : 5000,
   skip: (req) => {
     if (isDev) return true;
+    if (req.path === "/ping" || req.path === "/health") return true;
     const ip = req.ip || req.socket.remoteAddress || "";
     return ip === "127.0.0.1" || ip === "::1" || ip.includes("192.168.") || ip.includes("10.") || ip.includes("172.16.");
   },
@@ -119,6 +120,16 @@ app.get("/", (req, res) => {
     service: "Haajari Manager API",
     uptime: process.uptime(),
     timestamp: new Date(),
+  });
+});
+
+app.get(["/ping", "/api/ping"], (req, res) => {
+  res.status(200).json({
+    ok: true,
+    status: "OK",
+    service: "Haajari Manager API",
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -221,12 +232,44 @@ if (process.env.NODE_ENV !== "test") {
 
       server.listen(PORT, () => {
         console.log(`Haajari Server (with Socket.io) running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode.`);
+        startKeepAliveSelfPing();
       });
     })
     .catch((err) => {
       console.error("Database connection error:", err);
       process.exit(1);
      });
+}
+
+const KEEP_ALIVE_INTERVAL_MS = 14 * 60 * 1000; // 14 minutes (Render sleeps after 15 minutes of inactivity)
+
+function startKeepAliveSelfPing() {
+  const explicitUrl = process.env.KEEP_ALIVE_URL?.trim();
+  const renderExternalUrl = process.env.RENDER_EXTERNAL_URL?.trim();
+  const pingUrl = explicitUrl
+    ? explicitUrl
+    : renderExternalUrl
+      ? `${renderExternalUrl.replace(/\/$/, "")}/api/ping`
+      : process.env.NODE_ENV === "production"
+        ? "https://haajarimanager.onrender.com/api/ping"
+        : null;
+
+  if (!pingUrl) return;
+
+  const timer = setInterval(async () => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      await fetch(pingUrl, { method: "GET", signal: controller.signal });
+      clearTimeout(timeout);
+    } catch {
+      // Ignore transient ping errors
+    }
+  }, KEEP_ALIVE_INTERVAL_MS);
+
+  if (typeof timer.unref === "function") {
+    timer.unref();
+  }
 }
 
 export { app };
