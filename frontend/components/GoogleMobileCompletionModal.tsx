@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   View,
@@ -6,14 +6,20 @@ import {
   TextInput,
   Pressable,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "./ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 
+type CompletionRole = "contractor" | "builder" | "labor" | "supervisor";
+
 interface Props {
   visible: boolean;
+  role?: CompletionRole;
   googleProfile: {
     googleId: string;
     email?: string;
@@ -21,11 +27,16 @@ interface Props {
     picture?: string;
   } | null;
   onClose: () => void;
-  onSuccess: (phone: string, otp?: string) => Promise<void>;
+  onSuccess: (
+    phone: string,
+    companyName?: string,
+    otp?: string,
+  ) => Promise<void>;
 }
 
 export default function GoogleMobileCompletionModal({
   visible,
+  role = "contractor",
   googleProfile,
   onClose,
   onSuccess,
@@ -33,8 +44,22 @@ export default function GoogleMobileCompletionModal({
   const { theme, isDark } = useTheme();
 
   const [phone, setPhone] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  const isContractor = role === "contractor" || role === "builder";
+  const isSupervisor = role === "supervisor";
+  const showCompanyField = isContractor || isSupervisor;
+
+  useEffect(() => {
+    if (visible) {
+      setPhone("");
+      setCompanyName("");
+      setErrorMsg("");
+      setLoading(false);
+    }
+  }, [visible, googleProfile?.googleId, role]);
 
   if (!visible || !googleProfile) return null;
 
@@ -45,11 +70,21 @@ export default function GoogleMobileCompletionModal({
       return;
     }
 
+    const trimmedCompany = companyName.trim();
+    if (isContractor && !trimmedCompany) {
+      setErrorMsg("Please enter your company name.");
+      return;
+    }
+
     setLoading(true);
     setErrorMsg("");
 
     try {
-      await onSuccess(cleanedPhone, undefined);
+      await onSuccess(
+        cleanedPhone,
+        showCompanyField && trimmedCompany ? trimmedCompany : undefined,
+        undefined,
+      );
     } catch (e: any) {
       setErrorMsg(e?.message || "Failed to complete account setup.");
     } finally {
@@ -64,160 +99,213 @@ export default function GoogleMobileCompletionModal({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View
-          style={[
-            styles.container,
-            {
-              backgroundColor: theme.backgroundDefault,
-              borderColor: theme.border,
-            },
-          ]}
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.googleBadge}>
-              <Ionicons name="logo-google" size={22} color="#4285F4" />
-            </View>
-            <ThemedText type="h2" style={styles.titleText}>
-              Complete Your Profile
-            </ThemedText>
-            <ThemedText
-              style={[styles.subtitleText, { color: theme.textSecondary }]}
-            >
-              Just a few details before you continue.
-            </ThemedText>
-          </View>
-
-          {errorMsg ? (
-            <View style={styles.errorContainer}>
-              <Feather name="alert-circle" size={16} color="#EF4444" />
-              <ThemedText style={styles.errorText}>{errorMsg}</ThemedText>
-            </View>
-          ) : null}
-
-          {/* Form */}
-          <View style={styles.formGroup}>
-            {/* Read-Only Google Name */}
-            {googleProfile.name ? (
-              <View style={{ marginBottom: Spacing.sm }}>
-                <ThemedText style={styles.label}>Name</ThemedText>
-                <View
-                  style={[
-                    styles.readOnlyWrapper,
-                    {
-                      borderColor: theme.border,
-                      backgroundColor: isDark
-                        ? "rgba(255,255,255,0.04)"
-                        : "rgba(0,0,0,0.03)",
-                    },
-                  ]}
-                >
-                  <Feather
-                    name="user"
-                    size={16}
-                    color={theme.textSecondary}
-                    style={{ marginRight: 8 }}
-                  />
-                  <ThemedText
-                    style={[styles.readOnlyText, { color: theme.text }]}
-                  >
-                    {googleProfile.name}
-                  </ThemedText>
-                  <Feather name="lock" size={14} color={theme.textSecondary} />
-                </View>
+          <View
+            style={[
+              styles.container,
+              {
+                backgroundColor: theme.backgroundDefault,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={styles.googleBadge}>
+                <Ionicons name="logo-google" size={22} color="#4285F4" />
               </View>
-            ) : null}
-
-            {/* Read-Only Google Email */}
-            {googleProfile.email ? (
-              <View style={{ marginBottom: Spacing.sm }}>
-                <ThemedText style={styles.label}>Email</ThemedText>
-                <View
-                  style={[
-                    styles.readOnlyWrapper,
-                    {
-                      borderColor: theme.border,
-                      backgroundColor: isDark
-                        ? "rgba(255,255,255,0.04)"
-                        : "rgba(0,0,0,0.03)",
-                    },
-                  ]}
-                >
-                  <Feather
-                    name="mail"
-                    size={16}
-                    color={theme.textSecondary}
-                    style={{ marginRight: 8 }}
-                  />
-                  <ThemedText
-                    style={[styles.readOnlyText, { color: theme.text }]}
-                  >
-                    {googleProfile.email}
-                  </ThemedText>
-                  <Feather name="lock" size={14} color={theme.textSecondary} />
-                </View>
-              </View>
-            ) : null}
-
-            {/* Mobile Number Input */}
-            <View style={{ marginBottom: Spacing.sm }}>
-              <ThemedText style={styles.label}>Mobile Number</ThemedText>
-              <View
-                style={[styles.inputWrapper, { borderColor: theme.border }]}
-              >
-                <Feather
-                  name="phone"
-                  size={18}
-                  color={theme.textSecondary}
-                  style={{ marginRight: 8 }}
-                />
-                <TextInput
-                  style={[styles.input, { color: theme.text }]}
-                  placeholder="Enter 10-digit mobile number"
-                  placeholderTextColor={theme.textSecondary}
-                  keyboardType="number-pad"
-                  maxLength={10}
-                  value={phone}
-                  onChangeText={(t) => {
-                    setPhone(t);
-                    setErrorMsg("");
-                  }}
-                  editable={!loading}
-                />
-              </View>
-            </View>
-
-            {/* Primary Action Button */}
-            <Pressable
-              style={[styles.primaryButton, { backgroundColor: theme.primary }]}
-              onPress={handleContinue}
-              disabled={loading}
-            >
-              {loading ? (
-                <View style={styles.loadingRow}>
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                  <ThemedText style={styles.buttonText}>
-                    Creating account...
-                  </ThemedText>
-                </View>
-              ) : (
-                <ThemedText style={styles.buttonText}>Continue</ThemedText>
-              )}
-            </Pressable>
-
-            <Pressable
-              onPress={onClose}
-              style={{ marginTop: Spacing.md, alignItems: "center" }}
-              disabled={loading}
-            >
-              <ThemedText style={{ color: theme.textSecondary, fontSize: 13 }}>
-                Cancel
+              <ThemedText type="h2" style={styles.titleText}>
+                Complete Your Profile
               </ThemedText>
-            </Pressable>
+              <ThemedText
+                style={[styles.subtitleText, { color: theme.textSecondary }]}
+              >
+                Just a few details before you continue.
+              </ThemedText>
+            </View>
+
+            {errorMsg ? (
+              <View style={styles.errorContainer}>
+                <Feather name="alert-circle" size={16} color="#EF4444" />
+                <ThemedText style={styles.errorText}>{errorMsg}</ThemedText>
+              </View>
+            ) : null}
+
+            {/* Form */}
+            <View style={styles.formGroup}>
+              {/* Read-Only Google Name */}
+              {googleProfile.name ? (
+                <View style={{ marginBottom: Spacing.sm }}>
+                  <ThemedText style={styles.label}>Name</ThemedText>
+                  <View
+                    style={[
+                      styles.readOnlyWrapper,
+                      {
+                        borderColor: theme.border,
+                        backgroundColor: isDark
+                          ? "rgba(255,255,255,0.04)"
+                          : "rgba(0,0,0,0.03)",
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name="user"
+                      size={16}
+                      color={theme.textSecondary}
+                      style={{ marginRight: 8 }}
+                    />
+                    <ThemedText
+                      style={[styles.readOnlyText, { color: theme.text }]}
+                    >
+                      {googleProfile.name}
+                    </ThemedText>
+                    <Feather name="lock" size={14} color={theme.textSecondary} />
+                  </View>
+                </View>
+              ) : null}
+
+              {/* Read-Only Google Email */}
+              {googleProfile.email ? (
+                <View style={{ marginBottom: Spacing.sm }}>
+                  <ThemedText style={styles.label}>Email</ThemedText>
+                  <View
+                    style={[
+                      styles.readOnlyWrapper,
+                      {
+                        borderColor: theme.border,
+                        backgroundColor: isDark
+                          ? "rgba(255,255,255,0.04)"
+                          : "rgba(0,0,0,0.03)",
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name="mail"
+                      size={16}
+                      color={theme.textSecondary}
+                      style={{ marginRight: 8 }}
+                    />
+                    <ThemedText
+                      style={[styles.readOnlyText, { color: theme.text }]}
+                    >
+                      {googleProfile.email}
+                    </ThemedText>
+                    <Feather name="lock" size={14} color={theme.textSecondary} />
+                  </View>
+                </View>
+              ) : null}
+
+              {/* Mobile Number Input */}
+              <View style={{ marginBottom: Spacing.sm }}>
+                <ThemedText style={styles.label}>
+                  Mobile Number <ThemedText style={{ color: "#EF4444" }}>*</ThemedText>
+                </ThemedText>
+                <View
+                  style={[styles.inputWrapper, { borderColor: theme.border }]}
+                >
+                  <Feather
+                    name="phone"
+                    size={18}
+                    color={theme.textSecondary}
+                    style={{ marginRight: 8 }}
+                  />
+                  <TextInput
+                    style={[styles.input, { color: theme.text }]}
+                    placeholder="Enter 10-digit mobile number"
+                    placeholderTextColor={theme.textSecondary}
+                    keyboardType="number-pad"
+                    maxLength={10}
+                    value={phone}
+                    onChangeText={(t) => {
+                      setPhone(t);
+                      setErrorMsg("");
+                    }}
+                    editable={!loading}
+                  />
+                </View>
+              </View>
+
+              {/* Company Name (Mandatory for Contractor, Optional for Supervisor, Hidden for Worker) */}
+              {showCompanyField ? (
+                <View style={{ marginBottom: Spacing.sm }}>
+                  <ThemedText style={styles.label}>
+                    {isContractor ? (
+                      <>
+                        Company Name{" "}
+                        <ThemedText style={{ color: "#EF4444" }}>*</ThemedText>
+                      </>
+                    ) : (
+                      "Company Name (Optional)"
+                    )}
+                  </ThemedText>
+                  <View
+                    style={[styles.inputWrapper, { borderColor: theme.border }]}
+                  >
+                    <Feather
+                      name="briefcase"
+                      size={18}
+                      color={theme.textSecondary}
+                      style={{ marginRight: 8 }}
+                    />
+                    <TextInput
+                      style={[styles.input, { color: theme.text }]}
+                      placeholder={
+                        isContractor
+                          ? "Enter company name"
+                          : "Enter company name (optional)"
+                      }
+                      placeholderTextColor={theme.textSecondary}
+                      value={companyName}
+                      onChangeText={(t) => {
+                        setCompanyName(t);
+                        setErrorMsg("");
+                      }}
+                      editable={!loading}
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+              ) : null}
+
+              {/* Primary Action Button */}
+              <Pressable
+                style={[styles.primaryButton, { backgroundColor: theme.primary }]}
+                onPress={handleContinue}
+                disabled={loading}
+              >
+                {loading ? (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <ThemedText style={styles.buttonText}>
+                      Creating account...
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <ThemedText style={styles.buttonText}>Continue</ThemedText>
+                )}
+              </Pressable>
+
+              <Pressable
+                onPress={onClose}
+                style={{ marginTop: Spacing.md, alignItems: "center" }}
+                disabled={loading}
+              >
+                <ThemedText style={{ color: theme.textSecondary, fontSize: 13 }}>
+                  Cancel
+                </ThemedText>
+              </Pressable>
+            </View>
           </View>
-        </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -226,6 +314,9 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.65)",
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: Spacing.lg,

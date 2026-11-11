@@ -14,7 +14,18 @@ import { View, ActivityIndicator, StyleSheet, Image } from "react-native";
 
 export type RootNavigatorParamList = {
   Login: undefined;
-  Signup: undefined;
+  Signup:
+    | {
+        prefillGoogleProfile?: {
+          googleId: string;
+          email?: string;
+          name?: string;
+          picture?: string;
+          idToken?: string;
+          accessToken?: string;
+        };
+      }
+    | undefined;
   ForgotPassword: undefined;
   ResetPassword: { token?: string } | undefined;
   TermsAndConditions: undefined;

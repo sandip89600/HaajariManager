@@ -74,9 +74,10 @@ interface AuthContextType {
     otp?: string,
     name?: string,
     companyName?: string,
-    role?: "contractor" | "builder",
+    role?: "contractor" | "builder" | "labor" | "supervisor",
     googleId?: string,
     email?: string,
+    intent?: "login" | "signup",
   ) => Promise<any>;
   loginWithFirebasePhone: (
     idToken: string,
@@ -666,9 +667,10 @@ export function useAuthProvider() {
       otp?: string,
       name?: string,
       companyName?: string,
-      role?: "contractor" | "builder",
+      role?: "contractor" | "builder" | "labor" | "supervisor",
       googleId?: string,
       email?: string,
+      intent?: "login" | "signup",
     ): Promise<any> => {
       try {
         const deviceHeaders = await getDeviceHeaders().catch(() => ({}));
@@ -685,6 +687,7 @@ export function useAuthProvider() {
             name,
             companyName,
             role,
+            intent,
           }),
         });
 
@@ -693,8 +696,18 @@ export function useAuthProvider() {
         if (!res.ok || !data || !data.success) {
           return {
             success: false,
+            code: data?.code,
+            existingRole: data?.existingRole,
             message:
               data?.message || "Google Sign-In failed. Please try again.",
+          };
+        }
+
+        if (data.requiresSignupRoleSelection) {
+          return {
+            requiresSignupRoleSelection: true,
+            googleProfile: data.googleProfile,
+            message: data.message,
           };
         }
 

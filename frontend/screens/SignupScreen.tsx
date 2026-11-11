@@ -19,7 +19,7 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -40,6 +40,8 @@ type SignupScreenNavigationProp = NativeStackNavigationProp<
   RootNavigatorParamList,
   "Signup"
 >;
+
+type SignupScreenRouteProp = RouteProp<RootNavigatorParamList, "Signup">;
 
 type Step = 1 | 2;
 type UserRole = "contractor" | "labor" | "supervisor";
@@ -94,6 +96,7 @@ export default function SignupScreen() {
   const { signup, loginWithGoogle } = useAuth();
   const { t } = useLanguage();
   const navigation = useNavigation<SignupScreenNavigationProp>();
+  const route = useRoute<SignupScreenRouteProp>();
   const insets = useSafeAreaInsets();
 
   const [step, setStep] = useState<Step>(1);
@@ -121,6 +124,18 @@ export default function SignupScreen() {
   const [showMobileCompletionModal, setShowMobileCompletionModal] =
     useState(false);
   const [pendingGoogleProfile, setPendingGoogleProfile] = useState<any>(null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [googleLoadingText, setGoogleLoadingText] = useState("");
+  const [prefilledGoogleFromLogin, setPrefilledGoogleFromLogin] = useState<any>(
+    route.params?.prefillGoogleProfile || null,
+  );
+
+  useEffect(() => {
+    if (route.params?.prefillGoogleProfile) {
+      setPrefilledGoogleFromLogin(route.params.prefillGoogleProfile);
+      setStep(1);
+    }
+  }, [route.params?.prefillGoogleProfile]);
 
   // Password validation criteria
   const isMinLength = password.length >= 6;
@@ -417,6 +432,96 @@ export default function SignupScreen() {
   const selectRoleAndNext = (role: UserRole) => {
     setSelectedRole(role);
     setStep(2);
+    if (prefilledGoogleFromLogin) {
+      setPendingGoogleProfile(prefilledGoogleFromLogin);
+      setPrefilledGoogleFromLogin(null);
+      setShowMobileCompletionModal(true);
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    if (!selectedRole || isGoogleLoading || isLoading) return;
+    setIsGoogleLoading(true);
+    setGoogleLoadingText("Connecting to Google...");
+    try {
+      const googleRes = await promptGoogleSignIn();
+      if (googleRes.type === "cancel") {
+        setIsGoogleLoading(false);
+        setGoogleLoadingText("");
+        return;
+      }
+      if (googleRes.type === "error") {
+        setIsGoogleLoading(false);
+        setGoogleLoadingText("");
+        Alert.alert(
+          "Google Sign-In Error",
+          googleRes.error || "Unable to connect to Google.",
+        );
+        return;
+      }
+
+      setGoogleLoadingText("Checking Google account...");
+      const res = await loginWithGoogle(
+        googleRes.idToken,
+        googleRes.accessToken,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        selectedRole,
+        undefined,
+        undefined,
+        "signup",
+      );
+      setIsGoogleLoading(false);
+      setGoogleLoadingText("");
+
+      if (res.requiresMobileCompletion) {
+        setPendingGoogleProfile({
+          ...res.googleProfile,
+          idToken: googleRes.idToken,
+          accessToken: googleRes.accessToken,
+        });
+        setShowMobileCompletionModal(true);
+      } else if (!res.success) {
+        Alert.alert(
+          res.code === "ROLE_MISMATCH"
+            ? "Account Already Registered"
+            : "Google Sign-Up Failed",
+          res.message || "Google Sign-In failed. Please try again.",
+        );
+      }
+    } catch {
+      setIsGoogleLoading(false);
+      setGoogleLoadingText("");
+      Alert.alert("Error", "Unable to sign in with Google right now.");
+    }
+  };
+
+  const handleCompleteGoogleRegistration = async (
+    phoneStr: string,
+    companyNameStr?: string,
+  ) => {
+    if (!pendingGoogleProfile) return;
+    const roleToUse: UserRole = selectedRole || "contractor";
+    const res = await loginWithGoogle(
+      pendingGoogleProfile.idToken,
+      pendingGoogleProfile.accessToken,
+      phoneStr,
+      undefined,
+      pendingGoogleProfile.name,
+      companyNameStr,
+      roleToUse,
+      pendingGoogleProfile.googleId,
+      pendingGoogleProfile.email,
+      "signup",
+    );
+    if (res.success) {
+      setShowMobileCompletionModal(false);
+      setPendingGoogleProfile(null);
+    } else {
+      throw new Error(res.message || "Failed to create account.");
+    }
   };
 
   const handleSignup = async () => {
@@ -609,6 +714,41 @@ export default function SignupScreen() {
         {/* ── STEP 1: ROLE SELECTION ── */}
         {step === 1 ? (
           <View style={styles.stepContent}>
+            {prefilledGoogleFromLogin ? (
+              <View
+                style={[
+                  styles.googleNoticeBanner,
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(66, 133, 244, 0.14)"
+                      : "#EFF6FF",
+                    borderColor: isDark
+                      ? "rgba(96, 165, 250, 0.35)"
+                      : "#BFDBFE",
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="logo-google"
+                  size={18}
+                  color="#4285F4"
+                  style={{ marginRight: 10 }}
+                />
+                <ThemedText
+                  style={{
+                    flex: 1,
+                    fontSize: 12.5,
+                    color: isDark ? "#E2E8F0" : "#1E3A8A",
+                    fontWeight: "600",
+                  }}
+                >
+                  Google account verified (
+                  {prefilledGoogleFromLogin.email ||
+                    prefilledGoogleFromLogin.name}
+                  ). Choose your account type below to finish setup.
+                </ThemedText>
+              </View>
+            ) : null}
             {/* 1. CONTRACTOR CARD */}
             <Pressable
               onPress={() => selectRoleAndNext("contractor")}
@@ -1444,9 +1584,78 @@ export default function SignupScreen() {
                       : t("auth.createLabourAccount", "Create Labour Account")}
               </ThemedText>
             </AnimatedPressable>
+
+            {/* OR Divider + Continue with Google for all 3 roles */}
+            <View style={styles.orRow}>
+              <View
+                style={[styles.orLine, { backgroundColor: theme.border }]}
+              />
+              <ThemedText
+                style={[styles.orText, { color: theme.textSecondary }]}
+              >
+                {t("common.or", "OR")}
+              </ThemedText>
+              <View
+                style={[styles.orLine, { backgroundColor: theme.border }]}
+              />
+            </View>
+
+            <Pressable
+              style={[
+                styles.googleBtn,
+                {
+                  backgroundColor: isDark
+                    ? "rgba(255, 255, 255, 0.05)"
+                    : "#FFFFFF",
+                  borderColor: theme.border,
+                },
+              ]}
+              onPress={handleGoogleSignUp}
+              disabled={isLoading || isGoogleLoading}
+            >
+              {isGoogleLoading ? (
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <ActivityIndicator
+                    size="small"
+                    color="#4285F4"
+                    style={{ marginRight: 8 }}
+                  />
+                  <ThemedText
+                    style={[styles.googleBtnLabel, { color: theme.text }]}
+                  >
+                    {googleLoadingText || "Connecting to Google..."}
+                  </ThemedText>
+                </View>
+              ) : (
+                <>
+                  <Ionicons
+                    name="logo-google"
+                    size={18}
+                    color="#4285F4"
+                    style={{ marginRight: 10 }}
+                  />
+                  <ThemedText
+                    style={[styles.googleBtnLabel, { color: theme.text }]}
+                  >
+                    {t("auth.continueWithGoogle", "Continue with Google")}
+                  </ThemedText>
+                </>
+              )}
+            </Pressable>
           </View>
         )}
       </ScrollContainer>
+
+      <GoogleMobileCompletionModal
+        visible={showMobileCompletionModal}
+        role={selectedRole || "contractor"}
+        googleProfile={pendingGoogleProfile}
+        onClose={() => {
+          setShowMobileCompletionModal(false);
+          setPendingGoogleProfile(null);
+        }}
+        onSuccess={handleCompleteGoogleRegistration}
+      />
     </ThemedView>
   );
 }
@@ -1601,12 +1810,47 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 16,
-    marginBottom: 24,
+    marginBottom: 14,
   },
   signupButtonText: {
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 16,
+  },
+  googleNoticeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  orRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 12,
+    gap: 12,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+  },
+  orText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  googleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 50,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 24,
+  },
+  googleBtnLabel: {
+    fontSize: 15,
+    fontWeight: "600",
   },
   validationMsg: {
     fontSize: 12,

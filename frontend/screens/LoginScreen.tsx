@@ -28,7 +28,6 @@ import { BlurView } from "expo-blur";
 
 import { ThemedText } from "@/components/ThemedText";
 import { AppInfoModal } from "@/components/AppInfoModal";
-import GoogleMobileCompletionModal from "@/components/GoogleMobileCompletionModal";
 import { promptGoogleSignIn } from "@/utils/googleAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/hooks/useAuth";
@@ -171,11 +170,6 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [firebaseSessionInfo, setFirebaseSessionInfo] = useState<string | null>(null);
 
-  // Google completion modal state
-  const [showMobileCompletionModal, setShowMobileCompletionModal] =
-    useState(false);
-  const [pendingGoogleProfile, setPendingGoogleProfile] = useState<any>(null);
-
   // OTP Refs for 6 boxes
   const otpRefs = useRef<Array<any>>([]);
   const [otpArray, setOtpArray] = useState(["", "", "", "", "", ""]);
@@ -214,21 +208,31 @@ export default function LoginScreen() {
         return;
       }
 
-      setGoogleLoadingText("Setting up your Haajari Manager account...");
+      setGoogleLoadingText("Signing in to your Haajari Manager account...");
       const res = await loginWithGoogle(
         googleRes.idToken,
         googleRes.accessToken,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "login",
       );
       setIsGoogleLoading(false);
       setGoogleLoadingText("");
 
-      if (res.requiresMobileCompletion) {
-        setPendingGoogleProfile({
-          ...res.googleProfile,
-          idToken: googleRes.idToken,
-          accessToken: googleRes.accessToken,
+      if (res.requiresSignupRoleSelection || res.requiresMobileCompletion) {
+        // Brand-new Google user: send to Signup screen where Contractor / Worker / Supervisor cards are shown
+        navigationProp.navigate("Signup", {
+          prefillGoogleProfile: {
+            ...res.googleProfile,
+            idToken: googleRes.idToken,
+            accessToken: googleRes.accessToken,
+          },
         });
-        setShowMobileCompletionModal(true);
       } else if (!res.success) {
         setError(res.message || "Google Sign-In failed. Please try again.");
       }
@@ -236,27 +240,6 @@ export default function LoginScreen() {
       setIsGoogleLoading(false);
       setGoogleLoadingText("");
       setError("Unable to sign in with Google right now.");
-    }
-  };
-
-  const handleCompleteGoogleRegistration = async (phoneStr: string) => {
-    if (!pendingGoogleProfile) return;
-    const res = await loginWithGoogle(
-      pendingGoogleProfile.idToken,
-      pendingGoogleProfile.accessToken,
-      phoneStr,
-      undefined,
-      pendingGoogleProfile.name,
-      undefined,
-      "contractor",
-      pendingGoogleProfile.googleId,
-      pendingGoogleProfile.email,
-    );
-    if (res.success) {
-      setShowMobileCompletionModal(false);
-      setPendingGoogleProfile(null);
-    } else {
-      throw new Error(res.message || "Failed to create account.");
     }
   };
 
@@ -936,13 +919,6 @@ export default function LoginScreen() {
           </Pressable>
         </Animated.View>
       </KeyboardAwareScrollView>
-
-      <GoogleMobileCompletionModal
-        visible={showMobileCompletionModal}
-        googleProfile={pendingGoogleProfile}
-        onClose={() => setShowMobileCompletionModal(false)}
-        onSuccess={handleCompleteGoogleRegistration}
-      />
     </View>
   );
 }

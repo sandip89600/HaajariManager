@@ -1627,6 +1627,9 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
+    if (!user.uniqueId) {
+      await user.save();
+    }
 
     // If user is worker / labor, dynamically sync and enrich with canonical Worker record
     if (user.role === "labor" || (user.role as string) === "worker") {
@@ -2776,11 +2779,39 @@ export const savePushToken = async (req: AuthenticatedRequest, res: Response) =>
 // 14. Google Sign-In Authentication Handler
 export const googleAuth = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { idToken, accessToken, googleId: clientGoogleId, email: clientEmail, phone, otp, name: customName, companyName, role } = req.body;
+    const {
+      idToken,
+      accessToken,
+      googleId: clientGoogleId,
+      email: clientEmail,
+      phone,
+      otp,
+      name: customName,
+      companyName,
+      role,
+      intent,
+    } = req.body;
 
     if (!idToken && !accessToken && !clientGoogleId) {
       return res.status(400).json({ success: false, message: "Google credential token is required." });
     }
+
+    const normalizeGoogleRole = (
+      r?: string,
+    ): "contractor" | "builder" | "labor" | "supervisor" | null => {
+      const val = (r || "").toLowerCase().trim();
+      if (val === "contractor" || val === "builder") return val as "contractor" | "builder";
+      if (val === "labor" || val === "worker") return "labor";
+      if (val === "supervisor") return "supervisor";
+      return null;
+    };
+
+    const getRoleCategory = (r?: string): "contractor" | "worker" | "supervisor" => {
+      const val = (r || "").toLowerCase().trim();
+      if (val === "labor" || val === "worker") return "worker";
+      if (val === "supervisor") return "supervisor";
+      return "contractor";
+    };
 
     let googleUser: {
       sub: string;
@@ -2846,32 +2877,65 @@ export const googleAuth = async (req: AuthenticatedRequest, res: Response) => {
     const googleId = googleUser.sub;
     const emailCleaned = (googleUser.email || "").toLowerCase().trim();
 
-    // 3. Find existing user by googleId
+    // 3. Find existing user by googleId or verified email
     let user = await User.findOne({ googleId });
+    let matchedByEmailOnly = false;
 
-    // 4. If not found by googleId, check if existing account matches verified email
     if (!user && emailCleaned) {
       const existingUserByEmail = await User.findOne({ email: emailCleaned });
       if (existingUserByEmail) {
-        // Safely link Google Account to existing account
-        existingUserByEmail.googleId = googleId;
-        if (!existingUserByEmail.authProvider) {
-          existingUserByEmail.authProvider = "google";
-        }
-        if (googleUser.picture && !existingUserByEmail.profileImage) {
-          existingUserByEmail.profileImage = googleUser.picture;
-        }
-        await existingUserByEmail.save();
         user = existingUserByEmail;
-        console.log(`[Google Auth] Linked Google account ${googleId} to existing email ${emailCleaned}`);
+        matchedByEmailOnly = true;
       }
     }
 
-    // 5. If user does NOT exist, create account or request mobile completion
+    // 4. Enforce role mismatch warning if existing user tries to sign up under a different role
+    if (user && intent === "signup" && role) {
+      const existingCat = getRoleCategory(user.role);
+      const requestedCat = getRoleCategory(role);
+      if (existingCat !== requestedCat) {
+        return res.status(409).json({
+          success: false,
+          code: "ROLE_MISMATCH",
+          existingRole: user.role,
+          message: `Your account has logged in with a ${existingCat} account. Please delete your account and log in with a ${requestedCat} account.`,
+        });
+      }
+    }
+
+    // Safely link Google Account to existing email-matched account after passing role check
+    if (user && matchedByEmailOnly) {
+      user.googleId = googleId;
+      if (!user.authProvider) {
+        user.authProvider = "google";
+      }
+      if (googleUser.picture && !user.profileImage) {
+        user.profileImage = googleUser.picture;
+      }
+      await user.save();
+      console.log(`[Google Auth] Linked Google account ${googleId} to existing email ${emailCleaned}`);
+    }
+
+    // 5. If user does NOT exist, guide LoginScreen new users to role selection or create account
     if (!user) {
-      const phoneCleaned = (phone || "").replace(/\s+/g, "").trim();
+      const phoneCleaned = (phone || "").replace(/\D/g, "").trim();
 
       if (!phoneCleaned) {
+        if (intent === "login") {
+          return res.json({
+            success: true,
+            requiresSignupRoleSelection: true,
+            requiresMobileCompletion: false,
+            googleProfile: {
+              googleId,
+              email: emailCleaned,
+              name: googleUser.name || customName || "Haajari User",
+              picture: googleUser.picture || "",
+            },
+            message: "No account found with this Google email. Please choose your account type to register.",
+          });
+        }
+
         return res.json({
           success: true,
           requiresMobileCompletion: true,
@@ -2881,7 +2945,43 @@ export const googleAuth = async (req: AuthenticatedRequest, res: Response) => {
             name: googleUser.name || customName || "Haajari User",
             picture: googleUser.picture || "",
           },
-          message: "Please enter your 10-digit mobile number to complete account setup.",
+          message: "Please enter your details to complete account setup.",
+        });
+      }
+
+      if (!/^\d{10}$/.test(phoneCleaned)) {
+        return res.status(400).json({
+          success: false,
+          field: "phone",
+          message: "Please enter a valid 10-digit mobile number.",
+        });
+      }
+
+      if (role && !normalizeGoogleRole(role)) {
+        return res.status(400).json({
+          success: false,
+          field: "role",
+          message: "Invalid role selected during Google signup.",
+        });
+      }
+
+      const userRole = normalizeGoogleRole(role) || "contractor";
+      const trimmedCompany = (companyName || "").trim();
+
+      if ((userRole === "contractor" || userRole === "builder") && !trimmedCompany) {
+        return res.status(400).json({
+          success: false,
+          field: "companyName",
+          message: "Company Name is required for Contractor registration.",
+        });
+      }
+
+      const existingPhoneUser = await User.findOne({ phone: phoneCleaned });
+      if (existingPhoneUser) {
+        return res.status(409).json({
+          success: false,
+          field: "phone",
+          message: "This mobile number is already registered.",
         });
       }
 
@@ -2899,9 +2999,11 @@ export const googleAuth = async (req: AuthenticatedRequest, res: Response) => {
         await activeOtp.save();
       }
 
-      // Create Tenant for new user workspace
-      const userRole = (role || "contractor") as "contractor" | "builder";
-      const orgName = (companyName || `${googleUser.name || "My"} Org`).trim();
+      const displayName = (customName || googleUser.name || "Haajari User").trim();
+      const orgName =
+        userRole === "labor"
+          ? `${displayName} Org`
+          : trimmedCompany || `${displayName} Org`;
       const tenantCode = `TEN_${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 
       const tenant = new Tenant({
@@ -2916,23 +3018,53 @@ export const googleAuth = async (req: AuthenticatedRequest, res: Response) => {
 
       user = new User({
         tenantId: tenant._id,
-        name: (customName || googleUser.name || "Haajari User").trim(),
+        name: displayName,
         email: emailCleaned || undefined,
         phone: phoneCleaned,
         role: userRole,
+        workerCategory: userRole === "labor" ? "labour" : undefined,
+        contractorCompany:
+          userRole === "supervisor" && trimmedCompany ? trimmedCompany : undefined,
         passwordHash: randomPasswordHash,
         googleId,
         authProvider: "google",
         isActive: true,
         isVerified: true,
+        isEmailVerified: Boolean(googleUser.email_verified || emailCleaned),
+        emailVerifiedAt: emailCleaned ? new Date() : undefined,
         isPhoneVerified: true,
         phoneVerifiedAt: new Date(),
         status: "active",
         profileImage: googleUser.picture || undefined,
       });
 
-      await user.save();
-      console.log(`[Google Auth] Created new user with Google ID ${googleId} and phone ${phoneCleaned}`);
+      try {
+        await user.save();
+      } catch (saveError: any) {
+        if (saveError?.code === 11000) {
+          const msg = saveError.message || "";
+          if (msg.includes("phone")) {
+            return res.status(409).json({
+              success: false,
+              field: "phone",
+              message: "This mobile number is already registered.",
+            });
+          }
+          if (msg.includes("email")) {
+            return res.status(409).json({
+              success: false,
+              field: "email",
+              message: "This email is already registered.",
+            });
+          }
+          return res.status(409).json({
+            success: false,
+            message: "An account with these details already exists.",
+          });
+        }
+        throw saveError;
+      }
+      console.log(`[Google Auth] Created new ${userRole} user (${user.uniqueId}) with Google ID ${googleId}`);
     }
 
     // 6. Device resolution & session logging
@@ -3001,12 +3133,18 @@ export const googleAuth = async (req: AuthenticatedRequest, res: Response) => {
       refreshToken,
       user: {
         id: user._id,
+        uniqueId: user.uniqueId || "",
         name: user.name,
         phone: user.phone,
         email: user.email || "",
         username: user.username || "",
         role: user.role,
+        workerCategory: user.workerCategory || "",
+        dailyWage: user.dailyWage,
         tenantId: user.tenantId,
+        connectionStatus: user.connectionStatus || "not_connected",
+        contractorName: user.contractorName || "",
+        contractorCompany: user.contractorCompany || "",
         isVerified: user.isVerified,
         isPhoneVerified: !!user.isPhoneVerified,
         plan: tenant?.plan || "free",
