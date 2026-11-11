@@ -415,17 +415,35 @@ export function generateQrMatrix(text: string): boolean[][] {
 /**
  * Creates standard opaque deep link for QR Code
  * Format: haajari://connect?id=<uniqueId>&role=<role>&name=<name>
+ * Ensures payload stays within single-block QR capacity (<= 100 bytes)
+ * so long user names never corrupt the QR matrix.
  */
 export function buildConnectPayload(
   uniqueId: string,
   role: string,
   name?: string,
 ): string {
-  const params = new URLSearchParams();
-  params.set("id", (uniqueId || "").trim().toUpperCase());
-  params.set("role", (role || "worker").trim().toLowerCase());
-  if (name) params.set("name", name.trim());
-  return `haajari://connect?${params.toString()}`;
+  const buildWith = (nameVal?: string) => {
+    const params = new URLSearchParams();
+    params.set("id", (uniqueId || "").trim().toUpperCase());
+    params.set("role", (role || "worker").trim().toLowerCase());
+    if (nameVal && nameVal.trim()) {
+      params.set("name", nameVal.trim());
+    }
+    return `haajari://connect?${params.toString()}`;
+  };
+
+  if (!name || !name.trim()) {
+    return buildWith();
+  }
+
+  let candidate = name.trim().slice(0, 24);
+  let payload = buildWith(candidate);
+  while (payload.length > 100 && candidate.length > 0) {
+    candidate = candidate.slice(0, candidate.length - 2);
+    payload = buildWith(candidate);
+  }
+  return payload.length <= 100 ? payload : buildWith();
 }
 
 /**

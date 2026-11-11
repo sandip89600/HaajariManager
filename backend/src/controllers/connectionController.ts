@@ -326,8 +326,8 @@ export const createConnectionRequest = async (req: AuthenticatedRequest, res: Re
 // 5. Verify 6-Digit Connection Code and Activate Connection
 export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const contractorId = req.user?.id;
-    const tenantId = req.user?.tenantId;
+    const currentUserId = req.user?.id;
+    const currentTenantId = req.user?.tenantId;
     const { targetUniqueId, targetUserId, code } = req.body;
 
     if (!code || typeof code !== "string" || code.trim().length !== 6) {
@@ -347,8 +347,8 @@ export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Respo
 
     const connectionReq = await ConnectionRequest.findOne({
       $or: [
-        { senderId: contractorId, receiverId: targetUser._id },
-        { senderId: targetUser._id, receiverId: contractorId },
+        { senderId: currentUserId, receiverId: targetUser._id },
+        { senderId: targetUser._id, receiverId: currentUserId },
       ],
       status: "pending",
     });
@@ -386,75 +386,102 @@ export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Respo
       });
     }
 
-    // Code matched! Activate connection
+    const currentUser = await User.findById(currentUserId);
+    if (!currentUser) {
+      return res.status(404).json({ success: false, message: "Current user account not found." });
+    }
+
+    // Code matched! Activate connection resolving contractor vs member by role
     connectionReq.status = "active";
     connectionReq.connectedAt = new Date();
     await connectionReq.save();
 
-    const contractor = await User.findById(contractorId);
-    const tenant = await Tenant.findById(tenantId);
+    const isCurrentContractor =
+      currentUser.role === "contractor" || currentUser.role === "builder" || currentUser.role === "admin";
+    const isTargetContractor =
+      targetUser.role === "contractor" || targetUser.role === "builder";
 
-    if (tenantId) targetUser.tenantId = new mongoose.Types.ObjectId(tenantId);
-    if (contractorId) targetUser.contractorId = new mongoose.Types.ObjectId(contractorId);
-    targetUser.contractorName = contractor?.name || "";
-    targetUser.contractorCompany = tenant?.name || "";
-    targetUser.connectionStatus = "connected";
-    await targetUser.save();
+    const contractor = isCurrentContractor
+      ? currentUser
+      : isTargetContractor
+        ? targetUser
+        : currentUser;
+    const member =
+      contractor._id.toString() === targetUser._id.toString() ? currentUser : targetUser;
 
-    // If target is worker / labor, ensure a corresponding Worker record exists in the tenant
+    const resolvedTenantId = contractor.tenantId || currentTenantId;
+    const tenant = resolvedTenantId ? await Tenant.findById(resolvedTenantId) : null;
+
+    if (resolvedTenantId) member.tenantId = new mongoose.Types.ObjectId(resolvedTenantId);
+    member.contractorId = contractor._id as any;
+    member.contractorName = contractor.name || "";
+    member.contractorCompany = tenant?.name || "";
+    member.connectionStatus = "connected";
+    await member.save();
+
+    if (contractor._id.toString() !== member._id.toString()) {
+      contractor.connectionStatus = "connected";
+      await contractor.save();
+    }
+
+    // If member is worker / labor, ensure a corresponding Worker record exists in contractor's tenant
     let existingWorker: any = null;
-    if (targetUser.role === "labor" || (targetUser.role as string) === "worker") {
-      if (connectionReq.workerId) {
-        existingWorker = await Worker.findById(connectionReq.workerId);
-      }
-      if (!existingWorker) {
-        const phoneDigits = targetUser.phone ? targetUser.phone.replace(/\D/g, "") : "";
-        existingWorker = await Worker.findOne({
-          tenantId,
-          $or: [
-            { userId: targetUser._id },
-            ...(targetUser.uniqueId ? [{ uniqueId: targetUser.uniqueId }] : []),
-            ...(phoneDigits.length >= 10 ? [{ phone: new RegExp(phoneDigits.slice(-10) + "$") }] : []),
-            { name: targetUser.name },
-          ],
-        });
-      }
+    if (member.role === "labor" || (member.role as string) === "worker") {
+      try {
+        if (connectionReq.workerId) {
+          existingWorker = await Worker.findById(connectionReq.workerId);
+        }
+        if (!existingWorker) {
+          const phoneDigits = member.phone ? member.phone.replace(/\D/g, "") : "";
+          existingWorker = await Worker.findOne({
+            tenantId: resolvedTenantId,
+            $or: [
+              { userId: member._id },
+              ...(member.uniqueId ? [{ uniqueId: member.uniqueId }] : []),
+              ...(phoneDigits.length >= 10 ? [{ phone: new RegExp(phoneDigits.slice(-10) + "$") }] : []),
+              { name: member.name },
+            ],
+          });
+        }
 
-      if (existingWorker) {
-        existingWorker.userId = targetUser._id as any;
-        existingWorker.isClaimed = true;
-        existingWorker.claimedAt = new Date();
-        if (targetUser.uniqueId && !existingWorker.uniqueId) {
-          existingWorker.uniqueId = targetUser.uniqueId;
-        } else if (existingWorker.uniqueId && !targetUser.uniqueId) {
-          targetUser.uniqueId = existingWorker.uniqueId;
-          await targetUser.save();
+        if (existingWorker) {
+          existingWorker.userId = member._id as any;
+          existingWorker.isClaimed = true;
+          existingWorker.claimedAt = new Date();
+          if (member.uniqueId && !existingWorker.uniqueId) {
+            existingWorker.uniqueId = member.uniqueId;
+          } else if (existingWorker.uniqueId && !member.uniqueId) {
+            member.uniqueId = existingWorker.uniqueId;
+            await member.save();
+          }
+          if (existingWorker.dailyRate) {
+            member.dailyWage = existingWorker.dailyRate;
+            await member.save();
+          }
+          await existingWorker.save();
+          connectionReq.workerId = existingWorker._id as any;
+          await connectionReq.save();
+        } else {
+          existingWorker = new Worker({
+            tenantId: resolvedTenantId,
+            userId: member._id,
+            uniqueId: member.uniqueId,
+            name: member.name,
+            phone: member.phone,
+            category: member.workerCategory || "labour",
+            dailyRate: member.dailyWage || 0,
+            skillCategory: "skilled",
+            paymentType: "daily",
+            isArchived: false,
+            isClaimed: true,
+            claimedAt: new Date(),
+          });
+          await existingWorker.save();
+          connectionReq.workerId = existingWorker._id as any;
+          await connectionReq.save();
         }
-        if (existingWorker.dailyRate) {
-          targetUser.dailyWage = existingWorker.dailyRate;
-          await targetUser.save();
-        }
-        await existingWorker.save();
-        connectionReq.workerId = existingWorker._id as any;
-        await connectionReq.save();
-      } else {
-        existingWorker = new Worker({
-          tenantId,
-          userId: targetUser._id,
-          uniqueId: targetUser.uniqueId,
-          name: targetUser.name,
-          phone: targetUser.phone,
-          category: targetUser.workerCategory || "labour",
-          dailyRate: targetUser.dailyWage || 0,
-          skillCategory: "skilled",
-          paymentType: "daily",
-          isArchived: false,
-          isClaimed: true,
-          claimedAt: new Date(),
-        });
-        await existingWorker.save();
-        connectionReq.workerId = existingWorker._id as any;
-        await connectionReq.save();
+      } catch (workerErr) {
+        console.warn("Worker profile sync non-fatal error in verifyConnectionCode:", workerErr);
       }
     }
 
@@ -472,22 +499,22 @@ export const verifyConnectionCode = async (req: AuthenticatedRequest, res: Respo
     try {
       const io = getIO();
       const verifiedPayload = {
-        contractorId: contractorId?.toString(),
-        contractorName: contractor?.name,
+        contractorId: contractor._id.toString(),
+        contractorName: contractor.name,
         companyName: tenant?.name,
-        targetUserId: targetUser._id.toString(),
-        targetUserName: targetUser.name,
-        uniqueId: targetUser.uniqueId,
+        targetUserId: member._id.toString(),
+        targetUserName: member.name,
+        uniqueId: member.uniqueId,
         workerId: verifiedWorkerId,
         worker: verifiedWorkerData,
         connectedAt: connectionReq.connectedAt,
       };
 
-      io.to(`user_${targetUser._id}`).emit("connection:verified", verifiedPayload);
-      io.to(`user_${contractorId}`).emit("connection:verified", verifiedPayload);
-      io.to(`user_${contractorId}`).emit("connection:accepted", verifiedPayload);
-      if (tenantId) {
-        io.to(`tenant_${tenantId}`).emit("connection:accepted", verifiedPayload);
+      io.to(`user_${member._id}`).emit("connection:verified", verifiedPayload);
+      io.to(`user_${contractor._id}`).emit("connection:verified", verifiedPayload);
+      io.to(`user_${contractor._id}`).emit("connection:accepted", verifiedPayload);
+      if (resolvedTenantId) {
+        io.to(`tenant_${resolvedTenantId}`).emit("connection:accepted", verifiedPayload);
       }
       io.emit("admin_dashboard_update");
     } catch (socketErr) {
