@@ -1838,46 +1838,10 @@ export const changePassword = async (req: AuthenticatedRequest, res: Response) =
 };
 
 export const upgradePlan = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const tenantId = req.user?.tenantId;
-    const userId = req.user?.id;
-    if (!tenantId || !userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    const { plan } = req.body;
-
-    if (!plan || !["free", "professional", "business"].includes(plan)) {
-      return res.status(400).json({ error: "Invalid plan type" });
-    }
-
-    const tenant = await Tenant.findById(tenantId);
-    if (!tenant) {
-      return res.status(404).json({ error: "Tenant not found" });
-    }
-
-    tenant.plan = plan as any;
-    if (plan !== "free") {
-      tenant.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-    } else {
-      tenant.planExpiresAt = undefined;
-    }
-
-    await tenant.save();
-
-    await logActivity({
-      req,
-      action: "PLAN_UPGRADE",
-      targetType: "Tenant",
-      targetId: tenantId.toString(),
-      userId: userId.toString(),
-      tenantId: tenantId.toString(),
-      changes: { after: { plan } }
-    });
-
-    res.json({ success: true, message: `Subscription upgraded to ${plan}`, plan: tenant.plan });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
+  return res.status(403).json({
+    error: "DEPRECATED_ENDPOINT",
+    message: "Direct plan upgrade via /auth/upgrade has been decommissioned. Please subscribe securely through Google Play In-App Purchases in the Haajari Manager app.",
+  });
 };
 
 export const deleteAccount = async (req: AuthenticatedRequest, res: Response) => {

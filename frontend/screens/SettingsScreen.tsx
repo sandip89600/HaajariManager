@@ -824,57 +824,9 @@ export default function SettingsScreen({
   };
 
   // ─── SUBSCRIPTION UPGRADE FLOW ──────────────────────────────────────────────
-  const handleUpgrade = async (plan: "pro" | "business") => {
-    const planName = plan === "pro" ? "Professional" : "Business";
-    const paymentLinks = {
-      pro: "https://rzp.io/rzp/6bP0p3Q",
-      business: "https://rzp.io/rzp/6bP0p3Q",
-    };
-
-    const baseLink = paymentLinks[plan];
-    const emailStr = currentUser?.phone || "";
-    const paymentUrl = `${baseLink}?email=${encodeURIComponent(emailStr)}&name=${encodeURIComponent(currentUser?.name || "")}`;
-
-    try {
-      setShowUpgradeModal(false);
-      const result = await WebBrowser.openBrowserAsync(paymentUrl);
-      if (result.type === "cancel") {
-        Alert.alert("Payment Cancelled", "Subscription process was cancelled.");
-      } else {
-        const backendPlan: "professional" | "business" =
-          plan === "pro" ? "professional" : "business";
-
-        // Update subscription plan on backend
-        const res = await authenticatedFetch(`${API_URL}/auth/upgrade`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ plan: backendPlan }),
-        });
-
-        if (!res.ok) {
-          throw new Error("Failed to update subscription on server");
-        }
-
-        // Sync local storage and state
-        if (currentUser) {
-          const updatedUser = { ...currentUser, plan: backendPlan };
-          await storage.updateUser(updatedUser);
-          setCurrentUser(updatedUser);
-
-          const auth = await storage.getAuth();
-          if (auth) {
-            auth.plan = backendPlan;
-            await storage.setAuth(auth);
-          }
-        }
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Success", `Your Haajari Manager ${planName} Plan is now active.`);
-      }
-    } catch (error) {
-      console.warn("Failed to upgrade plan:", error);
-      Alert.alert("Error", "Could not complete the plan upgrade.");
-    }
+  const handleUpgrade = async (_plan?: "pro" | "business") => {
+    setShowUpgradeModal(false);
+    navigation.navigate("Subscription");
   };
 
   // ─── LOGOUT FLOW ───────────────────────────────────────────────────────────

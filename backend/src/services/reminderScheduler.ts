@@ -1,5 +1,6 @@
-import { User, Attendance, Tenant } from "../models";
+import { User, Attendance, Tenant, UserSubscriptionV2 } from "../models";
 import { createAndSendNotification } from "./notificationService";
+import { getIO } from "../utils/socket";
 
 export async function checkDailyAttendanceReminders() {
   try {
@@ -63,6 +64,31 @@ export async function checkSubscriptionReminders() {
         threshold = "EXPIRED";
         title = "Subscription Expired ❌";
         message = `Your ${tenant.plan.toUpperCase()} plan has expired. Renew your plan to continue using business features.`;
+
+        // Automatically demote expired tenant in DB to prevent unauthorized PRO access
+        if (tenant.plan !== "basic") {
+          tenant.plan = "basic";
+          await tenant.save();
+          console.log(`[ReminderScheduler] Automatically demoted expired tenant ${tenant._id} to basic plan.`);
+
+          // Mark corresponding UserSubscriptionV2 as expired
+          await UserSubscriptionV2.updateMany(
+            { tenantId: tenant._id, status: { $in: ["active", "cancelled"] } },
+            { $set: { status: "expired" } }
+          );
+
+          // Real-time broadcast to connected clients
+          try {
+            const io = getIO();
+            if (io) {
+              io.to(`tenant_${tenant._id.toString()}`).emit("subscription:statusUpdated", {
+                status: "expired",
+                plan: "basic",
+                expiresAt: tenant.planExpiresAt,
+              });
+            }
+          } catch {}
+        }
       }
 
       if (threshold) {

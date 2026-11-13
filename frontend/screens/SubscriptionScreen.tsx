@@ -452,12 +452,24 @@ export default function SubscriptionScreen() {
       )
     : null;
 
+  // Helper to extract real-time formatted price from Google Play Billing v5/v6+ or v4
+  const getGooglePlayPrice = (
+    product: ProductSubscriptionAndroid | undefined,
+    fallback: string
+  ): string => {
+    if (!product) return fallback;
+    const offerDetails = (product as any)?.subscriptionOfferDetailsAndroid;
+    const v5Price =
+      offerDetails?.[0]?.pricingPhases?.pricingPhaseList?.[0]?.formattedPrice;
+    return v5Price || product.displayPrice || fallback;
+  };
+
   // Retrieve dynamic localized prices from Google Play product details
   const monthlyProduct = googleProducts.find((p) => p.id === MONTHLY_PRODUCT_ID);
   const annualProduct = googleProducts.find((p) => p.id === ANNUAL_PRODUCT_ID);
 
-  const monthlyPriceText = monthlyProduct?.displayPrice || "₹149";
-  const annualPriceText = annualProduct?.displayPrice || "₹1,119";
+  const monthlyPriceText = getGooglePlayPrice(monthlyProduct, "₹149");
+  const annualPriceText = getGooglePlayPrice(annualProduct, "₹1,119");
 
   return (
     <ThemedView style={styles.container}>
